@@ -19,9 +19,9 @@ export default function AdminLoginPage() {
       body: JSON.stringify({ password }),
     });
     if (res.ok) {
-      router.push("/admin");
+      window.location.href = "/admin";
     } else {
-      setError("Nespravne heslo");
+      setError("Nesprávne heslo");
     }
     setLoading(false);
   };
