@@ -23,12 +23,12 @@ const links = [
 
 export default function Footer() {
   return (
-    <footer className="bg-brand-footer-bg border-t border-brand-border">
+    <footer className="bg-brand-footer-bg border-t border-black/10 dark:border-brand-border">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
           <div>
             <Link href="/" className="font-display text-2xl text-brand-text tracking-wider">
-              MUDRC<span className="bg-gradient-to-r from-brand-orange to-orange-400 bg-clip-text text-transparent"> KVÍZ</span>
+              MUDRC<span className="text-orange-600 dark:bg-gradient-to-r dark:from-brand-orange dark:to-orange-400 dark:bg-clip-text dark:text-transparent"> KVÍZ</span>
             </Link>
             <p className="text-brand-muted text-sm mt-3 leading-relaxed max-w-xs">
               Vedomostné kvízy vo vašom obľúbenom podniku. Zábava, humor a súťaž v jednom.
@@ -52,16 +52,16 @@ export default function Footer() {
               kontakt@mudrc.sk
             </a>
             <div className="flex gap-3">
-              <a href="https://facebook.com" target="_blank" rel="noopener noreferrer" className="w-9 h-9 rounded-xl bg-brand-surface border border-brand-border flex items-center justify-center text-brand-muted hover:bg-brand-orange hover:text-brand-btn-fg hover:border-brand-orange transition-colors">
+              <a href="https://facebook.com" target="_blank" rel="noopener noreferrer" className="w-9 h-9 rounded-xl bg-white/70 dark:bg-brand-surface border border-black/10 dark:border-brand-border flex items-center justify-center text-brand-muted hover:bg-brand-text hover:text-brand-footer-bg hover:border-brand-text dark:hover:bg-brand-orange dark:hover:text-brand-btn-fg dark:hover:border-brand-orange transition-colors">
                 <FacebookIcon />
               </a>
-              <a href="https://instagram.com" target="_blank" rel="noopener noreferrer" className="w-9 h-9 rounded-xl bg-brand-surface border border-brand-border flex items-center justify-center text-brand-muted hover:bg-brand-orange hover:text-brand-btn-fg hover:border-brand-orange transition-colors">
+              <a href="https://instagram.com" target="_blank" rel="noopener noreferrer" className="w-9 h-9 rounded-xl bg-white/70 dark:bg-brand-surface border border-black/10 dark:border-brand-border flex items-center justify-center text-brand-muted hover:bg-brand-text hover:text-brand-footer-bg hover:border-brand-text dark:hover:bg-brand-orange dark:hover:text-brand-btn-fg dark:hover:border-brand-orange transition-colors">
                 <InstagramIcon />
               </a>
             </div>
           </div>
         </div>
-        <div className="border-t border-brand-border mt-10 pt-6 flex flex-col sm:flex-row justify-between items-center gap-2">
+        <div className="border-t border-black/10 dark:border-brand-border mt-10 pt-6 flex flex-col sm:flex-row justify-between items-center gap-2">
           <p className="text-brand-muted-light text-xs">© 2026 Mudrc Kvíz. Všetky práva vyhradené.</p>
           <p className="text-brand-muted-light text-xs">Vytvorené s láskou ku kvízom</p>
         </div>
