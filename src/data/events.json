@@ -1,0 +1,777 @@
+{
+  "events": [
+    {
+      "slug": "hradok-novaky",
+      "venue": "Hrádok ",
+      "city": "Nováky",
+      "address": "Vymyslená ulica 15/4",
+      "date": "27.06.2026",
+      "time": "18:00",
+      "entryFee": 4,
+      "maxPlayers": 10,
+      "minPlayers": 2,
+      "rounds": 4,
+      "questions": 55,
+      "durationMinutes": 120,
+      "active": true,
+      "imageUrl": "",
+      "rules": [
+        "Každý tím môže mať od 2 do 10 hráčov.",
+        "Na účasť je potrebné sa vopred zaregistrovať.",
+        "Kvíz je zaradený do ligy. Za každý porazený tím získate 1 bod.",
+        "Vstupné je 4 EUR na každého hráča.",
+        "Kvíz pozostáva z 55 všeobecných otázok rozdelených do 4 kôl.",
+        "Po každom kole sa pozbierajú odpovede a nasleduje krátka prestávka.",
+        "V prípade rovnakého počtu bodov nasleduje bonusová otázka.",
+        "Pre víťazné tímy sú pripravené rôzne ceny.",
+        "Počas kvízu sa v podniku nefajčí.",
+        "Je zakázané používať akékoľvek technológie počas kôl.",
+        "A najdôležitejšie — zabaviť sa!"
+      ],
+      "leagueTable": [
+        {
+          "rank": 1,
+          "teamName": "Tím 12",
+          "points": 13,
+          "quizzesPlayed": 2
+        },
+        {
+          "rank": 2,
+          "teamName": "Tím 11",
+          "points": 12,
+          "quizzesPlayed": 2
+        },
+        {
+          "rank": 3,
+          "teamName": "Tím 8",
+          "points": 11,
+          "quizzesPlayed": 2
+        },
+        {
+          "rank": 4,
+          "teamName": "Tím 10",
+          "points": 10,
+          "quizzesPlayed": 2
+        },
+        {
+          "rank": 5,
+          "teamName": "Tím 9",
+          "points": 9,
+          "quizzesPlayed": 1
+        },
+        {
+          "rank": 6,
+          "teamName": "Tím 4",
+          "points": 6,
+          "quizzesPlayed": 1
+        },
+        {
+          "rank": 7,
+          "teamName": "Tím 6",
+          "points": 5,
+          "quizzesPlayed": 1
+        },
+        {
+          "rank": 8,
+          "teamName": "Tím 7",
+          "points": 4,
+          "quizzesPlayed": 2
+        },
+        {
+          "rank": 9,
+          "teamName": "Banda",
+          "points": 4,
+          "quizzesPlayed": 1
+        },
+        {
+          "rank": 10,
+          "teamName": "Bzdochy",
+          "points": 3,
+          "quizzesPlayed": 1
+        },
+        {
+          "rank": 11,
+          "teamName": "Tím 5",
+          "points": 3,
+          "quizzesPlayed": 1
+        },
+        {
+          "rank": 12,
+          "teamName": "Gruppetto",
+          "points": 2,
+          "quizzesPlayed": 1
+        },
+        {
+          "rank": 13,
+          "teamName": "Tím 3",
+          "points": 2,
+          "quizzesPlayed": 1
+        },
+        {
+          "rank": 14,
+          "teamName": "Novácka Mafia",
+          "points": 1,
+          "quizzesPlayed": 1
+        },
+        {
+          "rank": 15,
+          "teamName": "Tím 2",
+          "points": 1,
+          "quizzesPlayed": 1
+        },
+        {
+          "rank": 16,
+          "teamName": "Hujerovci",
+          "points": 0,
+          "quizzesPlayed": 1
+        },
+        {
+          "rank": 17,
+          "teamName": "Tím 1",
+          "points": 0,
+          "quizzesPlayed": 1
+        }
+      ],
+      "pastResults": [
+        {
+          "id": "352fecf2-5f22-4acb-9a84-1c65509e1c26",
+          "date": "29.06.2026",
+          "winnerTeam": "Banda",
+          "points": 24,
+          "teams": [
+            {
+              "teamName": "Banda",
+              "rounds": [
+                6,
+                6,
+                6,
+                6
+              ],
+              "total": 24,
+              "ligaPoints": 4
+            },
+            {
+              "teamName": "Bzdochy",
+              "rounds": [
+                5,
+                5,
+                5,
+                5
+              ],
+              "total": 20.2,
+              "ligaPoints": 3
+            },
+            {
+              "teamName": "Gruppetto",
+              "rounds": [
+                5,
+                5,
+                5,
+                5
+              ],
+              "total": 20.1,
+              "ligaPoints": 2
+            },
+            {
+              "teamName": "Novácka Mafia",
+              "rounds": [
+                5,
+                5,
+                5,
+                5
+              ],
+              "total": 20,
+              "ligaPoints": 1
+            },
+            {
+              "teamName": "Hujerovci",
+              "rounds": [
+                3,
+                3,
+                3,
+                3
+              ],
+              "total": 12,
+              "ligaPoints": 0
+            }
+          ]
+        },
+        {
+          "id": "41872174-edb3-4961-8637-8ac26387b900",
+          "date": "22.06.2026",
+          "winnerTeam": "Tím 12",
+          "points": 48,
+          "teams": [
+            {
+              "teamName": "Tím 12",
+              "rounds": [
+                12,
+                12,
+                12,
+                12
+              ],
+              "total": 48,
+              "ligaPoints": 11
+            },
+            {
+              "teamName": "Tím 11",
+              "rounds": [
+                11,
+                11,
+                11,
+                11
+              ],
+              "total": 44,
+              "ligaPoints": 10
+            },
+            {
+              "teamName": "Tím 9",
+              "rounds": [
+                9,
+                9,
+                9,
+                9
+              ],
+              "total": 36,
+              "ligaPoints": 9
+            },
+            {
+              "teamName": "Tím 10",
+              "rounds": [
+                8,
+                8,
+                8,
+                8
+              ],
+              "total": 32.1,
+              "ligaPoints": 8
+            },
+            {
+              "teamName": "Tím 8",
+              "rounds": [
+                8,
+                8,
+                8,
+                8
+              ],
+              "total": 32,
+              "ligaPoints": 7
+            },
+            {
+              "teamName": "Tím 4",
+              "rounds": [
+                4.5,
+                6.16,
+                8.24,
+                9
+              ],
+              "total": 27.9,
+              "ligaPoints": 6
+            },
+            {
+              "teamName": "Tím 6",
+              "rounds": [
+                5,
+                5,
+                5,
+                5
+              ],
+              "total": 20.2,
+              "ligaPoints": 5
+            },
+            {
+              "teamName": "Tím 7",
+              "rounds": [
+                5,
+                5,
+                5,
+                5
+              ],
+              "total": 20.1,
+              "ligaPoints": 4
+            },
+            {
+              "teamName": "Tím 5",
+              "rounds": [
+                5,
+                5,
+                5,
+                5
+              ],
+              "total": 20,
+              "ligaPoints": 3
+            },
+            {
+              "teamName": "Tím 3",
+              "rounds": [
+                3,
+                3,
+                3,
+                3
+              ],
+              "total": 12,
+              "ligaPoints": 2
+            },
+            {
+              "teamName": "Tím 2",
+              "rounds": [
+                2,
+                2,
+                2,
+                2
+              ],
+              "total": 8,
+              "ligaPoints": 1
+            },
+            {
+              "teamName": "Tím 1",
+              "rounds": [
+                1,
+                1,
+                1,
+                1
+              ],
+              "total": 4,
+              "ligaPoints": 0
+            }
+          ]
+        },
+        {
+          "id": "24c51056-8a42-4c3c-a837-80fc85afa42a",
+          "date": "11.06.2026",
+          "winnerTeam": "Tím 8",
+          "points": 20,
+          "teams": [
+            {
+              "teamName": "Tím 8",
+              "rounds": [
+                5,
+                5,
+                5,
+                5
+              ],
+              "total": 20,
+              "ligaPoints": 4
+            },
+            {
+              "teamName": "Tím 12",
+              "rounds": [
+                2,
+                2,
+                2,
+                2
+              ],
+              "total": 8,
+              "ligaPoints": 2
+            },
+            {
+              "teamName": "Tím 10",
+              "rounds": [
+                2,
+                2,
+                2,
+                2
+              ],
+              "total": 8,
+              "ligaPoints": 2
+            },
+            {
+              "teamName": "Tím 11",
+              "rounds": [
+                2,
+                2,
+                2,
+                2
+              ],
+              "total": 8,
+              "ligaPoints": 2
+            },
+            {
+              "teamName": "Tím 7",
+              "rounds": [
+                1,
+                1,
+                1,
+                1
+              ],
+              "total": 4,
+              "ligaPoints": 0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "lili-cafe",
+      "venue": "Lili Cafe",
+      "city": "Oslany",
+      "address": "Namestie Slobody 7/13, Oslany",
+      "date": "10.07.2026",
+      "time": "19:00",
+      "entryFee": 4,
+      "maxPlayers": 8,
+      "minPlayers": 2,
+      "rounds": 4,
+      "questions": 55,
+      "durationMinutes": 120,
+      "active": true,
+      "imageUrl": "",
+      "rules": [
+        "Každý tím môže mať od 2 do 8 hráčov.",
+        "Na účasť je potrebné sa vopred zaregistrovať.",
+        "Kvíz je zaradený do ligy. Za každý porazený tím získate 1 bod.",
+        "Vstupné je 4 EUR na každého hráča.",
+        "Kvíz pozostáva z 55 všeobecných otázok rozdelených do 4 kôl.",
+        "Po každom kole sa pozbierajú odpovede a nasleduje krátka prestávka.",
+        "V prípade rovnakého počtu bodov nasleduje bonusová otázka.",
+        "Pre víťazné tímy sú pripravené rôzne ceny.",
+        "Počas kvízu sa v podniku nefajčí.",
+        "Je zakázané používať akékoľvek technológie počas kôl.",
+        "A najdôležitejšie — zabaviť sa!"
+      ],
+      "leagueTable": [
+        {
+          "rank": 1,
+          "teamName": "Bzdochy",
+          "points": 34,
+          "quizzesPlayed": 7
+        },
+        {
+          "rank": 2,
+          "teamName": "Dream Team",
+          "points": 17,
+          "quizzesPlayed": 6
+        },
+        {
+          "rank": 3,
+          "teamName": "Baťovka",
+          "points": 15,
+          "quizzesPlayed": 6
+        },
+        {
+          "rank": 4,
+          "teamName": "Juniori",
+          "points": 9,
+          "quizzesPlayed": 4
+        },
+        {
+          "rank": 5,
+          "teamName": "Noroteam",
+          "points": 8,
+          "quizzesPlayed": 4
+        },
+        {
+          "rank": 6,
+          "teamName": "Rebeli",
+          "points": 5,
+          "quizzesPlayed": 2
+        },
+        {
+          "rank": 7,
+          "teamName": "Piškoty",
+          "points": 3,
+          "quizzesPlayed": 2
+        },
+        {
+          "rank": 8,
+          "teamName": "Zblúdilí turisti",
+          "points": 3,
+          "quizzesPlayed": 1
+        },
+        {
+          "rank": 9,
+          "teamName": "Susedia",
+          "points": 2,
+          "quizzesPlayed": 3
+        },
+        {
+          "rank": 10,
+          "teamName": "Mama a mozog",
+          "points": 2,
+          "quizzesPlayed": 2
+        },
+        {
+          "rank": 11,
+          "teamName": "Dvaja",
+          "points": 2,
+          "quizzesPlayed": 1
+        },
+        {
+          "rank": 12,
+          "teamName": "Junasovci",
+          "points": 1,
+          "quizzesPlayed": 1
+        },
+        {
+          "rank": 13,
+          "teamName": "Full of Surprises",
+          "points": 1,
+          "quizzesPlayed": 1
+        },
+        {
+          "rank": 14,
+          "teamName": "Škorpiónky",
+          "points": 0,
+          "quizzesPlayed": 1
+        }
+      ],
+      "pastResults": [
+        {
+          "date": "15.5.2026",
+          "winnerTeam": "Bzdochy",
+          "points": 45
+        },
+        {
+          "date": "29.5.2026",
+          "winnerTeam": "Bzdochy",
+          "points": 39.66
+        },
+        {
+          "date": "12.6.2026",
+          "winnerTeam": "Bzdochy",
+          "points": 42.5
+        },
+        {
+          "date": "26.6.2026",
+          "winnerTeam": "Bzdochy",
+          "points": 42.5
+        }
+      ]
+    },
+    {
+      "slug": "alipub",
+      "venue": "Alipub",
+      "city": "Partizánske",
+      "address": "Alipub, Prievidza",
+      "date": "12.9.2026",
+      "time": "20:00",
+      "entryFee": 4,
+      "maxPlayers": 8,
+      "minPlayers": 2,
+      "rounds": 4,
+      "questions": 55,
+      "durationMinutes": 120,
+      "active": true,
+      "imageUrl": "",
+      "rules": [
+        "Každý tím môže mať od 2 do 8 hráčov.",
+        "Na účasť je potrebné sa vopred zaregistrovať.",
+        "Kvíz je zaradený do ligy. Za každý porazený tím získate 1 bod.",
+        "Vstupné je 4 EUR na každého hráča.",
+        "Kvíz pozostáva z 55 všeobecných otázok rozdelených do 4 kôl.",
+        "Po každom kole sa pozbierajú odpovede a nasleduje krátka prestávka.",
+        "V prípade rovnakého počtu bodov nasleduje bonusová otázka.",
+        "Pre víťazné tímy sú pripravené rôzne ceny.",
+        "Počas kvízu sa v podniku nefajčí.",
+        "Je zakázané používať akékoľvek technológie počas kôl.",
+        "A najdôležitejšie — zabaviť sa!"
+      ],
+      "leagueTable": [
+        {
+          "rank": 1,
+          "teamName": "Whiskypédia",
+          "points": 57,
+          "quizzesPlayed": 21
+        },
+        {
+          "rank": 2,
+          "teamName": "Alipub",
+          "points": 49,
+          "quizzesPlayed": 21
+        },
+        {
+          "rank": 3,
+          "teamName": "Mensa Revival",
+          "points": 46,
+          "quizzesPlayed": 16
+        },
+        {
+          "rank": 4,
+          "teamName": "Ninja Kombinačky",
+          "points": 20,
+          "quizzesPlayed": 6
+        },
+        {
+          "rank": 5,
+          "teamName": "Tankisti",
+          "points": 16,
+          "quizzesPlayed": 4
+        },
+        {
+          "rank": 6,
+          "teamName": "Patrioti",
+          "points": 15,
+          "quizzesPlayed": 8
+        },
+        {
+          "rank": 7,
+          "teamName": "Domáci Hostia",
+          "points": 10,
+          "quizzesPlayed": 2
+        },
+        {
+          "rank": 8,
+          "teamName": "Top Team",
+          "points": 8,
+          "quizzesPlayed": 5
+        },
+        {
+          "rank": 9,
+          "teamName": "Quiztina Aguilera",
+          "points": 5,
+          "quizzesPlayed": 5
+        },
+        {
+          "rank": 10,
+          "teamName": "4 Tankisti",
+          "points": 4,
+          "quizzesPlayed": 1
+        },
+        {
+          "rank": 11,
+          "teamName": "Gruppetto",
+          "points": 4,
+          "quizzesPlayed": 1
+        },
+        {
+          "rank": 12,
+          "teamName": "Rodina Adamsovcov",
+          "points": 4,
+          "quizzesPlayed": 1
+        },
+        {
+          "rank": 13,
+          "teamName": "3 Nugetky",
+          "points": 3,
+          "quizzesPlayed": 2
+        },
+        {
+          "rank": 14,
+          "teamName": "Birell",
+          "points": 3,
+          "quizzesPlayed": 1
+        },
+        {
+          "rank": 15,
+          "teamName": "To je mááálo",
+          "points": 3,
+          "quizzesPlayed": 1
+        },
+        {
+          "rank": 16,
+          "teamName": "Kto nevie, háda :)",
+          "points": 2,
+          "quizzesPlayed": 1
+        },
+        {
+          "rank": 17,
+          "teamName": "Hujerovci",
+          "points": 2,
+          "quizzesPlayed": 1
+        },
+        {
+          "rank": 18,
+          "teamName": "Kvízaci",
+          "points": 2,
+          "quizzesPlayed": 1
+        },
+        {
+          "rank": 19,
+          "teamName": "Fon Baron",
+          "points": 1,
+          "quizzesPlayed": 2
+        },
+        {
+          "rank": 20,
+          "teamName": "Sedem Statočných",
+          "points": 1,
+          "quizzesPlayed": 1
+        },
+        {
+          "rank": 21,
+          "teamName": "Dudlovci",
+          "points": 1,
+          "quizzesPlayed": 1
+        },
+        {
+          "rank": 22,
+          "teamName": "Názov tímu: Dávid",
+          "points": 1,
+          "quizzesPlayed": 1
+        },
+        {
+          "rank": 23,
+          "teamName": "My 2",
+          "points": 1,
+          "quizzesPlayed": 1
+        },
+        {
+          "rank": 24,
+          "teamName": "Jupíkovci",
+          "points": 1,
+          "quizzesPlayed": 1
+        },
+        {
+          "rank": 25,
+          "teamName": "Duo Bakara",
+          "points": 0,
+          "quizzesPlayed": 1
+        },
+        {
+          "rank": 26,
+          "teamName": "Leny",
+          "points": 0,
+          "quizzesPlayed": 1
+        },
+        {
+          "rank": 27,
+          "teamName": "Smart Couples",
+          "points": 0,
+          "quizzesPlayed": 1
+        },
+        {
+          "rank": 28,
+          "teamName": "Maturantky",
+          "points": 0,
+          "quizzesPlayed": 1
+        },
+        {
+          "rank": 29,
+          "teamName": "Orchidea",
+          "points": 0,
+          "quizzesPlayed": 1
+        },
+        {
+          "rank": 30,
+          "teamName": "Chorvátsko",
+          "points": 0,
+          "quizzesPlayed": 1
+        },
+        {
+          "rank": 31,
+          "teamName": "Langoš Tým",
+          "points": 0,
+          "quizzesPlayed": 1
+        },
+        {
+          "rank": 32,
+          "teamName": "Štípalovci",
+          "points": 0,
+          "quizzesPlayed": 1
+        }
+      ],
+      "pastResults": [
+        {
+          "date": "4.4.2026",
+          "winnerTeam": "Alipub",
+          "points": 42.3
+        },
+        {
+          "date": "11.4.2026",
+          "winnerTeam": "4 Tankisti",
+          "points": 40.3
+        }
+      ]
+    }
+  ]
+}
