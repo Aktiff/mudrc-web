@@ -3,12 +3,7 @@ import type { QuizEvent } from "@/lib/data";
 import { readEvents, writeEvents } from "@/lib/storage";
 
 function slugify(text: string) {
-  return text
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-|-$)/g, "");
+  return text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 }
 
 export async function GET() {
@@ -18,14 +13,9 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const body = await req.json();
   const data = await readEvents();
-  const newEvent: QuizEvent = {
-    ...body,
-    slug: body.slug || slugify(body.venue),
-    leagueTable: body.leagueTable ?? [],
-    pastResults: body.pastResults ?? [],
-  };
+  const newEvent: QuizEvent = { ...body, slug: body.slug || slugify(body.venue), leagueTable: body.leagueTable ?? [], pastResults: body.pastResults ?? [] };
   if (data.events.find((e) => e.slug === newEvent.slug)) {
-    return NextResponse.json({ error: "Udalosť s týmto slug už existuje" }, { status: 409 });
+    return NextResponse.json({ error: "Udalost s tymto slug uz existuje" }, { status: 409 });
   }
   data.events.push(newEvent);
   await writeEvents(data);

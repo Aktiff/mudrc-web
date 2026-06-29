@@ -11,7 +11,7 @@ export async function PUT(req: NextRequest, { params }: { params: { slug: string
     await writeEvents(data);
     return NextResponse.json(data.events[idx]);
   } catch {
-    return NextResponse.json({ error: "Chyba pri ukladaní" }, { status: 500 });
+    return NextResponse.json({ error: "Chyba pri ukladani" }, { status: 500 });
   }
 }
 
@@ -22,6 +22,6 @@ export async function DELETE(_req: NextRequest, { params }: { params: { slug: st
     await writeEvents(data);
     return NextResponse.json({ ok: true });
   } catch {
-    return NextResponse.json({ error: "Chyba pri mazaní" }, { status: 500 });
+    return NextResponse.json({ error: "Chyba pri mazani" }, { status: 500 });
   }
 }
