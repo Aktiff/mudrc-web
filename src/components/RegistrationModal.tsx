@@ -31,7 +31,8 @@ export default function RegistrationModal({ eventSlug, venue, minPlayers = 2, ma
       if (res.ok) {
         setSubmitted(true);
       } else {
-        setError("Chyba pri registrácii. Skús znova.");
+        const data = await res.json().catch(() => ({}));
+        setError(data.error ?? "Chyba pri registrácii. Skús znova.");
       }
     } catch {
       setError("Sieťová chyba. Skús znova.");
