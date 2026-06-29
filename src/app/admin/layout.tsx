@@ -1,11 +1,12 @@
 "use client";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Calendar, LayoutDashboard, LogOut } from "lucide-react";
+import { Calendar, LayoutDashboard, LogOut, ClipboardList } from "lucide-react";
 
 const navItems = [
   { href: "/admin", label: "Prehľad", icon: LayoutDashboard, exact: true },
   { href: "/admin/udalosti", label: "Udalosti", icon: Calendar, exact: false },
+  { href: "/admin/registracie", label: "Registrácie", icon: ClipboardList, exact: false },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {

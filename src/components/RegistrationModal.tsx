@@ -11,13 +11,31 @@ interface Props {
 
 export default function RegistrationModal({ venue, minPlayers = 2, maxPlayers = 8, onClose }: Props) {
   const [teamName, setTeamName] = useState("");
-  const [players, setPlayers] = useState("4");
-  const [email, setEmail] = useState("");
+  const [players, setPlayers] = useState(String(minPlayers));
+  const [phone, setPhone] = useState("");
   const [submitted, setSubmitted] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSubmitted(true);
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch("/api/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ venue, teamName, players, phone }),
+      });
+      if (res.ok) {
+        setSubmitted(true);
+      } else {
+        setError("Chyba pri registrácii. Skús znova.");
+      }
+    } catch {
+      setError("Sieťová chyba. Skús znova.");
+    }
+    setLoading(false);
   };
 
   return (
@@ -68,17 +86,19 @@ export default function RegistrationModal({ venue, minPlayers = 2, maxPlayers = 
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-brand-text mb-1.5">{"E-mail (volite\u013en\u00e9)"}</label>
+                <label className="block text-sm font-medium text-brand-text mb-1.5">{"Telef\u00f3nne \u010d\u00edslo"}</label>
                 <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="vas@email.sk"
+                  type="tel"
+                  required
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="+421 9XX XXX XXX"
                   className="w-full border border-brand-border rounded-xl px-4 py-3 text-brand-text bg-brand-surface placeholder:text-brand-muted-light focus:outline-none focus:border-brand-orange transition-colors"
                 />
               </div>
-              <button type="submit" className="btn-primary w-full justify-center py-3.5 mt-2">
-                {"Zaregistrova\u0165 t\u00edm"}
+              {error && <p className="text-red-500 text-sm">{error}</p>}
+              <button type="submit" disabled={loading} className="btn-primary w-full justify-center py-3.5 mt-2">
+                {loading ? "Registrujem..." : "Zaregistrova\u0165 t\u00edm"}
               </button>
             </form>
           </>
