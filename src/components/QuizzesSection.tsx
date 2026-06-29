@@ -1,14 +1,24 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Calendar, MapPin, Clock, ArrowRight, Users, Timer } from "lucide-react";
-import { events, formatDuration } from "@/lib/data";
+import type { QuizEvent } from "@/lib/data";
+import { formatDuration } from "@/lib/data";
 import RegistrationModal from "./RegistrationModal";
 import Image from "next/image";
 
 export default function QuizzesSection() {
-  const [modalVenue, setModalVenue] = useState<string | null>(null);
-  const activeEvent = events.find((e) => e.venue === modalVenue);
+  const [events, setEvents] = useState<QuizEvent[]>([]);
+  const [modalSlug, setModalSlug] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/events")
+      .then((r) => r.json())
+      .then((d) => setEvents(d.events ?? []))
+      .catch(() => setEvents([]));
+  }, []);
+
+  const activeEvent = events.find((e) => e.slug === modalSlug);
   const visibleEvents = events.filter((e) => e.active !== false);
 
   return (
@@ -60,7 +70,7 @@ export default function QuizzesSection() {
                 </div>
                 <div className="flex gap-3">
                   <button
-                    onClick={(e) => { e.preventDefault(); setModalVenue(event.venue); }}
+                    onClick={(e) => { e.preventDefault(); setModalSlug(event.slug); }}
                     className="btn-primary flex-1 justify-center text-sm py-2.5"
                   >
                     Registrácia tímu
@@ -74,7 +84,15 @@ export default function QuizzesSection() {
           ))}
         </div>
       </section>
-      {activeEvent && <RegistrationModal venue={activeEvent.venue} minPlayers={activeEvent.minPlayers} maxPlayers={activeEvent.maxPlayers} onClose={() => setModalVenue(null)} />}
+      {activeEvent && (
+        <RegistrationModal
+          eventSlug={activeEvent.slug}
+          venue={activeEvent.venue}
+          minPlayers={activeEvent.minPlayers}
+          maxPlayers={activeEvent.maxPlayers}
+          onClose={() => setModalSlug(null)}
+        />
+      )}
     </>
   );
 }

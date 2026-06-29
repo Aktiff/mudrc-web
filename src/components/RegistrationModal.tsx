@@ -3,13 +3,14 @@ import { useState } from "react";
 import { X } from "lucide-react";
 
 interface Props {
+  eventSlug: string;
   venue: string;
   minPlayers?: number;
   maxPlayers?: number;
   onClose: () => void;
 }
 
-export default function RegistrationModal({ venue, minPlayers = 2, maxPlayers = 8, onClose }: Props) {
+export default function RegistrationModal({ eventSlug, venue, minPlayers = 2, maxPlayers = 8, onClose }: Props) {
   const [teamName, setTeamName] = useState("");
   const [players, setPlayers] = useState(String(minPlayers));
   const [phone, setPhone] = useState("");
@@ -25,7 +26,7 @@ export default function RegistrationModal({ venue, minPlayers = 2, maxPlayers = 
       const res = await fetch("/api/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ venue, teamName, players, phone }),
+        body: JSON.stringify({ venue, eventSlug, teamName, players, phone }),
       });
       if (res.ok) {
         setSubmitted(true);

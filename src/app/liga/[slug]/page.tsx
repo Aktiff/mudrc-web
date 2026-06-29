@@ -1,10 +1,9 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ChevronLeft, Medal, Trophy, Calendar } from "lucide-react";
-import { getEventBySlug } from "@/lib/data";
-
+import type { QuizEvent } from "@/lib/data";
 const medalStyles = [
   { bg: "#FFD700", color: "#5a3e00", border: "#c9a800" },
   { bg: "#C0C0C0", color: "#333333", border: "#909090" },
@@ -14,10 +13,21 @@ const medalStyles = [
 const INITIAL_RESULTS = 3;
 
 export default function LigaDetailPage({ params }: { params: { slug: string } }) {
-  const event = getEventBySlug(params.slug);
+  const [event, setEvent] = useState<QuizEvent | null>(null);
+  const [loading, setLoading] = useState(true);
   const [showAll, setShowAll] = useState(false);
-  if (!event) notFound();
 
+  useEffect(() => {
+    fetch(`/api/events/${params.slug}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => setEvent(data))
+      .finally(() => setLoading(false));
+  }, [params.slug]);
+
+  if (loading) {
+    return <div className="min-h-screen bg-brand-bg pt-16 flex items-center justify-center text-brand-muted">Načítavam...</div>;
+  }
+  if (!event || event.active === false) notFound();
   const results = event.pastResults.slice().reverse();
   const visibleResults = showAll ? results : results.slice(0, INITIAL_RESULTS);
   const hidden = results.length - INITIAL_RESULTS;

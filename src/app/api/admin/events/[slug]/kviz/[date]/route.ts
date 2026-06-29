@@ -1,19 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import fs from "fs";
-import path from "path";
-import type { QuizEvent } from "@/lib/data";
-
-const dataPath = path.join(process.cwd(), "src/data/events.json");
-
-function readData(): { events: QuizEvent[] } {
-  let raw = fs.readFileSync(dataPath, "utf-8");
-  if (raw.charCodeAt(0) === 0xFEFF) raw = raw.slice(1);
-  return JSON.parse(raw);
-}
-function writeData(data: { events: QuizEvent[] }) {
-  fs.writeFileSync(dataPath, JSON.stringify(data, null, 2), "utf-8");
-}
-
+import { readEvents, writeEvents } from "@/lib/storage";
 type TeamEntry = { name: string; scores: number[]; total?: number };
 
 function calcLigaPoints(teams: TeamEntry[]): { name: string; scores: number[]; total: number; ligaPoints: number }[] {
@@ -45,7 +31,7 @@ export async function PUT(req: NextRequest, { params }: { params: { slug: string
     return NextResponse.json({ error: "Chyba vstupnych dat" }, { status: 400 });
   }
 
-  const data = readData();
+  const data = await readEvents();
   const idx = data.events.findIndex((e) => e.slug === params.slug);
   if (idx === -1) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
@@ -107,13 +93,13 @@ export async function PUT(req: NextRequest, { params }: { params: { slug: string
     teams: teamsDetail,
   };
   data.events[idx] = { ...event, leagueTable: table };
-  writeData(data);
+  await writeEvents(data);
 
   return NextResponse.json({ ok: true });
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: { slug: string; date: string } }) {
-  const data = readData();
+  const data = await readEvents();
   const idx = data.events.findIndex((e) => e.slug === params.slug);
   if (idx === -1) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
@@ -142,6 +128,6 @@ export async function DELETE(_req: NextRequest, { params }: { params: { slug: st
 
   event.pastResults.splice(resultIdx, 1);
   data.events[idx] = { ...event, leagueTable: table };
-  writeData(data);
+  await writeEvents(data);
   return NextResponse.json({ ok: true });
 }

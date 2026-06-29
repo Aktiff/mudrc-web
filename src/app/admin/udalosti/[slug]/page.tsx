@@ -1,13 +1,13 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Trash2, ChevronLeft, Save, PauseCircle, PlayCircle, Upload, ImageIcon } from "lucide-react";
+import { Plus, Trash2, ChevronLeft, Save, PauseCircle, PlayCircle, Upload, ImageIcon, Phone, Users, Clock } from "lucide-react";
 import Link from "next/link";
 import type { QuizEvent, LeagueEntry, PastResult } from "@/lib/data";
 import { AdminDatePicker, AdminTimePicker } from "@/components/AdminDatePicker";
 import { TeamAutocomplete } from "@/components/TeamAutocomplete";
 
-type Tab = "info" | "liga" | "vysledky" | "pravidla" | "pridat";
+type Tab = "info" | "liga" | "vysledky" | "pravidla" | "pridat" | "registracie";
 
 const DURATION_OPTIONS = [60, 75, 90, 105, 120, 135, 150, 165, 180, 195, 210, 225, 240];
 
@@ -37,6 +37,9 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
   const [quizResult, setQuizResult] = useState<{ winnerTeam: string; ligaPoints: {name:string;total:number;liga:number}[] } | null>(null);
   const [quizSubmitting, setQuizSubmitting] = useState(false);
   const [quizMsg, setQuizMsg] = useState<{ text: string; ok: boolean } | null>(null);
+  type EventRegistration = { id: string; eventSlug: string; venue: string; teamName: string; players: string; phone: string; createdAt: string };
+  const [registrations, setRegistrations] = useState<EventRegistration[]>([]);
+  const [regsLoading, setRegsLoading] = useState(false);
 
   const addQuizTeam = () => setQuizTeams((t) => [...t, emptyRow()]);
   const removeQuizTeam = (i: number) => setQuizTeams((t) => t.filter((_, idx) => idx !== i));
@@ -115,27 +118,41 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
     }
   }, [params.slug, isNew]);
 
+  useEffect(() => {
+    if (isNew || tab !== "registracie") return;
+    setRegsLoading(true);
+    fetch(`/api/register?slug=${params.slug}&venue=${encodeURIComponent(form.venue)}`)
+      .then((r) => r.json())
+      .then((d) => setRegistrations(d.registrations ?? []))
+      .finally(() => setRegsLoading(false));
+  }, [tab, params.slug, form.venue, isNew]);
+
   const set = (key: keyof QuizEvent, value: unknown) => setForm((f) => ({ ...f, [key]: value }));
 
   const save = async () => {
     setSaving(true);
     setMsg("");
-    const res = await fetch(
-      isNew ? "/api/admin/events" : `/api/admin/events/${params.slug}`,
-      {
-        method: isNew ? "POST" : "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+    try {
+      const res = await fetch(
+        isNew ? "/api/admin/events" : `/api/admin/events/${params.slug}`,
+        {
+          method: isNew ? "POST" : "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(form),
+        }
+      );
+      if (res.ok) {
+        setMsg("Uložené!");
+        if (isNew) router.push("/admin/udalosti");
+      } else {
+        const err = await res.json();
+        setMsg(err.error ?? "Chyba pri ukladaní");
       }
-    );
-    if (res.ok) {
-      setMsg("Uložené!");
-      if (isNew) router.push("/admin/udalosti");
-    } else {
-      const err = await res.json();
-      setMsg(err.error ?? "Chyba pri ukladaní");
+    } catch {
+      setMsg("Sieťová chyba pri ukladaní");
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   };
 
   const toggleActive = async () => {
@@ -148,12 +165,12 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
     const updated = { ...form, active: !form.active };
     setForm(updated);
     if (!isNew) {
-      await fetch(`/api/admin/events/${params.slug}`, {
+      const res = await fetch(`/api/admin/events/${params.slug}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(updated),
       });
-      setMsg(updated.active ? "Udalosť aktivovaná" : "Udalosť vypnutá");
+      setMsg(res.ok ? (updated.active ? "Udalosť aktivovaná" : "Udalosť vypnutá") : "Chyba pri ukladaní");
     }
   };
 
@@ -162,12 +179,18 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
     const updated = { ...form, leagueTable: [], pastResults: [] };
     setForm(updated);
     if (!isNew) {
-      await fetch(`/api/admin/events/${params.slug}`, {
+      const res = await fetch(`/api/admin/events/${params.slug}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(updated),
       });
-      setMsg("Liga resetovaná");
+      if (res.ok) {
+        const data = await res.json();
+        setForm({ durationMinutes: 120, active: true, ...data });
+        setMsg("Liga resetovaná");
+      } else {
+        setMsg("Chyba pri resetovaní ligy");
+      }
     }
   };
 
@@ -271,6 +294,7 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
         <button className={tabClass("info")} onClick={() => setTab("info")}>Základné info</button>
         <button className={tabClass("liga")} onClick={() => setTab("liga")}>Liga ({form.leagueTable.length})</button>
         <button className={tabClass("vysledky")} onClick={() => setTab("vysledky")}>Výsledky ({form.pastResults.length})</button>
+        <button className={tabClass("registracie")} onClick={() => setTab("registracie")}>Registrácie</button>
         <button className={tabClass("pravidla")} onClick={() => setTab("pravidla")}>Pravidlá ({(form.rules ?? []).length})</button>
       </div>
 
@@ -487,6 +511,27 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {tab === "registracie" && !isNew && (
+        <div className="bg-white rounded-2xl border border-stone-200 p-6">
+          {regsLoading && <p className="text-stone-400 text-sm">Načítavam...</p>}
+          {!regsLoading && registrations.length === 0 && (
+            <p className="text-stone-400 text-sm py-8 text-center">Zatiaľ žiadne registrácie pre tento podnik.</p>
+          )}
+          <div className="space-y-3">
+            {registrations.map((r) => (
+              <div key={r.id} className="rounded-xl border border-stone-200 p-4">
+                <div className="font-display text-xl text-brand-text">{r.teamName}</div>
+                <div className="flex flex-wrap items-center gap-4 mt-2 text-sm text-stone-500">
+                  <span className="flex items-center gap-1.5"><Users className="w-3.5 h-3.5" />{r.players} hráčov</span>
+                  <span className="flex items-center gap-1.5"><Phone className="w-3.5 h-3.5" />{r.phone}</span>
+                  <span className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5" />{r.createdAt}</span>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

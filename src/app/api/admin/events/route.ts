@@ -1,19 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import fs from "fs";
-import path from "path";
 import type { QuizEvent } from "@/lib/data";
-
-const dataPath = path.join(process.cwd(), "src/data/events.json");
-
-function readData(): { events: QuizEvent[] } {
-  let raw = fs.readFileSync(dataPath, "utf-8");
-  if (raw.charCodeAt(0) === 0xFEFF) raw = raw.slice(1);
-  return JSON.parse(raw);
-}
-
-function writeData(data: { events: QuizEvent[] }) {
-  fs.writeFileSync(dataPath, JSON.stringify(data, null, 2), "utf-8");
-}
+import { readEvents, writeEvents } from "@/lib/storage";
 
 function slugify(text: string) {
   return text
@@ -25,12 +12,12 @@ function slugify(text: string) {
 }
 
 export async function GET() {
-  return NextResponse.json(readData());
+  return NextResponse.json(await readEvents());
 }
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
-  const data = readData();
+  const data = await readEvents();
   const newEvent: QuizEvent = {
     ...body,
     slug: body.slug || slugify(body.venue),
@@ -38,9 +25,9 @@ export async function POST(req: NextRequest) {
     pastResults: body.pastResults ?? [],
   };
   if (data.events.find((e) => e.slug === newEvent.slug)) {
-    return NextResponse.json({ error: "Udalost s tymto slug uz existuje" }, { status: 409 });
+    return NextResponse.json({ error: "Udalosť s týmto slug už existuje" }, { status: 409 });
   }
   data.events.push(newEvent);
-  writeData(data);
+  await writeEvents(data);
   return NextResponse.json(newEvent, { status: 201 });
 }

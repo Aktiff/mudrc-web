@@ -1,19 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import fs from "fs";
-import path from "path";
-import type { QuizEvent } from "@/lib/data";
-
-const dataPath = path.join(process.cwd(), "src/data/events.json");
-
-function readData(): { events: QuizEvent[] } {
-  let raw = fs.readFileSync(dataPath, "utf-8");
-  if (raw.charCodeAt(0) === 0xFEFF) raw = raw.slice(1);
-  return JSON.parse(raw);
-}
-function writeData(data: { events: QuizEvent[] }) {
-  fs.writeFileSync(dataPath, JSON.stringify(data, null, 2), "utf-8");
-}
-
+import { readEvents, writeEvents } from "@/lib/storage";
 type TeamEntry = { name: string; scores: number[] };
 
 export async function POST(req: NextRequest, { params }: { params: { slug: string } }) {
@@ -22,7 +8,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
     return NextResponse.json({ error: "Chýba dátum alebo tímy" }, { status: 400 });
   }
 
-  const data = readData();
+  const data = await readEvents();
   const idx = data.events.findIndex((e) => e.slug === params.slug);
   if (idx === -1) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
@@ -93,7 +79,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   ];
 
   data.events[idx] = { ...event, leagueTable: table, pastResults };
-  writeData(data);
+  await writeEvents(data);
 
   return NextResponse.json({ ok: true, winnerTeam, ligaPoints: sorted.map((t, i) => ({ name: t.name, total: t.total, liga: ligaPoints[i] })) });
 }
