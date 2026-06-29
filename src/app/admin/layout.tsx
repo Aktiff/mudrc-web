@@ -33,10 +33,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
                   active
-                    ? "bg-orange-100 text-brand-orange"
-                    : "text-stone-500 hover:bg-stone-100 hover:text-stone-800"
+                    ? "bg-brand-orange text-brand-btn-fg shadow-sm"
+                    : "text-stone-700 hover:bg-stone-100 hover:text-stone-900"
                 }`}
               >
                 <item.icon className="w-4 h-4" />
@@ -48,7 +48,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <div className="p-3 border-t border-stone-200">
           <button
             onClick={handleLogout}
-            className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-stone-500 hover:bg-stone-100 hover:text-stone-800 w-full transition-colors"
+            className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-stone-700 hover:bg-stone-100 hover:text-stone-900 w-full transition-colors"
           >
             <LogOut className="w-4 h-4" />
             Odhlásiť sa

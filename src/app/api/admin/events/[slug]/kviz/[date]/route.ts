@@ -121,7 +121,27 @@ export async function DELETE(_req: NextRequest, { params }: { params: { slug: st
   const resultIdx = event.pastResults.findIndex((r) => (r.id ?? r.date.replace(/\./g, "-")) === params.date);
   if (resultIdx === -1) return NextResponse.json({ error: "Result not found" }, { status: 404 });
 
+  const oldResult = event.pastResults[resultIdx];
+  const table = [...(event.leagueTable ?? [])];
+
+  if (oldResult.teams) {
+    for (const ot of oldResult.teams) {
+      const entry = table.find((r) => r.teamName === ot.teamName);
+      if (entry) {
+        entry.points -= ot.ligaPoints;
+        entry.quizzesPlayed -= 1;
+        if (entry.points <= 0 && entry.quizzesPlayed <= 0) {
+          const ei = table.indexOf(entry);
+          table.splice(ei, 1);
+        }
+      }
+    }
+    table.sort((a, b) => b.points - a.points || b.quizzesPlayed - a.quizzesPlayed);
+    table.forEach((r, i) => { r.rank = i + 1; });
+  }
+
   event.pastResults.splice(resultIdx, 1);
+  data.events[idx] = { ...event, leagueTable: table };
   writeData(data);
   return NextResponse.json({ ok: true });
 }

@@ -41,8 +41,11 @@ export default function AdminLoginPage() {
             onChange={(e) => setPassword(e.target.value)}
             placeholder="Heslo"
             autoFocus
-            className="w-full border border-brand-border rounded-xl px-4 py-3 text-brand-text placeholder:text-brand-muted-light focus:outline-none focus:border-brand-orange transition-colors"
+            className="input py-3 bg-white text-brand-text"
           />
+          {password.length > 0 && (
+            <p className="text-xs text-brand-muted text-right">{password.length} {password.length === 1 ? "znak" : password.length < 5 ? "znaky" : "znakov"}</p>
+          )}
           {error && <p className="text-red-500 text-sm">{error}</p>}
           <button type="submit" disabled={loading} className="btn-primary w-full justify-center py-3">
             {loading ? "..." : "Vstup"}
