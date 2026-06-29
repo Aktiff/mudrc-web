@@ -23,7 +23,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <aside className="w-56 bg-white border-r border-stone-200 flex flex-col fixed top-16 bottom-0 left-0 z-40">
         <div className="p-5 border-b border-stone-200">
           <Link href="/" className="font-display text-xl text-brand-text tracking-wider">
-            MUDRC <span className="text-brand-orange">ADMIN</span>
+            MUDRC <span className="bg-gradient-to-r from-brand-orange to-orange-400 bg-clip-text text-transparent">ADMIN</span>
           </Link>
         </div>
         <nav className="flex-1 p-3 space-y-1">

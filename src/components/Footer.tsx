@@ -28,7 +28,7 @@ export default function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
           <div>
             <Link href="/" className="font-display text-2xl text-brand-text tracking-wider">
-              MUDRC<span className="text-brand-orange"> KVÍZ</span>
+              MUDRC<span className="bg-gradient-to-r from-brand-orange to-orange-400 bg-clip-text text-transparent"> KVÍZ</span>
             </Link>
             <p className="text-brand-muted text-sm mt-3 leading-relaxed max-w-xs">
               Vedomostné kvízy vo vašom obľúbenom podniku. Zábava, humor a súťaž v jednom.
