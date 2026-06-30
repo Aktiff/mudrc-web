@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { LigaList } from "@/components/LigaList";
+import { LigaList } from "@/components/QuizzesSection";
 
 export const metadata: Metadata = {
   title: "Liga",
