@@ -131,6 +131,6 @@ export async function DELETE(_req: NextRequest, { params }: { params: { slug: st
 
   event.pastResults.splice(resultIdx, 1);
   data.events[idx] = { ...event, leagueTable: table };
-  await writeEvents(data);
+  await writeEvents(data, { destructive: true });
   return NextResponse.json({ ok: true });
 }

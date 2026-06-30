@@ -106,7 +106,7 @@ export async function PUT(req: NextRequest, { params }: { params: { slug: string
         leagueActive: false,
       };
       data.events[idx] = updated;
-      await writeEvents(data);
+      await writeEvents(data, { destructive: true });
       revalidatePath("/liga");
       revalidatePath(`/liga/${params.slug}`);
       return NextResponse.json(updated);
@@ -183,8 +183,9 @@ export async function PUT(req: NextRequest, { params }: { params: { slug: string
     revalidatePath("/liga");
     revalidatePath(`/liga/${params.slug}`);
     return NextResponse.json(data.events[idx]);
-  } catch {
-    return NextResponse.json({ error: "Chyba pri ukladani" }, { status: 500 });
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "Chyba pri ukladani";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
@@ -192,7 +193,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: { slug: st
   try {
     const data = await readEvents();
     data.events = data.events.filter((e) => e.slug !== params.slug);
-    await writeEvents(data);
+    await writeEvents(data, { destructive: true });
     return NextResponse.json({ ok: true });
   } catch {
     return NextResponse.json({ error: "Chyba pri mazani" }, { status: 500 });
