@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Calendar, MapPin, Clock, ArrowRight, Users, Timer } from "lucide-react";
 import type { QuizEvent } from "@/lib/data";
+import { isQuizVisible } from "@/lib/data";
 import { formatDuration } from "@/lib/data";
 import RegistrationModal from "./RegistrationModal";
 import Image from "next/image";
@@ -19,7 +20,7 @@ export default function QuizzesSection() {
   }, []);
 
   const activeEvent = events.find((e) => e.slug === modalSlug);
-  const visibleEvents = events.filter((e) => e.active !== false);
+  const visibleEvents = events.filter(isQuizVisible);
 
   return (
     <>

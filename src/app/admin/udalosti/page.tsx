@@ -29,11 +29,16 @@ export default async function AdminUdalostitPage() {
                 <Calendar className="w-5 h-5 text-brand-orange" />
               </div>
               <div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <span className="font-semibold text-stone-800">{e.venue}</span>
                   {!e.active && (
                     <span className="flex items-center gap-1 text-xs text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
-                      <PauseCircle className="w-3 h-3" /> Pozastavená
+                      <PauseCircle className="w-3 h-3" /> Kvíz vypnutý
+                    </span>
+                  )}
+                  {e.leagueActive === false && (
+                    <span className="text-xs text-stone-500 bg-stone-100 px-2 py-0.5 rounded-full">
+                      Liga vypnutá
                     </span>
                   )}
                 </div>

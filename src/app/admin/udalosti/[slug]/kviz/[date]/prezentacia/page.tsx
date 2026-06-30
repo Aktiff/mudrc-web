@@ -6,6 +6,31 @@ import type { QuizEvent, PastResultTeam } from "@/lib/data";
 type TeamDisplay = PastResultTeam & { totalWithBonus: number };
 type ScoreGroup = { teams: TeamDisplay[]; baseTotal: number; startRank: number };
 
+function computeFitScale(
+  viewportH: number,
+  rowCount: number,
+  showRounds: boolean,
+  isPreFinal: boolean
+): number {
+  if (rowCount <= 0) return 1;
+  const topBarPx = 72;
+  const footerPx = isPreFinal ? 210 : 120;
+  const colHeaderPx = showRounds ? 44 : 0;
+  const padPx = 32;
+  const available = viewportH - topBarPx - footerPx - colHeaderPx - padPx;
+  const baseRowPx = showRounds ? 68 : 52;
+  const baseGapPx = 5;
+
+  let scale = 1;
+  while (scale > 0.35) {
+    const needed =
+      rowCount * baseRowPx * scale + Math.max(0, rowCount - 1) * baseGapPx * scale;
+    if (needed <= available) break;
+    scale *= 0.9;
+  }
+  return scale;
+}
+
 export default function PrezentaciaPage({ params }: { params: { slug: string; date: string } }) {
   const [teams, setTeams] = useState<PastResultTeam[]>([]);
   const [quizDate, setQuizDate] = useState("");
@@ -120,27 +145,17 @@ export default function PrezentaciaPage({ params }: { params: { slug: string; da
     ? finalSorted.length
     : displayGroups.reduce((sum, group) => sum + group.teams.length, 0);
 
-  const topBarPx = 72;
-  const bottomBarPx = isPreFinal ? 150 : 110;
-  const colHeaderPx = showRounds && !isStartScreen && !isFinal ? 40 : 0;
-  const contentPadPx = 24;
-  const availablePx = Math.max(
-    200,
-    viewportH - topBarPx - bottomBarPx - colHeaderPx - contentPadPx
-  );
-  const rowCount = Math.max(1, visibleRowCount || N);
-  const rowHeightPx = availablePx / rowCount;
-  const fitScale = Math.min(1, rowHeightPx / 52);
+  const fitScale = computeFitScale(viewportH, visibleRowCount || N, showRounds, isPreFinal);
 
-  const nameFontRem = Math.max(0.9, Math.min(4.2, 4.2 * fitScale));
-  const scoreFontRem = Math.max(1, Math.min(5, 5 * fitScale));
-  const rankFontRem = Math.max(0.8, Math.min(3.5, 3.5 * fitScale));
-  const subFontRem = Math.max(0.65, Math.min(2.5, 2.5 * fitScale));
-  const rowPadY = Math.max(0.12, Math.min(1.1, (rowHeightPx - 10) / 32));
-  const rowGapPx = Math.max(2, Math.min(8, 8 * fitScale));
-  const roundColRem = Math.max(3.2, Math.min(8, 8 * fitScale));
-  const totalColRem = Math.max(3.8, Math.min(9, 9 * fitScale));
-  const rankColRem = Math.max(2.5, Math.min(4, 4 * fitScale));
+  const nameFontRem = 2.8 * fitScale;
+  const scoreFontRem = 3.2 * fitScale;
+  const rankFontRem = 2.2 * fitScale;
+  const subFontRem = 1.4 * fitScale;
+  const rowPadY = 0.55 * fitScale;
+  const rowGapPx = 5 * fitScale;
+  const roundColRem = 7 * fitScale;
+  const totalColRem = 7.5 * fitScale;
+  const rankColRem = 3.5 * fitScale;
 
   const fmtScore = (v: number) => v % 1 === 0 ? String(v) : String(parseFloat(v.toFixed(2)));
   const backUrl = `/admin/udalosti/${params.slug}/kviz/${params.date}`;

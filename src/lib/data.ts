@@ -12,6 +12,7 @@ export type QuizEvent = {
   questions: number;
   durationMinutes: number;
   active: boolean;
+  leagueActive?: boolean;
   imageUrl?: string;
   rules?: string[];
   leagueTable: LeagueEntry[];
@@ -36,9 +37,17 @@ export function formatDuration(minutes: number): string {
   return `${h} hod. ${m} min.`;
 }
 
+export function isQuizVisible(event: QuizEvent): boolean {
+  return event.active !== false;
+}
+
+export function isLeagueActive(event: QuizEvent): boolean {
+  return event.leagueActive !== false;
+}
+
 export function isLeagueVisible(event: QuizEvent): boolean {
   return (
-    event.active === true &&
+    isLeagueActive(event) &&
     (event.leagueTable.length > 0 || event.pastResults.length > 0)
   );
 }

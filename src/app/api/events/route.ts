@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { readEvents } from "@/lib/storage";
-import { getVisibleLeagues } from "@/lib/data";
+import { getVisibleLeagues, isQuizVisible } from "@/lib/data";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +11,7 @@ export async function GET(req: Request) {
   const filtered =
     view === "liga"
       ? getVisibleLeagues(events)
-      : events.filter((e) => e.active !== false);
+      : events.filter(isQuizVisible);
 
   return NextResponse.json(
     { events: filtered },

@@ -13,7 +13,7 @@ import {
   Timer,
 } from "lucide-react";
 import type { QuizEvent } from "@/lib/data";
-import { formatDuration } from "@/lib/data";
+import { isQuizVisible, formatDuration } from "@/lib/data";
 import RegistrationModal from "@/components/RegistrationModal";
 
 export default function EventPage({ params }: { params: { slug: string } }) {
@@ -34,7 +34,7 @@ export default function EventPage({ params }: { params: { slug: string } }) {
       </div>
     );
   }
-  if (!event || event.active === false) notFound();
+  if (!event || !isQuizVisible(event)) notFound();
 
   const rules = event.rules ?? [];
 
