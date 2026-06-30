@@ -259,7 +259,7 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
     if (res.ok) {
       const data = await res.json();
       setForm(normalizeEvent(data));
-      setMsg(newActive ? "Liga zapnutá — obnov /liga (Ctrl+Shift+R)" : "Liga vypnutá");
+      setMsg(newActive ? "Liga zapnutá — obnov stránku /liga" : "Liga vypnutá — obnov stránku /liga");
     } else {
       setForm((f) => ({ ...f, leagueActive: leagueOn }));
       const err = await res.json().catch(() => ({}));

@@ -3,7 +3,7 @@ import { useState, useEffect, useLayoutEffect, useRef, useMemo, type CSSProperti
 import Link from "next/link";
 import type { QuizEvent, PastResultTeam } from "@/lib/data";
 
-type TeamDisplay = PastResultTeam & { totalWithBonus: number };
+type TeamDisplay = PastResultTeam & { totalWithBonus: number; rowId: number };
 type ScoreGroup = { teams: TeamDisplay[]; baseTotal: number; startRank: number };
 
 function fontsForRowHeight(rowH: number) {
@@ -32,7 +32,7 @@ export default function PrezentaciaPage({ params }: { params: { slug: string; da
   const [loading, setLoading] = useState(true);
   const [step, setStep] = useState(0);
   const [showRounds, setShowRounds] = useState(true);
-  const [bonus, setBonus] = useState<Record<string, number>>({});
+  const [bonus, setBonus] = useState<Record<number, number>>({});
   const [saving, setSaving] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
   const [listHeight, setListHeight] = useState(0);
@@ -64,9 +64,10 @@ export default function PrezentaciaPage({ params }: { params: { slug: string; da
       });
   }, [params.slug, params.date]);
 
-  const teamsWithBonus: TeamDisplay[] = teams.map((t) => ({
+  const teamsWithBonus: TeamDisplay[] = teams.map((t, i) => ({
     ...t,
-    totalWithBonus: t.total + (bonus[t.teamName] ?? 0),
+    rowId: i,
+    totalWithBonus: t.total + (bonus[i] ?? 0),
   }));
 
   const sortedDesc = [...teamsWithBonus].sort((a, b) => b.total - a.total);
@@ -91,7 +92,7 @@ export default function PrezentaciaPage({ params }: { params: { slug: string; da
     ...group,
     teams:
       group.teams.length > 1
-        ? [...group.teams].sort((a, b) => (bonus[b.teamName] ?? 0) - (bonus[a.teamName] ?? 0))
+        ? [...group.teams].sort((a, b) => (bonus[b.rowId] ?? 0) - (bonus[a.rowId] ?? 0))
         : group.teams,
   }));
 
@@ -124,11 +125,11 @@ export default function PrezentaciaPage({ params }: { params: { slug: string; da
       : 48;
   const layout = useMemo(() => fontsForRowHeight(rowHeight), [rowHeight]);
 
-  const addBonus = (name: string) =>
-    setBonus((prev) => ({ ...prev, [name]: parseFloat(((prev[name] ?? 0) + 0.1).toFixed(2)) }));
+  const addBonus = (rowId: number) =>
+    setBonus((prev) => ({ ...prev, [rowId]: parseFloat(((prev[rowId] ?? 0) + 0.1).toFixed(2)) }));
 
-  const removeBonus = (name: string) =>
-    setBonus((prev) => ({ ...prev, [name]: Math.max(0, parseFloat(((prev[name] ?? 0) - 0.1).toFixed(2))) }));
+  const removeBonus = (rowId: number) =>
+    setBonus((prev) => ({ ...prev, [rowId]: Math.max(0, parseFloat(((prev[rowId] ?? 0) - 0.1).toFixed(2))) }));
 
   const saveAndRevealWinner = async () => {
     setSaving(true);
@@ -166,10 +167,10 @@ export default function PrezentaciaPage({ params }: { params: { slug: string; da
   const rowGrid = `${layout.rankColPx}px 1fr 1fr`;
   const scoresGrid = `repeat(${numRounds}, 1fr) minmax(4rem, 1.4fr) minmax(5.5rem, 1.2fr)`;
 
-  const renderTieButtons = (teamName: string, inline?: boolean) => (
+  const renderTieButtons = (rowId: number, inline?: boolean) => (
     <div className={`${inline ? "shrink-0" : ""} flex ${layout.compactBtns ? "flex-row gap-0.5" : "flex-col gap-0.5"}`}>
       <button
-        onClick={() => addBonus(teamName)}
+        onClick={() => addBonus(rowId)}
         className="text-[#ffd54f] font-bold bg-stone-700 hover:bg-[#f0b429] hover:text-black rounded transition-all"
         style={{
           fontSize: `${layout.subPx}px`,
@@ -179,8 +180,8 @@ export default function PrezentaciaPage({ params }: { params: { slug: string; da
         {layout.compactBtns ? "+0.1" : "+0.1 bod"}
       </button>
       <button
-        onClick={() => removeBonus(teamName)}
-        disabled={(bonus[teamName] ?? 0) <= 0}
+        onClick={() => removeBonus(rowId)}
+        disabled={(bonus[rowId] ?? 0) <= 0}
         className="text-stone-400 font-bold bg-stone-800 hover:bg-red-800 hover:text-white rounded transition-all disabled:opacity-25 disabled:cursor-not-allowed"
         style={{
           fontSize: `${layout.subPx}px`,
@@ -317,7 +318,7 @@ export default function PrezentaciaPage({ params }: { params: { slug: string; da
                 const isTie = group.teams.length > 1;
                 const isNewest = groupIdx === 0 && !isPreFinal;
                 const isFirstPlaceGroup = group.startRank === 1;
-                const groupHasBonus = isTie && group.teams.some((t) => (bonus[t.teamName] ?? 0) > 0);
+                const groupHasBonus = isTie && group.teams.some((t) => (bonus[t.rowId] ?? 0) > 0);
 
                 return group.teams.map((team, teamIdx) => {
                   const rankDisplay = isTie
@@ -388,7 +389,7 @@ export default function PrezentaciaPage({ params }: { params: { slug: string; da
                             >
                               {fmtScore(team.totalWithBonus)}
                             </span>
-                            {isTie ? renderTieButtons(team.teamName) : <span />}
+                            {isTie ? renderTieButtons(team.rowId) : <span />}
                           </div>
                         </>
                       ) : (
@@ -409,7 +410,7 @@ export default function PrezentaciaPage({ params }: { params: { slug: string; da
                             <span className="font-bold text-[#f0b429] whitespace-nowrap tabular-nums" style={{ fontSize: `${layout.scorePx}px` }}>
                               {fmtScore(team.totalWithBonus)}
                             </span>
-                            {isTie && renderTieButtons(team.teamName, true)}
+                            {isTie && renderTieButtons(team.rowId, true)}
                           </div>
                         </>
                       )}

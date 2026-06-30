@@ -72,7 +72,11 @@ async function readBlobJson<T>(key: string): Promise<T | null> {
   if (!process.env.BLOB_READ_WRITE_TOKEN) return null;
   try {
     const meta = await head(key);
-    const res = await fetch(meta.url, { cache: "no-store" });
+    const bust = meta.uploadedAt ? new Date(meta.uploadedAt).getTime() : Date.now();
+    const res = await fetch(`${meta.url}?t=${bust}`, {
+      cache: "no-store",
+      headers: { "Cache-Control": "no-cache, no-store, must-revalidate" },
+    });
     if (!res.ok) return null;
     return (await res.json()) as T;
   } catch {

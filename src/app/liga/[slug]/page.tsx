@@ -19,7 +19,7 @@ export default function LigaDetailPage({ params }: { params: { slug: string } })
   const [showAll, setShowAll] = useState(false);
 
   useEffect(() => {
-    fetch(`/api/events/${params.slug}`)
+    fetch(`/api/events/${params.slug}?_=${Date.now()}`, { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => setEvent(data))
       .finally(() => setLoading(false));
