@@ -52,7 +52,7 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
   const [tab, setTab] = useState<Tab>("info");
   const [saving, setSaving] = useState(false);
   const [recalculating, setRecalculating] = useState(false);
-  const [msg, setMsg] = useState("");
+  const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [uploading, setUploading] = useState(false);
 
@@ -103,15 +103,24 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
       if (res.ok) {
         setQuizResult(data);
         setQuizTeams(Array.from({ length: 10 }, emptyRow));
-        fetch("/api/admin/events").then((r) => r.json()).then((d) => {
-          const ev = d.events.find((e: QuizEvent) => e.slug === params.slug);
-          if (ev) setForm(normalizeEvent(ev));
-        });
+        if (data.event) {
+          setForm(normalizeEvent(data.event));
+        } else {
+          fetch(`/api/admin/events?_=${Date.now()}`, { cache: "no-store" })
+            .then((r) => r.json())
+            .then((d) => {
+              const ev = d.events.find((e: QuizEvent) => e.slug === params.slug);
+              if (ev) setForm(normalizeEvent(ev));
+            });
+        }
+        setMsg({ text: "Kvíz uložený do ligy", ok: true });
       } else {
         setQuizMsg({ text: data.error ?? "Chyba pri ukladaní.", ok: false });
+        setMsg({ text: data.error ?? "Chyba pri ukladaní.", ok: false });
       }
     } catch {
       setQuizMsg({ text: "Sieťová chyba. Skús znova.", ok: false });
+      setMsg({ text: "Sieťová chyba. Skús znova.", ok: false });
     }
     setQuizSubmitting(false);
   };
@@ -190,7 +199,7 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
 
   const save = async () => {
     setSaving(true);
-    setMsg("");
+    setMsg(null);
     const includeLeagueData = tab === "liga" || tab === "vysledky";
     let toSave: QuizEvent & { _includeLeagueData?: boolean } = { ...form };
     if (includeLeagueData) {
@@ -207,7 +216,7 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
         }
       );
       if (res.ok) {
-        setMsg("Uložené!");
+        setMsg({ text: "Uložené!", ok: true });
         if (!isNew) {
           const data = await res.json();
           setForm(normalizeEvent(data));
@@ -215,10 +224,10 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
         if (isNew) router.push("/admin/udalosti");
       } else {
         const err = await res.json();
-        setMsg(err.error ?? "Chyba pri ukladaní");
+        setMsg({ text: err.error ?? "Chyba pri ukladaní", ok: false });
       }
     } catch {
-      setMsg("Sieťová chyba pri ukladaní");
+      setMsg({ text: "Sieťová chyba pri ukladaní", ok: false });
     } finally {
       setSaving(false);
     }
@@ -242,10 +251,10 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
       if (res.ok) {
         const data = await res.json();
         setForm(normalizeEvent(data));
-        setMsg(newActive ? "Kvíz aktivovaný" : "Kvíz vypnutý");
+        setMsg({ text: newActive ? "Kvíz aktivovaný" : "Kvíz vypnutý", ok: true });
       } else {
         setForm((f) => ({ ...f, active: !newActive }));
-        setMsg("Chyba pri ukladaní");
+        setMsg({ text: "Chyba pri ukladaní", ok: false });
       }
     }
   };
@@ -258,7 +267,7 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
     if (!confirm(msg)) return;
 
     const newActive = !leagueOn;
-    setMsg("");
+    setMsg(null);
 
     try {
       const serverEv = await fetchFreshEvent(params.slug);
@@ -286,27 +295,32 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
         method: "PUT",
         cache: "no-store",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ _leagueToggle: true, leagueActive: newActive }),
+        body: JSON.stringify({
+          _leagueToggle: true,
+          leagueActive: newActive,
+          leagueTable: workingForm.leagueTable,
+          pastResults: workingForm.pastResults,
+        }),
       });
       if (res.ok) {
         const data = await res.json();
         setForm(normalizeEvent(data));
-        setMsg(newActive ? "Liga zapnutá" : "Liga vypnutá");
+        setMsg({ text: newActive ? "Liga zapnutá" : "Liga vypnutá", ok: true });
       } else {
         setForm((f) => ({ ...f, leagueActive: leagueOn }));
         const err = await res.json().catch(() => ({}));
         const text = err.error ?? `Chyba ${res.status} pri ukladaní ligy`;
-        setMsg(text);
+        setMsg({ text, ok: false });
       }
     } catch {
       setForm((f) => ({ ...f, leagueActive: leagueOn }));
-      setMsg("Sieťová chyba pri prepínaní ligy");
+      setMsg({ text: "Sieťová chyba pri prepínaní ligy", ok: false });
     }
   };
 
   const recalculateLeague = async (fromQuizzes = false) => {
     setRecalculating(true);
-    setMsg("");
+    setMsg(null);
     try {
       const res = await fetch(`/api/admin/events/${params.slug}`, {
         method: "PUT",
@@ -316,13 +330,13 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
       if (res.ok) {
         const data = await res.json();
         setForm(normalizeEvent(data));
-        setMsg(fromQuizzes ? "Liga prepočítaná z kvízov" : "Poradie prepočítané");
+        setMsg({ text: fromQuizzes ? "Liga prepočítaná z kvízov" : "Poradie prepočítané", ok: true });
       } else {
         const err = await res.json().catch(() => ({}));
-        setMsg(err.error ?? "Chyba pri prepočítaní");
+        setMsg({ text: err.error ?? "Chyba pri prepočítaní", ok: false });
       }
     } catch {
-      setMsg("Sieťová chyba pri prepočítaní");
+      setMsg({ text: "Sieťová chyba pri prepočítaní", ok: false });
     } finally {
       setRecalculating(false);
     }
@@ -341,9 +355,9 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
       if (res.ok) {
         const data = await res.json();
         setForm(normalizeEvent(data));
-        setMsg("Liga resetovaná a skrytá z verejného zoznamu");
+        setMsg({ text: "Liga resetovaná a skrytá z verejného zoznamu", ok: true });
       } else {
-        setMsg("Chyba pri resetovaní ligy");
+        setMsg({ text: "Chyba pri resetovaní ligy", ok: false });
       }
     }
   };
@@ -355,9 +369,9 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
       const data = await fetch("/api/admin/events").then((r) => r.json());
       const ev = data.events.find((e: QuizEvent) => e.slug === params.slug);
       if (ev) setForm(normalizeEvent(ev));
-      setMsg("Kvíz zmazaný");
+      setMsg({ text: "Kvíz zmazaný", ok: true });
     } else {
-      setMsg("Chyba pri mazaní kvízu");
+      setMsg({ text: "Chyba pri mazaní kvízu", ok: false });
     }
   };
 
@@ -438,10 +452,10 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
         {!isNew && (
           <button
             onClick={toggleQuizActive}
-            className={`flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-xl border transition-colors ${
+            className={`flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded-xl border transition-colors ${
               form.active
-                ? "border-amber-200 text-amber-700 hover:bg-amber-50"
-                : "border-green-200 text-green-700 hover:bg-green-50"
+                ? "border-brand-orange/40 text-brand-orange-readable bg-brand-tint/40 hover:bg-brand-tint"
+                : "border-green-500/40 text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-950/30 hover:bg-green-100 dark:hover:bg-green-950/50"
             }`}
           >
             {form.active ? <PauseCircle className="w-4 h-4" /> : <PlayCircle className="w-4 h-4" />}
@@ -552,10 +566,10 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
             <div className="flex flex-wrap gap-3 mb-6 pb-6 border-b border-brand-border">
               <button
                 onClick={toggleLeagueActive}
-                className={`flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-xl border transition-colors ${
+                className={`flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded-xl border transition-colors ${
                   form.leagueActive !== false
-                    ? "border-amber-200 text-amber-700 hover:bg-amber-50 dark:border-amber-800 dark:text-amber-300 dark:hover:bg-amber-950/40"
-                    : "border-green-200 text-green-700 hover:bg-green-50 dark:border-green-800 dark:text-green-300 dark:hover:bg-green-950/40"
+                    ? "border-brand-orange/40 text-brand-orange-readable bg-brand-tint/40 hover:bg-brand-tint"
+                    : "border-green-500/40 text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-950/30 hover:bg-green-100 dark:hover:bg-green-950/50"
                 }`}
               >
                 {form.leagueActive !== false ? <PauseCircle className="w-4 h-4" /> : <PlayCircle className="w-4 h-4" />}
@@ -676,8 +690,8 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
             </div>
           )}
           {quizResult && (
-            <div className="bg-green-50 border border-green-200 rounded-xl p-5">
-              <div className="font-semibold text-green-700 mb-3">Kvíz uložený! Víťaz: {quizResult.winnerTeam}</div>
+            <div className="bg-green-50 dark:bg-green-950/40 border border-green-200 dark:border-green-800 rounded-xl p-5">
+              <div className="font-semibold text-green-700 dark:text-green-300 mb-3">Kvíz uložený! Víťaz: {quizResult.winnerTeam}</div>
               <div className="space-y-1.5">
                 {quizResult.ligaPoints.sort((a, b) => b.total - a.total).map((t, i) => (
                   <div key={i} className="flex items-center gap-3 text-sm">
@@ -805,7 +819,11 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
           )}
         </div>
         <div className="flex items-center gap-3">
-          {msg && <span className={`text-sm ${msg.includes("!") || msg.includes("ova") || msg.includes("ena") ? "text-green-600" : "text-red-500"}`}>{msg}</span>}
+          {msg && (
+            <span className={`text-sm font-medium ${msg.ok ? "text-green-600 dark:text-green-400" : "text-red-500 dark:text-red-400"}`}>
+              {msg.text}
+            </span>
+          )}
           {tab === "pridat" && !isNew ? (
             <button onClick={submitQuiz} disabled={quizSubmitting} className="btn-primary text-sm py-2.5 px-6">
               <Save className="w-4 h-4" />

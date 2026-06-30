@@ -114,10 +114,17 @@ export async function PUT(req: NextRequest, { params }: { params: { slug: string
 
     if (leagueToggle && typeof incoming.leagueActive === "boolean") {
       let leagueTable = [...(existing.leagueTable ?? [])];
-      const pastResults = existing.pastResults ?? [];
+      let pastResults = [...(existing.pastResults ?? [])];
+
+      if (Array.isArray(incoming.leagueTable) && incoming.leagueTable.length >= leagueTable.length) {
+        leagueTable = incoming.leagueTable;
+      }
+      if (Array.isArray(incoming.pastResults) && incoming.pastResults.length >= pastResults.length) {
+        pastResults = incoming.pastResults;
+      }
 
       if (pastResults.length > 0 && leagueTable.length === 0) {
-        leagueTable = rebuildLeagueTable(existing);
+        leagueTable = rebuildLeagueTable({ ...existing, pastResults });
       }
 
       if (incoming.leagueActive && leagueTable.length === 0 && pastResults.length === 0) {
@@ -129,7 +136,7 @@ export async function PUT(req: NextRequest, { params }: { params: { slug: string
 
       leagueTable = sortLeagueTable(leagueTable);
 
-      const updated = { ...existing, leagueTable, leagueActive: incoming.leagueActive };
+      const updated = { ...existing, leagueTable, pastResults, leagueActive: incoming.leagueActive };
       data.events[idx] = updated;
       await writeEvents(data);
       revalidatePath("/liga");
