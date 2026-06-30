@@ -31,9 +31,16 @@ function rebuildLeagueTable(event: QuizEvent): LeagueEntry[] {
 
 export async function PATCH(req: NextRequest, { params }: { params: { slug: string } }) {
   try {
-    const { active }: { active: boolean } = await req.json();
-    if (typeof active !== "boolean") {
-      return NextResponse.json({ error: "Chybny parameter" }, { status: 400 });
+    const body = await req.json();
+    const leagueActive: boolean =
+      typeof body.leagueActive === "boolean"
+        ? body.leagueActive
+        : typeof body.active === "boolean"
+        ? body.active
+        : (null as unknown as boolean);
+
+    if (typeof leagueActive !== "boolean") {
+      return NextResponse.json({ error: "Chybny parameter leagueActive" }, { status: 400 });
     }
 
     const data = await readEvents();
@@ -44,24 +51,25 @@ export async function PATCH(req: NextRequest, { params }: { params: { slug: stri
     let leagueTable = [...(event.leagueTable ?? [])];
     const pastResults = event.pastResults ?? [];
 
-    if (active && leagueTable.length === 0 && pastResults.length > 0) {
+    if (leagueActive && leagueTable.length === 0 && pastResults.length > 0) {
       leagueTable = rebuildLeagueTable(event);
     }
 
-    if (active && leagueTable.length === 0 && pastResults.length === 0) {
+    if (leagueActive && leagueTable.length === 0 && pastResults.length === 0) {
       return NextResponse.json(
-        { error: "Liga nema ziadne data. Najprv uloz kviz alebo pridaj timy." },
+        { error: "Liga nema ziadne data. Najprv uloz kviz cez prezentaciu alebo pridaj vysledky." },
         { status: 400 }
       );
     }
 
-    data.events[idx] = { ...event, leagueTable, leagueActive: active };
+    data.events[idx] = { ...event, leagueTable, leagueActive };
     await writeEvents(data);
     revalidatePath("/liga");
     revalidatePath(`/liga/${params.slug}`);
     return NextResponse.json(data.events[idx]);
-  } catch {
-    return NextResponse.json({ error: "Chyba pri ukladani" }, { status: 500 });
+  } catch (e) {
+    console.error("PATCH league error:", e);
+    return NextResponse.json({ error: "Chyba pri ukladani ligy" }, { status: 500 });
   }
 }
 
@@ -80,28 +88,15 @@ export async function PUT(req: NextRequest, { params }: { params: { slug: string
 
     if (
       !resetLeague &&
-      existing.leagueTable.length > 0 &&
-      Array.isArray(incoming.leagueTable) &&
-      incoming.leagueTable.length === 0
-    ) {
-      merged.leagueTable = existing.leagueTable;
-    }
-    if (
-      !resetLeague &&
-      existing.pastResults.length > 0 &&
-      Array.isArray(incoming.pastResults) &&
-      incoming.pastResults.length === 0
-    ) {
-      merged.pastResults = existing.pastResults;
-    }
-    if (
-      !resetLeague &&
-      incoming.leagueActive === false &&
       Array.isArray(incoming.leagueTable) &&
       incoming.leagueTable.length === 0 &&
-      (merged.leagueTable.length > 0 || merged.pastResults.length > 0)
+      Array.isArray(incoming.pastResults) &&
+      incoming.pastResults.length === 0 &&
+      (existing.leagueTable.length > 0 || existing.pastResults.length > 0)
     ) {
-      merged.leagueActive = true;
+      merged.leagueTable = existing.leagueTable;
+      merged.pastResults = existing.pastResults;
+      merged.leagueActive = existing.leagueActive;
     }
     if ((merged.leagueTable.length > 0 || merged.pastResults.length > 0) && merged.leagueActive !== false) {
       merged.leagueActive = true;

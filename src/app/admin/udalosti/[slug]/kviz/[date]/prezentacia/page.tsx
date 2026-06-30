@@ -149,6 +149,7 @@ export default function PrezentaciaPage({ params }: { params: { slug: string; da
         setSaving(false);
         return;
       }
+      alert("Kvíz uložený do ligy. Liga je zapnutá.");
     } catch {
       alert("Sieťová chyba pri ukladaní kvízu");
       setSaving(false);
@@ -161,6 +162,10 @@ export default function PrezentaciaPage({ params }: { params: { slug: string; da
   const fmtScore = (v: number) => (v % 1 === 0 ? String(v) : String(parseFloat(v.toFixed(2))));
   const backUrl = `/admin/udalosti/${params.slug}/kviz/${params.date}`;
   const listGapStyle: CSSProperties = { gap: `${gapPx}px` };
+  const numRounds = teams[0]?.rounds?.length ?? 4;
+  const roundsGrid = showRounds
+    ? `${layout.rankColPx}px minmax(3.5rem, 11vw) repeat(${numRounds}, minmax(1.6rem, ${layout.roundColPx}px)) minmax(4.5rem, 12vw) minmax(5.5rem, 24vw)`
+    : "";
 
   const renderTieButtons = (teamName: string, inline?: boolean) => (
     <div className={`${inline ? "shrink-0" : ""} flex ${layout.compactBtns ? "flex-row gap-0.5" : "flex-col gap-0.5"}`}>
@@ -206,8 +211,6 @@ export default function PrezentaciaPage({ params }: { params: { slug: string; da
       </div>
     );
   }
-
-  const numRounds = teams[0]?.rounds?.length ?? 4;
 
   return (
     <div
@@ -283,11 +286,11 @@ export default function PrezentaciaPage({ params }: { params: { slug: string; da
               <div
                 className="grid items-center text-stone-500 uppercase tracking-wider pb-1 border-b border-stone-800 mb-1 shrink-0"
                 style={{
-                  gridTemplateColumns: `${layout.rankColPx}px 1fr repeat(${numRounds}, ${layout.roundColPx}px) ${layout.totalColPx}px ${layout.totalColPx}px`,
+                  gridTemplateColumns: roundsGrid,
                   fontSize: `${layout.subPx}px`,
                   paddingLeft: "0.75rem",
                   paddingRight: "0.75rem",
-                  gap: "0.25rem",
+                  gap: "0.35rem",
                 }}
               >
                 <span>#</span>
@@ -332,10 +335,10 @@ export default function PrezentaciaPage({ params }: { params: { slug: string; da
                           ? {
                               ...rowFlex,
                               display: "grid",
-                              gridTemplateColumns: `${layout.rankColPx}px 1fr repeat(${numRounds}, ${layout.roundColPx}px) ${layout.totalColPx}px ${layout.totalColPx}px`,
+                              gridTemplateColumns: roundsGrid,
                               alignItems: "center",
                               padding: "0 0.75rem",
-                              gap: "0.25rem",
+                              gap: "0.35rem",
                             }
                           : {
                               ...rowFlex,
@@ -370,7 +373,7 @@ export default function PrezentaciaPage({ params }: { params: { slug: string; da
                             </span>
                           ))}
                           <span
-                            className="text-right font-bold text-[#f0b429] truncate"
+                            className="text-right font-bold text-[#f0b429] whitespace-nowrap tabular-nums"
                             style={{ fontSize: `${layout.scorePx}px` }}
                           >
                             {fmtScore(team.totalWithBonus)}

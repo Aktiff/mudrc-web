@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { readEvents, writeEvents } from "@/lib/storage";
 type TeamEntry = { name: string; scores: number[] };
 
@@ -80,7 +81,9 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
 
   data.events[idx] = { ...event, leagueTable: table, pastResults, leagueActive: true };
   await writeEvents(data);
+  revalidatePath("/liga");
+  revalidatePath(`/liga/${params.slug}`);
 
-  return NextResponse.json({ ok: true, winnerTeam, ligaPoints: sorted.map((t, i) => ({ name: t.name, total: t.total, liga: ligaPoints[i] })) });
+  return NextResponse.json({ ok: true, winnerTeam, event: data.events[idx], ligaPoints: sorted.map((t, i) => ({ name: t.name, total: t.total, liga: ligaPoints[i] })) });
 }
 
