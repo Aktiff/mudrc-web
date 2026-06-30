@@ -147,6 +147,16 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
   }, [params.slug, isNew]);
 
   useEffect(() => {
+    if (isNew || (tab !== "liga" && tab !== "vysledky")) return;
+    fetch("/api/admin/events")
+      .then((r) => r.json())
+      .then((data) => {
+        const ev = data.events.find((e: QuizEvent) => e.slug === params.slug);
+        if (ev) setForm(normalizeEvent(ev));
+      });
+  }, [tab, params.slug, isNew]);
+
+  useEffect(() => {
     if (isNew || tab !== "registracie") return;
     setRegsLoading(true);
     fetch(`/api/register?slug=${params.slug}&venue=${encodeURIComponent(form.venue)}`)
@@ -160,40 +170,10 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
   const save = async () => {
     setSaving(true);
     setMsg("");
-    let toSave: QuizEvent = { ...form };
-    if (!isNew) {
-      try {
-        const fresh = await fetch("/api/admin/events").then((r) => r.json());
-        const serverEv = fresh.events?.find((e: QuizEvent) => e.slug === params.slug);
-        if (serverEv) {
-          const server = normalizeEvent(serverEv);
-          if (server.leagueTable.length > toSave.leagueTable.length) {
-            toSave = { ...toSave, leagueTable: server.leagueTable };
-          }
-          if (server.pastResults.length > toSave.pastResults.length) {
-            toSave = { ...toSave, pastResults: server.pastResults };
-          }
-          if (
-            (server.leagueTable.length > 0 || server.pastResults.length > 0) &&
-            toSave.leagueTable.length === 0 &&
-            toSave.pastResults.length === 0
-          ) {
-            toSave = {
-              ...toSave,
-              leagueTable: server.leagueTable,
-              pastResults: server.pastResults,
-              leagueActive: server.leagueActive,
-            };
-          }
-        }
-      } catch {
-        /* pokračuj s lokálnym formulárom */
-      }
-    }
-    if (toSave.leagueTable.length > 0 || toSave.pastResults.length > 0) {
-      if (form.leagueActive !== false) {
-        toSave.leagueActive = true;
-      }
+    const includeLeagueData = tab === "liga" || tab === "vysledky";
+    let toSave: QuizEvent & { _includeLeagueData?: boolean } = { ...form };
+    if (includeLeagueData) {
+      toSave._includeLeagueData = true;
     }
     try {
       const res = await fetch(
@@ -229,15 +209,22 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
       : "Naozaj znova zapnúť tento kvíz? Zobrazí sa na webe v najbližších kvízoch.";
     if (!confirm(msg)) return;
 
-    const updated = { ...form, active: !form.active };
-    setForm(updated);
+    const newActive = !form.active;
+    setForm((f) => ({ ...f, active: newActive }));
     if (!isNew) {
       const res = await fetch(`/api/admin/events/${params.slug}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updated),
+        body: JSON.stringify({ active: newActive, _quizToggle: true }),
       });
-      setMsg(res.ok ? (updated.active ? "Kvíz aktivovaný" : "Kvíz vypnutý") : "Chyba pri ukladaní");
+      if (res.ok) {
+        const data = await res.json();
+        setForm(normalizeEvent(data));
+        setMsg(newActive ? "Kvíz aktivovaný" : "Kvíz vypnutý");
+      } else {
+        setForm((f) => ({ ...f, active: !newActive }));
+        setMsg("Chyba pri ukladaní");
+      }
     }
   };
 

@@ -29,6 +29,34 @@ function rebuildLeagueTable(event: QuizEvent): LeagueEntry[] {
   return table;
 }
 
+function applyLeagueDataMerge(existing: QuizEvent, incoming: Partial<QuizEvent>): Pick<QuizEvent, "leagueTable" | "pastResults" | "leagueActive"> {
+  const existingPR = existing.pastResults ?? [];
+  const existingLT = existing.leagueTable ?? [];
+  const incomingPR = Array.isArray(incoming.pastResults) ? incoming.pastResults : existingPR;
+  const incomingLT = Array.isArray(incoming.leagueTable) ? incoming.leagueTable : existingLT;
+
+  let pastResults = existingPR;
+  if (incomingPR.length >= existingPR.length) {
+    pastResults = incomingPR;
+  }
+
+  let leagueTable = existingLT;
+  if (existingPR.length > 0 && incomingLT.length < existingLT.length) {
+    leagueTable = existingLT.length > 0 ? existingLT : rebuildLeagueTable({ ...existing, pastResults });
+  } else if (incomingLT.length >= existingLT.length || existingPR.length === 0) {
+    leagueTable = incomingLT;
+  }
+
+  let leagueActive = existing.leagueActive;
+  if (typeof incoming.leagueActive === "boolean") {
+    leagueActive = incoming.leagueActive;
+  } else if ((leagueTable.length > 0 || pastResults.length > 0) && leagueActive !== false) {
+    leagueActive = true;
+  }
+
+  return { leagueTable, pastResults, leagueActive };
+}
+
 export async function PATCH(req: NextRequest, { params }: { params: { slug: string } }) {
   try {
     const body = await req.json();
@@ -78,13 +106,31 @@ export async function PUT(req: NextRequest, { params }: { params: { slug: string
     const body = await req.json();
     const resetLeague = body._resetLeague === true;
     const leagueToggle = body._leagueToggle === true;
-    const { _resetLeague: _, _leagueToggle: __, ...incoming } = body;
+    const quizToggle = body._quizToggle === true;
+    const includeLeagueData = body._includeLeagueData === true;
+    const { _resetLeague: _, _leagueToggle: __, _quizToggle: ___, _includeLeagueData: ____, ...incoming } = body;
 
     const data = await readEvents();
     const idx = data.events.findIndex((e) => e.slug === params.slug);
     if (idx === -1) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
     const existing = data.events[idx];
+
+    if (resetLeague) {
+      const updated = {
+        ...existing,
+        ...incoming,
+        slug: params.slug,
+        leagueTable: [],
+        pastResults: [],
+        leagueActive: false,
+      };
+      data.events[idx] = updated;
+      await writeEvents(data);
+      revalidatePath("/liga");
+      revalidatePath(`/liga/${params.slug}`);
+      return NextResponse.json(updated);
+    }
 
     if (leagueToggle && typeof incoming.leagueActive === "boolean") {
       let leagueTable = [...(existing.leagueTable ?? [])];
@@ -109,26 +155,22 @@ export async function PUT(req: NextRequest, { params }: { params: { slug: string
       return NextResponse.json(updated);
     }
 
-    const merged = { ...existing, ...incoming, slug: params.slug };
+    if (quizToggle && typeof incoming.active === "boolean") {
+      const updated = { ...existing, active: incoming.active };
+      data.events[idx] = updated;
+      await writeEvents(data);
+      return NextResponse.json(updated);
+    }
 
-    if (
-      !resetLeague &&
-      Array.isArray(incoming.leagueTable) &&
-      incoming.leagueTable.length === 0 &&
-      Array.isArray(incoming.pastResults) &&
-      incoming.pastResults.length === 0 &&
-      (existing.leagueTable.length > 0 || existing.pastResults.length > 0)
-    ) {
-      merged.leagueTable = existing.leagueTable;
-      merged.pastResults = existing.pastResults;
+    const { leagueTable: _lt, pastResults: _pr, leagueActive: _la, ...safeIncoming } = incoming;
+    let merged: QuizEvent = { ...existing, ...safeIncoming, slug: params.slug };
+
+    if (includeLeagueData) {
+      merged = { ...merged, ...applyLeagueDataMerge(existing, incoming) };
+    } else {
+      merged.leagueTable = existing.leagueTable ?? [];
+      merged.pastResults = existing.pastResults ?? [];
       merged.leagueActive = existing.leagueActive;
-    } else if (
-      typeof incoming.leagueActive === "boolean" &&
-      (merged.leagueTable.length > 0 || merged.pastResults.length > 0)
-    ) {
-      merged.leagueActive = incoming.leagueActive;
-    } else if ((merged.leagueTable.length > 0 || merged.pastResults.length > 0) && merged.leagueActive !== false) {
-      merged.leagueActive = true;
     }
 
     data.events[idx] = merged;
