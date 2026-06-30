@@ -170,9 +170,7 @@ function mergeEventsSafe(stored: QuizEvent[], incoming: QuizEvent[]): QuizEvent[
     return mergeEventPreserve(storedEvent, inc);
   });
 
-  for (const inc of incomingBySlug.values()) {
-    merged.push(inc);
-  }
+  merged.push(...Array.from(incomingBySlug.values()));
 
   return merged;
 }
