@@ -141,9 +141,40 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
   const save = async () => {
     setSaving(true);
     setMsg("");
-    const toSave: QuizEvent = { ...form };
+    let toSave: QuizEvent = { ...form };
+    if (!isNew) {
+      try {
+        const fresh = await fetch("/api/admin/events").then((r) => r.json());
+        const serverEv = fresh.events?.find((e: QuizEvent) => e.slug === params.slug);
+        if (serverEv) {
+          const server = normalizeEvent(serverEv);
+          if (server.leagueTable.length > toSave.leagueTable.length) {
+            toSave = { ...toSave, leagueTable: server.leagueTable };
+          }
+          if (server.pastResults.length > toSave.pastResults.length) {
+            toSave = { ...toSave, pastResults: server.pastResults };
+          }
+          if (
+            (server.leagueTable.length > 0 || server.pastResults.length > 0) &&
+            toSave.leagueTable.length === 0 &&
+            toSave.pastResults.length === 0
+          ) {
+            toSave = {
+              ...toSave,
+              leagueTable: server.leagueTable,
+              pastResults: server.pastResults,
+              leagueActive: server.leagueActive,
+            };
+          }
+        }
+      } catch {
+        /* pokračuj s lokálnym formulárom */
+      }
+    }
     if (toSave.leagueTable.length > 0 || toSave.pastResults.length > 0) {
-      toSave.leagueActive = true;
+      if (form.leagueActive !== false) {
+        toSave.leagueActive = true;
+      }
     }
     try {
       const res = await fetch(
@@ -195,18 +226,21 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
     const leagueOn = form.leagueActive !== false;
     const msg = leagueOn
       ? "Naozaj vypnúť ligu? Zmizne z verejného zoznamu na /liga."
-      : "Naozaj znova zapnúť ligu? Zobrazí sa na webe v ligách.";
+      : "Naozaj znova zapnúť ligu? Zobrazí sa hneď na /liga.";
     if (!confirm(msg)) return;
 
-    const updated = { ...form, leagueActive: !leagueOn };
-    setForm(updated);
-    if (!isNew) {
-      const res = await fetch(`/api/admin/events/${params.slug}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updated),
-      });
-      setMsg(res.ok ? (updated.leagueActive !== false ? "Liga aktivovaná" : "Liga vypnutá") : "Chyba pri ukladaní");
+    const res = await fetch(`/api/admin/events/${params.slug}/league`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ active: !leagueOn }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      setForm(normalizeEvent(data));
+      setMsg(!leagueOn ? "Liga zapnutá — zobrazí sa hneď na /liga" : "Liga vypnutá");
+    } else {
+      const err = await res.json().catch(() => ({}));
+      setMsg(err.error ?? "Chyba pri ukladaní ligy");
     }
   };
 
@@ -218,7 +252,7 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
       const res = await fetch(`/api/admin/events/${params.slug}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updated),
+        body: JSON.stringify({ ...updated, _resetLeague: true }),
       });
       if (res.ok) {
         const data = await res.json();

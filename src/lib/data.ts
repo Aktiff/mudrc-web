@@ -46,10 +46,8 @@ export function isLeagueActive(event: QuizEvent): boolean {
 }
 
 export function isLeagueVisible(event: QuizEvent): boolean {
-  return (
-    isLeagueActive(event) &&
-    (event.leagueTable.length > 0 || event.pastResults.length > 0)
-  );
+  if (event.leagueActive === false) return false;
+  return event.leagueTable.length > 0 || event.pastResults.length > 0;
 }
 
 export function getVisibleLeagues(events: QuizEvent[]): QuizEvent[] {
