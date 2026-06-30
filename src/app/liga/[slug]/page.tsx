@@ -52,13 +52,17 @@ export default function LigaDetailPage({ params }: { params: { slug: string } })
             <h2 className="font-display text-3xl text-brand-text tracking-wide mb-5">História kvízov</h2>
             <div className="space-y-2">
               {visibleResults.map((r, i) => (
-                <div key={i} className="grid items-center gap-3 px-4 py-3 rounded-xl hover:bg-brand-hover transition-colors"
-                  style={{ gridTemplateColumns: "1.1rem 6.5rem 2.5rem 1fr auto" }}>
-                  <Calendar className="w-4 h-4 text-brand-orange-readable shrink-0" />
-                  <span className="font-semibold text-brand-text text-sm">{r.date}</span>
-                  <span className="text-brand-muted text-sm">víťaz</span>
-                  <span className="font-semibold text-brand-orange-readable text-sm">{r.winnerTeam}</span>
-                  <span className="text-brand-muted text-sm font-medium text-right">{r.points} bodov</span>
+                <div
+                  key={i}
+                  className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 sm:px-4 py-3 rounded-xl hover:bg-brand-hover transition-colors"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Calendar className="w-4 h-4 text-brand-orange-readable shrink-0" />
+                    <span className="font-semibold text-brand-text text-sm">{r.date}</span>
+                  </div>
+                  <span className="text-brand-muted text-sm hidden sm:inline">víťaz</span>
+                  <span className="font-semibold text-brand-orange-readable text-sm flex-1 min-w-0 truncate">{r.winnerTeam}</span>
+                  <span className="text-brand-muted text-sm font-medium sm:ml-auto">{r.points} bodov</span>
                 </div>
               ))}
             </div>
@@ -82,16 +86,55 @@ export default function LigaDetailPage({ params }: { params: { slug: string } })
         )}
 
         {event.leagueTable.length > 0 && (
-          <div className="bg-brand-card rounded-2xl border border-brand-border p-6 md:p-8">
-            <h2 className="font-display text-3xl text-brand-text tracking-wide mb-6">Ligová tabuľka</h2>
-            <div className="overflow-x-auto">
+          <div className="bg-brand-card rounded-2xl border border-brand-border p-4 sm:p-6 md:p-8">
+            <h2 className="font-display text-2xl sm:text-3xl text-brand-text tracking-wide mb-4 sm:mb-6">Ligová tabuľka</h2>
+
+            <div className="md:hidden space-y-2">
+              {event.leagueTable.map((entry) => (
+                <div
+                  key={entry.rank}
+                  className="flex items-center gap-3 p-3 rounded-xl border border-brand-border bg-brand-surface/50"
+                >
+                  <div className="shrink-0 w-9 flex justify-center">
+                    {entry.rank <= 3 ? (
+                      <span
+                        className="inline-flex w-8 h-8 rounded-full border items-center justify-center"
+                        style={{
+                          background: medalStyles[entry.rank - 1].bg,
+                          color: medalStyles[entry.rank - 1].color,
+                          borderColor: medalStyles[entry.rank - 1].border,
+                        }}
+                      >
+                        <Medal className="w-4 h-4" />
+                      </span>
+                    ) : (
+                      <span className="text-brand-muted text-sm font-medium">{entry.rank}.</span>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className={`font-semibold truncate ${entry.rank === 1 ? "text-brand-orange-readable" : "text-brand-text"}`}>
+                      {entry.teamName}
+                    </div>
+                    <div className="text-brand-muted text-xs mt-0.5">{entry.quizzesPlayed} kvízov</div>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <span className={`font-display text-xl font-bold ${entry.rank === 1 ? "text-brand-orange-readable" : "text-brand-text"}`}>
+                      {entry.points}
+                    </span>
+                    <span className="text-brand-muted text-xs ml-0.5">b</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="hidden md:block">
               <table className="w-full border-collapse">
                 <thead>
                   <tr className="bg-brand-surface rounded-xl">
                     <th className="text-left py-3 px-3 text-xs text-brand-muted uppercase tracking-wider font-semibold rounded-l-xl w-14">#</th>
                     <th className="text-left py-3 px-3 text-xs text-brand-muted uppercase tracking-wider font-semibold">Tím</th>
                     <th className="text-right py-3 px-4 text-xs text-brand-muted uppercase tracking-wider font-semibold">Body</th>
-                    <th className="text-right py-3 px-4 text-xs text-brand-muted uppercase tracking-wider font-semibold rounded-r-xl whitespace-nowrap">Počet kvízov</th>
+                    <th className="text-right py-3 px-4 text-xs text-brand-muted uppercase tracking-wider font-semibold rounded-r-xl">Počet kvízov</th>
                   </tr>
                 </thead>
                 <tbody>
