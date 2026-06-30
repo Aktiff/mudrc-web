@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Trophy } from "lucide-react";
 import type { Metadata } from "next";
 import { readEvents } from "@/lib/storage";
-import { getVisibleLeagues } from "@/lib/league";
+import { getVisibleLeagues } from "@/lib/data";
 
 export const metadata: Metadata = {
   title: "Liga",

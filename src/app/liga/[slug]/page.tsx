@@ -4,7 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ChevronLeft, Medal, Trophy, Calendar } from "lucide-react";
 import type { QuizEvent } from "@/lib/data";
-import { isLeagueVisible } from "@/lib/league";
+import { isLeagueVisible } from "@/lib/data";
 const medalStyles = [
   { bg: "#FFD700", color: "#5a3e00", border: "#c9a800" },
   { bg: "#C0C0C0", color: "#333333", border: "#909090" },

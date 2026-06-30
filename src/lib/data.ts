@@ -35,3 +35,14 @@ export function formatDuration(minutes: number): string {
   if (m === 0) return `${h} hod.`;
   return `${h} hod. ${m} min.`;
 }
+
+export function isLeagueVisible(event: QuizEvent): boolean {
+  return (
+    event.active === true &&
+    (event.leagueTable.length > 0 || event.pastResults.length > 0)
+  );
+}
+
+export function getVisibleLeagues(events: QuizEvent[]): QuizEvent[] {
+  return events.filter(isLeagueVisible);
+}

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { readEvents } from "@/lib/storage";
-import { getVisibleLeagues } from "@/lib/league";
+import { getVisibleLeagues } from "@/lib/data";
 
 export const dynamic = "force-dynamic";
 
