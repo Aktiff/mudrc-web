@@ -128,6 +128,25 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
   }, [params.slug, isNew]);
 
   useEffect(() => {
+    if (isNew) return;
+    const reload = () => {
+      if (document.visibilityState !== "visible") return;
+      fetch("/api/admin/events")
+        .then((r) => r.json())
+        .then((data) => {
+          const ev = data.events.find((e: QuizEvent) => e.slug === params.slug);
+          if (ev) setForm(normalizeEvent(ev));
+        });
+    };
+    window.addEventListener("focus", reload);
+    document.addEventListener("visibilitychange", reload);
+    return () => {
+      window.removeEventListener("focus", reload);
+      document.removeEventListener("visibilitychange", reload);
+    };
+  }, [params.slug, isNew]);
+
+  useEffect(() => {
     if (isNew || tab !== "registracie") return;
     setRegsLoading(true);
     fetch(`/api/register?slug=${params.slug}&venue=${encodeURIComponent(form.venue)}`)

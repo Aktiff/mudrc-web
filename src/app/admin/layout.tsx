@@ -12,6 +12,11 @@ const navItems = [
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
+  const isFullscreen = pathname.includes("/prezentacia");
+
+  if (isFullscreen) {
+    return <>{children}</>;
+  }
 
   const handleLogout = async () => {
     await fetch("/api/admin/login", { method: "DELETE" });

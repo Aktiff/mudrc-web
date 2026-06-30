@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { readEvents, writeEvents } from "@/lib/storage";
 type TeamEntry = { name: string; scores: number[]; total?: number };
 
@@ -94,8 +95,10 @@ export async function PUT(req: NextRequest, { params }: { params: { slug: string
   };
   data.events[idx] = { ...event, leagueTable: table, leagueActive: true };
   await writeEvents(data);
+  revalidatePath("/liga");
+  revalidatePath(`/liga/${params.slug}`);
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, event: data.events[idx] });
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: { slug: string; date: string } }) {
