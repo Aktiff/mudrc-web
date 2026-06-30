@@ -94,9 +94,6 @@ export async function readEvents(): Promise<{ events: QuizEvent[] }> {
   if (process.env.BLOB_READ_WRITE_TOKEN) {
     const blob = await readBlobJson<{ events: QuizEvent[] }>(EVENTS_KEY);
     if (blob) return blob;
-    const local = readLocalEvents();
-    await writeBlobJson(EVENTS_KEY, local);
-    return local;
   }
   if (isVercel) {
     const tmp = readTmpJson<{ events: QuizEvent[] }>(EVENTS_KEY);
@@ -122,9 +119,6 @@ export async function readRegistrations(): Promise<{ registrations: Registration
   if (process.env.BLOB_READ_WRITE_TOKEN) {
     const blob = await readBlobJson<{ registrations: Registration[] }>(REGS_KEY);
     if (blob) return blob;
-    const local = readLocalRegistrations();
-    await writeBlobJson(REGS_KEY, local);
-    return local;
   }
   if (isVercel) {
     const tmp = readTmpJson<{ registrations: Registration[] }>(REGS_KEY);

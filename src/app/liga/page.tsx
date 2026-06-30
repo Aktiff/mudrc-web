@@ -9,17 +9,13 @@ export default function LigaPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch("/api/events", { cache: "no-store" })
+    fetch("/api/events?view=liga", { cache: "no-store" })
       .then((r) => r.json())
       .then((d) => setEvents(d.events ?? []))
       .finally(() => setLoading(false));
   }, []);
 
-  const activeEvents = events.filter(
-    (e) =>
-      e.active !== false &&
-      (e.leagueTable.length > 0 || e.pastResults.length > 0)
-  );
+  const activeEvents = events;
 
   return (
     <div className="min-h-screen bg-brand-bg pt-16">
