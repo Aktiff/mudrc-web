@@ -324,3 +324,35 @@ export async function addRegistration(reg: Registration): Promise<void> {
   data.registrations.push(reg);
   await writeRegistrations(data);
 }
+
+export async function deleteRegistrationById(id: string): Promise<boolean> {
+  const data = await readRegistrations();
+  const filtered = data.registrations.filter((reg) => reg.id !== id);
+  if (filtered.length === data.registrations.length) return false;
+  await writeRegistrations({ registrations: filtered }, { destructive: true });
+  return true;
+}
+
+export async function deleteRegistrationsForEvent(slug: string, venue?: string): Promise<number> {
+  const data = await readRegistrations();
+  const venueLower = venue?.trim().toLowerCase();
+  const filtered = data.registrations.filter((reg) => {
+    if (slug && reg.eventSlug === slug) return false;
+    if (venueLower && reg.venue.trim().toLowerCase() === venueLower) return false;
+    return true;
+  });
+  const removed = data.registrations.length - filtered.length;
+  if (removed === 0) return 0;
+  await writeRegistrations({ registrations: filtered }, { destructive: true });
+  return removed;
+}
+
+export async function deleteRegistrationsByIds(ids: string[]): Promise<number> {
+  const idSet = new Set(ids);
+  const data = await readRegistrations();
+  const filtered = data.registrations.filter((reg) => !idSet.has(reg.id));
+  const removed = data.registrations.length - filtered.length;
+  if (removed === 0) return 0;
+  await writeRegistrations({ registrations: filtered }, { destructive: true });
+  return removed;
+}
