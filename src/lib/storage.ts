@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { head, put } from "@vercel/blob";
+import { head, list, put } from "@vercel/blob";
 import type { QuizEvent } from "@/lib/data";
 
 const EVENTS_KEY = "mudrc/events.json";
@@ -23,7 +23,6 @@ export type Registration = {
 };
 
 export type WriteOptions = {
-  /** Explicit delete/reset — skips loss protection for intentional removals */
   destructive?: boolean;
 };
 
@@ -33,7 +32,8 @@ function sleep(ms: number) {
 
 function isBlobNotFound(error: unknown): boolean {
   if (!error || typeof error !== "object") return false;
-  const err = error as { status?: number; message?: string };
+  const err = error as { name?: string; status?: number; message?: string };
+  if (err.name === "BlobNotFoundError") return true;
   if (err.status === 404) return true;
   const msg = String(err.message ?? "").toLowerCase();
   return msg.includes("not found") || msg.includes("404");
@@ -86,47 +86,57 @@ function writeTmpJson(key: string, data: unknown): boolean {
   }
 }
 
-async function readBlobJsonOnce<T>(key: string): Promise<T | null> {
+async function downloadJson<T>(downloadUrl: string): Promise<T> {
+  const res = await fetch(`${downloadUrl}?v=${Date.now()}`, {
+    cache: "no-store",
+    headers: { "Cache-Control": "no-cache, no-store, must-revalidate" },
+  });
+  if (!res.ok) throw new Error(`Blob download failed (${res.status})`);
+  return (await res.json()) as T;
+}
+
+async function readBlobDataOnce<T>(key: string): Promise<T | null> {
   if (!useBlob) return null;
+
   try {
     const meta = await head(key);
-    const res = await fetch(`${meta.url}?t=${Date.now()}`, {
-      cache: "no-store",
-      headers: { "Cache-Control": "no-cache, no-store, must-revalidate" },
-    });
-    if (!res.ok) throw new Error(`Blob fetch failed (${res.status})`);
-    return (await res.json()) as T;
+    return downloadJson<T>(meta.downloadUrl);
+  } catch (error) {
+    if (!isBlobNotFound(error)) throw error;
+  }
+
+  try {
+    const result = await list({ prefix: key, limit: 10 });
+    const blob = result.blobs.find((entry) => entry.pathname === key);
+    if (!blob) return null;
+    return downloadJson<T>(blob.downloadUrl);
   } catch (error) {
     if (isBlobNotFound(error)) return null;
     throw error;
   }
 }
 
-async function readBlobJson<T>(key: string): Promise<T | null> {
+async function readBlobData<T>(key: string): Promise<T | null> {
   let lastError: unknown;
-  for (let attempt = 0; attempt < 4; attempt++) {
+  for (let attempt = 0; attempt < 5; attempt++) {
     try {
-      return await readBlobJsonOnce<T>(key);
+      return await readBlobDataOnce<T>(key);
     } catch (error) {
       lastError = error;
-      if (attempt < 3) await sleep(150 * (attempt + 1));
+      if (attempt < 4) await sleep(200 * (attempt + 1));
     }
   }
   throw lastError instanceof Error ? lastError : new Error("Blob read failed");
 }
 
-async function writeBlobJson(key: string, data: unknown): Promise<boolean> {
-  if (!useBlob) return false;
-  try {
-    await put(key, JSON.stringify(data, null, 2), {
-      access: "public",
-      addRandomSuffix: false,
-      contentType: "application/json",
-    });
-    return true;
-  } catch {
-    return false;
-  }
+async function writeBlobJson(key: string, data: unknown): Promise<void> {
+  if (!useBlob) return;
+  const ok = await put(key, JSON.stringify(data, null, 2), {
+    access: "public",
+    addRandomSuffix: false,
+    contentType: "application/json",
+  }).then(() => true).catch(() => false);
+  if (!ok) throw new Error("Blob write failed");
 }
 
 function countQuizzes(events: QuizEvent[]): number {
@@ -141,15 +151,11 @@ function mergeEventPreserve(stored: QuizEvent, incoming: QuizEvent): QuizEvent {
 
   const pastResults = incPR.length >= prevPR.length ? incPR : prevPR;
 
-  let leagueTable = incLT;
-  if (prevPR.length > 0 && incLT.length < prevLT.length) {
-    leagueTable = prevLT;
-  } else if (incLT.length >= prevLT.length) {
+  let leagueTable = prevLT;
+  if (incLT.length >= prevLT.length) {
     leagueTable = incLT;
   } else if (prevPR.length === 0 && incPR.length === 0) {
     leagueTable = incLT;
-  } else {
-    leagueTable = prevLT;
   }
 
   return {
@@ -161,198 +167,223 @@ function mergeEventPreserve(stored: QuizEvent, incoming: QuizEvent): QuizEvent {
   };
 }
 
-function mergeEventsSafe(stored: QuizEvent[], incoming: QuizEvent[]): QuizEvent[] {
+function applyIncomingEvents(current: QuizEvent[], incoming: QuizEvent[], destructive?: boolean): QuizEvent[] {
   const incomingBySlug = new Map(incoming.map((event) => [event.slug, event]));
-  const merged = stored.map((storedEvent) => {
-    const inc = incomingBySlug.get(storedEvent.slug);
-    if (!inc) return storedEvent;
-    incomingBySlug.delete(storedEvent.slug);
-    return mergeEventPreserve(storedEvent, inc);
+
+  if (destructive && incoming.length < current.length) {
+    return incoming.map((inc) => {
+      const prev = current.find((event) => event.slug === inc.slug);
+      return prev ? { ...prev, ...inc, slug: inc.slug } : inc;
+    });
+  }
+
+  if (destructive) {
+    return current
+      .map((stored) => {
+        const inc = incomingBySlug.get(stored.slug);
+        if (!inc) return stored;
+        return { ...stored, ...inc, slug: stored.slug };
+      })
+      .concat(incoming.filter((inc) => !current.some((stored) => stored.slug === inc.slug)));
+  }
+
+  const merged = current.map((stored) => {
+    const inc = incomingBySlug.get(stored.slug);
+    if (!inc) return stored;
+    incomingBySlug.delete(stored.slug);
+    return mergeEventPreserve(stored, inc);
   });
 
   merged.push(...Array.from(incomingBySlug.values()));
-
   return merged;
 }
 
-function mergeEventsDestructive(stored: QuizEvent[], incoming: QuizEvent[]): QuizEvent[] {
-  return incoming.map((inc) => {
-    const prev = stored.find((event) => event.slug === inc.slug);
-    return prev ? { ...prev, ...inc, slug: inc.slug } : inc;
-  });
-}
-
-function mergeRegistrations(stored: Registration[], incoming: Registration[]): Registration[] {
-  const byId = new Map(stored.map((reg) => [reg.id, reg]));
+function applyIncomingRegistrations(current: Registration[], incoming: Registration[], destructive?: boolean): Registration[] {
+  if (destructive) return incoming;
+  const byId = new Map(current.map((reg) => [reg.id, reg]));
   for (const reg of incoming) byId.set(reg.id, reg);
   return Array.from(byId.values());
 }
 
-async function prepareEventsWrite(
-  incoming: { events: QuizEvent[] },
-  options?: WriteOptions
-): Promise<{ events: QuizEvent[] }> {
-  if (!useBlob) return incoming;
-
-  const fresh = await readBlobJson<{ events: QuizEvent[] }>(EVENTS_KEY);
-  if (!fresh?.events?.length) return incoming;
-
-  const merged = options?.destructive
-    ? { events: mergeEventsDestructive(fresh.events, incoming.events) }
-    : { events: mergeEventsSafe(fresh.events, incoming.events) };
-
-  if (!options?.destructive) {
-    const before = countQuizzes(fresh.events);
-    const after = countQuizzes(merged.events);
-    if (after < before) {
-      throw new Error(
-        `Zapis zablokovany: pocet kvizov by klesol z ${before} na ${after}. Obnov stranku a skus znova.`
-      );
-    }
-    if (merged.events.length < fresh.events.length) {
-      throw new Error("Zapis zablokovany: zmazanie udalosti nie je povolene v tomto ulozeni.");
-    }
-  }
-
-  return merged;
-}
-
-async function prepareRegistrationsWrite(
-  incoming: { registrations: Registration[] },
-  options?: WriteOptions
-): Promise<{ registrations: Registration[] }> {
-  if (!useBlob) return incoming;
-
-  const fresh = await readBlobJson<{ registrations: Registration[] }>(REGS_KEY);
-  if (!fresh?.registrations?.length) return incoming;
-
-  const merged = options?.destructive
-    ? incoming
-    : { registrations: mergeRegistrations(fresh.registrations, incoming.registrations) };
-
-  if (!options?.destructive && merged.registrations.length < fresh.registrations.length) {
+function assertEventsNotRegressed(before: QuizEvent[], after: QuizEvent[], destructive?: boolean) {
+  if (destructive) return;
+  const beforeQuizzes = countQuizzes(before);
+  const afterQuizzes = countQuizzes(after);
+  if (afterQuizzes < beforeQuizzes) {
     throw new Error(
-      `Zapis zablokovany: pocet registracii by klesol z ${fresh.registrations.length} na ${merged.registrations.length}.`
+      `Zapis zablokovany: pocet kvizov by klesol z ${beforeQuizzes} na ${afterQuizzes}. Obnov stranku a skus znova.`
     );
   }
-
-  return merged;
+  if (after.length < before.length) {
+    throw new Error("Zapis zablokovany: zmazanie udalosti nie je povolene v tomto ulozeni.");
+  }
 }
 
-export async function readEvents(): Promise<{ events: QuizEvent[] }> {
-  if (useBlob) {
-    try {
-      const blob = await readBlobJson<{ events: QuizEvent[] }>(EVENTS_KEY);
-      if (blob?.events?.length) return blob;
-      if (isVercel) return readLocalEvents();
-    } catch (error) {
-      console.error("readEvents blob error:", error);
-      throw new Error("Nepodarilo sa nacitat udalosti. Skus obnovit stranku.");
-    }
+function assertRegsNotRegressed(before: Registration[], after: Registration[], destructive?: boolean) {
+  if (destructive) return;
+  if (after.length < before.length) {
+    throw new Error(
+      `Zapis zablokovany: pocet registracii by klesol z ${before.length} na ${after.length}. Obnov stranku a skus znova.`
+    );
   }
+}
 
+async function readEventsLocal(): Promise<{ events: QuizEvent[] }> {
+  if (useBlob) {
+    const blob = await readBlobData<{ events: QuizEvent[] }>(EVENTS_KEY);
+    if (blob !== null) return { events: blob.events ?? [] };
+    return readLocalEvents();
+  }
   if (isVercel) {
     const tmp = readTmpJson<{ events: QuizEvent[] }>(EVENTS_KEY);
     if (tmp) return tmp;
     return readLocalEvents();
   }
-
   return readLocalEvents();
 }
 
-export async function writeEvents(data: { events: QuizEvent[] }, options?: WriteOptions): Promise<void> {
-  const toWrite = await prepareEventsWrite(data, options);
-
+async function readRegsLocal(): Promise<{ registrations: Registration[] }> {
   if (useBlob) {
-    const ok = await writeBlobJson(EVENTS_KEY, toWrite);
-    if (!ok) throw new Error("Blob write failed");
-    return;
+    const blob = await readBlobData<{ registrations: Registration[] }>(REGS_KEY);
+    if (blob !== null) return { registrations: blob.registrations ?? [] };
+    return readLocalRegistrations();
   }
-
-  if (isVercel) {
-    if (writeTmpJson(EVENTS_KEY, toWrite)) return;
-    throw new Error("Storage unavailable");
-  }
-
-  fs.writeFileSync(eventsLocalPath, JSON.stringify(toWrite, null, 2), "utf-8");
-}
-
-export async function readRegistrations(): Promise<{ registrations: Registration[] }> {
-  if (useBlob) {
-    try {
-      const blob = await readBlobJson<{ registrations: Registration[] }>(REGS_KEY);
-      if (blob) return blob;
-      if (isVercel) return readLocalRegistrations();
-    } catch (error) {
-      console.error("readRegistrations blob error:", error);
-      throw new Error("Nepodarilo sa nacitat registracie. Skus obnovit stranku.");
-    }
-  }
-
   if (isVercel) {
     const tmp = readTmpJson<{ registrations: Registration[] }>(REGS_KEY);
     if (tmp) return tmp;
     return readLocalRegistrations();
   }
-
   return readLocalRegistrations();
+}
+
+async function persistEvents(events: QuizEvent[], options?: WriteOptions): Promise<void> {
+  const payload = { events };
+
+  if (useBlob) {
+    await writeBlobJson(EVENTS_KEY, payload);
+    return;
+  }
+  if (isVercel) {
+    if (writeTmpJson(EVENTS_KEY, payload)) return;
+    throw new Error("Storage unavailable");
+  }
+  fs.writeFileSync(eventsLocalPath, JSON.stringify(payload, null, 2), "utf-8");
+}
+
+async function persistRegistrations(registrations: Registration[], options?: WriteOptions): Promise<void> {
+  const payload = { registrations };
+
+  if (useBlob) {
+    await writeBlobJson(REGS_KEY, payload);
+    return;
+  }
+  if (isVercel) {
+    if (writeTmpJson(REGS_KEY, payload)) return;
+    throw new Error("Storage unavailable");
+  }
+  fs.writeFileSync(regsLocalPath, JSON.stringify(payload, null, 2), "utf-8");
+}
+
+export async function updateEvents(
+  mutator: (events: QuizEvent[]) => QuizEvent[] | Promise<QuizEvent[]>,
+  options?: WriteOptions
+): Promise<{ events: QuizEvent[] }> {
+  const fresh = useBlob ? await readBlobData<{ events: QuizEvent[] }>(EVENTS_KEY) : null;
+  const current = fresh?.events ?? (await readEventsLocal()).events;
+  const next = await mutator(structuredClone(current));
+  assertEventsNotRegressed(current, next, options?.destructive);
+  await persistEvents(next, options);
+  return { events: next };
+}
+
+export async function updateRegistrations(
+  mutator: (registrations: Registration[]) => Registration[] | Promise<Registration[]>,
+  options?: WriteOptions
+): Promise<{ registrations: Registration[] }> {
+  const fresh = useBlob ? await readBlobData<{ registrations: Registration[] }>(REGS_KEY) : null;
+  const current = fresh?.registrations ?? (await readRegsLocal()).registrations;
+  const next = await mutator(structuredClone(current));
+  assertRegsNotRegressed(current, next, options?.destructive);
+  await persistRegistrations(next, options);
+  return { registrations: next };
+}
+
+export async function readEvents(): Promise<{ events: QuizEvent[] }> {
+  try {
+    return await readEventsLocal();
+  } catch (error) {
+    console.error("readEvents error:", error);
+    throw new Error("Nepodarilo sa nacitat udalosti. Skus obnovit stranku.");
+  }
+}
+
+export async function writeEvents(data: { events: QuizEvent[] }, options?: WriteOptions): Promise<void> {
+  await updateEvents((current) => applyIncomingEvents(current, data.events, options?.destructive), options);
+}
+
+export async function readRegistrations(): Promise<{ registrations: Registration[] }> {
+  try {
+    return await readRegsLocal();
+  } catch (error) {
+    console.error("readRegistrations error:", error);
+    throw new Error("Nepodarilo sa nacitat registracie. Skus obnovit stranku.");
+  }
 }
 
 export async function writeRegistrations(
   data: { registrations: Registration[] },
   options?: WriteOptions
 ): Promise<void> {
-  const toWrite = await prepareRegistrationsWrite(data, options);
-
-  if (useBlob) {
-    const ok = await writeBlobJson(REGS_KEY, toWrite);
-    if (!ok) throw new Error("Blob write failed");
-    return;
-  }
-
-  if (isVercel) {
-    if (writeTmpJson(REGS_KEY, toWrite)) return;
-    throw new Error("Storage unavailable");
-  }
-
-  fs.writeFileSync(regsLocalPath, JSON.stringify(toWrite, null, 2), "utf-8");
+  await updateRegistrations(
+    (current) => applyIncomingRegistrations(current, data.registrations, options?.destructive),
+    options
+  );
 }
 
 export async function addRegistration(reg: Registration): Promise<void> {
-  const data = await readRegistrations();
-  if (data.registrations.some((existing) => existing.id === reg.id)) return;
-  data.registrations.push(reg);
-  await writeRegistrations(data);
+  await updateRegistrations((regs) => {
+    if (regs.some((existing) => existing.id === reg.id)) return regs;
+    return [...regs, reg];
+  });
 }
 
 export async function deleteRegistrationById(id: string): Promise<boolean> {
-  const data = await readRegistrations();
-  const filtered = data.registrations.filter((reg) => reg.id !== id);
-  if (filtered.length === data.registrations.length) return false;
-  await writeRegistrations({ registrations: filtered }, { destructive: true });
-  return true;
+  let removed = false;
+  await updateRegistrations((regs) => {
+    const next = regs.filter((reg) => reg.id !== id);
+    removed = next.length !== regs.length;
+    return next;
+  }, { destructive: true });
+  return removed;
 }
 
 export async function deleteRegistrationsForEvent(slug: string, venue?: string): Promise<number> {
-  const data = await readRegistrations();
   const venueLower = venue?.trim().toLowerCase();
-  const filtered = data.registrations.filter((reg) => {
-    if (slug && reg.eventSlug === slug) return false;
-    if (venueLower && reg.venue.trim().toLowerCase() === venueLower) return false;
-    return true;
-  });
-  const removed = data.registrations.length - filtered.length;
-  if (removed === 0) return 0;
-  await writeRegistrations({ registrations: filtered }, { destructive: true });
+  let removed = 0;
+  await updateRegistrations((regs) => {
+    const next = regs.filter((reg) => {
+      if (slug && reg.eventSlug === slug) {
+        if (venueLower && reg.venue.trim().toLowerCase() !== venueLower) return true;
+        return false;
+      }
+      if (!slug && venueLower && reg.venue.trim().toLowerCase() === venueLower) return false;
+      return true;
+    });
+    removed = regs.length - next.length;
+    return next;
+  }, { destructive: true });
   return removed;
 }
 
 export async function deleteRegistrationsByIds(ids: string[]): Promise<number> {
   const idSet = new Set(ids);
-  const data = await readRegistrations();
-  const filtered = data.registrations.filter((reg) => !idSet.has(reg.id));
-  const removed = data.registrations.length - filtered.length;
-  if (removed === 0) return 0;
-  await writeRegistrations({ registrations: filtered }, { destructive: true });
+  let removed = 0;
+  await updateRegistrations((regs) => {
+    const next = regs.filter((reg) => !idSet.has(reg.id));
+    removed = regs.length - next.length;
+    return next;
+  }, { destructive: true });
   return removed;
 }
+
+export { mergeEventPreserve };

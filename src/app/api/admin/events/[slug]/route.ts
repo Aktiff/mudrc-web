@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import type { QuizEvent, LeagueEntry } from "@/lib/data";
 import { rebuildLeagueTableFromResults, sortLeagueTable } from "@/lib/data";
-import { readEvents, writeEvents } from "@/lib/storage";
+import { updateEvents } from "@/lib/storage";
 
 function rebuildLeagueTable(event: QuizEvent): LeagueEntry[] {
   return rebuildLeagueTableFromResults(event.pastResults ?? []);
@@ -36,6 +36,12 @@ function applyLeagueDataMerge(existing: QuizEvent, incoming: Partial<QuizEvent>)
   return { leagueTable, pastResults, leagueActive };
 }
 
+class NotFoundError extends Error {
+  constructor() {
+    super("NOT_FOUND");
+  }
+}
+
 export async function PATCH(req: NextRequest, { params }: { params: { slug: string } }) {
   try {
     const body = await req.json();
@@ -50,31 +56,38 @@ export async function PATCH(req: NextRequest, { params }: { params: { slug: stri
       return NextResponse.json({ error: "Chybny parameter leagueActive" }, { status: 400 });
     }
 
-    const data = await readEvents();
-    const idx = data.events.findIndex((e) => e.slug === params.slug);
-    if (idx === -1) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    const { events } = await updateEvents((events) => {
+      const idx = events.findIndex((e) => e.slug === params.slug);
+      if (idx === -1) throw new NotFoundError();
 
-    const event = data.events[idx];
-    let leagueTable = [...(event.leagueTable ?? [])];
-    const pastResults = event.pastResults ?? [];
+      const event = events[idx];
+      let leagueTable = [...(event.leagueTable ?? [])];
+      const pastResults = event.pastResults ?? [];
 
-    if (leagueActive && leagueTable.length === 0 && pastResults.length > 0) {
-      leagueTable = rebuildLeagueTable(event);
-    }
+      if (leagueActive && leagueTable.length === 0 && pastResults.length > 0) {
+        leagueTable = rebuildLeagueTable(event);
+      }
 
-    if (leagueActive && leagueTable.length === 0 && pastResults.length === 0) {
+      if (leagueActive && leagueTable.length === 0 && pastResults.length === 0) {
+        throw new Error("LIGA_EMPTY");
+      }
+
+      events[idx] = { ...event, leagueTable, leagueActive };
+      return events;
+    });
+
+    const updated = events.find((e) => e.slug === params.slug)!;
+    revalidatePath("/liga");
+    revalidatePath(`/liga/${params.slug}`);
+    return NextResponse.json(updated);
+  } catch (e) {
+    if (e instanceof NotFoundError) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    if (e instanceof Error && e.message === "LIGA_EMPTY") {
       return NextResponse.json(
         { error: "Liga nema ziadne data. Najprv uloz kviz cez prezentaciu alebo pridaj vysledky." },
         { status: 400 }
       );
     }
-
-    data.events[idx] = { ...event, leagueTable, leagueActive };
-    await writeEvents(data);
-    revalidatePath("/liga");
-    revalidatePath(`/liga/${params.slug}`);
-    return NextResponse.json(data.events[idx]);
-  } catch (e) {
     console.error("PATCH league error:", e);
     return NextResponse.json({ error: "Chyba pri ukladani ligy" }, { status: 500 });
   }
@@ -90,100 +103,100 @@ export async function PUT(req: NextRequest, { params }: { params: { slug: string
     const recalculateLeague = body._recalculateLeague === true;
     const { _resetLeague: _, _leagueToggle: __, _quizToggle: ___, _includeLeagueData: ____, _recalculateLeague: _____, ...incoming } = body;
 
-    const data = await readEvents();
-    const idx = data.events.findIndex((e) => e.slug === params.slug);
-    if (idx === -1) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    const { events } = await updateEvents(
+      (events) => {
+        const idx = events.findIndex((e) => e.slug === params.slug);
+        if (idx === -1) throw new NotFoundError();
 
-    const existing = data.events[idx];
+        const existing = events[idx];
 
-    if (resetLeague) {
-      const updated = {
-        ...existing,
-        ...incoming,
-        slug: params.slug,
-        leagueTable: [],
-        pastResults: [],
-        leagueActive: false,
-      };
-      data.events[idx] = updated;
-      await writeEvents(data, { destructive: true });
-      revalidatePath("/liga");
-      revalidatePath(`/liga/${params.slug}`);
-      return NextResponse.json(updated);
-    }
+        if (resetLeague) {
+          events[idx] = {
+            ...existing,
+            ...incoming,
+            slug: params.slug,
+            leagueTable: [],
+            pastResults: [],
+            leagueActive: false,
+          };
+          return events;
+        }
 
-    if (leagueToggle && typeof incoming.leagueActive === "boolean") {
-      let leagueTable = [...(existing.leagueTable ?? [])];
-      let pastResults = [...(existing.pastResults ?? [])];
+        if (leagueToggle && typeof incoming.leagueActive === "boolean") {
+          let leagueTable = [...(existing.leagueTable ?? [])];
+          let pastResults = [...(existing.pastResults ?? [])];
 
-      if (Array.isArray(incoming.leagueTable) && incoming.leagueTable.length >= leagueTable.length) {
-        leagueTable = incoming.leagueTable;
-      }
-      if (Array.isArray(incoming.pastResults) && incoming.pastResults.length >= pastResults.length) {
-        pastResults = incoming.pastResults;
-      }
+          if (Array.isArray(incoming.leagueTable) && incoming.leagueTable.length >= leagueTable.length) {
+            leagueTable = incoming.leagueTable;
+          }
+          if (Array.isArray(incoming.pastResults) && incoming.pastResults.length >= pastResults.length) {
+            pastResults = incoming.pastResults;
+          }
 
-      if (pastResults.length > 0 && leagueTable.length === 0) {
-        leagueTable = rebuildLeagueTable({ ...existing, pastResults });
-      }
+          if (pastResults.length > 0 && leagueTable.length === 0) {
+            leagueTable = rebuildLeagueTable({ ...existing, pastResults });
+          }
 
-      if (incoming.leagueActive && leagueTable.length === 0 && pastResults.length === 0) {
-        return NextResponse.json(
-          { error: "Liga nemá žiadne dáta. Najprv ulož kvíz alebo pridaj tímy a klikni Uložiť zmeny." },
-          { status: 400 }
-        );
-      }
+          if (incoming.leagueActive && leagueTable.length === 0 && pastResults.length === 0) {
+            throw new Error("LIGA_EMPTY");
+          }
 
-      leagueTable = sortLeagueTable(leagueTable);
+          leagueTable = sortLeagueTable(leagueTable);
+          events[idx] = { ...existing, leagueTable, pastResults, leagueActive: incoming.leagueActive };
+          return events;
+        }
 
-      const updated = { ...existing, leagueTable, pastResults, leagueActive: incoming.leagueActive };
-      data.events[idx] = updated;
-      await writeEvents(data);
-      revalidatePath("/liga");
-      revalidatePath(`/liga/${params.slug}`);
-      return NextResponse.json(updated);
-    }
+        if (quizToggle && typeof incoming.active === "boolean") {
+          events[idx] = { ...existing, active: incoming.active };
+          return events;
+        }
 
-    if (quizToggle && typeof incoming.active === "boolean") {
-      const updated = { ...existing, active: incoming.active };
-      data.events[idx] = updated;
-      await writeEvents(data);
-      return NextResponse.json(updated);
-    }
+        if (recalculateLeague) {
+          const fromQuizzes = body.fromQuizzes === true;
+          const pastResults = existing.pastResults ?? [];
+          let leagueTable =
+            fromQuizzes && pastResults.length > 0
+              ? rebuildLeagueTable(existing)
+              : sortLeagueTable(existing.leagueTable ?? []);
 
-    if (recalculateLeague) {
-      const fromQuizzes = body.fromQuizzes === true;
-      const pastResults = existing.pastResults ?? [];
-      let leagueTable = fromQuizzes && pastResults.length > 0
-        ? rebuildLeagueTable(existing)
-        : sortLeagueTable(existing.leagueTable ?? []);
+          events[idx] = {
+            ...existing,
+            leagueTable,
+            leagueActive: leagueTable.length > 0 || pastResults.length > 0 ? existing.leagueActive : false,
+          };
+          return events;
+        }
 
-      const updated = { ...existing, leagueTable, leagueActive: leagueTable.length > 0 || pastResults.length > 0 ? existing.leagueActive : false };
-      data.events[idx] = updated;
-      await writeEvents(data);
-      revalidatePath("/liga");
-      revalidatePath(`/liga/${params.slug}`);
-      return NextResponse.json(updated);
-    }
+        const { leagueTable: _lt, pastResults: _pr, leagueActive: _la, ...safeIncoming } = incoming;
+        let merged: QuizEvent = { ...existing, ...safeIncoming, slug: params.slug };
 
-    const { leagueTable: _lt, pastResults: _pr, leagueActive: _la, ...safeIncoming } = incoming;
-    let merged: QuizEvent = { ...existing, ...safeIncoming, slug: params.slug };
+        if (includeLeagueData) {
+          merged = { ...merged, ...applyLeagueDataMerge(existing, incoming) };
+          merged.leagueTable = sortLeagueTable(merged.leagueTable ?? []);
+        } else {
+          merged.leagueTable = existing.leagueTable ?? [];
+          merged.pastResults = existing.pastResults ?? [];
+          merged.leagueActive = existing.leagueActive;
+        }
 
-    if (includeLeagueData) {
-      merged = { ...merged, ...applyLeagueDataMerge(existing, incoming) };
-      merged.leagueTable = sortLeagueTable(merged.leagueTable ?? []);
-    } else {
-      merged.leagueTable = existing.leagueTable ?? [];
-      merged.pastResults = existing.pastResults ?? [];
-      merged.leagueActive = existing.leagueActive;
-    }
+        events[idx] = merged;
+        return events;
+      },
+      resetLeague ? { destructive: true } : undefined
+    );
 
-    data.events[idx] = merged;
-    await writeEvents(data);
+    const updated = events.find((e) => e.slug === params.slug)!;
     revalidatePath("/liga");
     revalidatePath(`/liga/${params.slug}`);
-    return NextResponse.json(data.events[idx]);
+    return NextResponse.json(updated);
   } catch (e) {
+    if (e instanceof NotFoundError) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    if (e instanceof Error && e.message === "LIGA_EMPTY") {
+      return NextResponse.json(
+        { error: "Liga nemá žiadne dáta. Najprv ulož kvíz alebo pridaj tímy a klikni Uložiť zmeny." },
+        { status: 400 }
+      );
+    }
     const message = e instanceof Error ? e.message : "Chyba pri ukladani";
     return NextResponse.json({ error: message }, { status: 500 });
   }
@@ -191,9 +204,7 @@ export async function PUT(req: NextRequest, { params }: { params: { slug: string
 
 export async function DELETE(_req: NextRequest, { params }: { params: { slug: string } }) {
   try {
-    const data = await readEvents();
-    data.events = data.events.filter((e) => e.slug !== params.slug);
-    await writeEvents(data, { destructive: true });
+    await updateEvents((events) => events.filter((e) => e.slug !== params.slug), { destructive: true });
     return NextResponse.json({ ok: true });
   } catch {
     return NextResponse.json({ error: "Chyba pri mazani" }, { status: 500 });
