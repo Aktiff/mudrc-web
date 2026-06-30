@@ -1,7 +1,12 @@
 import Link from "next/link";
 import { Trophy } from "lucide-react";
+import type { Metadata } from "next";
 import { readEvents } from "@/lib/storage";
 import { getVisibleLeagues } from "@/lib/league";
+
+export const metadata: Metadata = {
+  title: "Liga",
+};
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
