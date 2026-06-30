@@ -1,72 +1,149 @@
+"use client";
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Trophy } from "lucide-react";
-import { events } from "@/lib/data";
-import type { Metadata } from "next";
+import { notFound } from "next/navigation";
+import {
+  MapPin,
+  Clock,
+  Calendar,
+  Users,
+  ChevronLeft,
+  Trophy,
+  BookOpen,
+  Timer,
+} from "lucide-react";
+import type { QuizEvent } from "@/lib/data";
+import { formatDuration } from "@/lib/data";
+import RegistrationModal from "@/components/RegistrationModal";
 
-export const metadata: Metadata = {
-  title: "Liga",
-};
+export default function EventPage({ params }: { params: { slug: string } }) {
+  const [event, setEvent] = useState<QuizEvent | null | undefined>(undefined);
+  const [showModal, setShowModal] = useState(false);
 
-export default function LigaPage() {
-  const activeEvents = events.filter((e) => e.active !== false);
+  useEffect(() => {
+    fetch(`/api/events/${params.slug}`, { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then(setEvent)
+      .catch(() => setEvent(null));
+  }, [params.slug]);
+
+  if (event === undefined) {
+    return (
+      <div className="min-h-screen bg-brand-bg pt-16 flex items-center justify-center text-brand-muted">
+        Načítavam...
+      </div>
+    );
+  }
+  if (!event || event.active === false) notFound();
+
+  const rules = event.rules ?? [];
 
   return (
-    <div className="min-h-screen bg-brand-bg pt-16">
-      <section className="bg-brand-warm border-b border-brand-border">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-          <span className="text-brand-orange-readable text-sm font-semibold uppercase tracking-wider">Sezóna 2025 / 2026</span>
-          <h1 className="font-display text-6xl sm:text-7xl text-brand-text tracking-wide mt-3">LIGA</h1>
-          <p className="text-brand-muted text-lg mt-3 max-w-xl">
-            Vyber podnik a uvidíš históriu kvízov a ligovú tabuľku. Zbieraj body, bojuj o prvé miesto.
-          </p>
-        </div>
-      </section>
+    <>
+      <div className="min-h-screen bg-brand-bg pt-16">
+        <section className="bg-brand-warm border-b border-brand-border">
+          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+            <Link
+              href="/#kvizy"
+              className="inline-flex items-center gap-1.5 text-brand-muted hover:text-brand-orange-readable transition-colors text-sm mb-6"
+            >
+              <ChevronLeft className="w-4 h-4" /> Späť na kvízy
+            </Link>
+            <h1 className="font-display text-5xl sm:text-6xl text-brand-text tracking-wide">{event.venue}</h1>
+            <p className="text-brand-muted text-sm mt-2 flex items-center gap-1.5">
+              <MapPin className="w-4 h-4 shrink-0" />
+              {event.city} &mdash; {event.address}
+            </p>
+          </div>
+        </section>
 
-      <section className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <div className="space-y-4">
-          {activeEvents.map((event) => {
-            const leader = event.leagueTable[0];
-            return (
-              <Link
-                key={event.slug}
-                href={`/liga/${event.slug}`}
-                className="block bg-brand-card rounded-2xl border border-brand-border px-6 py-5 hover:border-brand-orange-readable hover:shadow-lg transition-[border-color,box-shadow] duration-200 group"
-              >
-                <div className="flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-xl bg-brand-tint flex items-center justify-center shrink-0">
-                      <Trophy className="w-5 h-5 text-brand-orange-readable" />
-                    </div>
-                    <div>
-                      <div className="font-display text-2xl text-brand-text tracking-wide group-hover:text-brand-orange-readable transition-colors">
-                        {event.venue}
-                      </div>
-                      <div className="text-brand-muted text-sm">{event.city}</div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-6 text-sm text-brand-muted shrink-0">
-                    <div className="text-center w-12 hidden sm:block">
-                      <div className="font-bold text-brand-text text-lg leading-tight">{event.leagueTable.length}</div>
-                      <div className="text-xs">tímov</div>
-                    </div>
-                    <div className="text-center w-12 hidden sm:block">
-                      <div className="font-bold text-brand-text text-lg leading-tight">{event.pastResults.length}</div>
-                      <div className="text-xs">kvízov</div>
-                    </div>
-                    {leader && (
-                      <div className="text-right w-28 hidden md:block">
-                        <div className="text-xs text-brand-muted mb-0.5">Líder</div>
-                        <div className="font-semibold text-brand-orange-readable truncate">{leader.teamName}</div>
-                      </div>
-                    )}
-                    <div className="text-brand-orange-readable group-hover:translate-x-1 transition-transform text-lg">→</div>
-                  </div>
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-10">
+            <div className="bg-brand-card rounded-2xl border border-brand-border p-5 text-center">
+              <div className="font-display text-3xl text-brand-orange-readable">{event.questions}</div>
+              <div className="text-brand-muted text-xs mt-1 uppercase tracking-wider">Otázok</div>
+            </div>
+            <div className="bg-brand-card rounded-2xl border border-brand-border p-5 text-center">
+              <div className="font-display text-3xl text-brand-orange-readable flex items-center justify-center gap-1">
+                <Timer className="w-6 h-6" />
+              </div>
+              <div className="font-display text-xl text-brand-text mt-1">{formatDuration(event.durationMinutes)}</div>
+            </div>
+            <div className="bg-brand-card rounded-2xl border border-brand-border p-5 text-center">
+              <div className="font-display text-3xl text-brand-orange-readable">{event.entryFee} €</div>
+              <div className="text-brand-muted text-xs mt-1 uppercase tracking-wider">Vstupné / hráč</div>
+            </div>
+            <div className="bg-brand-card rounded-2xl border border-brand-border p-5 text-center">
+              <div className="font-display text-3xl text-brand-orange-readable">{event.minPlayers}–{event.maxPlayers}</div>
+              <div className="text-brand-muted text-xs mt-1 uppercase tracking-wider flex items-center justify-center gap-1">
+                <Users className="w-3 h-3" /> Hráčov
+              </div>
+            </div>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-8">
+            <div className="md:col-span-2 space-y-8">
+              <div className="bg-brand-card rounded-2xl border border-brand-border p-6 md:p-8">
+                <h2 className="font-display text-2xl text-brand-text tracking-wide mb-4 flex items-center gap-2">
+                  <Calendar className="w-5 h-5 text-brand-orange-readable" />
+                  Termín
+                </h2>
+                <p className="text-brand-text font-semibold text-lg">{event.date}</p>
+                <p className="text-brand-muted flex items-center gap-1.5 mt-1">
+                  <Clock className="w-4 h-4" /> {event.time}
+                </p>
+              </div>
+
+              {rules.length > 0 && (
+                <div className="bg-brand-card rounded-2xl border border-brand-border p-6 md:p-8">
+                  <h2 className="font-display text-2xl text-brand-text tracking-wide mb-4 flex items-center gap-2">
+                    <BookOpen className="w-5 h-5 text-brand-orange-readable" />
+                    Pravidlá
+                  </h2>
+                  <ul className="space-y-2">
+                    {rules.map((rule, i) => (
+                      <li key={i} className="text-brand-muted text-sm flex gap-2">
+                        <span className="text-brand-orange-readable shrink-0">•</span>
+                        {rule}
+                      </li>
+                    ))}
+                  </ul>
                 </div>
-              </Link>
-            );
-          })}
+              )}
+            </div>
+
+            <div className="space-y-4">
+              <div className="bg-brand-card rounded-2xl border border-brand-border p-6 sticky top-24">
+                <h3 className="font-display text-xl text-brand-text tracking-wide mb-4">Pridaj sa zahrať!</h3>
+                <p className="text-brand-muted text-sm mb-5">
+                  Zaregistruj svoj tím vopred — miesta sa rýchlo míňajú.
+                </p>
+                <button onClick={() => setShowModal(true)} className="btn-primary w-full text-sm py-3 mb-3">
+                  <Trophy className="w-4 h-4" /> Zaregistrovať tím
+                </button>
+                {(event.leagueTable.length > 0 || event.pastResults.length > 0) && (
+                  <Link
+                    href={`/liga/${event.slug}`}
+                    className="block text-center text-brand-orange-readable text-sm font-semibold hover:underline"
+                  >
+                    Pozrieť ligovú tabuľku →
+                  </Link>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
-      </section>
-    </div>
+      </div>
+
+      {showModal && (
+        <RegistrationModal
+          eventSlug={event.slug}
+          venue={event.venue}
+          minPlayers={event.minPlayers}
+          maxPlayers={event.maxPlayers}
+          onClose={() => setShowModal(false)}
+        />
+      )}
+    </>
   );
 }

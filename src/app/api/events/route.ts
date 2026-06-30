@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { readEvents } from "@/lib/storage";
+import { getVisibleLeagues } from "@/lib/league";
 
 export const dynamic = "force-dynamic";
 
@@ -9,11 +10,7 @@ export async function GET(req: Request) {
 
   const filtered =
     view === "liga"
-      ? events.filter(
-          (e) =>
-            e.active !== false &&
-            (e.leagueTable.length > 0 || e.pastResults.length > 0)
-        )
+      ? getVisibleLeagues(events)
       : events.filter((e) => e.active !== false);
 
   return NextResponse.json(

@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { Calendar, Plus, PauseCircle } from "lucide-react";
-import eventsData from "@/data/events.json";
+import { readEvents } from "@/lib/storage";
 
-export default function AdminDashboard() {
-  const events = eventsData.events;
+export const dynamic = "force-dynamic";
+
+export default async function AdminDashboard() {
+  const { events } = await readEvents();
 
   return (
     <div className="max-w-4xl">
@@ -29,32 +31,42 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="font-semibold text-stone-700">Udalosti</h2>
-        <Link href="/admin/udalosti/nova" className="btn-primary text-sm py-2 px-4">
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="font-display text-2xl text-brand-text tracking-wide">Udalosti</h2>
+        <Link href="/admin/udalosti/nova" className="btn-primary text-sm py-2.5 px-5">
           <Plus className="w-4 h-4" /> Nová udalosť
         </Link>
       </div>
-      <div className="space-y-2">
+
+      <div className="space-y-3">
         {events.map((e) => (
           <Link
             key={e.slug}
             href={`/admin/udalosti/${e.slug}`}
-            className="flex items-center justify-between bg-white rounded-xl border border-stone-200 px-5 py-4 hover:border-brand-orange transition-colors group"
+            className="block bg-white rounded-2xl border border-stone-200 px-6 py-5 hover:border-brand-orange transition-colors"
           >
-            <div className="flex items-center gap-3">
-              <Calendar className="w-4 h-4 text-brand-orange" />
-              <span className="font-medium text-stone-700 group-hover:text-brand-orange transition-colors">{e.venue}</span>
-              <span className="text-stone-400 text-sm">{e.city}</span>
-              {!(e as { active?: boolean }).active && (
-                <span className="flex items-center gap-1 text-xs text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
-                  <PauseCircle className="w-3 h-3" /> Pozastavená
-                </span>
-              )}
-            </div>
-            <div className="flex items-center gap-4 text-sm text-stone-400">
-              <span>{e.date} {e.time}</span>
-              <span>{e.leagueTable.length} tímov</span>
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 rounded-xl bg-orange-100 flex items-center justify-center shrink-0">
+                  <Calendar className="w-5 h-5 text-brand-orange" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-stone-800">{e.venue}</span>
+                    {!e.active && (
+                      <span className="flex items-center gap-1 text-xs text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
+                        <PauseCircle className="w-3 h-3" /> Pozastavená
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-stone-400 text-sm">
+                    {e.city} &mdash; {e.date} o {e.time}
+                  </div>
+                </div>
+              </div>
+              <div className="text-sm text-stone-400 shrink-0">
+                {e.leagueTable.length} tímov · {e.pastResults.length} kvízov
+              </div>
             </div>
           </Link>
         ))}

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ChevronLeft, Medal, Trophy, Calendar } from "lucide-react";
 import type { QuizEvent } from "@/lib/data";
+import { isLeagueVisible } from "@/lib/league";
 const medalStyles = [
   { bg: "#FFD700", color: "#5a3e00", border: "#c9a800" },
   { bg: "#C0C0C0", color: "#333333", border: "#909090" },
@@ -27,8 +28,7 @@ export default function LigaDetailPage({ params }: { params: { slug: string } })
   if (loading) {
     return <div className="min-h-screen bg-brand-bg pt-16 flex items-center justify-center text-brand-muted">Načítavam...</div>;
   }
-  if (!event || event.active === false) notFound();
-  if (event.leagueTable.length === 0 && event.pastResults.length === 0) notFound();
+  if (!event || !isLeagueVisible(event)) notFound();
   const results = event.pastResults.slice().reverse();
   const visibleResults = showAll ? results : results.slice(0, INITIAL_RESULTS);
   const hidden = results.length - INITIAL_RESULTS;
