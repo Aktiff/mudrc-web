@@ -14,6 +14,14 @@ export default function PrezentaciaPage({ params }: { params: { slug: string; da
   const [showRounds, setShowRounds] = useState(true);
   const [bonus, setBonus] = useState<Record<string, number>>({});
   const [saving, setSaving] = useState(false);
+  const [viewportH, setViewportH] = useState(900);
+
+  useEffect(() => {
+    const update = () => setViewportH(window.innerHeight);
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
 
   useEffect(() => {
     fetch("/api/admin/events")
@@ -106,12 +114,33 @@ export default function PrezentaciaPage({ params }: { params: { slug: string; da
 
   const finalSorted = [...teamsWithBonus].sort((a, b) => b.totalWithBonus - a.totalWithBonus);
 
-  // Font scaling: big by default, scales down for many teams
-  const nameFontRem  = Math.max(1.6, Math.min(4.2, 21 / N));
-  const scoreFontRem = Math.max(1.9, Math.min(5.0, 25 / N));
-  const rankFontRem  = Math.max(1.4, Math.min(3.5, 17 / N));
-  const subFontRem   = Math.max(1.1, Math.min(2.5, 12 / N));
-  const rowPadY      = Math.max(0.4, Math.min(1.25, 6.25 / N));
+  const visibleRowCount = isStartScreen
+    ? 0
+    : isFinal
+    ? finalSorted.length
+    : displayGroups.reduce((sum, group) => sum + group.teams.length, 0);
+
+  const topBarPx = 72;
+  const bottomBarPx = isPreFinal ? 150 : 110;
+  const colHeaderPx = showRounds && !isStartScreen && !isFinal ? 40 : 0;
+  const contentPadPx = 24;
+  const availablePx = Math.max(
+    200,
+    viewportH - topBarPx - bottomBarPx - colHeaderPx - contentPadPx
+  );
+  const rowCount = Math.max(1, visibleRowCount || N);
+  const rowHeightPx = availablePx / rowCount;
+  const fitScale = Math.min(1, rowHeightPx / 52);
+
+  const nameFontRem = Math.max(0.9, Math.min(4.2, 4.2 * fitScale));
+  const scoreFontRem = Math.max(1, Math.min(5, 5 * fitScale));
+  const rankFontRem = Math.max(0.8, Math.min(3.5, 3.5 * fitScale));
+  const subFontRem = Math.max(0.65, Math.min(2.5, 2.5 * fitScale));
+  const rowPadY = Math.max(0.12, Math.min(1.1, (rowHeightPx - 10) / 32));
+  const rowGapPx = Math.max(2, Math.min(8, 8 * fitScale));
+  const roundColRem = Math.max(3.2, Math.min(8, 8 * fitScale));
+  const totalColRem = Math.max(3.8, Math.min(9, 9 * fitScale));
+  const rankColRem = Math.max(2.5, Math.min(4, 4 * fitScale));
 
   const fmtScore = (v: number) => v % 1 === 0 ? String(v) : String(parseFloat(v.toFixed(2)));
   const backUrl = `/admin/udalosti/${params.slug}/kviz/${params.date}`;
@@ -148,24 +177,22 @@ export default function PrezentaciaPage({ params }: { params: { slug: string; da
 
         ) : isFinal ? (
           /* ── Winner screen ── */
-          <div className="flex flex-col items-center h-full overflow-hidden">
-            {/* Compact header — scales down for many teams */}
-            <div className="shrink-0 flex items-center gap-4 py-3">
-              <span style={{ fontSize: N > 8 ? "2.5rem" : "4rem" }}>🏆</span>
+          <div className="flex flex-col h-full min-h-0 overflow-hidden">
+            <div className="shrink-0 flex items-center gap-4 py-2">
+              <span style={{ fontSize: `${Math.max(1.8, 3.5 * fitScale)}rem` }}>🏆</span>
               <div>
                 <div
                   className="font-bold text-[#f0b429] leading-tight"
-                  style={{ fontSize: `${Math.max(2, Math.min(4, 32 / Math.max(6, finalSorted[0].teamName.length)))}rem` }}
+                  style={{ fontSize: `${Math.max(1.4, Math.min(4, 32 / Math.max(6, finalSorted[0].teamName.length))) * fitScale}rem` }}
                 >
                   {finalSorted[0].teamName}
                 </div>
-                <div className="text-stone-400" style={{ fontSize: N > 8 ? "1rem" : "1.3rem" }}>
+                <div className="text-stone-400" style={{ fontSize: `${Math.max(0.85, 1.3 * fitScale)}rem` }}>
                   Víťaz kvízu MUDRC!
                 </div>
               </div>
             </div>
-            {/* Scrollable list */}
-            <div className="flex-1 overflow-y-auto w-full max-w-4xl space-y-2 pb-4">
+            <div className="flex-1 min-h-0 flex flex-col overflow-hidden" style={{ gap: `${rowGapPx}px` }}>
               {finalSorted.map((t, idx) => (
                 <div
                   key={t.teamName}
@@ -194,13 +221,12 @@ export default function PrezentaciaPage({ params }: { params: { slug: string; da
 
         ) : (
           /* ── Reveal screen ── */
-          <div className="flex flex-col h-full justify-center gap-2">
-            {/* Column headers (rounds mode) */}
+          <div className="flex flex-col h-full min-h-0 overflow-hidden">
             {showRounds && (
               <div
                 className="grid items-center text-stone-500 uppercase tracking-wider pb-2 border-b border-stone-800 mb-1 shrink-0"
                 style={{
-                  gridTemplateColumns: `4rem 1fr repeat(${numRounds}, 8rem) 9rem 9rem`,
+                  gridTemplateColumns: `${rankColRem}rem 1fr repeat(${numRounds}, ${roundColRem}rem) ${totalColRem}rem ${totalColRem}rem`,
                   fontSize: `${subFontRem * 0.7}rem`,
                   paddingLeft: "1.5rem",
                   paddingRight: "1.5rem",
@@ -217,6 +243,7 @@ export default function PrezentaciaPage({ params }: { params: { slug: string; da
               </div>
             )}
 
+            <div className="flex-1 min-h-0 flex flex-col overflow-hidden" style={{ gap: `${rowGapPx}px` }}>
             {displayGroups.map((group, groupIdx) => {
               const isTie = group.teams.length > 1;
               const isNewest = groupIdx === 0 && !isPreFinal;
@@ -241,7 +268,7 @@ export default function PrezentaciaPage({ params }: { params: { slug: string; da
                     }`}
                     style={showRounds ? {
                       display: "grid",
-                      gridTemplateColumns: `4rem 1fr repeat(${numRounds}, 8rem) 9rem 9rem`,
+                      gridTemplateColumns: `${rankColRem}rem 1fr repeat(${numRounds}, ${roundColRem}rem) ${totalColRem}rem ${totalColRem}rem`,
                       alignItems: "center",
                       padding: `${rowPadY}rem 1.5rem`,
                       gap: "0.5rem",
@@ -344,14 +371,15 @@ export default function PrezentaciaPage({ params }: { params: { slug: string; da
                 );
               });
             })}
+            </div>
           </div>
         )}
       </div>
 
       {/* Gratulujeme message when all revealed */}
       {isPreFinal && (
-        <div className="text-center pb-2 shrink-0">
-          <span className="font-bold text-[#f0b429]" style={{ fontSize: "2.5rem" }}>Gratulujeme! 🎉</span>
+        <div className="text-center pb-1 shrink-0">
+          <span className="font-bold text-[#f0b429]" style={{ fontSize: `${Math.max(1.4, 2.5 * fitScale)}rem` }}>Gratulujeme! 🎉</span>
         </div>
       )}
 

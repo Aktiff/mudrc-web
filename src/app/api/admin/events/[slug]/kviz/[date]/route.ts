@@ -92,7 +92,7 @@ export async function PUT(req: NextRequest, { params }: { params: { slug: string
     points: newSorted[0].total,
     teams: teamsDetail,
   };
-  data.events[idx] = { ...event, leagueTable: table };
+  data.events[idx] = { ...event, leagueTable: table, active: true };
   await writeEvents(data);
 
   return NextResponse.json({ ok: true });

@@ -78,7 +78,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
     { id, date, winnerTeam, points: winnerTotal, teams: teamsDetail },
   ];
 
-  data.events[idx] = { ...event, leagueTable: table, pastResults };
+  data.events[idx] = { ...event, leagueTable: table, pastResults, active: true };
   await writeEvents(data);
 
   return NextResponse.json({ ok: true, winnerTeam, ligaPoints: sorted.map((t, i) => ({ name: t.name, total: t.total, liga: ligaPoints[i] })) });
