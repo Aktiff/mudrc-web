@@ -6,7 +6,9 @@ import type { QuizEvent } from "@/lib/data";
 const EVENTS_KEY = "mudrc/events.json";
 const REGS_KEY = "mudrc/registrations.json";
 const eventsPath = path.join(process.cwd(), "src/data/events.json");
+const eventsLocalPath = path.join(process.cwd(), "src/data/events.local.json");
 const regsPath = path.join(process.cwd(), "src/data/registrations.json");
+const regsLocalPath = path.join(process.cwd(), "src/data/registrations.local.json");
 const isVercel = !!process.env.VERCEL;
 
 export type Registration = {
@@ -24,14 +26,16 @@ function tmpPath(key: string): string {
 }
 
 function readLocalEvents(): { events: QuizEvent[] } {
-  let raw = fs.readFileSync(eventsPath, "utf-8");
+  const file = fs.existsSync(eventsLocalPath) ? eventsLocalPath : eventsPath;
+  let raw = fs.readFileSync(file, "utf-8");
   if (raw.charCodeAt(0) === 0xfeff) raw = raw.slice(1);
   return JSON.parse(raw);
 }
 
 function readLocalRegistrations(): { registrations: Registration[] } {
   try {
-    let raw = fs.readFileSync(regsPath, "utf-8");
+    const file = fs.existsSync(regsLocalPath) ? regsLocalPath : regsPath;
+    let raw = fs.readFileSync(file, "utf-8");
     if (raw.charCodeAt(0) === 0xfeff) raw = raw.slice(1);
     const data = JSON.parse(raw);
     return {
@@ -112,7 +116,7 @@ export async function writeEvents(data: { events: QuizEvent[] }): Promise<void> 
     if (writeTmpJson(EVENTS_KEY, data)) return;
     throw new Error("Storage unavailable");
   }
-  fs.writeFileSync(eventsPath, JSON.stringify(data, null, 2), "utf-8");
+  fs.writeFileSync(eventsLocalPath, JSON.stringify(data, null, 2), "utf-8");
 }
 
 export async function readRegistrations(): Promise<{ registrations: Registration[] }> {
@@ -137,7 +141,7 @@ export async function writeRegistrations(data: { registrations: Registration[] }
     if (writeTmpJson(REGS_KEY, data)) return;
     throw new Error("Storage unavailable");
   }
-  fs.writeFileSync(regsPath, JSON.stringify(data, null, 2), "utf-8");
+  fs.writeFileSync(regsLocalPath, JSON.stringify(data, null, 2), "utf-8");
 }
 
 export async function addRegistration(reg: Registration): Promise<void> {

@@ -35,5 +35,9 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# local runtime data (test quizzes saved locally — never commit)
+src/data/events.local.json
+src/data/registrations.local.json
+
 .vercel
 .env*
