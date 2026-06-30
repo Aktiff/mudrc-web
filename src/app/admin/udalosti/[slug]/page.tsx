@@ -248,7 +248,7 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
       : "Naozaj znova zapnúť ligu? Zobrazí sa hneď na /liga.";
     if (!confirm(msg)) return;
 
-    const res = await fetch(`/api/admin/events/${params.slug}/league`, {
+    const res = await fetch(`/api/admin/events/${params.slug}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ active: !leagueOn }),
