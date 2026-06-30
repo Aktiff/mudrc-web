@@ -175,8 +175,8 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
   };
 
   const resetLeague = async () => {
-    if (!confirm("Naozaj resetovať ligu? Vymaže sa celá tabuľka aj všetky výsledky kvízov. Túto akciu nie je možné vrátiť späť.")) return;
-    const updated = { ...form, leagueTable: [], pastResults: [] };
+    if (!confirm("Naozaj resetovať ligu? Vymaže sa tabuľka aj výsledky a liga zmizne z verejného zoznamu na /liga.")) return;
+    const updated = { ...form, leagueTable: [], pastResults: [], active: false };
     setForm(updated);
     if (!isNew) {
       const res = await fetch(`/api/admin/events/${params.slug}`, {
@@ -187,7 +187,7 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
       if (res.ok) {
         const data = await res.json();
         setForm({ durationMinutes: 120, active: true, ...data });
-        setMsg("Liga resetovaná");
+        setMsg("Liga resetovaná a skrytá z verejného zoznamu");
       } else {
         setMsg("Chyba pri resetovaní ligy");
       }

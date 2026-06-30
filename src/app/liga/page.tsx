@@ -11,7 +11,11 @@ export const metadata: Metadata = {
 
 export default async function LigaPage() {
   const { events } = await readEvents();
-  const activeEvents = events.filter((e) => e.active !== false);
+  const activeEvents = events.filter(
+    (e) =>
+      e.active !== false &&
+      (e.leagueTable.length > 0 || e.pastResults.length > 0)
+  );
 
   return (
     <div className="min-h-screen bg-brand-bg pt-16">

@@ -28,6 +28,7 @@ export default function LigaDetailPage({ params }: { params: { slug: string } })
     return <div className="min-h-screen bg-brand-bg pt-16 flex items-center justify-center text-brand-muted">Načítavam...</div>;
   }
   if (!event || event.active === false) notFound();
+  if (event.leagueTable.length === 0 && event.pastResults.length === 0) notFound();
   const results = event.pastResults.slice().reverse();
   const visibleResults = showAll ? results : results.slice(0, INITIAL_RESULTS);
   const hidden = results.length - INITIAL_RESULTS;
