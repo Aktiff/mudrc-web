@@ -163,9 +163,8 @@ export default function PrezentaciaPage({ params }: { params: { slug: string; da
   const backUrl = `/admin/udalosti/${params.slug}/kviz/${params.date}`;
   const listGapStyle: CSSProperties = { gap: `${gapPx}px` };
   const numRounds = teams[0]?.rounds?.length ?? 4;
-  const roundsGrid = showRounds
-    ? `${layout.rankColPx}px minmax(3.5rem, 11vw) repeat(${numRounds}, minmax(1.6rem, ${layout.roundColPx}px)) minmax(4.5rem, 12vw) minmax(5.5rem, 24vw)`
-    : "";
+  const rowGrid = `${layout.rankColPx}px 1fr 1fr`;
+  const scoresGrid = `repeat(${numRounds}, 1fr) minmax(4rem, 1.4fr) minmax(5.5rem, 1.2fr)`;
 
   const renderTieButtons = (teamName: string, inline?: boolean) => (
     <div className={`${inline ? "shrink-0" : ""} flex ${layout.compactBtns ? "flex-row gap-0.5" : "flex-col gap-0.5"}`}>
@@ -230,7 +229,7 @@ export default function PrezentaciaPage({ params }: { params: { slug: string; da
         </button>
       </div>
 
-      <div className="flex-1 min-h-0 flex flex-col px-4 py-2 overflow-hidden">
+      <div className="flex-1 min-h-0 flex flex-col px-2 py-2 overflow-hidden w-full">
         {isStartScreen ? (
           <div className="flex flex-col items-center justify-center flex-1 min-h-0 gap-8">
             <span style={{ fontSize: "5rem" }}>🎯</span>
@@ -254,26 +253,26 @@ export default function PrezentaciaPage({ params }: { params: { slug: string; da
                 </div>
               </div>
             </div>
-            <div ref={listRef} className="flex-1 min-h-0 flex flex-col overflow-hidden" style={listGapStyle}>
+            <div ref={listRef} className="flex-1 min-h-0 flex flex-col overflow-hidden w-full" style={listGapStyle}>
               {finalSorted.map((t, idx) => (
                 <div
                   key={t.teamName}
-                  className={`flex items-center gap-3 rounded-xl ${idx === 0 ? "border-2 border-[#f0b429] bg-[#211900]" : "border border-[#2a2a2a] bg-[#1a1a1a]"}`}
-                  style={{ ...rowFlex, padding: "0 0.75rem" }}
+                  className={`grid items-center gap-3 rounded-xl w-full ${idx === 0 ? "border-2 border-[#f0b429] bg-[#211900]" : "border border-[#2a2a2a] bg-[#1a1a1a]"}`}
+                  style={{ ...rowFlex, display: "grid", alignItems: "center", gridTemplateColumns: rowGrid, padding: "0 0.5rem" }}
                 >
                   <span
                     className={`font-bold shrink-0 ${idx === 0 ? "text-[#f0b429]" : "text-stone-400"}`}
-                    style={{ minWidth: `${layout.rankColPx}px`, fontSize: `${layout.rankPx}px` }}
+                    style={{ fontSize: `${layout.rankPx}px` }}
                   >
                     {idx === 0 ? "🏆" : `${idx + 1}.`}
                   </span>
                   <span
-                    className={`font-bold flex-1 truncate ${idx === 0 ? "text-[#ffd54f]" : "text-white"}`}
+                    className={`font-bold truncate ${idx === 0 ? "text-[#ffd54f]" : "text-white"}`}
                     style={{ fontSize: `${layout.namePx}px` }}
                   >
                     {t.teamName}
                   </span>
-                  <span className="text-[#f0b429] font-bold shrink-0" style={{ fontSize: `${layout.scorePx}px` }}>
+                  <span className="text-[#f0b429] font-bold text-right whitespace-nowrap tabular-nums" style={{ fontSize: `${layout.scorePx}px` }}>
                     {fmtScore(t.totalWithBonus)}
                   </span>
                 </div>
@@ -284,28 +283,36 @@ export default function PrezentaciaPage({ params }: { params: { slug: string; da
           <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
             {showRounds && (
               <div
-                className="grid items-center text-stone-500 uppercase tracking-wider pb-1 border-b border-stone-800 mb-1 shrink-0"
+                className="grid items-center text-stone-500 uppercase tracking-wider pb-1 border-b border-stone-800 mb-1 shrink-0 w-full"
                 style={{
-                  gridTemplateColumns: roundsGrid,
+                  gridTemplateColumns: rowGrid,
                   fontSize: `${layout.subPx}px`,
-                  paddingLeft: "0.75rem",
-                  paddingRight: "0.75rem",
-                  gap: "0.35rem",
+                  paddingLeft: "0.5rem",
+                  paddingRight: "0.5rem",
+                  gap: "0.5rem",
                 }}
               >
                 <span>#</span>
                 <span>Tím</span>
-                {Array.from({ length: numRounds }, (_, k) => (
-                  <span key={k} className="text-center">
-                    K{k + 1}
-                  </span>
-                ))}
-                <span className="text-right">Body</span>
-                <span />
+                <div
+                  className="grid items-center w-full"
+                  style={{
+                    gridTemplateColumns: scoresGrid,
+                    gap: "0.35rem",
+                  }}
+                >
+                  {Array.from({ length: numRounds }, (_, k) => (
+                    <span key={k} className="text-center">
+                      K{k + 1}
+                    </span>
+                  ))}
+                  <span className="text-right">Body</span>
+                  <span />
+                </div>
               </div>
             )}
 
-            <div ref={listRef} className="flex-1 min-h-0 flex flex-col overflow-hidden" style={listGapStyle}>
+            <div ref={listRef} className="flex-1 min-h-0 flex flex-col overflow-hidden w-full" style={listGapStyle}>
               {displayGroups.map((group, groupIdx) => {
                 const isTie = group.teams.length > 1;
                 const isNewest = groupIdx === 0 && !isPreFinal;
@@ -323,7 +330,7 @@ export default function PrezentaciaPage({ params }: { params: { slug: string; da
                   return (
                     <div
                       key={team.teamName}
-                      className={`rounded-xl transition-all duration-300 ${
+                      className={`grid items-center gap-2 rounded-xl w-full transition-all duration-300 ${
                         isFirstPlace
                           ? "border-2 border-[#f0b429] bg-[#211900]"
                           : isNewest
@@ -335,17 +342,16 @@ export default function PrezentaciaPage({ params }: { params: { slug: string; da
                           ? {
                               ...rowFlex,
                               display: "grid",
-                              gridTemplateColumns: roundsGrid,
                               alignItems: "center",
-                              padding: "0 0.75rem",
-                              gap: "0.35rem",
+                              gridTemplateColumns: rowGrid,
+                              padding: "0 0.5rem",
                             }
                           : {
                               ...rowFlex,
-                              display: "flex",
+                              display: "grid",
                               alignItems: "center",
-                              padding: "0 0.75rem",
-                              gap: "0.5rem",
+                              gridTemplateColumns: rowGrid,
+                              padding: "0 0.5rem",
                             }
                       }
                     >
@@ -363,41 +369,48 @@ export default function PrezentaciaPage({ params }: { params: { slug: string; da
                           >
                             {team.teamName}
                           </span>
-                          {Array.from({ length: numRounds }, (_, k) => (
-                            <span
-                              key={k}
-                              className="text-center text-white font-semibold truncate"
-                              style={{ fontSize: `${layout.namePx * 0.85}px` }}
-                            >
-                              {fmtScore(team.rounds?.[k] ?? 0)}
-                            </span>
-                          ))}
-                          <span
-                            className="text-right font-bold text-[#f0b429] whitespace-nowrap tabular-nums"
-                            style={{ fontSize: `${layout.scorePx}px` }}
+                          <div
+                            className="grid items-center w-full min-w-0"
+                            style={{ gridTemplateColumns: scoresGrid, gap: "0.35rem" }}
                           >
-                            {fmtScore(team.totalWithBonus)}
-                          </span>
-                          {isTie ? renderTieButtons(team.teamName) : <span />}
+                            {Array.from({ length: numRounds }, (_, k) => (
+                              <span
+                                key={k}
+                                className="text-center text-white font-semibold tabular-nums"
+                                style={{ fontSize: `${layout.namePx * 0.85}px` }}
+                              >
+                                {fmtScore(team.rounds?.[k] ?? 0)}
+                              </span>
+                            ))}
+                            <span
+                              className="text-right font-bold text-[#f0b429] whitespace-nowrap tabular-nums"
+                              style={{ fontSize: `${layout.scorePx}px` }}
+                            >
+                              {fmtScore(team.totalWithBonus)}
+                            </span>
+                            {isTie ? renderTieButtons(team.teamName) : <span />}
+                          </div>
                         </>
                       ) : (
                         <>
                           <span
-                            className={`font-bold shrink-0 ${isFirstPlace ? "text-[#f0b429]" : "text-stone-400"}`}
-                            style={{ minWidth: `${layout.rankColPx}px`, fontSize: `${layout.rankPx}px` }}
+                            className={`font-bold ${isFirstPlace ? "text-[#f0b429]" : "text-stone-400"}`}
+                            style={{ fontSize: `${layout.rankPx}px` }}
                           >
                             {rankDisplay}
                           </span>
                           <span
-                            className={`font-bold flex-1 truncate ${isFirstPlace ? "text-[#ffd54f]" : "text-white"}`}
+                            className={`font-bold truncate ${isFirstPlace ? "text-[#ffd54f]" : "text-white"}`}
                             style={{ fontSize: `${layout.namePx}px` }}
                           >
                             {team.teamName}
                           </span>
-                          <span className="font-bold text-[#f0b429] shrink-0" style={{ fontSize: `${layout.scorePx}px` }}>
-                            {fmtScore(team.totalWithBonus)}
-                          </span>
-                          {isTie && renderTieButtons(team.teamName, true)}
+                          <div className="flex items-center justify-end gap-3 min-w-0">
+                            <span className="font-bold text-[#f0b429] whitespace-nowrap tabular-nums" style={{ fontSize: `${layout.scorePx}px` }}>
+                              {fmtScore(team.totalWithBonus)}
+                            </span>
+                            {isTie && renderTieButtons(team.teamName, true)}
+                          </div>
                         </>
                       )}
                     </div>

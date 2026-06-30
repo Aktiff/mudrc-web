@@ -15,7 +15,7 @@ function normalizeEvent(ev: QuizEvent): QuizEvent {
   return {
     ...ev,
     durationMinutes: ev.durationMinutes ?? 120,
-    leagueActive: ev.leagueActive !== false,
+    leagueActive: ev.leagueActive === false ? false : true,
   };
 }
 
@@ -248,16 +248,20 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
       : "Naozaj znova zapnúť ligu? Zobrazí sa hneď na /liga.";
     if (!confirm(msg)) return;
 
+    const newActive = !leagueOn;
+    setForm((f) => ({ ...f, leagueActive: newActive }));
+
     const res = await fetch(`/api/admin/events/${params.slug}`, {
-      method: "PATCH",
+      method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ leagueActive: !leagueOn }),
+      body: JSON.stringify({ _leagueToggle: true, leagueActive: newActive }),
     });
     if (res.ok) {
       const data = await res.json();
       setForm(normalizeEvent(data));
-      setMsg(!leagueOn ? "Liga zapnutá — obnov /liga (Ctrl+Shift+R)" : "Liga vypnutá");
+      setMsg(newActive ? "Liga zapnutá — obnov /liga (Ctrl+Shift+R)" : "Liga vypnutá");
     } else {
+      setForm((f) => ({ ...f, leagueActive: leagueOn }));
       const err = await res.json().catch(() => ({}));
       const text = err.error ?? `Chyba ${res.status} pri ukladaní ligy`;
       setMsg(text);

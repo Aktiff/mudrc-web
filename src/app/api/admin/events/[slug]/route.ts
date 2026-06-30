@@ -77,13 +77,38 @@ export async function PUT(req: NextRequest, { params }: { params: { slug: string
   try {
     const body = await req.json();
     const resetLeague = body._resetLeague === true;
-    const { _resetLeague: _, ...incoming } = body;
+    const leagueToggle = body._leagueToggle === true;
+    const { _resetLeague: _, _leagueToggle: __, ...incoming } = body;
 
     const data = await readEvents();
     const idx = data.events.findIndex((e) => e.slug === params.slug);
     if (idx === -1) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
     const existing = data.events[idx];
+
+    if (leagueToggle && typeof incoming.leagueActive === "boolean") {
+      let leagueTable = [...(existing.leagueTable ?? [])];
+      const pastResults = existing.pastResults ?? [];
+
+      if (incoming.leagueActive && leagueTable.length === 0 && pastResults.length > 0) {
+        leagueTable = rebuildLeagueTable(existing);
+      }
+
+      if (incoming.leagueActive && leagueTable.length === 0 && pastResults.length === 0) {
+        return NextResponse.json(
+          { error: "Liga nema ziadne data. Najprv uloz kviz cez prezentaciu." },
+          { status: 400 }
+        );
+      }
+
+      const updated = { ...existing, leagueTable, leagueActive: incoming.leagueActive };
+      data.events[idx] = updated;
+      await writeEvents(data);
+      revalidatePath("/liga");
+      revalidatePath(`/liga/${params.slug}`);
+      return NextResponse.json(updated);
+    }
+
     const merged = { ...existing, ...incoming, slug: params.slug };
 
     if (
@@ -97,8 +122,12 @@ export async function PUT(req: NextRequest, { params }: { params: { slug: string
       merged.leagueTable = existing.leagueTable;
       merged.pastResults = existing.pastResults;
       merged.leagueActive = existing.leagueActive;
-    }
-    if ((merged.leagueTable.length > 0 || merged.pastResults.length > 0) && merged.leagueActive !== false) {
+    } else if (
+      typeof incoming.leagueActive === "boolean" &&
+      (merged.leagueTable.length > 0 || merged.pastResults.length > 0)
+    ) {
+      merged.leagueActive = incoming.leagueActive;
+    } else if ((merged.leagueTable.length > 0 || merged.pastResults.length > 0) && merged.leagueActive !== false) {
       merged.leagueActive = true;
     }
 
