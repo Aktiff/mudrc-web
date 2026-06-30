@@ -1,16 +1,20 @@
+"use client";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Trophy } from "lucide-react";
-import { readEvents } from "@/lib/storage";
-import type { Metadata } from "next";
+import type { QuizEvent } from "@/lib/data";
 
-export const dynamic = "force-dynamic";
+export default function LigaPage() {
+  const [events, setEvents] = useState<QuizEvent[]>([]);
+  const [loading, setLoading] = useState(true);
 
-export const metadata: Metadata = {
-  title: "Liga",
-};
+  useEffect(() => {
+    fetch("/api/events", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d) => setEvents(d.events ?? []))
+      .finally(() => setLoading(false));
+  }, []);
 
-export default async function LigaPage() {
-  const { events } = await readEvents();
   const activeEvents = events.filter(
     (e) =>
       e.active !== false &&
@@ -30,6 +34,10 @@ export default async function LigaPage() {
       </section>
 
       <section className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+        {loading && <p className="text-brand-muted text-center">Načítavam...</p>}
+        {!loading && activeEvents.length === 0 && (
+          <p className="text-brand-muted text-center">Zatiaľ žiadne aktívne ligy.</p>
+        )}
         <div className="space-y-4">
           {activeEvents.map((event) => {
             const leader = event.leagueTable[0];

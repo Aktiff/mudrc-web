@@ -90,38 +90,60 @@ async function writeBlobJson(key: string, data: unknown): Promise<boolean> {
   }
 }
 
-async function readJson<T>(key: string, localReader: () => T): Promise<T> {
-  const blob = await readBlobJson<T>(key);
-  if (blob) return blob;
-  const tmp = readTmpJson<T>(key);
-  if (tmp) return tmp;
-  return localReader();
-}
-
-async function writeJson(key: string, data: unknown, localPath: string): Promise<void> {
-  if (await writeBlobJson(key, data)) return;
-  if (isVercel && writeTmpJson(key, data)) return;
-  if (!isVercel) {
-    fs.writeFileSync(localPath, JSON.stringify(data, null, 2), "utf-8");
-    return;
-  }
-  throw new Error("Storage unavailable");
-}
-
 export async function readEvents(): Promise<{ events: QuizEvent[] }> {
-  return readJson(EVENTS_KEY, readLocalEvents);
+  if (process.env.BLOB_READ_WRITE_TOKEN) {
+    const blob = await readBlobJson<{ events: QuizEvent[] }>(EVENTS_KEY);
+    if (blob) return blob;
+    const local = readLocalEvents();
+    await writeBlobJson(EVENTS_KEY, local);
+    return local;
+  }
+  if (isVercel) {
+    const tmp = readTmpJson<{ events: QuizEvent[] }>(EVENTS_KEY);
+    if (tmp) return tmp;
+  }
+  return readLocalEvents();
 }
 
 export async function writeEvents(data: { events: QuizEvent[] }): Promise<void> {
-  await writeJson(EVENTS_KEY, data, eventsPath);
+  if (process.env.BLOB_READ_WRITE_TOKEN) {
+    const ok = await writeBlobJson(EVENTS_KEY, data);
+    if (!ok) throw new Error("Blob write failed");
+    return;
+  }
+  if (isVercel) {
+    if (writeTmpJson(EVENTS_KEY, data)) return;
+    throw new Error("Storage unavailable");
+  }
+  fs.writeFileSync(eventsPath, JSON.stringify(data, null, 2), "utf-8");
 }
 
 export async function readRegistrations(): Promise<{ registrations: Registration[] }> {
-  return readJson(REGS_KEY, readLocalRegistrations);
+  if (process.env.BLOB_READ_WRITE_TOKEN) {
+    const blob = await readBlobJson<{ registrations: Registration[] }>(REGS_KEY);
+    if (blob) return blob;
+    const local = readLocalRegistrations();
+    await writeBlobJson(REGS_KEY, local);
+    return local;
+  }
+  if (isVercel) {
+    const tmp = readTmpJson<{ registrations: Registration[] }>(REGS_KEY);
+    if (tmp) return tmp;
+  }
+  return readLocalRegistrations();
 }
 
 export async function writeRegistrations(data: { registrations: Registration[] }): Promise<void> {
-  await writeJson(REGS_KEY, data, regsPath);
+  if (process.env.BLOB_READ_WRITE_TOKEN) {
+    const ok = await writeBlobJson(REGS_KEY, data);
+    if (!ok) throw new Error("Blob write failed");
+    return;
+  }
+  if (isVercel) {
+    if (writeTmpJson(REGS_KEY, data)) return;
+    throw new Error("Storage unavailable");
+  }
+  fs.writeFileSync(regsPath, JSON.stringify(data, null, 2), "utf-8");
 }
 
 export async function addRegistration(reg: Registration): Promise<void> {
