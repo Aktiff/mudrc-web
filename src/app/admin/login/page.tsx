@@ -28,7 +28,7 @@ export default function AdminLoginPage() {
 
   return (
     <div className="min-h-screen bg-brand-bg flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl border border-brand-border shadow-lg p-10 w-full max-w-sm">
+      <div className="bg-brand-card rounded-2xl border border-brand-border shadow-lg p-10 w-full max-w-sm">
         <div className="w-12 h-12 rounded-2xl bg-orange-100 flex items-center justify-center mx-auto mb-6">
           <Lock className="w-6 h-6 text-brand-orange" />
         </div>
@@ -41,7 +41,7 @@ export default function AdminLoginPage() {
             onChange={(e) => setPassword(e.target.value)}
             placeholder="Heslo"
             autoFocus
-            className="input py-3 bg-white text-brand-text"
+            className="input py-3"
           />
           {password.length > 0 && (
             <p className="text-xs text-brand-muted text-right">{password.length} {password.length === 1 ? "znak" : password.length < 5 ? "znaky" : "znakov"}</p>

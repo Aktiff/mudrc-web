@@ -24,9 +24,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   };
 
   return (
-    <div className="min-h-screen bg-stone-50 flex">
-      <aside className="w-56 bg-white border-r border-stone-200 flex flex-col fixed top-16 bottom-0 left-0 z-40">
-        <div className="p-5 border-b border-stone-200">
+    <div className="min-h-screen bg-brand-bg flex">
+      <aside className="w-56 bg-brand-card border-r border-brand-border flex flex-col fixed top-16 bottom-0 left-0 z-40">
+        <div className="p-5 border-b border-brand-border">
           <Link href="/" className="font-display text-xl text-brand-text tracking-wider">
             MUDRC <span className="bg-gradient-to-r from-brand-orange to-orange-400 bg-clip-text text-transparent">ADMIN</span>
           </Link>
@@ -41,7 +41,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
                   active
                     ? "bg-brand-orange text-brand-btn-fg shadow-sm"
-                    : "text-stone-700 hover:bg-stone-100 hover:text-stone-900"
+                    : "text-brand-muted hover:bg-brand-hover hover:text-brand-text"
                 }`}
               >
                 <item.icon className="w-4 h-4" />
@@ -50,10 +50,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             );
           })}
         </nav>
-        <div className="p-3 border-t border-stone-200">
+        <div className="p-3 border-t border-brand-border">
           <button
             onClick={handleLogout}
-            className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-stone-700 hover:bg-stone-100 hover:text-stone-900 w-full transition-colors"
+            className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-brand-muted hover:bg-brand-hover hover:text-brand-text w-full transition-colors"
           >
             <LogOut className="w-4 h-4" />
             Odhlásiť sa

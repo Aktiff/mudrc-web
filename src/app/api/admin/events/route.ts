@@ -7,7 +7,12 @@ function slugify(text: string) {
 }
 
 export async function GET() {
-  return NextResponse.json(await readEvents());
+  const data = await readEvents();
+  return NextResponse.json(data, {
+    headers: {
+      "Cache-Control": "no-store, no-cache, must-revalidate",
+    },
+  });
 }
 
 export async function POST(req: NextRequest) {

@@ -1,32 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import type { QuizEvent, LeagueEntry } from "@/lib/data";
+import { rebuildLeagueTableFromResults, sortLeagueTable } from "@/lib/data";
 import { readEvents, writeEvents } from "@/lib/storage";
 
 function rebuildLeagueTable(event: QuizEvent): LeagueEntry[] {
-  const table: LeagueEntry[] = [];
-  for (const result of event.pastResults ?? []) {
-    if (!result.teams?.length) continue;
-    for (const team of result.teams) {
-      const existing = table.find((r) => r.teamName === team.teamName);
-      if (existing) {
-        existing.points += team.ligaPoints;
-        existing.quizzesPlayed += 1;
-      } else {
-        table.push({
-          rank: 0,
-          teamName: team.teamName,
-          points: team.ligaPoints,
-          quizzesPlayed: 1,
-        });
-      }
-    }
-  }
-  table.sort((a, b) => b.points - a.points || b.quizzesPlayed - a.quizzesPlayed);
-  table.forEach((r, i) => {
-    r.rank = i + 1;
-  });
-  return table;
+  return rebuildLeagueTableFromResults(event.pastResults ?? []);
 }
 
 function applyLeagueDataMerge(existing: QuizEvent, incoming: Partial<QuizEvent>): Pick<QuizEvent, "leagueTable" | "pastResults" | "leagueActive"> {
@@ -108,7 +87,8 @@ export async function PUT(req: NextRequest, { params }: { params: { slug: string
     const leagueToggle = body._leagueToggle === true;
     const quizToggle = body._quizToggle === true;
     const includeLeagueData = body._includeLeagueData === true;
-    const { _resetLeague: _, _leagueToggle: __, _quizToggle: ___, _includeLeagueData: ____, ...incoming } = body;
+    const recalculateLeague = body._recalculateLeague === true;
+    const { _resetLeague: _, _leagueToggle: __, _quizToggle: ___, _includeLeagueData: ____, _recalculateLeague: _____, ...incoming } = body;
 
     const data = await readEvents();
     const idx = data.events.findIndex((e) => e.slug === params.slug);
@@ -136,16 +116,18 @@ export async function PUT(req: NextRequest, { params }: { params: { slug: string
       let leagueTable = [...(existing.leagueTable ?? [])];
       const pastResults = existing.pastResults ?? [];
 
-      if (incoming.leagueActive && leagueTable.length === 0 && pastResults.length > 0) {
+      if (pastResults.length > 0 && leagueTable.length === 0) {
         leagueTable = rebuildLeagueTable(existing);
       }
 
       if (incoming.leagueActive && leagueTable.length === 0 && pastResults.length === 0) {
         return NextResponse.json(
-          { error: "Liga nema ziadne data. Najprv uloz kviz cez prezentaciu." },
+          { error: "Liga nemá žiadne dáta. Najprv ulož kvíz alebo pridaj tímy a klikni Uložiť zmeny." },
           { status: 400 }
         );
       }
+
+      leagueTable = sortLeagueTable(leagueTable);
 
       const updated = { ...existing, leagueTable, leagueActive: incoming.leagueActive };
       data.events[idx] = updated;
@@ -162,11 +144,27 @@ export async function PUT(req: NextRequest, { params }: { params: { slug: string
       return NextResponse.json(updated);
     }
 
+    if (recalculateLeague) {
+      const fromQuizzes = body.fromQuizzes === true;
+      const pastResults = existing.pastResults ?? [];
+      let leagueTable = fromQuizzes && pastResults.length > 0
+        ? rebuildLeagueTable(existing)
+        : sortLeagueTable(existing.leagueTable ?? []);
+
+      const updated = { ...existing, leagueTable, leagueActive: leagueTable.length > 0 || pastResults.length > 0 ? existing.leagueActive : false };
+      data.events[idx] = updated;
+      await writeEvents(data);
+      revalidatePath("/liga");
+      revalidatePath(`/liga/${params.slug}`);
+      return NextResponse.json(updated);
+    }
+
     const { leagueTable: _lt, pastResults: _pr, leagueActive: _la, ...safeIncoming } = incoming;
     let merged: QuizEvent = { ...existing, ...safeIncoming, slug: params.slug };
 
     if (includeLeagueData) {
       merged = { ...merged, ...applyLeagueDataMerge(existing, incoming) };
+      merged.leagueTable = sortLeagueTable(merged.leagueTable ?? []);
     } else {
       merged.leagueTable = existing.leagueTable ?? [];
       merged.pastResults = existing.pastResults ?? [];

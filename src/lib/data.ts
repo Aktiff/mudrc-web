@@ -50,6 +50,39 @@ export function isLeagueVisible(event: QuizEvent): boolean {
   return event.leagueTable.length > 0 || event.pastResults.length > 0;
 }
 
+export function sortLeagueTable(table: LeagueEntry[]): LeagueEntry[] {
+  return [...table]
+    .sort(
+      (a, b) =>
+        b.points - a.points ||
+        b.quizzesPlayed - a.quizzesPlayed ||
+        a.teamName.localeCompare(b.teamName, "sk")
+    )
+    .map((entry, index) => ({ ...entry, rank: index + 1 }));
+}
+
+export function rebuildLeagueTableFromResults(pastResults: PastResult[]): LeagueEntry[] {
+  const table: LeagueEntry[] = [];
+  for (const result of pastResults) {
+    if (!result.teams?.length) continue;
+    for (const team of result.teams) {
+      const existing = table.find((row) => row.teamName === team.teamName);
+      if (existing) {
+        existing.points += team.ligaPoints;
+        existing.quizzesPlayed += 1;
+      } else {
+        table.push({
+          rank: 0,
+          teamName: team.teamName,
+          points: team.ligaPoints,
+          quizzesPlayed: 1,
+        });
+      }
+    }
+  }
+  return sortLeagueTable(table);
+}
+
 export function getVisibleLeagues(events: QuizEvent[]): QuizEvent[] {
   return events.filter(isLeagueVisible);
 }

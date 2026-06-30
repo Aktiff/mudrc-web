@@ -1,9 +1,10 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Trash2, ChevronLeft, Save, PauseCircle, PlayCircle, Upload, ImageIcon, Phone, Users, Clock } from "lucide-react";
+import { Plus, Trash2, ChevronLeft, Save, PauseCircle, PlayCircle, Upload, ImageIcon, Phone, Users, Clock, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import type { QuizEvent, LeagueEntry, PastResult } from "@/lib/data";
+import { sortLeagueTable } from "@/lib/data";
 import { AdminDatePicker, AdminTimePicker } from "@/components/AdminDatePicker";
 import { TeamAutocomplete } from "@/components/TeamAutocomplete";
 
@@ -16,7 +17,26 @@ function normalizeEvent(ev: QuizEvent): QuizEvent {
     ...ev,
     durationMinutes: ev.durationMinutes ?? 120,
     leagueActive: ev.leagueActive === false ? false : true,
+    leagueTable: sortLeagueTable(ev.leagueTable ?? []),
   };
+}
+
+async function fetchFreshEvent(slug: string): Promise<QuizEvent | null> {
+  const fresh = await fetch(`/api/admin/events?_=${Date.now()}`, { cache: "no-store" }).then((r) => r.json());
+  return fresh.events?.find((e: QuizEvent) => e.slug === slug) ?? null;
+}
+
+function mergeFormWithServer(local: QuizEvent, server: QuizEvent): QuizEvent {
+  const merged: QuizEvent = { ...local };
+  if ((server.leagueTable?.length ?? 0) > (local.leagueTable?.length ?? 0)) {
+    merged.leagueTable = server.leagueTable;
+  }
+  if ((server.pastResults?.length ?? 0) > (local.pastResults?.length ?? 0)) {
+    merged.pastResults = server.pastResults;
+  }
+  merged.leagueActive = server.leagueActive;
+  merged.active = server.active;
+  return normalizeEvent(merged);
 }
 
 function formatDuration(minutes: number): string {
@@ -31,6 +51,7 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
   const isNew = params.slug === "nova";
   const [tab, setTab] = useState<Tab>("info");
   const [saving, setSaving] = useState(false);
+  const [recalculating, setRecalculating] = useState(false);
   const [msg, setMsg] = useState("");
   const [deleting, setDeleting] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -173,6 +194,7 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
     const includeLeagueData = tab === "liga" || tab === "vysledky";
     let toSave: QuizEvent & { _includeLeagueData?: boolean } = { ...form };
     if (includeLeagueData) {
+      toSave.leagueTable = sortLeagueTable(toSave.leagueTable ?? []);
       toSave._includeLeagueData = true;
     }
     try {
@@ -236,23 +258,73 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
     if (!confirm(msg)) return;
 
     const newActive = !leagueOn;
-    setForm((f) => ({ ...f, leagueActive: newActive }));
+    setMsg("");
 
-    const res = await fetch(`/api/admin/events/${params.slug}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ _leagueToggle: true, leagueActive: newActive }),
-    });
-    if (res.ok) {
-      const data = await res.json();
-      setForm(normalizeEvent(data));
-      setMsg(newActive ? "Liga zapnutá — obnov stránku /liga" : "Liga vypnutá — obnov stránku /liga");
-    } else {
+    try {
+      const serverEv = await fetchFreshEvent(params.slug);
+      let workingForm = form;
+      if (serverEv) {
+        workingForm = mergeFormWithServer(form, normalizeEvent(serverEv));
+        setForm(workingForm);
+      }
+
+      if (newActive && (workingForm.leagueTable.length > 0 || workingForm.pastResults.length > 0)) {
+        const saveRes = await fetch(`/api/admin/events/${params.slug}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...workingForm, _includeLeagueData: true }),
+        });
+        if (saveRes.ok) {
+          workingForm = normalizeEvent(await saveRes.json());
+          setForm(workingForm);
+        }
+      }
+
+      setForm((f) => ({ ...f, leagueActive: newActive }));
+
+      const res = await fetch(`/api/admin/events/${params.slug}?_=${Date.now()}`, {
+        method: "PUT",
+        cache: "no-store",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ _leagueToggle: true, leagueActive: newActive }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setForm(normalizeEvent(data));
+        setMsg(newActive ? "Liga zapnutá" : "Liga vypnutá");
+      } else {
+        setForm((f) => ({ ...f, leagueActive: leagueOn }));
+        const err = await res.json().catch(() => ({}));
+        const text = err.error ?? `Chyba ${res.status} pri ukladaní ligy`;
+        setMsg(text);
+      }
+    } catch {
       setForm((f) => ({ ...f, leagueActive: leagueOn }));
-      const err = await res.json().catch(() => ({}));
-      const text = err.error ?? `Chyba ${res.status} pri ukladaní ligy`;
-      setMsg(text);
-      alert(text);
+      setMsg("Sieťová chyba pri prepínaní ligy");
+    }
+  };
+
+  const recalculateLeague = async (fromQuizzes = false) => {
+    setRecalculating(true);
+    setMsg("");
+    try {
+      const res = await fetch(`/api/admin/events/${params.slug}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ _recalculateLeague: true, fromQuizzes }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setForm(normalizeEvent(data));
+        setMsg(fromQuizzes ? "Liga prepočítaná z kvízov" : "Poradie prepočítané");
+      } else {
+        const err = await res.json().catch(() => ({}));
+        setMsg(err.error ?? "Chyba pri prepočítaní");
+      }
+    } catch {
+      setMsg("Sieťová chyba pri prepočítaní");
+    } finally {
+      setRecalculating(false);
     }
   };
 
@@ -302,8 +374,10 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
       { rank: form.leagueTable.length + 1, teamName: "", points: 0, quizzesPlayed: 0 },
     ]);
 
-  const updateLeagueRow = (i: number, key: keyof LeagueEntry, val: string | number) =>
-    set("leagueTable", form.leagueTable.map((r, idx) => (idx === i ? { ...r, [key]: val } : r)));
+  const updateLeagueRow = (i: number, key: keyof LeagueEntry, val: string | number) => {
+    const updated = form.leagueTable.map((r, idx) => (idx === i ? { ...r, [key]: val } : r));
+    set("leagueTable", key === "points" || key === "quizzesPlayed" ? sortLeagueTable(updated) : updated);
+  };
 
   const removeLeagueRow = (i: number) =>
     set("leagueTable", form.leagueTable.filter((_, idx) => idx !== i).map((r, idx) => ({ ...r, rank: idx + 1 })));
@@ -337,14 +411,14 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
 
   const tabClass = (t: Tab) =>
     `px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${
-      tab === t ? "bg-brand-orange text-brand-btn-fg shadow-sm" : "text-stone-600 hover:text-stone-900"
+      tab === t ? "bg-brand-orange text-brand-btn-fg shadow-sm" : "text-brand-muted hover:text-brand-text hover:bg-brand-hover"
     }`;
 
   return (
     <div className="max-w-3xl">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <Link href="/admin/udalosti" className="text-stone-400 hover:text-stone-700 transition-colors">
+          <Link href="/admin/udalosti" className="text-brand-muted-light hover:text-brand-text transition-colors">
             <ChevronLeft className="w-5 h-5" />
           </Link>
           <h1 className="font-display text-3xl text-brand-text tracking-wide">
@@ -352,10 +426,10 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
           </h1>
           {!isNew && (
             <>
-              <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${form.active ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}`}>
+              <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${form.active ? "bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-300" : "bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300"}`}>
                 {form.active ? "Kvíz aktívny" : "Kvíz vypnutý"}
               </span>
-              <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${form.leagueActive !== false ? "bg-blue-100 text-blue-700" : "bg-stone-100 text-stone-600"}`}>
+              <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${form.leagueActive !== false ? "bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300" : "bg-brand-surface text-brand-muted border border-brand-border"}`}>
                 {form.leagueActive !== false ? "Liga zapnutá" : "Liga vypnutá"}
               </span>
             </>
@@ -376,7 +450,7 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
         )}
       </div>
 
-      <div className="flex gap-1 bg-stone-100 p-1 rounded-xl mb-6 w-fit flex-wrap">
+      <div className="flex gap-1 bg-brand-surface p-1 rounded-xl mb-6 w-fit flex-wrap border border-brand-border">
         <button className={tabClass("pridat")} onClick={() => setTab("pridat")}>+ Pridať kvíz</button>
         <button className={tabClass("info")} onClick={() => setTab("info")}>Základné info</button>
         <button className={tabClass("liga")} onClick={() => setTab("liga")}>Liga ({form.leagueTable.length})</button>
@@ -386,7 +460,7 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
       </div>
 
       {tab === "info" && (
-        <div className="bg-white rounded-2xl border border-stone-200 p-6 space-y-5">
+        <div className="bg-brand-card rounded-2xl border border-brand-border p-6 space-y-5">
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="label">Podnik</label>
@@ -443,13 +517,13 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
             <label className="label">Fotka podniku</label>
             <div className="flex items-center gap-4">
               {form.imageUrl ? (
-                <div className="relative w-24 h-16 rounded-xl overflow-hidden border border-stone-200 shrink-0">
+                <div className="relative w-24 h-16 rounded-xl overflow-hidden border border-brand-border shrink-0">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={form.imageUrl} alt="" className="w-full h-full object-cover" />
                 </div>
               ) : (
-                <div className="w-24 h-16 rounded-xl border-2 border-dashed border-stone-200 flex items-center justify-center shrink-0">
-                  <ImageIcon className="w-6 h-6 text-stone-300" />
+                <div className="w-24 h-16 rounded-xl border-2 border-dashed border-brand-border flex items-center justify-center shrink-0">
+                  <ImageIcon className="w-6 h-6 text-brand-muted-light" />
                 </div>
               )}
               <label className="btn-outline text-sm py-2 px-4 cursor-pointer">
@@ -458,7 +532,7 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
                 <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} disabled={uploading} />
               </label>
               {form.imageUrl && (
-                <button onClick={() => set("imageUrl", "")} className="text-sm text-stone-400 hover:text-red-400 transition-colors">Odstrániť</button>
+                <button onClick={() => set("imageUrl", "")} className="text-sm text-brand-muted hover:text-red-400 transition-colors">Odstrániť</button>
               )}
             </div>
           </div>
@@ -466,30 +540,48 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
             <div>
               <label className="label">Slug (URL identifikátor)</label>
               <input className="input" value={form.slug} onChange={(e) => set("slug", e.target.value)} placeholder="lili-cafe" />
-              <p className="text-stone-400 text-xs mt-1">Nechaj prázdne — vygeneruje sa automaticky z názvu podniku</p>
+              <p className="text-brand-muted text-xs mt-1">Nechaj prázdne — vygeneruje sa automaticky z názvu podniku</p>
             </div>
           )}
         </div>
       )}
 
       {tab === "liga" && (
-        <div className="bg-white rounded-2xl border border-stone-200 p-6">
+        <div className="bg-brand-card rounded-2xl border border-brand-border p-6">
           {!isNew && (
-            <div className="flex flex-wrap gap-3 mb-6 pb-6 border-b border-stone-100">
+            <div className="flex flex-wrap gap-3 mb-6 pb-6 border-b border-brand-border">
               <button
                 onClick={toggleLeagueActive}
                 className={`flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-xl border transition-colors ${
                   form.leagueActive !== false
-                    ? "border-amber-200 text-amber-700 hover:bg-amber-50"
-                    : "border-green-200 text-green-700 hover:bg-green-50"
+                    ? "border-amber-200 text-amber-700 hover:bg-amber-50 dark:border-amber-800 dark:text-amber-300 dark:hover:bg-amber-950/40"
+                    : "border-green-200 text-green-700 hover:bg-green-50 dark:border-green-800 dark:text-green-300 dark:hover:bg-green-950/40"
                 }`}
               >
                 {form.leagueActive !== false ? <PauseCircle className="w-4 h-4" /> : <PlayCircle className="w-4 h-4" />}
                 {form.leagueActive !== false ? "Vypnúť ligu" : "Zapnúť ligu"}
               </button>
               <button
+                onClick={() => recalculateLeague(false)}
+                disabled={recalculating || form.leagueTable.length === 0}
+                className="flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-xl border border-brand-border text-brand-muted hover:bg-brand-hover transition-colors disabled:opacity-40"
+              >
+                <RefreshCw className={`w-4 h-4 ${recalculating ? "animate-spin" : ""}`} />
+                Prepočítať poradie
+              </button>
+              {form.pastResults.length > 0 && (
+                <button
+                  onClick={() => recalculateLeague(true)}
+                  disabled={recalculating}
+                  className="flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-xl border border-brand-border text-brand-muted hover:bg-brand-hover transition-colors disabled:opacity-40"
+                >
+                  <RefreshCw className={`w-4 h-4 ${recalculating ? "animate-spin" : ""}`} />
+                  Prepočítať z kvízov
+                </button>
+              )}
+              <button
                 onClick={resetLeague}
-                className="flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 transition-colors"
+                className="flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950/40 transition-colors"
               >
                 <Trash2 className="w-4 h-4" />
                 Resetovať ligu
@@ -497,7 +589,7 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
             </div>
           )}
           {form.leagueTable.length > 0 && (
-            <div className="grid grid-cols-[2rem_1fr_6rem_6rem_2rem] gap-2 text-xs text-stone-400 mb-2 px-0.5">
+            <div className="grid grid-cols-[2rem_1fr_6rem_6rem_2rem] gap-2 text-xs text-brand-muted mb-2 px-0.5">
               <span>#</span>
               <span>Názov tímu</span>
               <span className="text-center">Body</span>
@@ -507,15 +599,15 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
           )}
           <div className="space-y-2 mb-4">
             {form.leagueTable.length === 0 && (
-              <p className="text-stone-400 text-sm py-4 text-center">Zatiaľ žiadne tímy. Pridaj prvý tím.</p>
+              <p className="text-brand-muted text-sm py-4 text-center">Zatiaľ žiadne tímy. Pridaj prvý tím.</p>
             )}
             {form.leagueTable.map((row, i) => (
               <div key={i} className="grid grid-cols-[2rem_1fr_6rem_6rem_2rem] gap-2 items-center">
-                <span className="text-stone-400 text-sm text-center">{row.rank}.</span>
+                <span className="text-brand-muted text-sm text-center">{row.rank}.</span>
                 <input className="input text-sm py-2" value={row.teamName} onChange={(e) => updateLeagueRow(i, "teamName", e.target.value)} placeholder="Názov tímu" />
                 <input className="input text-sm py-2 text-center" type="number" value={row.points} onChange={(e) => updateLeagueRow(i, "points", Number(e.target.value))} />
                 <input className="input text-sm py-2 text-center" type="number" value={row.quizzesPlayed} onChange={(e) => updateLeagueRow(i, "quizzesPlayed", Number(e.target.value))} />
-                <button onClick={() => removeLeagueRow(i)} className="text-stone-300 hover:text-red-400 transition-colors">
+                <button onClick={() => removeLeagueRow(i)} className="text-brand-muted-light hover:text-red-400 transition-colors">
                   <Trash2 className="w-4 h-4" />
                 </button>
               </div>
@@ -528,8 +620,8 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
       )}
 
       {tab === "pridat" && !isNew && (
-        <div className="bg-white rounded-2xl border border-stone-200 p-6">
-          <p className="text-stone-500 text-sm mb-6">
+        <div className="bg-brand-card rounded-2xl border border-brand-border p-6">
+          <p className="text-brand-muted text-sm mb-6">
             Zadaj výsledky kvízu. Prázdne riadky sa automaticky ignorujú.
           </p>
           <div className="mb-6">
@@ -539,9 +631,9 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
             </div>
           </div>
           <div className="grid gap-3 mb-2 pr-9" style={{ gridTemplateColumns: `1fr repeat(${form.rounds || 4}, 5rem) 4.5rem` }}>
-            <span className="text-xs text-stone-400 uppercase tracking-wider font-medium">Tím</span>
+            <span className="text-xs text-brand-muted uppercase tracking-wider font-medium">Tím</span>
             {Array.from({ length: form.rounds || 4 }, (_, i) => (
-              <span key={i} className="text-xs text-stone-400 uppercase tracking-wider font-medium text-center">K{i + 1}</span>
+              <span key={i} className="text-xs text-brand-muted uppercase tracking-wider font-medium text-center">K{i + 1}</span>
             ))}
             <span className="text-xs text-brand-orange uppercase tracking-wider font-semibold text-center">Body</span>
           </div>
@@ -567,7 +659,7 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
                 <div className="text-center">
                   <span className="font-display text-2xl text-brand-orange">{getTotal(team.scores)}</span>
                 </div>
-                <button onClick={() => removeQuizTeam(i)} className="text-stone-300 hover:text-red-400 transition-colors flex justify-center">
+                <button onClick={() => removeQuizTeam(i)} className="text-brand-muted-light hover:text-red-400 transition-colors flex justify-center">
                   <Trash2 className="w-4 h-4" />
                 </button>
               </div>
@@ -589,9 +681,9 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
               <div className="space-y-1.5">
                 {quizResult.ligaPoints.sort((a, b) => b.total - a.total).map((t, i) => (
                   <div key={i} className="flex items-center gap-3 text-sm">
-                    <span className="text-stone-400 w-5 text-right font-medium">{i + 1}.</span>
-                    <span className="flex-1 font-semibold text-stone-700">{t.name}</span>
-                    <span className="text-stone-400">{t.total} bodov</span>
+                    <span className="text-brand-muted w-5 text-right font-medium">{i + 1}.</span>
+                    <span className="flex-1 font-semibold text-brand-text">{t.name}</span>
+                    <span className="text-brand-muted">{t.total} bodov</span>
                     <span className="text-brand-orange font-bold">+{t.liga} lig. b.</span>
                   </div>
                 ))}
@@ -602,16 +694,16 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
       )}
 
       {tab === "registracie" && !isNew && (
-        <div className="bg-white rounded-2xl border border-stone-200 p-6">
-          {regsLoading && <p className="text-stone-400 text-sm">Načítavam...</p>}
+        <div className="bg-brand-card rounded-2xl border border-brand-border p-6">
+          {regsLoading && <p className="text-brand-muted text-sm">Načítavam...</p>}
           {!regsLoading && registrations.length === 0 && (
-            <p className="text-stone-400 text-sm py-8 text-center">Zatiaľ žiadne registrácie pre tento podnik.</p>
+            <p className="text-brand-muted text-sm py-8 text-center">Zatiaľ žiadne registrácie pre tento podnik.</p>
           )}
           <div className="space-y-3">
             {registrations.map((r) => (
-              <div key={r.id} className="rounded-xl border border-stone-200 p-4">
+              <div key={r.id} className="rounded-xl border border-brand-border p-4">
                 <div className="font-display text-xl text-brand-text">{r.teamName}</div>
-                <div className="flex flex-wrap items-center gap-4 mt-2 text-sm text-stone-500">
+                <div className="flex flex-wrap items-center gap-4 mt-2 text-sm text-brand-muted">
                   <span className="flex items-center gap-1.5"><Users className="w-3.5 h-3.5" />{r.players} hráčov</span>
                   <span className="flex items-center gap-1.5"><Phone className="w-3.5 h-3.5" />{r.phone}</span>
                   <span className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5" />{r.createdAt}</span>
@@ -623,22 +715,22 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
       )}
 
       {tab === "pravidla" && (
-        <div className="bg-white rounded-2xl border border-stone-200 p-6">
-          <p className="text-stone-400 text-sm mb-4">Každé pravidlo je jeden riadok.</p>
+        <div className="bg-brand-card rounded-2xl border border-brand-border p-6">
+          <p className="text-brand-muted text-sm mb-4">Každé pravidlo je jeden riadok.</p>
           <div className="space-y-2 mb-4">
             {(form.rules ?? []).length === 0 && (
-              <p className="text-stone-400 text-sm py-4 text-center">Žiadne pravidlá. Pridaj prvé.</p>
+              <p className="text-brand-muted text-sm py-4 text-center">Žiadne pravidlá. Pridaj prvé.</p>
             )}
             {(form.rules ?? []).map((rule, i) => (
               <div key={i} className="flex items-center gap-2">
-                <span className="text-stone-300 text-sm w-5 text-right shrink-0">{i + 1}.</span>
+                <span className="text-brand-muted-light text-sm w-5 text-right shrink-0">{i + 1}.</span>
                 <input
                   className="input text-sm py-2 flex-1"
                   value={rule}
                   onChange={(e) => updateRule(i, e.target.value)}
                   placeholder="Text pravidla..."
                 />
-                <button onClick={() => removeRule(i)} className="text-stone-300 hover:text-red-400 transition-colors shrink-0">
+                <button onClick={() => removeRule(i)} className="text-brand-muted-light hover:text-red-400 transition-colors shrink-0">
                   <Trash2 className="w-4 h-4" />
                 </button>
               </div>
@@ -651,28 +743,28 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
       )}
 
       {tab === "vysledky" && (
-        <div className="bg-white rounded-2xl border border-stone-200 p-6">
+        <div className="bg-brand-card rounded-2xl border border-brand-border p-6">
           <div className="space-y-2 mb-4">
             {form.pastResults.length === 0 && (
-              <p className="text-stone-400 text-sm py-4 text-center">Zatiaľ žiadne výsledky.</p>
+              <p className="text-brand-muted text-sm py-4 text-center">Zatiaľ žiadne výsledky.</p>
             )}
             {[...form.pastResults].reverse().map((r, i) => {
               const hasDetail = !!(r.teams && r.teams.length > 0);
               const quizId = r.id ?? r.date.replace(/\./g, "-");
               return (
-                <div key={i} className={`flex items-center gap-3 px-4 py-3 rounded-xl border transition-colors ${hasDetail ? "border-stone-200 hover:border-brand-orange hover:bg-brand-warm group" : "border-stone-100 bg-stone-50"}`}>
+                <div key={i} className={`flex items-center gap-3 px-4 py-3 rounded-xl border transition-colors ${hasDetail ? "border-brand-border hover:border-brand-orange hover:bg-brand-warm group" : "border-brand-border bg-brand-surface"}`}>
                   {hasDetail ? (
                     <>
                       <Link href={`/admin/udalosti/${params.slug}/kviz/${quizId}`} className="flex items-center gap-3 flex-1">
                         <span className="font-semibold text-brand-text text-sm">{r.date}</span>
-                        <span className="text-stone-400 text-sm">víťaz</span>
+                        <span className="text-brand-muted text-sm">víťaz</span>
                         <span className="font-semibold text-brand-orange text-sm">{r.winnerTeam}</span>
-                        <span className="ml-auto text-stone-400 text-sm">{r.points} bodov</span>
-                        <ChevronLeft className="w-4 h-4 text-stone-300 group-hover:text-brand-orange rotate-180 transition-all" />
+                        <span className="ml-auto text-brand-muted text-sm">{r.points} bodov</span>
+                        <ChevronLeft className="w-4 h-4 text-brand-muted-light group-hover:text-brand-orange rotate-180 transition-all" />
                       </Link>
                       <button
                         onClick={() => deleteQuiz(quizId)}
-                        className="text-stone-300 hover:text-red-500 transition-colors shrink-0 p-1"
+                        className="text-brand-muted-light hover:text-red-500 transition-colors shrink-0 p-1"
                         title="Zmazať kvíz"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -680,16 +772,16 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
                     </>
                   ) : (
                     <>
-                      <span className="font-semibold text-stone-500 text-sm">{r.date}</span>
-                      <span className="text-stone-400 text-sm">víťaz</span>
-                      <span className="font-semibold text-stone-600 text-sm">{r.winnerTeam}</span>
-                      <span className="ml-auto text-stone-400 text-sm">{r.points} bodov</span>
+                      <span className="font-semibold text-brand-muted text-sm">{r.date}</span>
+                      <span className="text-brand-muted text-sm">víťaz</span>
+                      <span className="font-semibold text-brand-muted text-sm">{r.winnerTeam}</span>
+                      <span className="ml-auto text-brand-muted text-sm">{r.points} bodov</span>
                       <button
                         onClick={() => {
                           if (!confirm("Naozaj zmazať tento výsledok?")) return;
                           removeResult(form.pastResults.length - 1 - i);
                         }}
-                        className="text-stone-300 hover:text-red-500 transition-colors shrink-0 p-1"
+                        className="text-brand-muted-light hover:text-red-500 transition-colors shrink-0 p-1"
                         title="Zmazať výsledok"
                       >
                         <Trash2 className="w-4 h-4" />
