@@ -174,24 +174,16 @@ async function writeBlob(key: string, data: unknown): Promise<void> {
   }
 
   const payload = JSON.stringify(data, null, 2);
-  const base = {
-    addRandomSuffix: false as const,
-    contentType: "application/json",
-    token,
-  };
-
   try {
-    await put(key, payload, { ...base, access: "public" });
-    return;
-  } catch (publicError) {
-    try {
-      await put(key, payload, { ...base, access: "private" });
-      return;
-    } catch (privateError) {
-      const publicMsg = publicError instanceof Error ? publicError.message : "public write failed";
-      const privateMsg = privateError instanceof Error ? privateError.message : "private write failed";
-      throw new Error(`Blob write failed (${key}): ${publicMsg} / ${privateMsg}`);
-    }
+    await put(key, payload, {
+      access: "public",
+      addRandomSuffix: false,
+      contentType: "application/json",
+      token,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Blob write failed";
+    throw new Error(`Blob write failed (${key}): ${message}`);
   }
 }
 
