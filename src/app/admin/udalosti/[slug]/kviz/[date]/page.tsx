@@ -42,9 +42,7 @@ export default function AdminQuizDetailPage({ params }: { params: { slug: string
     setLoadError("");
     const data = await loadQuizDetail(params.slug, params.date);
     if (!data?.result?.teams?.length) {
-      setLoadError(
-        "Kvíz nebol nájdený v databáze. Skontroluj, či prebehol deploy (Vercel → Redeploy) a skús kvíz pridať znova."
-      );
+      setLoadError("Kvíz nebol nájdený. Skús ho pridať znova cez „Pridať kvíz“.");
       setLoading(false);
       return;
     }

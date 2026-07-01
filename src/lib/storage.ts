@@ -1,19 +1,19 @@
 import fs from "fs";
 import path from "path";
 import { del, head, list, put } from "@vercel/blob";
-import type { QuizEvent } from "@/lib/data";
+import type { QuizEvent, PastResult, PastResultTeam } from "@/lib/data";
 import {
   getSupabaseStorageDiagnostics,
   hasSupabaseStorage,
   supabaseFetchEventLeague,
   supabaseFetchEvents,
+  supabaseFetchQuizzes,
   supabaseFetchRegistrations,
-  supabaseSetEventLeague,
   supabaseSetEvents,
+  supabaseSetQuizzes,
   supabaseSetRegistrations,
-  type EventLeagueData,
 } from "@/lib/supabase-storage";
-import { findQuizResult, mergePastResults } from "@/lib/quiz-result-key";
+import { findQuizResult, mergePastResults, normalizeDateKey, quizResultKey } from "@/lib/quiz-result-key";
 
 const LEGACY_EVENTS_KEY = "mudrc/events.json";
 const LEGACY_REGS_KEY = "mudrc/registrations.json";
@@ -95,6 +95,16 @@ export type Registration = {
   players: string;
   phone: string;
   createdAt: string;
+};
+
+/** Rovnako ako registrácie — samostatný kľúč `quizzes` v Supabase. */
+export type StoredQuiz = {
+  id: string;
+  eventSlug: string;
+  date: string;
+  winnerTeam: string;
+  points: number;
+  teams: PastResultTeam[];
 };
 
 export type WriteOptions = {
@@ -330,66 +340,216 @@ async function bootstrapEventsToSupabase(): Promise<QuizEvent[]> {
   return events;
 }
 
-function pastResultsHaveTeamDetails(results: QuizEvent["pastResults"]): boolean {
-  return (results ?? []).some((r) => (r.teams?.length ?? 0) > 0);
+function pastResultToStoredQuiz(eventSlug: string, result: PastResult): StoredQuiz {
+  return {
+    id: quizResultKey(result),
+    eventSlug,
+    date: result.date,
+    winnerTeam: result.winnerTeam,
+    points: result.points,
+    teams: result.teams ?? [],
+  };
 }
 
-async function attachLeagueData(events: QuizEvent[]): Promise<QuizEvent[]> {
-  if (!hasSupabaseStorage()) return events;
+function storedQuizToPastResult(quiz: StoredQuiz): PastResult {
+  return {
+    id: quiz.id,
+    date: quiz.date,
+    winnerTeam: quiz.winnerTeam,
+    points: quiz.points,
+    teams: quiz.teams,
+  };
+}
 
-  return Promise.all(
-    events.map(async (event) => {
-      const inlinePast = event.pastResults ?? [];
-      const inlineTable = event.leagueTable ?? [];
+function normalizeStoredQuiz(quiz: StoredQuiz): StoredQuiz {
+  const id = quiz.id || normalizeDateKey(quiz.date);
+  return {
+    ...quiz,
+    id,
+    eventSlug: quiz.eventSlug,
+    teams: quiz.teams ?? [],
+  };
+}
+
+function enrichEventsWithQuizzes(events: QuizEvent[], quizzes: StoredQuiz[]): QuizEvent[] {
+  if (!quizzes.length) return events;
+  return events.map((event) => {
+    const eventQuizzes = quizzes
+      .filter((q) => q.eventSlug === event.slug)
+      .map(storedQuizToPastResult);
+    if (!eventQuizzes.length) return event;
+    return {
+      ...event,
+      pastResults: mergePastResults(event.pastResults ?? [], eventQuizzes),
+    };
+  });
+}
+
+async function loadQuizzesRaw(): Promise<StoredQuiz[]> {
+  if (hasSupabaseStorage()) {
+    const result = await supabaseFetchQuizzes();
+    if (result.status === "ok") {
+      return ((result.value.quizzes ?? []) as StoredQuiz[]).map(normalizeStoredQuiz);
+    }
+    if (result.status === "error") {
+      throw new Error(`Nepodarilo sa nacitat kvízy zo Supabase: ${result.message}`);
+    }
+    return [];
+  }
+
+  const events = readLocalEvents().events;
+  const extracted: StoredQuiz[] = [];
+  for (const event of events) {
+    for (const result of event.pastResults ?? []) {
+      if ((result.teams?.length ?? 0) > 0) {
+        extracted.push(pastResultToStoredQuiz(event.slug, result));
+      }
+    }
+  }
+  return extracted;
+}
+
+async function persistQuizzes(quizzes: StoredQuiz[]): Promise<void> {
+  if (hasSupabaseStorage()) {
+    await supabaseSetQuizzes({ quizzes });
+    return;
+  }
+  if (isVercel) {
+    throw new Error("STORAGE_NOT_CONFIGURED");
+  }
+  // lokálne: kvízy zostávajú v events.local.json cez updateEvents
+}
+
+async function migrateQuizzesFromLegacy(events: QuizEvent[]): Promise<StoredQuiz[]> {
+  const extracted: StoredQuiz[] = [];
+
+  for (const event of events) {
+    for (const result of event.pastResults ?? []) {
+      if ((result.teams?.length ?? 0) > 0) {
+        extracted.push(pastResultToStoredQuiz(event.slug, result));
+      }
+    }
+  }
+
+  if (hasSupabaseStorage() && extracted.length === 0) {
+    for (const event of events) {
       const league = await supabaseFetchEventLeague(event.slug);
-
-      if (league.status === "ok") {
-        const leaguePast = (league.value.pastResults ?? []) as QuizEvent["pastResults"];
-        const leagueTable = (league.value.leagueTable ?? []) as QuizEvent["leagueTable"];
-        return {
-          ...event,
-          pastResults: mergePastResults(inlinePast, leaguePast),
-          leagueTable: leagueTable.length >= inlineTable.length ? leagueTable : inlineTable,
-          leagueActive:
-            typeof league.value.leagueActive === "boolean" ? league.value.leagueActive : event.leagueActive,
-        };
-      }
-
-      if (league.status === "error") {
-        console.error(`League read failed for ${event.slug}:`, league.message);
-        return event;
-      }
-
-      // league missing: zalohuj len ak mame kompletne data (s tymi), nie prazdne sumare
-      if (pastResultsHaveTeamDetails(inlinePast) || inlineTable.length > 0) {
-        try {
-          await supabaseSetEventLeague(event.slug, {
-            pastResults: inlinePast,
-            leagueTable: inlineTable,
-            leagueActive: event.leagueActive,
-          });
-        } catch (error) {
-          console.error(`Migrate league data for ${event.slug} failed:`, error);
+      if (league.status !== "ok") continue;
+      for (const result of (league.value.pastResults ?? []) as PastResult[]) {
+        if ((result.teams?.length ?? 0) > 0) {
+          extracted.push(pastResultToStoredQuiz(event.slug, result));
         }
       }
+    }
+  }
 
-      return event;
-    })
+  if (extracted.length > 0) {
+    await persistQuizzes(extracted);
+  }
+  return extracted;
+}
+
+async function loadQuizzes(): Promise<StoredQuiz[]> {
+  let quizzes = await loadQuizzesRaw();
+  if (quizzes.length > 0) return quizzes;
+
+  if (hasSupabaseStorage()) {
+    const eventsResult = await supabaseFetchEvents();
+    if (eventsResult.status === "ok") {
+      const events = (eventsResult.value.events ?? []) as QuizEvent[];
+      quizzes = await migrateQuizzesFromLegacy(events);
+    }
+  }
+  return quizzes;
+}
+
+export async function upsertStoredQuiz(quiz: StoredQuiz): Promise<void> {
+  const normalized = normalizeStoredQuiz(quiz);
+
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const current = await loadQuizzes();
+    const idx = current.findIndex(
+      (existing) => existing.eventSlug === normalized.eventSlug && existing.id === normalized.id
+    );
+    const next =
+      idx === -1
+        ? [...current, normalized]
+        : current.map((existing, i) => (i === idx ? normalized : existing));
+
+    try {
+      await persistQuizzes(next);
+      return;
+    } catch (error) {
+      if (attempt === 4) throw error;
+      await sleep(250 * (attempt + 1));
+    }
+  }
+}
+
+export async function deleteStoredQuiz(eventSlug: string, quizParam: string): Promise<boolean> {
+  const key = normalizeDateKey(quizParam);
+  let removed = false;
+
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const current = await loadQuizzes();
+    const next = current.filter((quiz) => {
+      if (quiz.eventSlug !== eventSlug) return true;
+      const matches =
+        quiz.id === key ||
+        normalizeDateKey(quiz.date) === key ||
+        quiz.id === quizParam ||
+        quiz.date.trim() === quizParam;
+      if (matches) removed = true;
+      return !matches;
+    });
+    if (!removed) return false;
+
+    try {
+      await persistQuizzes(next);
+      return true;
+    } catch (error) {
+      if (attempt === 4) throw error;
+      await sleep(250 * (attempt + 1));
+    }
+  }
+  return removed;
+}
+
+export async function readStoredQuiz(eventSlug: string, quizParam: string): Promise<StoredQuiz | null> {
+  const key = normalizeDateKey(quizParam);
+  const quizzes = await loadQuizzes();
+  return (
+    quizzes.find(
+      (quiz) =>
+        quiz.eventSlug === eventSlug &&
+        (quiz.id === key ||
+          normalizeDateKey(quiz.date) === key ||
+          quiz.id === quizParam ||
+          quiz.date.trim() === quizParam)
+    ) ?? null
   );
+}
+
+async function loadEventsBase(): Promise<QuizEvent[]> {
+  if (hasSupabaseStorage()) {
+    const result = await supabaseFetchEvents();
+    if (result.status === "ok") {
+      return (result.value.events ?? []) as QuizEvent[];
+    }
+    if (result.status === "error") {
+      throw new Error(`Nepodarilo sa nacitat udalosti zo Supabase: ${result.message}`);
+    }
+    return bootstrapEventsToSupabase();
+  }
+
+  const fromBlob = await loadEventsFromBlobOptional();
+  if (fromBlob?.length) return fromBlob;
+
+  return readLocalEvents().events;
 }
 
 async function persistEvents(events: QuizEvent[]): Promise<void> {
   if (hasSupabaseStorage()) {
-    // Najprv zaloha ligovych dat, potom cely snapshot (ako registracie v jednom klici)
-    await Promise.all(
-      events.map((event) =>
-        supabaseSetEventLeague(event.slug, {
-          pastResults: event.pastResults ?? [],
-          leagueTable: event.leagueTable ?? [],
-          leagueActive: event.leagueActive,
-        })
-      )
-    );
     await supabaseSetEvents({ events });
     return;
   }
@@ -404,22 +564,9 @@ async function persistEvents(events: QuizEvent[]): Promise<void> {
 }
 
 async function loadEvents(): Promise<QuizEvent[]> {
-  if (hasSupabaseStorage()) {
-    const result = await supabaseFetchEvents();
-    if (result.status === "ok") {
-      const base = (result.value.events ?? []) as QuizEvent[];
-      return attachLeagueData(base);
-    }
-    if (result.status === "error") {
-      throw new Error(`Nepodarilo sa nacitat kvízy zo Supabase: ${result.message}`);
-    }
-    return bootstrapEventsToSupabase();
-  }
-
-  const fromBlob = await loadEventsFromBlobOptional();
-  if (fromBlob?.length) return fromBlob;
-
-  return readLocalEvents().events;
+  const base = await loadEventsBase();
+  const quizzes = await loadQuizzes();
+  return enrichEventsWithQuizzes(base, quizzes);
 }
 
 function normalizeRegistration(reg: Registration & { eventSlug?: string }): Registration {
@@ -635,6 +782,17 @@ export async function deleteRegistrationsByIds(ids: string[]): Promise<number> {
 export { mergeEventPreserve };
 
 export async function readQuizResult(slug: string, quizParam: string) {
+  const stored = await readStoredQuiz(slug, quizParam);
+  if (stored?.teams?.length) {
+    const base = await loadEventsBase();
+    const event = base.find((e) => e.slug === slug);
+    if (!event) return null;
+    return {
+      event: enrichEventsWithQuizzes([event], [stored])[0],
+      result: storedQuizToPastResult(stored),
+    };
+  }
+
   const { events } = await readEvents();
   const event = events.find((e) => e.slug === slug);
   if (!event) return null;

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
-import { findQuizResultIndex } from "@/lib/quiz-result-key";
-import { readQuizResult, updateEvents } from "@/lib/storage";
+import { findQuizResultIndex, normalizeDateKey } from "@/lib/quiz-result-key";
+import { deleteStoredQuiz, readQuizResult, updateEvents, upsertStoredQuiz } from "@/lib/storage";
+
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -61,6 +62,36 @@ export async function PUT(req: NextRequest, { params }: { params: { slug: string
     return NextResponse.json({ error: "Chyba vstupnych dat" }, { status: 400 });
   }
 
+  const existing = await readQuizResult(params.slug, params.date);
+  if (!existing) {
+    return NextResponse.json({ error: "Result not found" }, { status: 404 });
+  }
+
+  const newSorted = calcLigaPoints(validTeams);
+  const winners = newSorted.filter((t) => t.total === newSorted[0].total);
+  const winnerTeam = winners.length === 1 ? winners[0].name : winners.map((t) => t.name).join(" / ");
+  const teamsDetail = newSorted.map((t) => ({
+    teamName: t.name,
+    rounds: t.scores,
+    total: t.total,
+    ligaPoints: t.ligaPoints,
+  }));
+  const quizId = existing.result.id ?? normalizeDateKey(existing.result.date);
+
+  try {
+    await upsertStoredQuiz({
+      id: quizId,
+      eventSlug: params.slug,
+      date: newDate,
+      winnerTeam,
+      points: newSorted[0].total,
+      teams: teamsDetail,
+    });
+  } catch (error) {
+    console.error("upsertStoredQuiz PUT error:", error);
+    return NextResponse.json({ error: "Chyba pri ukladani kvizu" }, { status: 500 });
+  }
+
   try {
     const { events } = await updateEvents((events) => {
       const idx = events.findIndex((e) => e.slug === params.slug);
@@ -74,35 +105,24 @@ export async function PUT(req: NextRequest, { params }: { params: { slug: string
       const table = [...(event.leagueTable ?? [])];
       reverseQuizFromTable(table, oldResult);
 
-      const newSorted = calcLigaPoints(validTeams);
-      const winners = newSorted.filter((t) => t.total === newSorted[0].total);
-      const winnerTeam = winners.length === 1 ? winners[0].name : winners.map((t) => t.name).join(" / ");
-
       for (const team of newSorted) {
-        const existing = table.find((r) => r.teamName === team.name);
-        if (existing) {
-          existing.points += team.ligaPoints;
-          existing.quizzesPlayed += 1;
+        const row = table.find((r) => r.teamName === team.name);
+        if (row) {
+          row.points += team.ligaPoints;
+          row.quizzesPlayed += 1;
         } else {
           table.push({ rank: 0, teamName: team.name, points: team.ligaPoints, quizzesPlayed: 1 });
         }
       }
 
       table.sort((a, b) => b.points - a.points || b.quizzesPlayed - a.quizzesPlayed);
-      table.forEach((r, i) => {
-        r.rank = i + 1;
+      table.forEach((r, rank) => {
+        r.rank = rank + 1;
       });
-
-      const teamsDetail = newSorted.map((t) => ({
-        teamName: t.name,
-        rounds: t.scores,
-        total: t.total,
-        ligaPoints: t.ligaPoints,
-      }));
 
       const pastResults = [...event.pastResults];
       pastResults[resultIdx] = {
-        id: oldResult.id ?? params.date,
+        id: quizId,
         date: newDate,
         winnerTeam,
         points: newSorted[0].total,
@@ -129,6 +149,18 @@ export async function PUT(req: NextRequest, { params }: { params: { slug: string
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: { slug: string; date: string } }) {
+  const existing = await readQuizResult(params.slug, params.date);
+  if (!existing) {
+    return NextResponse.json({ error: "Result not found" }, { status: 404 });
+  }
+
+  try {
+    await deleteStoredQuiz(params.slug, params.date);
+  } catch (error) {
+    console.error("deleteStoredQuiz error:", error);
+    return NextResponse.json({ error: "Chyba pri mazani kvizu" }, { status: 500 });
+  }
+
   try {
     await updateEvents(
       (events) => {
@@ -143,8 +175,8 @@ export async function DELETE(_req: NextRequest, { params }: { params: { slug: st
         const table = [...(event.leagueTable ?? [])];
         reverseQuizFromTable(table, oldResult);
         table.sort((a, b) => b.points - a.points || b.quizzesPlayed - a.quizzesPlayed);
-        table.forEach((r, i) => {
-          r.rank = i + 1;
+        table.forEach((r, rank) => {
+          r.rank = rank + 1;
         });
 
         const pastResults = event.pastResults.filter((_, i) => i !== resultIdx);
