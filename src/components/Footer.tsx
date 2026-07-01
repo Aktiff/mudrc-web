@@ -2,7 +2,7 @@ import Link from "next/link";
 import SocialLinks from "@/components/SocialLinks";
 
 const links = [
-  { href: "/#kvizy", label: "Kvízy" },
+  { href: "/kvizy", label: "Kvízy" },
   { href: "/#ako-to-funguje", label: "Ako to funguje?" },
   { href: "/podniky", label: "Pre podniky" },
   { href: "/#kariera", label: "Kariéra" },

@@ -1,14 +1,12 @@
-import { notFound } from "next/navigation";
-import { isQuizVisible } from "@/lib/data";
-import { readEvents } from "@/lib/storage";
-import EventDetailPage from "@/components/EventDetailPage";
+import { notFound, redirect } from "next/navigation";
+import { getEventRegionSlug } from "@/lib/regions";
+import { getPublicEventBySlug } from "@/lib/public-events";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export default async function EventPage({ params }: { params: { slug: string } }) {
-  const { events } = await readEvents();
-  const event = events.find((entry) => entry.slug === params.slug);
-  if (!event || !isQuizVisible(event)) notFound();
-  return <EventDetailPage event={event} />;
+export default async function LegacyEventRedirect({ params }: { params: { slug: string } }) {
+  const event = await getPublicEventBySlug(params.slug);
+  if (!event) notFound();
+  redirect(`/kvizy/${getEventRegionSlug(event)}/${params.slug}`);
 }

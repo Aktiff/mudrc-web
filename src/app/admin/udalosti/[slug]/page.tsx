@@ -6,6 +6,7 @@ import Link from "next/link";
 import type { QuizEvent, LeagueEntry, PastResult } from "@/lib/data";
 import { sortLeagueTable } from "@/lib/data";
 import { findQuizResult, mergePastResults, normalizeDateKey, quizResultKey } from "@/lib/quiz-result-key";
+import { REGION_OPTIONS } from "@/lib/regions";
 import { AdminDatePicker, AdminTimePicker } from "@/components/AdminDatePicker";
 import { TeamAutocomplete } from "@/components/TeamAutocomplete";
 
@@ -160,6 +161,7 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
     venue: "",
     city: "",
     address: "",
+    regionSlug: "prievidza",
     date: "",
     time: "19:00",
     entryFee: 4,
@@ -552,6 +554,17 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
               <label className="label">Mesto</label>
               <input className="input" value={form.city} onChange={(e) => set("city", e.target.value)} placeholder="Oslany" />
             </div>
+          </div>
+          <div>
+            <label className="label">Región (SEO)</label>
+            <select className="input" value={form.regionSlug ?? "prievidza"} onChange={(e) => set("regionSlug", e.target.value)}>
+              {REGION_OPTIONS.map((region) => (
+                <option key={region.slug} value={region.slug}>
+                  {region.name}
+                </option>
+              ))}
+            </select>
+            <p className="text-brand-muted text-xs mt-1">Určuje URL stránky kvízu, napr. /kvizy/prievidza/...</p>
           </div>
           <div>
             <label className="label">Adresa</label>

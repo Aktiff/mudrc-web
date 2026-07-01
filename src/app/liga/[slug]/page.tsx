@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { ChevronLeft, Medal, Trophy, Calendar } from "lucide-react";
 import type { QuizEvent } from "@/lib/data";
 import { isLeagueVisible } from "@/lib/data";
+import { eventPath } from "@/lib/regions";
 const medalStyles = [
   { bg: "#FFD700", color: "#5a3e00", border: "#c9a800" },
   { bg: "#C0C0C0", color: "#333333", border: "#909090" },
@@ -192,7 +193,7 @@ export default function LigaDetailPage({ params }: { params: { slug: string } })
         )}
 
         <div className="text-center pt-4">
-          <Link href={`/udalosti/${event.slug}`} className="btn-primary text-sm px-6 py-3">
+          <Link href={event ? eventPath(event) : "/#kvizy"} className="btn-primary text-sm px-6 py-3">
             <Trophy className="w-4 h-4" /> Zaregistrovať tím na ďalší kvíz
           </Link>
         </div>

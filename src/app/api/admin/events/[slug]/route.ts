@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { revalidatePath } from "next/cache";
 import type { QuizEvent, LeagueEntry } from "@/lib/data";
 import { rebuildLeagueTableFromResults, sortLeagueTable } from "@/lib/data";
 import { mergePastResults } from "@/lib/quiz-result-key";
+import { revalidatePublicEventPaths } from "@/lib/revalidate-public";
 import { patchEvent, updateEvents } from "@/lib/storage";
 
 export const runtime = "nodejs";
@@ -16,14 +16,6 @@ class NotFoundError extends Error {
   constructor() {
     super("NOT_FOUND");
   }
-}
-
-function revalidatePublicEventPaths(slug: string) {
-  revalidatePath("/");
-  revalidatePath(`/udalosti/${slug}`);
-  revalidatePath(`/liga/${slug}`);
-  revalidatePath("/api/events");
-  revalidatePath(`/api/events/${slug}`);
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: { slug: string } }) {
@@ -61,7 +53,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { slug: stri
     });
 
     const updated = events.find((e) => e.slug === params.slug)!;
-    revalidatePublicEventPaths(params.slug);
+    await revalidatePublicEventPaths(params.slug);
     return NextResponse.json(updated);
   } catch (e) {
     if (e instanceof NotFoundError) return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -164,7 +156,7 @@ export async function PUT(req: NextRequest, { params }: { params: { slug: string
       );
 
       const updated = events.find((e) => e.slug === params.slug)!;
-      revalidatePublicEventPaths(params.slug);
+      await revalidatePublicEventPaths(params.slug);
       return NextResponse.json(updated);
     }
 
@@ -173,7 +165,7 @@ export async function PUT(req: NextRequest, { params }: { params: { slug: string
       ? await patchEvent(params.slug, incoming, { includeLeagueData: true })
       : await patchEvent(params.slug, fields);
 
-    revalidatePublicEventPaths(params.slug);
+    await revalidatePublicEventPaths(params.slug);
     return NextResponse.json(updated);
   } catch (e) {
     if (e instanceof NotFoundError || (e instanceof Error && e.message === "NOT_FOUND")) {
@@ -193,7 +185,7 @@ export async function PUT(req: NextRequest, { params }: { params: { slug: string
 export async function DELETE(_req: NextRequest, { params }: { params: { slug: string } }) {
   try {
     await updateEvents((events) => events.filter((e) => e.slug !== params.slug), { destructive: true });
-    revalidatePublicEventPaths(params.slug);
+    await revalidatePublicEventPaths(params.slug);
     return NextResponse.json({ ok: true });
   } catch {
     return NextResponse.json({ error: "Chyba pri mazani" }, { status: 500 });

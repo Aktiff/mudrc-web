@@ -3,6 +3,7 @@ export type QuizEvent = {
   venue: string;
   city: string;
   address: string;
+  regionSlug?: string;
   date: string;
   time: string;
   entryFee: number;

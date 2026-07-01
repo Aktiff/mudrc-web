@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { normalizeDateKey } from "@/lib/quiz-result-key";
+import { revalidatePublicEventPaths } from "@/lib/revalidate-public";
 import { hasQuizForDate, readStoredQuiz, readEvents, updateEvents, upsertStoredQuiz } from "@/lib/storage";
 
 export const runtime = "nodejs";
@@ -119,12 +120,8 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   const { events } = await readEvents();
   const saved = events.find((e) => e.slug === params.slug);
 
+  await revalidatePublicEventPaths(params.slug);
   revalidatePath("/liga");
-  revalidatePath(`/liga/${params.slug}`);
-  revalidatePath("/");
-  revalidatePath(`/udalosti/${params.slug}`);
-  revalidatePath("/api/events");
-  revalidatePath(`/api/events/${params.slug}`);
 
   return NextResponse.json({
     ok: true,
