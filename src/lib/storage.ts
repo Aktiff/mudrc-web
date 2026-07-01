@@ -152,16 +152,34 @@ async function readBlob<T>(key: string): Promise<T | null> {
   throw lastError instanceof Error ? lastError : new Error("Blob read failed");
 }
 
+async function optionalReadBlob<T>(key: string): Promise<T | null> {
+  try {
+    return await readBlobOnce<T>(key);
+  } catch {
+    return null;
+  }
+}
+
 async function writeBlob(key: string, data: unknown): Promise<void> {
   assertProductionStorage();
   if (!useBlob) return;
 
-  const payload = JSON.stringify(data, null, 2);
-  await put(key, payload, {
-    access: "public",
-    addRandomSuffix: false,
-    contentType: "application/json",
-  });
+  const token = process.env.BLOB_READ_WRITE_TOKEN;
+  if (!token) {
+    throw new Error("Chyba konfiguracie: chyba BLOB_READ_WRITE_TOKEN.");
+  }
+
+  try {
+    await put(key, JSON.stringify(data, null, 2), {
+      access: "public",
+      addRandomSuffix: false,
+      contentType: "application/json",
+      token,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Blob write failed";
+    throw new Error(`Blob write failed (${key}): ${message}`);
+  }
 }
 
 async function deleteBlob(key: string): Promise<void> {
@@ -231,9 +249,29 @@ async function loadLegacyEventsBlob(): Promise<QuizEvent[] | null> {
 }
 
 async function loadLegacyRegsBlob(): Promise<Registration[] | null> {
-  const legacy = await readBlob<{ registrations?: Registration[] }>(LEGACY_REGS_KEY);
+  const legacy = await optionalReadBlob<{ registrations?: Registration[] }>(LEGACY_REGS_KEY);
   if (!legacy?.registrations?.length) return null;
   return legacy.registrations.map((r) => ({ ...r, eventSlug: r.eventSlug ?? "" }));
+}
+
+async function listRegistrationBlobIds(): Promise<string[]> {
+  if (!useBlob) return [];
+  try {
+    const result = await list({ prefix: "mudrc/registrations/", limit: 1000 });
+    return result.blobs
+      .map((blob) => blob.pathname)
+      .filter((pathname) => pathname.startsWith("mudrc/registrations/") && pathname.endsWith(".json"))
+      .filter((pathname) => pathname !== REGS_MANIFEST_KEY)
+      .map((pathname) => pathname.slice("mudrc/registrations/".length, -".json".length))
+      .filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+async function syncRegsManifest(ids: string[]): Promise<void> {
+  const uniqueIds = Array.from(new Set(ids));
+  await writeBlob(REGS_MANIFEST_KEY, { ids: uniqueIds } satisfies RegsManifest);
 }
 
 async function migrateEventsToSplit(events: QuizEvent[]): Promise<void> {
@@ -269,12 +307,26 @@ async function loadEventsFromBlob(): Promise<QuizEvent[]> {
 }
 
 async function loadRegsFromBlob(): Promise<Registration[]> {
-  const manifest = await readBlob<RegsManifest>(REGS_MANIFEST_KEY);
-  if (manifest?.ids?.length) {
+  const manifest = await optionalReadBlob<RegsManifest>(REGS_MANIFEST_KEY);
+  let ids = manifest?.ids ?? [];
+
+  if (ids.length === 0) {
+    ids = await listRegistrationBlobIds();
+    if (ids.length > 0) {
+      try {
+        await syncRegsManifest(ids);
+      } catch {
+        // Manifest is optional if individual registration blobs exist.
+      }
+    }
+  }
+
+  if (ids.length > 0) {
     const regs = await Promise.all(
-      manifest.ids.map(async (id) => readBlob<Registration>(regBlobKey(id)))
+      ids.map(async (id) => optionalReadBlob<Registration>(regBlobKey(id)))
     );
-    return regs.filter((reg): reg is Registration => !!reg);
+    const loaded = regs.filter((reg): reg is Registration => !!reg);
+    if (loaded.length > 0) return loaded;
   }
 
   const legacy = await loadLegacyRegsBlob();
@@ -463,31 +515,19 @@ export async function addRegistration(reg: Registration): Promise<void> {
   assertProductionStorage();
 
   if (useBlob) {
-    const existing = await readBlob<Registration>(regBlobKey(reg.id));
+    const existing = await optionalReadBlob<Registration>(regBlobKey(reg.id));
     if (existing) return;
-
-    const manifest = (await readBlob<RegsManifest>(REGS_MANIFEST_KEY)) ?? { ids: [] };
-    if (manifest.ids.length === 0) {
-      const legacy = await loadLegacyRegsBlob();
-      if (legacy?.length) await migrateRegsToSplit(legacy);
-    }
 
     await writeBlob(regBlobKey(reg.id), reg);
 
-    for (let attempt = 0; attempt < 5; attempt++) {
-      const currentManifest = (await readBlob<RegsManifest>(REGS_MANIFEST_KEY)) ?? { ids: [] };
-      if (currentManifest.ids.includes(reg.id)) return;
-
-      const ids = currentManifest.ids.includes(reg.id)
-        ? currentManifest.ids
-        : [...currentManifest.ids, reg.id];
-
+    const manifest = await optionalReadBlob<RegsManifest>(REGS_MANIFEST_KEY);
+    const ids = manifest?.ids ?? [];
+    if (!ids.includes(reg.id)) {
       try {
-        await writeBlob(REGS_MANIFEST_KEY, { ids } satisfies RegsManifest);
-        return;
+        await syncRegsManifest([...ids, reg.id]);
       } catch {
-        if (attempt === 4) throw new Error("Nepodarilo sa ulozit registraciu.");
-        await sleep(150 * (attempt + 1));
+        const discovered = await listRegistrationBlobIds();
+        await syncRegsManifest([...discovered, reg.id]);
       }
     }
     return;
@@ -501,16 +541,15 @@ export async function addRegistration(reg: Registration): Promise<void> {
 
 export async function deleteRegistrationById(id: string): Promise<boolean> {
   if (useBlob) {
-    const existing = await readBlob<Registration>(regBlobKey(id));
+    const existing = await optionalReadBlob<Registration>(regBlobKey(id));
     if (!existing) return false;
 
     await deleteBlob(regBlobKey(id));
 
-    const manifest = (await readBlob<RegsManifest>(REGS_MANIFEST_KEY)) ?? { ids: [] };
-    await writeBlob(
-      REGS_MANIFEST_KEY,
-      { ids: manifest.ids.filter((entry) => entry !== id) } satisfies RegsManifest
-    );
+    const manifest = await optionalReadBlob<RegsManifest>(REGS_MANIFEST_KEY);
+    const ids = (manifest?.ids ?? []).filter((entry) => entry !== id);
+    const discovered = await listRegistrationBlobIds();
+    await syncRegsManifest(Array.from(new Set([...ids, ...discovered.filter((entry) => entry !== id)])));
     return true;
   }
 

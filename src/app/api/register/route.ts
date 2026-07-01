@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { randomUUID } from "crypto";
 import { addRegistration, readRegistrations } from "@/lib/storage";
 
 export async function POST(req: NextRequest) {
@@ -7,17 +8,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Chybaju udaje." }, { status: 400 });
   }
   const reg = {
-    id: Date.now().toString(),
+    id: randomUUID(),
     eventSlug: eventSlug ?? "",
     venue,
     teamName,
-    players,
-    phone,
+    players: String(players),
+    phone: String(phone).trim(),
     createdAt: new Date().toLocaleString("sk-SK", { timeZone: "Europe/Bratislava" }),
   };
   try {
     await addRegistration(reg);
-  } catch {
+  } catch (error) {
+    console.error("addRegistration failed:", error);
     return NextResponse.json({ error: "Chyba pri ukladani registracie." }, { status: 500 });
   }
   const apiKey = process.env.RESEND_API_KEY;
