@@ -58,6 +58,9 @@
     @apply bg-brand-bg text-brand-text font-body antialiased;
     transition: background-color 0.25s ease, color 0.25s ease;
   }
+  [id] {
+    scroll-margin-top: 5rem;
+  }
   ::selection { background-color: var(--accent); color: var(--btn-fg); }
 }
 

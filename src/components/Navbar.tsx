@@ -16,13 +16,20 @@ export default function Navbar() {
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 20);
-    window.addEventListener("scroll", onScroll);
-    return () => window.removeEventListener("scroll", onScroll);
+    const updateScroll = () => setScrolled(window.scrollY > 20);
+    updateScroll();
+    window.addEventListener("scroll", updateScroll, { passive: true });
+    return () => window.removeEventListener("scroll", updateScroll);
   }, []);
 
   return (
-    <nav className={`fixed top-0 inset-x-0 z-50 transition-all duration-300 ${scrolled ? "nav-scrolled" : "bg-transparent"}`}>
+    <nav
+      className={`fixed top-0 inset-x-0 z-[100] isolate transition-all duration-300 ${
+        scrolled
+          ? "nav-scrolled"
+          : "bg-brand-bg/90 backdrop-blur-md border-b border-brand-border/50"
+      }`}
+    >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
         <Link href="/" className="font-display text-2xl text-brand-text tracking-wider hover:text-brand-orange transition-colors">
           MUDRC<span className="bg-gradient-to-r from-brand-orange to-orange-400 bg-clip-text text-transparent"> KVÍZ</span>
