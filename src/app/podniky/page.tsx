@@ -57,6 +57,7 @@ const weNeed = [
   { icon: Tv, text: "TV alebo projektor – viditeľný pre väčšinu stolov na premietanie kvízových otázok." },
   { icon: Users, text: "Kapacitu pre stoly – ideálne priestor pre minimálne 5 až 10 tímov (cca 20 až 50 ľudí)." },
   { icon: Gift, text: "Ceny pre víťazné tímy." },
+  { icon: Share2, text: "Prezdieľanie kvízu u vás – príspevok alebo story na sociálnych sieťach podniku pred termínom." },
 ];
 
 const weBring = [
