@@ -187,9 +187,9 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
   }, [tab, params.slug, isNew]);
 
   useEffect(() => {
-    if (isNew || tab !== "registracie") return;
+    if (isNew || !form.venue) return;
     loadRegistrations();
-  }, [tab, params.slug, form.venue, isNew]);
+  }, [params.slug, form.venue, isNew]);
 
   const deleteRegistration = async (id: string, teamName: string) => {
     if (!confirm(`Naozaj zmazať registráciu tímu „${teamName}"?`)) return;
@@ -514,7 +514,7 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
         <button className={tabClass("info")} onClick={() => setTab("info")}>Základné info</button>
         <button className={tabClass("liga")} onClick={() => setTab("liga")}>Liga ({form.leagueTable.length})</button>
         <button className={tabClass("vysledky")} onClick={() => setTab("vysledky")}>Výsledky ({form.pastResults.length})</button>
-        <button className={tabClass("registracie")} onClick={() => setTab("registracie")}>Registrácie</button>
+        <button className={tabClass("registracie")} onClick={() => setTab("registracie")}>Registrácie ({registrations.length})</button>
         <button className={tabClass("pravidla")} onClick={() => setTab("pravidla")}>Pravidlá ({(form.rules ?? []).length})</button>
       </div>
 
