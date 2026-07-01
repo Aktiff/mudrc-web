@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
-import { addRegistration, readRegistrations } from "@/lib/storage";
+import { addRegistration, getBlobStorageDiagnostics, readRegistrations } from "@/lib/storage";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,8 +24,13 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     console.error("addRegistration failed:", error);
     const detail = error instanceof Error ? error.message : "Unknown error";
+    const storage = getBlobStorageDiagnostics();
+    const hint =
+      storage.vercel && !storage.blobStoreId && !storage.blobReadWriteToken
+        ? " Vo Verceli: Storage → Blob → Connect to Project (Production) → Redeploy."
+        : "";
     return NextResponse.json(
-      { error: "Chyba pri ukladani registracie.", detail },
+      { error: "Chyba pri ukladani registracie.", detail: `${detail}${hint}`, storage },
       { status: 500 }
     );
   }

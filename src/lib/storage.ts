@@ -24,7 +24,20 @@ function hasBlobStorage(): boolean {
   );
 }
 
-const useBlob = hasBlobStorage();
+/** On Vercel always use Blob SDK (OIDC auth is injected at runtime). Locally only when configured. */
+const useBlob = isVercel || hasBlobStorage();
+
+export function getBlobStorageDiagnostics() {
+  return {
+    vercel: isVercel,
+    blobStoreId: !!process.env.BLOB_STORE_ID,
+    blobReadWriteToken: !!process.env.BLOB_READ_WRITE_TOKEN,
+    vercelOidcToken: !!process.env.VERCEL_OIDC_TOKEN,
+    envKeys: Object.keys(process.env).filter(
+      (key) => key.includes("BLOB") || key === "VERCEL_OIDC_TOKEN"
+    ),
+  };
+}
 
 type BlobAuthOptions = {
   token?: string;
@@ -60,11 +73,7 @@ function sleep(ms: number) {
 }
 
 function assertProductionStorage() {
-  if (isVercel && !useBlob) {
-    throw new Error(
-      "Chyba konfiguracie: projekt nema pripojeny Vercel Blob store. Vo Verceli otvor Storage → Blob → Connect to Project a spusti redeploy."
-    );
-  }
+  // No-op: on Vercel we always attempt Blob I/O and surface the real SDK error if misconfigured.
 }
 
 function isBlobNotFound(error: unknown): boolean {
