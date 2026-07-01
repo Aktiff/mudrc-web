@@ -174,25 +174,9 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
   useEffect(() => {
     if (!isNew) {
       loadEventFromServer(params.slug).then((ev) => {
-        if (ev) setForm((current) => mergeFormWithServer(current, normalizeEvent(ev)));
+        if (ev) setForm(normalizeEvent(ev));
       });
     }
-  }, [params.slug, isNew]);
-
-  useEffect(() => {
-    if (isNew) return;
-    const reload = () => {
-      if (document.visibilityState !== "visible") return;
-      loadEventFromServer(params.slug).then((ev) => {
-        if (ev) setForm((current) => mergeFormWithServer(current, normalizeEvent(ev)));
-      });
-    };
-    window.addEventListener("focus", reload);
-    document.addEventListener("visibilitychange", reload);
-    return () => {
-      window.removeEventListener("focus", reload);
-      document.removeEventListener("visibilitychange", reload);
-    };
   }, [params.slug, isNew]);
 
   useEffect(() => {
@@ -265,16 +249,21 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
         isNew ? "/api/admin/events" : `/api/admin/events/${params.slug}`,
         {
           method: isNew ? "POST" : "PUT",
+          cache: "no-store",
+          credentials: "same-origin",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(toSave),
         }
       );
       if (res.ok) {
-        setMsg({ text: "Uložené!", ok: true });
-        if (!isNew) {
+        const fresh = !isNew ? await loadEventFromServer(params.slug) : null;
+        if (fresh) {
+          setForm(normalizeEvent(fresh));
+        } else if (!isNew) {
           const data = await res.json();
           setForm(normalizeEvent(data));
         }
+        setMsg({ text: "Uložené!", ok: true });
         if (isNew) router.push("/admin/udalosti");
       } else {
         const err = await res.json();

@@ -551,6 +551,10 @@ async function loadEventsBase(): Promise<QuizEvent[]> {
 async function persistEvents(events: QuizEvent[]): Promise<void> {
   if (hasSupabaseStorage()) {
     await supabaseSetEvents({ events });
+    const verify = await supabaseFetchEvents();
+    if (verify.status === "error") {
+      throw new Error(`Overenie zapisu udalosti zlyhalo: ${verify.message}`);
+    }
     return;
   }
   if (shouldWriteBlob()) {
@@ -643,15 +647,47 @@ async function loadRegistrations(): Promise<Registration[]> {
   return readLocalRegistrations().registrations;
 }
 
+function eventForEventsKey(event: QuizEvent): QuizEvent {
+  return {
+    ...event,
+    pastResults: (event.pastResults ?? []).map((r) => ({
+      id: r.id,
+      date: r.date,
+      winnerTeam: r.winnerTeam,
+      points: r.points,
+    })),
+  };
+}
+
 export async function updateEvents(
   mutator: (events: QuizEvent[]) => QuizEvent[] | Promise<QuizEvent[]>,
   options?: WriteOptions
 ): Promise<{ events: QuizEvent[] }> {
-  const current = await loadEvents();
-  const next = await mutator(structuredClone(current));
-  assertEventsNotRegressed(current, next, options?.destructive);
-  await persistEvents(next);
-  return { events: next };
+  const quizzes = await loadQuizzes();
+  const base = await loadEventsBase();
+  const current = enrichEventsWithQuizzes(base, quizzes);
+  const nextEnriched = await mutator(structuredClone(current));
+  assertEventsNotRegressed(current, nextEnriched, options?.destructive);
+
+  const nextBySlug = new Map(nextEnriched.map((event) => [event.slug, event]));
+  let nextBase = base.map((stored) => {
+    const updated = nextBySlug.get(stored.slug);
+    return updated ? eventForEventsKey(updated) : stored;
+  });
+
+  for (const event of nextEnriched) {
+    if (!base.some((stored) => stored.slug === event.slug)) {
+      nextBase.push(eventForEventsKey(event));
+    }
+  }
+
+  if (options?.destructive) {
+    const keep = new Set(nextEnriched.map((event) => event.slug));
+    nextBase = nextBase.filter((event) => keep.has(event.slug));
+  }
+
+  await persistEvents(nextBase);
+  return { events: nextEnriched };
 }
 
 export async function updateRegistrations(
