@@ -6,7 +6,6 @@ import type { QuizEvent } from "@/lib/data";
 const LEGACY_EVENTS_KEY = "mudrc/events.json";
 const LEGACY_REGS_KEY = "mudrc/registrations.json";
 const EVENTS_MANIFEST_KEY = "mudrc/events/_manifest.json";
-const REGS_MANIFEST_KEY = "mudrc/registrations/_manifest.json";
 const eventBlobKey = (slug: string) => `mudrc/events/${slug}.json`;
 const regBlobKey = (id: string) => `mudrc/registrations/${id}.json`;
 
@@ -16,7 +15,12 @@ const regsPath = path.join(process.cwd(), "src/data/registrations.json");
 const regsLocalPath = path.join(process.cwd(), "src/data/registrations.local.json");
 
 const isVercel = !!process.env.VERCEL;
-const useBlob = !!process.env.BLOB_READ_WRITE_TOKEN;
+
+function blobToken(): string | undefined {
+  return process.env.BLOB_READ_WRITE_TOKEN || process.env.VERCEL_BLOB_READ_WRITE_TOKEN;
+}
+
+const useBlob = !!blobToken();
 
 export type Registration = {
   id: string;
@@ -33,7 +37,6 @@ export type WriteOptions = {
 };
 
 type EventsManifest = { slugs: string[] };
-type RegsManifest = { ids: string[] };
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -120,16 +123,17 @@ async function downloadJson<T>(downloadUrl: string): Promise<T> {
 
 async function readBlobOnce<T>(key: string): Promise<T | null> {
   if (!useBlob) return null;
+  const token = blobToken();
 
   try {
-    const meta = await head(key);
+    const meta = await head(key, { token });
     return downloadJson<T>(meta.downloadUrl);
   } catch (error) {
     if (!isBlobNotFound(error)) throw error;
   }
 
   try {
-    const result = await list({ prefix: key, limit: 10 });
+    const result = await list({ prefix: key, limit: 10, token });
     const blob = result.blobs.find((entry) => entry.pathname === key);
     if (!blob) return null;
     return downloadJson<T>(blob.downloadUrl);
@@ -164,28 +168,38 @@ async function writeBlob(key: string, data: unknown): Promise<void> {
   assertProductionStorage();
   if (!useBlob) return;
 
-  const token = process.env.BLOB_READ_WRITE_TOKEN;
+  const token = blobToken();
   if (!token) {
     throw new Error("Chyba konfiguracie: chyba BLOB_READ_WRITE_TOKEN.");
   }
 
+  const payload = JSON.stringify(data, null, 2);
+  const base = {
+    addRandomSuffix: false as const,
+    contentType: "application/json",
+    token,
+  };
+
   try {
-    await put(key, JSON.stringify(data, null, 2), {
-      access: "public",
-      addRandomSuffix: false,
-      contentType: "application/json",
-      token,
-    });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Blob write failed";
-    throw new Error(`Blob write failed (${key}): ${message}`);
+    await put(key, payload, { ...base, access: "public" });
+    return;
+  } catch (publicError) {
+    try {
+      await put(key, payload, { ...base, access: "private" });
+      return;
+    } catch (privateError) {
+      const publicMsg = publicError instanceof Error ? publicError.message : "public write failed";
+      const privateMsg = privateError instanceof Error ? privateError.message : "private write failed";
+      throw new Error(`Blob write failed (${key}): ${publicMsg} / ${privateMsg}`);
+    }
   }
 }
 
 async function deleteBlob(key: string): Promise<void> {
   if (!useBlob) return;
+  const token = blobToken();
   try {
-    await del(key);
+    await del(key, { token });
   } catch (error) {
     if (!isBlobNotFound(error)) throw error;
   }
@@ -248,20 +262,15 @@ async function loadLegacyEventsBlob(): Promise<QuizEvent[] | null> {
   return legacy.events;
 }
 
-async function loadLegacyRegsBlob(): Promise<Registration[] | null> {
-  const legacy = await optionalReadBlob<{ registrations?: Registration[] }>(LEGACY_REGS_KEY);
-  if (!legacy?.registrations?.length) return null;
-  return legacy.registrations.map((r) => ({ ...r, eventSlug: r.eventSlug ?? "" }));
-}
-
 async function listRegistrationBlobIds(): Promise<string[]> {
   if (!useBlob) return [];
+  const token = blobToken();
   try {
-    const result = await list({ prefix: "mudrc/registrations/", limit: 1000 });
+    const result = await list({ prefix: "mudrc/registrations/", limit: 1000, token });
     return result.blobs
       .map((blob) => blob.pathname)
       .filter((pathname) => pathname.startsWith("mudrc/registrations/") && pathname.endsWith(".json"))
-      .filter((pathname) => pathname !== REGS_MANIFEST_KEY)
+      .filter((pathname) => !pathname.endsWith("/_manifest.json"))
       .map((pathname) => pathname.slice("mudrc/registrations/".length, -".json".length))
       .filter(Boolean);
   } catch {
@@ -269,23 +278,11 @@ async function listRegistrationBlobIds(): Promise<string[]> {
   }
 }
 
-async function syncRegsManifest(ids: string[]): Promise<void> {
-  const uniqueIds = Array.from(new Set(ids));
-  await writeBlob(REGS_MANIFEST_KEY, { ids: uniqueIds } satisfies RegsManifest);
-}
-
 async function migrateEventsToSplit(events: QuizEvent[]): Promise<void> {
   for (const event of events) {
     await writeBlob(eventBlobKey(event.slug), event);
   }
   await writeBlob(EVENTS_MANIFEST_KEY, { slugs: events.map((e) => e.slug) } satisfies EventsManifest);
-}
-
-async function migrateRegsToSplit(regs: Registration[]): Promise<void> {
-  for (const reg of regs) {
-    await writeBlob(regBlobKey(reg.id), reg);
-  }
-  await writeBlob(REGS_MANIFEST_KEY, { ids: regs.map((r) => r.id) } satisfies RegsManifest);
 }
 
 async function loadEventsFromBlob(): Promise<QuizEvent[]> {
@@ -306,36 +303,37 @@ async function loadEventsFromBlob(): Promise<QuizEvent[]> {
   return [];
 }
 
+function normalizeRegistration(reg: Registration & { eventSlug?: string }): Registration {
+  return { ...reg, eventSlug: reg.eventSlug ?? "" };
+}
+
+async function loadRegsFromSplitFiles(): Promise<Registration[]> {
+  const ids = await listRegistrationBlobIds();
+  if (ids.length === 0) return [];
+
+  const regs = await Promise.all(
+    ids.map(async (id) => optionalReadBlob<Registration>(regBlobKey(id)))
+  );
+  return regs.filter((reg): reg is Registration => !!reg).map(normalizeRegistration);
+}
+
 async function loadRegsFromBlob(): Promise<Registration[]> {
-  const manifest = await optionalReadBlob<RegsManifest>(REGS_MANIFEST_KEY);
-  let ids = manifest?.ids ?? [];
+  const monolithic = await optionalReadBlob<{ registrations?: Registration[] }>(LEGACY_REGS_KEY);
+  const fromMonolithic = (monolithic?.registrations ?? []).map(normalizeRegistration);
 
-  if (ids.length === 0) {
-    ids = await listRegistrationBlobIds();
-    if (ids.length > 0) {
-      try {
-        await syncRegsManifest(ids);
-      } catch {
-        // Manifest is optional if individual registration blobs exist.
-      }
-    }
-  }
+  const fromSplit = await loadRegsFromSplitFiles();
+  if (fromMonolithic.length === 0) return fromSplit;
 
-  if (ids.length > 0) {
-    const regs = await Promise.all(
-      ids.map(async (id) => optionalReadBlob<Registration>(regBlobKey(id)))
-    );
-    const loaded = regs.filter((reg): reg is Registration => !!reg);
-    if (loaded.length > 0) return loaded;
-  }
+  if (fromSplit.length === 0) return fromMonolithic;
 
-  const legacy = await loadLegacyRegsBlob();
-  if (legacy?.length) {
-    await migrateRegsToSplit(legacy);
-    return legacy;
-  }
+  const byId = new Map<string, Registration>();
+  for (const reg of fromMonolithic) byId.set(reg.id, reg);
+  for (const reg of fromSplit) byId.set(reg.id, reg);
+  return Array.from(byId.values());
+}
 
-  return [];
+async function persistRegistrationsBlob(registrations: Registration[]): Promise<void> {
+  await writeBlob(LEGACY_REGS_KEY, { registrations });
 }
 
 async function saveEventsDiff(before: QuizEvent[], after: QuizEvent[], destructive?: boolean): Promise<void> {
@@ -371,26 +369,16 @@ async function saveRegsDiff(before: Registration[], after: Registration[], destr
     return;
   }
 
-  const beforeIds = new Set(before.map((reg) => reg.id));
-  const afterIds = new Set(after.map((reg) => reg.id));
+  await persistRegistrationsBlob(after);
 
   if (destructive) {
-    for (const id of Array.from(beforeIds)) {
-      if (!afterIds.has(id)) {
-        await deleteBlob(regBlobKey(id));
+    const afterIds = new Set(after.map((reg) => reg.id));
+    for (const reg of before) {
+      if (!afterIds.has(reg.id)) {
+        await deleteBlob(regBlobKey(reg.id));
       }
     }
   }
-
-  const beforeMap = new Map(before.map((reg) => [reg.id, reg]));
-  for (const reg of after) {
-    const prev = beforeMap.get(reg.id);
-    if (!prev || JSON.stringify(prev) !== JSON.stringify(reg)) {
-      await writeBlob(regBlobKey(reg.id), reg);
-    }
-  }
-
-  await writeBlob(REGS_MANIFEST_KEY, { ids: Array.from(afterIds) } satisfies RegsManifest);
 }
 
 async function loadEvents(): Promise<QuizEvent[]> {
@@ -513,46 +501,31 @@ export async function writeRegistrations(
 
 export async function addRegistration(reg: Registration): Promise<void> {
   assertProductionStorage();
+  const normalized = normalizeRegistration(reg);
 
-  if (useBlob) {
-    const existing = await optionalReadBlob<Registration>(regBlobKey(reg.id));
-    if (existing) return;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const current = await loadRegistrations();
+    if (current.some((existing) => existing.id === normalized.id)) return;
 
-    await writeBlob(regBlobKey(reg.id), reg);
+    const next = [...current, normalized];
 
-    const manifest = await optionalReadBlob<RegsManifest>(REGS_MANIFEST_KEY);
-    const ids = manifest?.ids ?? [];
-    if (!ids.includes(reg.id)) {
-      try {
-        await syncRegsManifest([...ids, reg.id]);
-      } catch {
-        const discovered = await listRegistrationBlobIds();
-        await syncRegsManifest([...discovered, reg.id]);
+    try {
+      if (useBlob) {
+        await persistRegistrationsBlob(next);
+      } else if (isVercel) {
+        await persistRegsTmp(next);
+      } else {
+        writeLocalRegistrations(next);
       }
+      return;
+    } catch (error) {
+      if (attempt === 4) throw error;
+      await sleep(250 * (attempt + 1));
     }
-    return;
   }
-
-  await updateRegistrations((regs) => {
-    if (regs.some((existing) => existing.id === reg.id)) return regs;
-    return [...regs, reg];
-  });
 }
 
 export async function deleteRegistrationById(id: string): Promise<boolean> {
-  if (useBlob) {
-    const existing = await optionalReadBlob<Registration>(regBlobKey(id));
-    if (!existing) return false;
-
-    await deleteBlob(regBlobKey(id));
-
-    const manifest = await optionalReadBlob<RegsManifest>(REGS_MANIFEST_KEY);
-    const ids = (manifest?.ids ?? []).filter((entry) => entry !== id);
-    const discovered = await listRegistrationBlobIds();
-    await syncRegsManifest(Array.from(new Set([...ids, ...discovered.filter((entry) => entry !== id)])));
-    return true;
-  }
-
   let removed = false;
   await updateRegistrations((regs) => {
     const next = regs.filter((reg) => reg.id !== id);
@@ -564,59 +537,27 @@ export async function deleteRegistrationById(id: string): Promise<boolean> {
 
 export async function deleteRegistrationsForEvent(slug: string, venue?: string): Promise<number> {
   const venueLower = venue?.trim().toLowerCase();
-  const all = await loadRegistrations();
-  const toDelete = all.filter((reg) => {
-    if (slug && reg.eventSlug === slug) {
-      if (venueLower && reg.venue.trim().toLowerCase() !== venueLower) return false;
-      return true;
-    }
-    if (!slug && venueLower && reg.venue.trim().toLowerCase() === venueLower) return true;
-    return false;
-  });
-
-  if (toDelete.length === 0) return 0;
-
-  if (useBlob) {
-    for (const reg of toDelete) {
-      await deleteBlob(regBlobKey(reg.id));
-    }
-    const deleteIds = new Set(toDelete.map((reg) => reg.id));
-    const manifest = (await readBlob<RegsManifest>(REGS_MANIFEST_KEY)) ?? { ids: [] };
-    await writeBlob(
-      REGS_MANIFEST_KEY,
-      { ids: manifest.ids.filter((id) => !deleteIds.has(id)) } satisfies RegsManifest
-    );
-    return toDelete.length;
-  }
-
   let removed = 0;
+
   await updateRegistrations((regs) => {
-    const next = regs.filter((reg) => !toDelete.some((item) => item.id === reg.id));
+    const next = regs.filter((reg) => {
+      if (slug && reg.eventSlug === slug) {
+        if (venueLower && reg.venue.trim().toLowerCase() !== venueLower) return true;
+        return false;
+      }
+      if (!slug && venueLower && reg.venue.trim().toLowerCase() === venueLower) return false;
+      return true;
+    });
     removed = regs.length - next.length;
     return next;
   }, { destructive: true });
+
   return removed;
 }
 
 export async function deleteRegistrationsByIds(ids: string[]): Promise<number> {
   const idSet = new Set(ids);
   if (idSet.size === 0) return 0;
-
-  if (useBlob) {
-    let removed = 0;
-    for (const id of Array.from(idSet)) {
-      const existing = await readBlob<Registration>(regBlobKey(id));
-      if (!existing) continue;
-      await deleteBlob(regBlobKey(id));
-      removed += 1;
-    }
-    const manifest = (await readBlob<RegsManifest>(REGS_MANIFEST_KEY)) ?? { ids: [] };
-    await writeBlob(
-      REGS_MANIFEST_KEY,
-      { ids: manifest.ids.filter((id) => !idSet.has(id)) } satisfies RegsManifest
-    );
-    return removed;
-  }
 
   let removed = 0;
   await updateRegistrations((regs) => {

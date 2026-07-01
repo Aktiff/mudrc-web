@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { addRegistration, readRegistrations } from "@/lib/storage";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 export async function POST(req: NextRequest) {
   const { venue, eventSlug, teamName, players, phone } = await req.json();
   if (!venue || !teamName || !phone) {
@@ -20,7 +23,11 @@ export async function POST(req: NextRequest) {
     await addRegistration(reg);
   } catch (error) {
     console.error("addRegistration failed:", error);
-    return NextResponse.json({ error: "Chyba pri ukladani registracie." }, { status: 500 });
+    const detail = error instanceof Error ? error.message : "Unknown error";
+    return NextResponse.json(
+      { error: "Chyba pri ukladani registracie.", detail },
+      { status: 500 }
+    );
   }
   const apiKey = process.env.RESEND_API_KEY;
   if (apiKey) {
