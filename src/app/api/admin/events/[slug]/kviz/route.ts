@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { normalizeDateKey } from "@/lib/quiz-result-key";
-import { readStoredQuiz, readEvents, updateEvents, upsertStoredQuiz } from "@/lib/storage";
+import { hasQuizForDate, readStoredQuiz, readEvents, updateEvents, upsertStoredQuiz } from "@/lib/storage";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -45,6 +45,13 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   }));
 
   const resultId = normalizeDateKey(date);
+
+  if (await hasQuizForDate(params.slug, date)) {
+    return NextResponse.json(
+      { error: "Kvíz s týmto dátumom je už vytvorený. Zvoľ iný dátum alebo existujúci kvíz uprav vo Výsledkoch." },
+      { status: 409 }
+    );
+  }
 
   try {
     await upsertStoredQuiz({

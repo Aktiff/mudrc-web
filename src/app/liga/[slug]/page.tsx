@@ -54,15 +54,17 @@ export default function LigaDetailPage({ params }: { params: { slug: string } })
               {visibleResults.map((r, i) => (
                 <div
                   key={i}
-                  className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 sm:px-4 py-3 rounded-xl hover:bg-brand-hover transition-colors"
+                  className="grid grid-cols-[minmax(7rem,auto)_minmax(0,1fr)_auto] sm:grid-cols-[8.5rem_minmax(0,1fr)_auto] gap-x-4 gap-y-1 items-center px-3 sm:px-4 py-3 rounded-xl hover:bg-brand-hover transition-colors"
                 >
                   <div className="flex items-center gap-2 min-w-0">
                     <Calendar className="w-4 h-4 text-brand-orange-readable shrink-0" />
                     <span className="font-semibold text-brand-text text-sm">{r.date}</span>
                   </div>
-                  <span className="text-brand-muted text-sm hidden sm:inline">víťaz</span>
-                  <span className="font-semibold text-brand-orange-readable text-sm flex-1 min-w-0 truncate">{r.winnerTeam}</span>
-                  <span className="text-brand-muted text-sm font-medium sm:ml-auto">{r.points} bodov</span>
+                  <div className="min-w-0">
+                    <span className="text-brand-muted text-sm hidden sm:inline">víťaz </span>
+                    <span className="font-semibold text-brand-orange-readable text-sm truncate">{r.winnerTeam}</span>
+                  </div>
+                  <span className="text-brand-muted text-sm font-medium text-right whitespace-nowrap">{r.points} bodov</span>
                 </div>
               ))}
             </div>
@@ -127,14 +129,20 @@ export default function LigaDetailPage({ params }: { params: { slug: string } })
               ))}
             </div>
 
-            <div className="hidden md:block">
-              <table className="w-full border-collapse">
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full table-fixed min-w-[32rem]">
+                <colgroup>
+                  <col className="w-[4.5rem]" />
+                  <col />
+                  <col className="w-[7rem]" />
+                  <col className="w-[9rem]" />
+                </colgroup>
                 <thead>
-                  <tr className="bg-brand-surface rounded-xl">
-                    <th className="text-left py-3 px-3 text-xs text-brand-muted uppercase tracking-wider font-semibold rounded-l-xl w-14">#</th>
-                    <th className="text-left py-3 px-3 text-xs text-brand-muted uppercase tracking-wider font-semibold">Tím</th>
+                  <tr className="border-b border-brand-border bg-brand-surface/60">
+                    <th className="text-left py-3 px-4 text-xs text-brand-muted uppercase tracking-wider font-semibold">#</th>
+                    <th className="text-left py-3 px-4 text-xs text-brand-muted uppercase tracking-wider font-semibold">Tím</th>
                     <th className="text-right py-3 px-4 text-xs text-brand-muted uppercase tracking-wider font-semibold">Body</th>
-                    <th className="text-right py-3 px-4 text-xs text-brand-muted uppercase tracking-wider font-semibold rounded-r-xl">Počet kvízov</th>
+                    <th className="text-right py-3 px-4 text-xs text-brand-muted uppercase tracking-wider font-semibold">Počet kvízov</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -143,7 +151,7 @@ export default function LigaDetailPage({ params }: { params: { slug: string } })
                       key={entry.rank}
                       className={`transition-colors hover:bg-brand-hover border-b ${idx === event.leagueTable.length - 1 ? "border-transparent" : "border-brand-border"}`}
                     >
-                      <td className="py-4 px-3">
+                      <td className="py-4 px-4 align-middle">
                         {entry.rank <= 3 ? (
                           <span
                             className="inline-flex w-8 h-8 rounded-full border items-center justify-center"
@@ -159,18 +167,18 @@ export default function LigaDetailPage({ params }: { params: { slug: string } })
                           <span className="text-brand-muted text-sm font-medium w-8 inline-block text-center">{entry.rank}</span>
                         )}
                       </td>
-                      <td className="py-4 px-3">
+                      <td className="py-4 px-4 align-middle">
                         <span className={`font-semibold ${entry.rank === 1 ? "text-brand-orange-readable text-base" : "text-brand-text text-sm"}`}>
                           {entry.teamName}
                         </span>
                       </td>
-                      <td className="py-4 px-4 text-right">
+                      <td className="py-4 px-4 text-right align-middle whitespace-nowrap">
                         <span className={`font-display text-2xl font-bold ${entry.rank === 1 ? "text-brand-orange-readable" : "text-brand-text"}`}>
                           {entry.points}
                         </span>
                         <span className="text-brand-muted text-xs ml-0.5">b</span>
                       </td>
-                      <td className="py-4 px-4 text-right">
+                      <td className="py-4 px-4 text-right align-middle">
                         <span className="inline-flex items-center justify-center min-w-[2rem] h-7 rounded-lg bg-brand-surface text-brand-muted text-sm font-semibold border border-brand-border">
                           {entry.quizzesPlayed}
                         </span>

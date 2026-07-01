@@ -108,6 +108,11 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
       setQuizMsg({ text: "Zadaj dátum a aspoň 2 tímy.", ok: false });
       return;
     }
+    if (findQuizResult(form.pastResults ?? [], normalizeDateKey(quizDate))) {
+      setQuizMsg({ text: "Kvíz s týmto dátumom je už vytvorený. Zvoľ iný dátum alebo ho uprav vo Výsledkoch.", ok: false });
+      setMsg({ text: "Kvíz s týmto dátumom je už vytvorený.", ok: false });
+      return;
+    }
     setQuizSubmitting(true);
     setQuizResult(null);
     setQuizMsg(null);

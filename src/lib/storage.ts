@@ -530,6 +530,17 @@ export async function readStoredQuiz(eventSlug: string, quizParam: string): Prom
   );
 }
 
+export async function hasQuizForDate(eventSlug: string, date: string): Promise<boolean> {
+  const key = normalizeDateKey(date);
+  const stored = await readStoredQuiz(eventSlug, key);
+  if (stored) return true;
+
+  const { events } = await readEvents();
+  const event = events.find((entry) => entry.slug === eventSlug);
+  if (!event) return false;
+  return !!findQuizResult(event.pastResults ?? [], key);
+}
+
 async function loadEventsBase(): Promise<QuizEvent[]> {
   if (hasSupabaseStorage()) {
     const result = await supabaseFetchEvents();
