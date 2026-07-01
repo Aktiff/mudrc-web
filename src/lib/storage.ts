@@ -24,14 +24,15 @@ function hasBlobStorage(): boolean {
   );
 }
 
-/** Blob reads on Vercel always try SDK (OIDC). Writes need store connected. */
 function shouldReadBlob(): boolean {
-  return hasBlobStorage() || isVercel;
+  return hasBlobStorage();
 }
 
 function shouldWriteBlob(): boolean {
-  return hasBlobStorage() || isVercel;
+  return hasBlobStorage();
 }
+
+export { hasBlobStorage };
 
 export function getBlobStorageDiagnostics() {
   return {
@@ -48,13 +49,18 @@ export function getBlobStorageDiagnostics() {
 type BlobAuthOptions = {
   token?: string;
   storeId?: string;
+  oidcToken?: string;
 };
 
 function blobAuthOptions(): BlobAuthOptions {
   const token = process.env.BLOB_READ_WRITE_TOKEN || process.env.VERCEL_BLOB_READ_WRITE_TOKEN;
-  const storeId = process.env.BLOB_STORE_ID;
   if (token) return { token };
+
+  const storeId = process.env.BLOB_STORE_ID;
+  const oidcToken = process.env.VERCEL_OIDC_TOKEN;
+  if (storeId && oidcToken) return { storeId, oidcToken };
   if (storeId) return { storeId };
+
   return {};
 }
 
@@ -199,7 +205,14 @@ async function optionalReadBlob<T>(key: string): Promise<T | null> {
 }
 
 async function writeBlob(key: string, data: unknown): Promise<void> {
-  if (!shouldWriteBlob()) return;
+  if (!shouldWriteBlob()) {
+    throw new Error("BLOB_NOT_CONFIGURED");
+  }
+
+  const auth = blobAuthOptions();
+  if (!auth.token && !auth.storeId) {
+    throw new Error("BLOB_NOT_CONFIGURED");
+  }
 
   const payload = JSON.stringify(data, null, 2);
   try {
@@ -207,7 +220,7 @@ async function writeBlob(key: string, data: unknown): Promise<void> {
       access: "public",
       addRandomSuffix: false,
       contentType: "application/json",
-      ...blobAuthOptions(),
+      ...auth,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Blob write failed";

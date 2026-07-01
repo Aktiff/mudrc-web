@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
-import { addRegistration, getBlobStorageDiagnostics, readRegistrations } from "@/lib/storage";
+import { addRegistration, getBlobStorageDiagnostics, hasBlobStorage, readRegistrations } from "@/lib/storage";
+import { sendRegistrationEmail } from "@/lib/registration-email";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,37 +20,43 @@ export async function POST(req: NextRequest) {
     phone: String(phone).trim(),
     createdAt: new Date().toLocaleString("sk-SK", { timeZone: "Europe/Bratislava" }),
   };
-  try {
-    await addRegistration(reg);
-  } catch (error) {
-    console.error("addRegistration failed:", error);
-    const detail = error instanceof Error ? error.message : "Unknown error";
-    const storage = getBlobStorageDiagnostics();
-    const hint =
-      storage.vercel && !storage.blobStoreId && !storage.blobReadWriteToken
-        ? " Vo Verceli: Storage → Blob → Connect to Project (Production) → Redeploy."
-        : "";
-    return NextResponse.json(
-      { error: "Chyba pri ukladani registracie.", detail: `${detail}${hint}`, storage },
-      { status: 500 }
-    );
-  }
-  const apiKey = process.env.RESEND_API_KEY;
-  if (apiKey) {
+
+  let storedInBlob = false;
+
+  if (hasBlobStorage()) {
     try {
-      await fetch("https://api.resend.com/emails", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          from: "MUDRC Kviz <onboarding@resend.dev>",
-          to: ["kontakt@mudrc.sk"],
-          subject: `Nova registracia: ${teamName} - ${venue}`,
-          html: `<h2>Nova registracia timu</h2><p><b>Podnik:</b> ${venue}</p><p><b>Tim:</b> ${teamName}</p><p><b>Pocet hracov:</b> ${players}</p><p><b>Telefon:</b> ${phone}</p><p><b>Cas:</b> ${reg.createdAt}</p>`,
-        }),
-      });
-    } catch {}
+      await addRegistration(reg);
+      storedInBlob = true;
+    } catch (error) {
+      console.error("addRegistration failed:", error);
+    }
   }
-  return NextResponse.json({ ok: true });
+
+  const emailSent = await sendRegistrationEmail(reg, players);
+
+  if (storedInBlob) {
+    return NextResponse.json({ ok: true, storedInBlob: true, emailSent });
+  }
+
+  if (emailSent) {
+    return NextResponse.json({
+      ok: true,
+      storedInBlob: false,
+      emailSent: true,
+      message: "Registracia odoslana emailom. Admin panel ju zobrazi az po pripojeni Vercel Blob storage.",
+    });
+  }
+
+  const storage = getBlobStorageDiagnostics();
+  return NextResponse.json(
+    {
+      error: "Registraciu sa nepodarilo ulozit.",
+      detail:
+        "Chyba konfiguracie storage. Vo Verceli: Storage → Blob → Connect to Project (Production) → Redeploy. Alebo nastav RESEND_API_KEY pre emailovy fallback.",
+      storage,
+    },
+    { status: 500 }
+  );
 }
 
 export async function GET(req: NextRequest) {
