@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@upstash/redis": "^1.34.3",
     "@vercel/blob": "^2.4.1",
     "clsx": "^2.1.1",
     "lucide-react": "^1.21.0",

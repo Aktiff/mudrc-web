@@ -2,6 +2,14 @@ import fs from "fs";
 import path from "path";
 import { del, head, list, put } from "@vercel/blob";
 import type { QuizEvent } from "@/lib/data";
+import {
+  getRedisStorageDiagnostics,
+  hasRedisStorage,
+  redisGetEvents,
+  redisGetRegistrations,
+  redisSetEvents,
+  redisSetRegistrations,
+} from "@/lib/redis-storage";
 
 const LEGACY_EVENTS_KEY = "mudrc/events.json";
 const LEGACY_REGS_KEY = "mudrc/registrations.json";
@@ -32,19 +40,31 @@ function shouldWriteBlob(): boolean {
   return hasBlobStorage();
 }
 
-export { hasBlobStorage };
-
-export function getBlobStorageDiagnostics() {
+export function getStorageDiagnostics() {
   return {
     vercel: isVercel,
     blobStoreId: !!process.env.BLOB_STORE_ID,
     blobReadWriteToken: !!process.env.BLOB_READ_WRITE_TOKEN,
     vercelOidcToken: !!process.env.VERCEL_OIDC_TOKEN,
+    redis: getRedisStorageDiagnostics(),
     envKeys: Object.keys(process.env).filter(
-      (key) => key.includes("BLOB") || key === "VERCEL_OIDC_TOKEN"
+      (key) =>
+        key.includes("BLOB") ||
+        key.includes("UPSTASH") ||
+        key.includes("KV_REST") ||
+        key === "VERCEL_OIDC_TOKEN"
     ),
   };
 }
+
+export function hasPersistentStorage(): boolean {
+  return hasRedisStorage() || hasBlobStorage();
+}
+
+export { hasBlobStorage, hasRedisStorage };
+
+/** @deprecated use getStorageDiagnostics */
+export const getBlobStorageDiagnostics = getStorageDiagnostics;
 
 type BlobAuthOptions = {
   token?: string;
@@ -82,10 +102,6 @@ type EventsManifest = { slugs: string[] };
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function assertProductionStorage() {
-  // No-op: on Vercel we always attempt Blob I/O and surface the real SDK error if misconfigured.
 }
 
 function isBlobNotFound(error: unknown): boolean {
@@ -127,29 +143,6 @@ function writeLocalEvents(events: QuizEvent[]) {
 
 function writeLocalRegistrations(registrations: Registration[]) {
   fs.writeFileSync(regsLocalPath, JSON.stringify({ registrations }, null, 2), "utf-8");
-}
-
-function tmpPath(key: string): string {
-  return path.join("/tmp", key.replace(/\//g, "_"));
-}
-
-function readTmpJson<T>(key: string): T | null {
-  try {
-    const p = tmpPath(key);
-    if (!fs.existsSync(p)) return null;
-    return JSON.parse(fs.readFileSync(p, "utf-8")) as T;
-  } catch {
-    return null;
-  }
-}
-
-function writeTmpJson(key: string, data: unknown): boolean {
-  try {
-    fs.writeFileSync(tmpPath(key), JSON.stringify(data, null, 2), "utf-8");
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 async function downloadJson<T>(downloadUrl: string): Promise<T> {
@@ -325,31 +318,40 @@ async function listRegistrationBlobIds(): Promise<string[]> {
   }
 }
 
-async function persistEventsTmp(events: QuizEvent[]): Promise<void> {
-  if (writeTmpJson(LEGACY_EVENTS_KEY, { events })) return;
-  throw new Error("Storage unavailable");
-}
-
 async function persistEvents(events: QuizEvent[]): Promise<void> {
+  if (hasRedisStorage()) {
+    await redisSetEvents({ events });
+    return;
+  }
   if (shouldWriteBlob()) {
     await writeBlob(LEGACY_EVENTS_KEY, { events });
     return;
   }
   if (isVercel) {
-    await persistEventsTmp(events);
-    return;
+    throw new Error("STORAGE_NOT_CONFIGURED");
   }
   writeLocalEvents(events);
 }
 
 async function loadEvents(): Promise<QuizEvent[]> {
+  if (hasRedisStorage()) {
+    const fromRedis = await redisGetEvents();
+    if (fromRedis?.events?.length) return fromRedis.events as QuizEvent[];
+
+    const fromBlob = await loadEventsFromBlobOptional();
+    const events = fromBlob?.length ? fromBlob : readLocalEvents().events;
+    if (events.length) {
+      try {
+        await redisSetEvents({ events });
+      } catch (error) {
+        console.error("Redis bootstrap events failed:", error);
+      }
+    }
+    return events;
+  }
+
   const fromBlob = await loadEventsFromBlobOptional();
   if (fromBlob?.length) return fromBlob;
-
-  if (isVercel) {
-    const tmp = readTmpJson<{ events: QuizEvent[] }>(LEGACY_EVENTS_KEY);
-    if (tmp?.events?.length) return tmp.events;
-  }
 
   return readLocalEvents().events;
 }
@@ -389,23 +391,46 @@ async function persistRegistrationsBlob(registrations: Registration[]): Promise<
   await writeBlob(LEGACY_REGS_KEY, { registrations });
 }
 
+async function persistRegistrations(registrations: Registration[]): Promise<void> {
+  if (hasRedisStorage()) {
+    await redisSetRegistrations({ registrations });
+    return;
+  }
+  if (shouldWriteBlob()) {
+    await persistRegistrationsBlob(registrations);
+    return;
+  }
+  if (isVercel) {
+    throw new Error("STORAGE_NOT_CONFIGURED");
+  }
+  writeLocalRegistrations(registrations);
+}
+
 async function loadRegistrations(): Promise<Registration[]> {
+  if (hasRedisStorage()) {
+    const fromRedis = await redisGetRegistrations();
+    if (fromRedis?.registrations?.length) {
+      return (fromRedis.registrations as Registration[]).map(normalizeRegistration);
+    }
+
+    const fromBlob = shouldReadBlob() ? await loadRegsFromBlob() : [];
+    const registrations = fromBlob.length ? fromBlob : readLocalRegistrations().registrations;
+    if (registrations.length) {
+      try {
+        await redisSetRegistrations({ registrations });
+      } catch (error) {
+        console.error("Redis bootstrap registrations failed:", error);
+      }
+    }
+    return registrations;
+  }
+
   if (shouldReadBlob()) {
     const fromBlob = await loadRegsFromBlob();
     if (fromBlob.length) return fromBlob;
   }
 
-  if (isVercel) {
-    const tmp = readTmpJson<{ registrations: Registration[] }>(LEGACY_REGS_KEY);
-    if (tmp?.registrations?.length) return tmp.registrations;
-  }
-
   return readLocalRegistrations().registrations;
-}
-
-async function persistRegsTmp(registrations: Registration[]): Promise<void> {
-  if (writeTmpJson(LEGACY_REGS_KEY, { registrations })) return;
-  throw new Error("Storage unavailable");
 }
 
 export async function updateEvents(
@@ -426,14 +451,7 @@ export async function updateRegistrations(
   const current = await loadRegistrations();
   const next = await mutator(structuredClone(current));
   assertRegsNotRegressed(current, next, options?.destructive);
-
-  if (shouldWriteBlob()) {
-    await persistRegistrationsBlob(next);
-  } else if (isVercel) {
-    await persistRegsTmp(next);
-  } else {
-    writeLocalRegistrations(next);
-  }
+  await persistRegistrations(next);
 
   return { registrations: next };
 }
@@ -496,13 +514,7 @@ export async function addRegistration(reg: Registration): Promise<void> {
     const next = [...current, normalized];
 
     try {
-      if (shouldWriteBlob()) {
-        await persistRegistrationsBlob(next);
-      } else if (isVercel) {
-        await persistRegsTmp(next);
-      } else {
-        writeLocalRegistrations(next);
-      }
+      await persistRegistrations(next);
       return;
     } catch (error) {
       if (attempt === 4) throw error;

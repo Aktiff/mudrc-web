@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
-import { addRegistration, getBlobStorageDiagnostics, hasBlobStorage, readRegistrations } from "@/lib/storage";
-import { sendRegistrationEmail } from "@/lib/registration-email";
+import {
+  addRegistration,
+  getStorageDiagnostics,
+  hasPersistentStorage,
+  readRegistrations,
+} from "@/lib/storage";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -9,8 +13,21 @@ export const dynamic = "force-dynamic";
 export async function POST(req: NextRequest) {
   const { venue, eventSlug, teamName, players, phone } = await req.json();
   if (!venue || !teamName || !phone) {
-    return NextResponse.json({ error: "Chybaju udaje." }, { status: 400 });
+    return NextResponse.json({ error: "Chybajú údaje." }, { status: 400 });
   }
+
+  if (!hasPersistentStorage()) {
+    return NextResponse.json(
+      {
+        error: "Registráciu sa nepodarilo uložiť.",
+        detail:
+          "Chýba úložisko. Vo Verceli: Storage → Upstash Redis → Create → Connect to Project (Production) → Redeploy.",
+        storage: getStorageDiagnostics(),
+      },
+      { status: 500 }
+    );
+  }
+
   const reg = {
     id: randomUUID(),
     eventSlug: eventSlug ?? "",
@@ -21,42 +38,21 @@ export async function POST(req: NextRequest) {
     createdAt: new Date().toLocaleString("sk-SK", { timeZone: "Europe/Bratislava" }),
   };
 
-  let storedInBlob = false;
-
-  if (hasBlobStorage()) {
-    try {
-      await addRegistration(reg);
-      storedInBlob = true;
-    } catch (error) {
-      console.error("addRegistration failed:", error);
-    }
+  try {
+    await addRegistration(reg);
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    console.error("addRegistration failed:", error);
+    const message = error instanceof Error ? error.message : "Neznáma chyba";
+    return NextResponse.json(
+      {
+        error: "Registráciu sa nepodarilo uložiť.",
+        detail: message,
+        storage: getStorageDiagnostics(),
+      },
+      { status: 500 }
+    );
   }
-
-  const emailSent = await sendRegistrationEmail(reg, players);
-
-  if (storedInBlob) {
-    return NextResponse.json({ ok: true, storedInBlob: true, emailSent });
-  }
-
-  if (emailSent) {
-    return NextResponse.json({
-      ok: true,
-      storedInBlob: false,
-      emailSent: true,
-      message: "Registracia odoslana emailom. Admin panel ju zobrazi az po pripojeni Vercel Blob storage.",
-    });
-  }
-
-  const storage = getBlobStorageDiagnostics();
-  return NextResponse.json(
-    {
-      error: "Registraciu sa nepodarilo ulozit.",
-      detail:
-        "Chyba konfiguracie storage. Vo Verceli: Storage → Blob → Connect to Project (Production) → Redeploy. Alebo nastav RESEND_API_KEY pre emailovy fallback.",
-      storage,
-    },
-    { status: 500 }
-  );
 }
 
 export async function GET(req: NextRequest) {
