@@ -16,11 +16,28 @@ const regsLocalPath = path.join(process.cwd(), "src/data/registrations.local.jso
 
 const isVercel = !!process.env.VERCEL;
 
-function blobToken(): string | undefined {
-  return process.env.BLOB_READ_WRITE_TOKEN || process.env.VERCEL_BLOB_READ_WRITE_TOKEN;
+function hasBlobStorage(): boolean {
+  return !!(
+    process.env.BLOB_READ_WRITE_TOKEN ||
+    process.env.VERCEL_BLOB_READ_WRITE_TOKEN ||
+    process.env.BLOB_STORE_ID
+  );
 }
 
-const useBlob = !!blobToken();
+const useBlob = hasBlobStorage();
+
+type BlobAuthOptions = {
+  token?: string;
+  storeId?: string;
+};
+
+function blobAuthOptions(): BlobAuthOptions {
+  const token = process.env.BLOB_READ_WRITE_TOKEN || process.env.VERCEL_BLOB_READ_WRITE_TOKEN;
+  const storeId = process.env.BLOB_STORE_ID;
+  if (token) return { token };
+  if (storeId) return { storeId };
+  return {};
+}
 
 export type Registration = {
   id: string;
@@ -44,7 +61,9 @@ function sleep(ms: number) {
 
 function assertProductionStorage() {
   if (isVercel && !useBlob) {
-    throw new Error("Chyba konfiguracie: na Verceli chyba BLOB_READ_WRITE_TOKEN. Data sa neukladaju trvalo.");
+    throw new Error(
+      "Chyba konfiguracie: projekt nema pripojeny Vercel Blob store. Vo Verceli otvor Storage → Blob → Connect to Project a spusti redeploy."
+    );
   }
 }
 
@@ -123,17 +142,17 @@ async function downloadJson<T>(downloadUrl: string): Promise<T> {
 
 async function readBlobOnce<T>(key: string): Promise<T | null> {
   if (!useBlob) return null;
-  const token = blobToken();
+  const auth = blobAuthOptions();
 
   try {
-    const meta = await head(key, { token });
+    const meta = await head(key, auth);
     return downloadJson<T>(meta.downloadUrl);
   } catch (error) {
     if (!isBlobNotFound(error)) throw error;
   }
 
   try {
-    const result = await list({ prefix: key, limit: 10, token });
+    const result = await list({ prefix: key, limit: 10, ...auth });
     const blob = result.blobs.find((entry) => entry.pathname === key);
     if (!blob) return null;
     return downloadJson<T>(blob.downloadUrl);
@@ -168,18 +187,13 @@ async function writeBlob(key: string, data: unknown): Promise<void> {
   assertProductionStorage();
   if (!useBlob) return;
 
-  const token = blobToken();
-  if (!token) {
-    throw new Error("Chyba konfiguracie: chyba BLOB_READ_WRITE_TOKEN.");
-  }
-
   const payload = JSON.stringify(data, null, 2);
   try {
     await put(key, payload, {
       access: "public",
       addRandomSuffix: false,
       contentType: "application/json",
-      token,
+      ...blobAuthOptions(),
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Blob write failed";
@@ -189,9 +203,8 @@ async function writeBlob(key: string, data: unknown): Promise<void> {
 
 async function deleteBlob(key: string): Promise<void> {
   if (!useBlob) return;
-  const token = blobToken();
   try {
-    await del(key, { token });
+    await del(key, blobAuthOptions());
   } catch (error) {
     if (!isBlobNotFound(error)) throw error;
   }
@@ -256,9 +269,8 @@ async function loadLegacyEventsBlob(): Promise<QuizEvent[] | null> {
 
 async function listRegistrationBlobIds(): Promise<string[]> {
   if (!useBlob) return [];
-  const token = blobToken();
   try {
-    const result = await list({ prefix: "mudrc/registrations/", limit: 1000, token });
+    const result = await list({ prefix: "mudrc/registrations/", limit: 1000, ...blobAuthOptions() });
     return result.blobs
       .map((blob) => blob.pathname)
       .filter((pathname) => pathname.startsWith("mudrc/registrations/") && pathname.endsWith(".json"))
