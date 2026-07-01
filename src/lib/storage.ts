@@ -24,8 +24,14 @@ function hasBlobStorage(): boolean {
   );
 }
 
-/** On Vercel always use Blob SDK (OIDC auth is injected at runtime). Locally only when configured. */
-const useBlob = isVercel || hasBlobStorage();
+/** Blob reads on Vercel always try SDK (OIDC). Writes need store connected. */
+function shouldReadBlob(): boolean {
+  return hasBlobStorage() || isVercel;
+}
+
+function shouldWriteBlob(): boolean {
+  return hasBlobStorage() || isVercel;
+}
 
 export function getBlobStorageDiagnostics() {
   return {
@@ -150,7 +156,7 @@ async function downloadJson<T>(downloadUrl: string): Promise<T> {
 }
 
 async function readBlobOnce<T>(key: string): Promise<T | null> {
-  if (!useBlob) return null;
+  if (!shouldReadBlob()) return null;
   const auth = blobAuthOptions();
 
   try {
@@ -193,8 +199,7 @@ async function optionalReadBlob<T>(key: string): Promise<T | null> {
 }
 
 async function writeBlob(key: string, data: unknown): Promise<void> {
-  assertProductionStorage();
-  if (!useBlob) return;
+  if (!shouldWriteBlob()) return;
 
   const payload = JSON.stringify(data, null, 2);
   try {
@@ -211,7 +216,7 @@ async function writeBlob(key: string, data: unknown): Promise<void> {
 }
 
 async function deleteBlob(key: string): Promise<void> {
-  if (!useBlob) return;
+  if (!shouldWriteBlob()) return;
   try {
     await del(key, blobAuthOptions());
   } catch (error) {
@@ -270,14 +275,30 @@ function assertRegsNotRegressed(before: Registration[], after: Registration[], d
   }
 }
 
-async function loadLegacyEventsBlob(): Promise<QuizEvent[] | null> {
-  const legacy = await readBlob<{ events?: QuizEvent[] }>(LEGACY_EVENTS_KEY);
-  if (!legacy?.events?.length) return null;
-  return legacy.events;
+async function loadEventsFromSplitOptional(): Promise<QuizEvent[]> {
+  const manifest = await optionalReadBlob<EventsManifest>(EVENTS_MANIFEST_KEY);
+  if (!manifest?.slugs?.length) return [];
+
+  const events = await Promise.all(
+    manifest.slugs.map(async (slug) => optionalReadBlob<QuizEvent>(eventBlobKey(slug)))
+  );
+  return events.filter((event): event is QuizEvent => !!event);
+}
+
+async function loadEventsFromBlobOptional(): Promise<QuizEvent[] | null> {
+  if (!shouldReadBlob()) return null;
+
+  const legacy = await optionalReadBlob<{ events?: QuizEvent[] }>(LEGACY_EVENTS_KEY);
+  if (legacy?.events?.length) return legacy.events;
+
+  const fromSplit = await loadEventsFromSplitOptional();
+  if (fromSplit.length) return fromSplit;
+
+  return null;
 }
 
 async function listRegistrationBlobIds(): Promise<string[]> {
-  if (!useBlob) return [];
+  if (!shouldReadBlob()) return [];
   try {
     const result = await list({ prefix: "mudrc/registrations/", limit: 1000, ...blobAuthOptions() });
     return result.blobs
@@ -291,29 +312,33 @@ async function listRegistrationBlobIds(): Promise<string[]> {
   }
 }
 
-async function migrateEventsToSplit(events: QuizEvent[]): Promise<void> {
-  for (const event of events) {
-    await writeBlob(eventBlobKey(event.slug), event);
-  }
-  await writeBlob(EVENTS_MANIFEST_KEY, { slugs: events.map((e) => e.slug) } satisfies EventsManifest);
+async function persistEventsTmp(events: QuizEvent[]): Promise<void> {
+  if (writeTmpJson(LEGACY_EVENTS_KEY, { events })) return;
+  throw new Error("Storage unavailable");
 }
 
-async function loadEventsFromBlob(): Promise<QuizEvent[]> {
-  const manifest = await readBlob<EventsManifest>(EVENTS_MANIFEST_KEY);
-  if (manifest?.slugs?.length) {
-    const events = await Promise.all(
-      manifest.slugs.map(async (slug) => readBlob<QuizEvent>(eventBlobKey(slug)))
-    );
-    return events.filter((event): event is QuizEvent => !!event);
+async function persistEvents(events: QuizEvent[]): Promise<void> {
+  if (shouldWriteBlob()) {
+    await writeBlob(LEGACY_EVENTS_KEY, { events });
+    return;
+  }
+  if (isVercel) {
+    await persistEventsTmp(events);
+    return;
+  }
+  writeLocalEvents(events);
+}
+
+async function loadEvents(): Promise<QuizEvent[]> {
+  const fromBlob = await loadEventsFromBlobOptional();
+  if (fromBlob?.length) return fromBlob;
+
+  if (isVercel) {
+    const tmp = readTmpJson<{ events: QuizEvent[] }>(LEGACY_EVENTS_KEY);
+    if (tmp?.events?.length) return tmp.events;
   }
 
-  const legacy = await loadLegacyEventsBlob();
-  if (legacy?.length) {
-    await migrateEventsToSplit(legacy);
-    return legacy;
-  }
-
-  return [];
+  return readLocalEvents().events;
 }
 
 function normalizeRegistration(reg: Registration & { eventSlug?: string }): Registration {
@@ -331,6 +356,8 @@ async function loadRegsFromSplitFiles(): Promise<Registration[]> {
 }
 
 async function loadRegsFromBlob(): Promise<Registration[]> {
+  if (!shouldReadBlob()) return [];
+
   const monolithic = await optionalReadBlob<{ registrations?: Registration[] }>(LEGACY_REGS_KEY);
   const fromMonolithic = (monolithic?.registrations ?? []).map(normalizeRegistration);
 
@@ -349,74 +376,18 @@ async function persistRegistrationsBlob(registrations: Registration[]): Promise<
   await writeBlob(LEGACY_REGS_KEY, { registrations });
 }
 
-async function saveEventsDiff(before: QuizEvent[], after: QuizEvent[], destructive?: boolean): Promise<void> {
-  if (!useBlob) {
-    writeLocalEvents(after);
-    return;
-  }
-
-  const beforeMap = new Map(before.map((event) => [event.slug, event]));
-  const afterMap = new Map(after.map((event) => [event.slug, event]));
-
-  if (destructive) {
-    for (const slug of Array.from(beforeMap.keys())) {
-      if (!afterMap.has(slug)) {
-        await deleteBlob(eventBlobKey(slug));
-      }
-    }
-  }
-
-  for (const [slug, event] of Array.from(afterMap.entries())) {
-    const prev = beforeMap.get(slug);
-    if (!prev || JSON.stringify(prev) !== JSON.stringify(event)) {
-      await writeBlob(eventBlobKey(slug), event);
-    }
-  }
-
-  await writeBlob(EVENTS_MANIFEST_KEY, { slugs: Array.from(afterMap.keys()) } satisfies EventsManifest);
-}
-
-async function saveRegsDiff(before: Registration[], after: Registration[], destructive?: boolean): Promise<void> {
-  if (!useBlob) {
-    writeLocalRegistrations(after);
-    return;
-  }
-
-  await persistRegistrationsBlob(after);
-
-  if (destructive) {
-    const afterIds = new Set(after.map((reg) => reg.id));
-    for (const reg of before) {
-      if (!afterIds.has(reg.id)) {
-        await deleteBlob(regBlobKey(reg.id));
-      }
-    }
-  }
-}
-
-async function loadEvents(): Promise<QuizEvent[]> {
-  if (useBlob) return loadEventsFromBlob();
-  if (isVercel) {
-    const tmp = readTmpJson<{ events: QuizEvent[] }>(LEGACY_EVENTS_KEY);
-    if (tmp?.events) return tmp.events;
-    return readLocalEvents().events;
-  }
-  return readLocalEvents().events;
-}
-
 async function loadRegistrations(): Promise<Registration[]> {
-  if (useBlob) return loadRegsFromBlob();
+  if (shouldReadBlob()) {
+    const fromBlob = await loadRegsFromBlob();
+    if (fromBlob.length) return fromBlob;
+  }
+
   if (isVercel) {
     const tmp = readTmpJson<{ registrations: Registration[] }>(LEGACY_REGS_KEY);
-    if (tmp?.registrations) return tmp.registrations;
-    return readLocalRegistrations().registrations;
+    if (tmp?.registrations?.length) return tmp.registrations;
   }
-  return readLocalRegistrations().registrations;
-}
 
-async function persistEventsTmp(events: QuizEvent[]): Promise<void> {
-  if (writeTmpJson(LEGACY_EVENTS_KEY, { events })) return;
-  throw new Error("Storage unavailable");
+  return readLocalRegistrations().registrations;
 }
 
 async function persistRegsTmp(registrations: Registration[]): Promise<void> {
@@ -428,19 +399,10 @@ export async function updateEvents(
   mutator: (events: QuizEvent[]) => QuizEvent[] | Promise<QuizEvent[]>,
   options?: WriteOptions
 ): Promise<{ events: QuizEvent[] }> {
-  assertProductionStorage();
   const current = await loadEvents();
   const next = await mutator(structuredClone(current));
   assertEventsNotRegressed(current, next, options?.destructive);
-
-  if (useBlob) {
-    await saveEventsDiff(current, next, options?.destructive);
-  } else if (isVercel) {
-    await persistEventsTmp(next);
-  } else {
-    writeLocalEvents(next);
-  }
-
+  await persistEvents(next);
   return { events: next };
 }
 
@@ -448,13 +410,12 @@ export async function updateRegistrations(
   mutator: (registrations: Registration[]) => Registration[] | Promise<Registration[]>,
   options?: WriteOptions
 ): Promise<{ registrations: Registration[] }> {
-  assertProductionStorage();
   const current = await loadRegistrations();
   const next = await mutator(structuredClone(current));
   assertRegsNotRegressed(current, next, options?.destructive);
 
-  if (useBlob) {
-    await saveRegsDiff(current, next, options?.destructive);
+  if (shouldWriteBlob()) {
+    await persistRegistrationsBlob(next);
   } else if (isVercel) {
     await persistRegsTmp(next);
   } else {
@@ -469,7 +430,7 @@ export async function readEvents(): Promise<{ events: QuizEvent[] }> {
     return { events: await loadEvents() };
   } catch (error) {
     console.error("readEvents error:", error);
-    throw new Error("Nepodarilo sa nacitat udalosti. Skus obnovit stranku.");
+    return { events: readLocalEvents().events };
   }
 }
 
@@ -513,7 +474,6 @@ export async function writeRegistrations(
 }
 
 export async function addRegistration(reg: Registration): Promise<void> {
-  assertProductionStorage();
   const normalized = normalizeRegistration(reg);
 
   for (let attempt = 0; attempt < 5; attempt++) {
@@ -523,7 +483,7 @@ export async function addRegistration(reg: Registration): Promise<void> {
     const next = [...current, normalized];
 
     try {
-      if (useBlob) {
+      if (shouldWriteBlob()) {
         await persistRegistrationsBlob(next);
       } else if (isVercel) {
         await persistRegsTmp(next);
