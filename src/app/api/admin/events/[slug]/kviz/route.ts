@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
-import { randomUUID } from "crypto";
 import type { QuizEvent } from "@/lib/data";
+import { findQuizResultIndex } from "@/lib/quiz-result-key";
 import { readEvents, updateEvents } from "@/lib/storage";
-
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -71,9 +70,10 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
         ligaPoints: ligaPoints[rankIdx],
       }));
 
+      const resultId = date.replace(/\./g, "-");
       const pastResults = [
         ...(event.pastResults ?? []),
-        { id: randomUUID(), date, winnerTeam, points: winnerTotal, teams: teamsDetail },
+        { id: resultId, date, winnerTeam, points: winnerTotal, teams: teamsDetail },
       ];
 
       updatedEvent = { ...event, leagueTable: table, pastResults, leagueActive: true };
@@ -91,7 +91,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
 
   const { events } = await readEvents();
   const saved = events.find((e) => e.slug === params.slug);
-  const hasNewQuiz = saved?.pastResults?.some((r) => r.date === date);
+  const hasNewQuiz = saved?.pastResults?.some((r) => r.date === date && (r.teams?.length ?? 0) > 0);
   if (!saved || !hasNewQuiz) {
     return NextResponse.json(
       { error: "Kvíz sa nepodarilo uložiť do databázy. Skontroluj Supabase pripojenie." },

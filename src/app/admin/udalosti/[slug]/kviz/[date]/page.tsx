@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { ChevronLeft, Trash2, Pencil, X, Plus, Save } from "lucide-react";
 import type { QuizEvent, PastResultTeam } from "@/lib/data";
+import { findQuizResult } from "@/lib/quiz-result-key";
 import { TeamAutocomplete } from "@/components/TeamAutocomplete";
 import { AdminDatePicker } from "@/components/AdminDatePicker";
 
@@ -15,35 +16,52 @@ type ResultDetail = {
 
 type EditRow = { name: string; scores: number[] };
 
+async function loadEvent(slug: string): Promise<QuizEvent | null> {
+  const res = await fetch(`/api/admin/events?_=${Date.now()}`, { cache: "no-store" });
+  if (!res.ok) return null;
+  const data = await res.json();
+  return data.events?.find((e: QuizEvent) => e.slug === slug) ?? null;
+}
+
 export default function AdminQuizDetailPage({ params }: { params: { slug: string; date: string } }) {
   const [result, setResult] = useState<ResultDetail | null>(null);
   const [knownTeams, setKnownTeams] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [deleting, setDeleting] = useState(false);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [rounds, setRounds] = useState(4);
+  const quizKey = decodeURIComponent(params.date);
 
-  // Edit state
   const [editDate, setEditDate] = useState("");
   const [editTeams, setEditTeams] = useState<EditRow[]>([]);
 
-  const loadData = () => {
-    fetch("/api/admin/events")
-      .then((r) => r.json())
-      .then((data) => {
-        const event: QuizEvent = data.events.find((e: QuizEvent) => e.slug === params.slug);
-        if (event) {
-          setKnownTeams(event.leagueTable.map((e) => e.teamName));
-          setRounds(event.rounds || 4);
-          const r = event.pastResults.find((r) => (r.id ?? r.date.replace(/\./g, "-")) === params.date);
-          if (r && r.teams) setResult(r as ResultDetail);
-        }
-        setLoading(false);
-      });
+  const loadData = async () => {
+    setLoadError("");
+    const event = await loadEvent(params.slug);
+    if (!event) {
+      setLoadError("Udalosť sa nepodarilo načítať.");
+      setLoading(false);
+      return;
+    }
+    setKnownTeams(event.leagueTable.map((e) => e.teamName));
+    setRounds(event.rounds || 4);
+    const r = findQuizResult(event.pastResults, params.date);
+    if (r?.teams?.length) {
+      setResult(r as ResultDetail);
+    } else if (r) {
+      setLoadError("Kvíz existuje, ale chýbajú dáta tímov. Skús obnoviť stránku udalosti.");
+    } else {
+      setLoadError("Kvíz nebol nájdený. Možno bol zmazaný alebo ešte nebol uložený do databázy.");
+    }
+    setLoading(false);
   };
 
-  useEffect(() => { loadData(); }, [params.slug, params.date]);
+  useEffect(() => {
+    setLoading(true);
+    loadData();
+  }, [params.slug, params.date]);
 
   const startEdit = () => {
     if (!result) return;
@@ -74,15 +92,16 @@ export default function AdminQuizDetailPage({ params }: { params: { slug: string
     const valid = editTeams.filter((t) => t.name.trim());
     if (valid.length < 2) return;
     setSaving(true);
-    const res = await fetch(`/api/admin/events/${params.slug}/kviz/${params.date}`, {
+    const res = await fetch(`/api/admin/events/${params.slug}/kviz/${encodeURIComponent(quizKey)}`, {
       method: "PUT",
+      cache: "no-store",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ date: editDate, teams: valid }),
     });
     if (res.ok) {
       setEditing(false);
       setLoading(true);
-      loadData();
+      await loadData();
     }
     setSaving(false);
   };
@@ -90,7 +109,10 @@ export default function AdminQuizDetailPage({ params }: { params: { slug: string
   const deleteQuiz = async () => {
     if (!confirm("Naozaj zmazať tento kvíz? Odstránia sa aj ligové body.")) return;
     setDeleting(true);
-    await fetch(`/api/admin/events/${params.slug}/kviz/${params.date}`, { method: "DELETE" });
+    await fetch(`/api/admin/events/${params.slug}/kviz/${encodeURIComponent(quizKey)}`, {
+      method: "DELETE",
+      cache: "no-store",
+    });
     window.location.href = `/admin/udalosti/${params.slug}`;
   };
 
@@ -98,8 +120,8 @@ export default function AdminQuizDetailPage({ params }: { params: { slug: string
 
   if (!result) return (
     <div className="p-8">
-      <Link href={`/admin/udalosti/${params.slug}`} className="text-brand-orange hover:underline text-sm">Späť</Link>
-      <p className="mt-4 text-brand-muted">Kvíz nebol nájdený alebo nemá detailné dáta.</p>
+      <Link href={`/admin/udalosti/${params.slug}`} className="text-brand-orange hover:underline text-sm">← Späť na udalosť</Link>
+      <p className="mt-4 text-brand-muted">{loadError || "Kvíz nebol nájdený alebo nemá detailné dáta."}</p>
     </div>
   );
 
@@ -109,7 +131,6 @@ export default function AdminQuizDetailPage({ params }: { params: { slug: string
 
   return (
     <div className="max-w-2xl">
-      {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
           <Link href={backUrl} className="text-brand-muted hover:text-brand-text transition-colors">
@@ -122,7 +143,7 @@ export default function AdminQuizDetailPage({ params }: { params: { slug: string
         </div>
         <div className="flex items-center gap-2">
           <Link
-            href={`/admin/udalosti/${params.slug}/kviz/${params.date}/prezentacia`}
+            href={`/admin/udalosti/${params.slug}/kviz/${encodeURIComponent(params.date)}/prezentacia`}
             className="text-sm font-semibold bg-yellow-400 hover:bg-yellow-300 text-black px-4 py-2 rounded-xl transition-colors"
           >
             Prezentácia
@@ -146,7 +167,6 @@ export default function AdminQuizDetailPage({ params }: { params: { slug: string
         </div>
       </div>
 
-      {/* Edit form */}
       {editing && (
         <div className="bg-brand-card rounded-2xl border border-brand-orange/30 p-6 mb-5">
           <div className="flex items-center justify-between mb-4">
@@ -218,7 +238,6 @@ export default function AdminQuizDetailPage({ params }: { params: { slug: string
         </div>
       )}
 
-      {/* Result detail */}
       <div className="bg-brand-card rounded-2xl border border-brand-border overflow-hidden">
         <div className="px-6 py-4 border-b border-brand-border bg-brand-surface">
           <p className="text-sm text-brand-muted">

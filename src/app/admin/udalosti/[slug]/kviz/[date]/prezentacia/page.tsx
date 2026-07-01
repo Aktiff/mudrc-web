@@ -2,6 +2,7 @@
 import { useState, useEffect, useLayoutEffect, useRef, useMemo, type CSSProperties } from "react";
 import Link from "next/link";
 import type { QuizEvent, PastResultTeam } from "@/lib/data";
+import { findQuizResult, quizResultKey } from "@/lib/quiz-result-key";
 
 type TeamDisplay = PastResultTeam & { totalWithBonus: number; rowId: number };
 type ScoreGroup = { teams: TeamDisplay[]; baseTotal: number; startRank: number };
@@ -29,6 +30,7 @@ const rowFlex: CSSProperties = {
 export default function PrezentaciaPage({ params }: { params: { slug: string; date: string } }) {
   const [teams, setTeams] = useState<PastResultTeam[]>([]);
   const [quizDate, setQuizDate] = useState("");
+  const [quizKey, setQuizKey] = useState("");
   const [loading, setLoading] = useState(true);
   const [step, setStep] = useState(0);
   const [showRounds, setShowRounds] = useState(true);
@@ -49,15 +51,16 @@ export default function PrezentaciaPage({ params }: { params: { slug: string; da
   }, []);
 
   useEffect(() => {
-    fetch("/api/admin/events")
+    fetch(`/api/admin/events?_=${Date.now()}`, { cache: "no-store" })
       .then((r) => r.json())
       .then((data) => {
         const event: QuizEvent = data.events.find((e: QuizEvent) => e.slug === params.slug);
         if (event) {
-          const r = event.pastResults.find((r) => (r.id ?? r.date.replace(/\./g, "-")) === params.date);
-          if (r?.teams) {
+          const r = findQuizResult(event.pastResults, params.date);
+          if (r?.teams?.length) {
             setTeams(r.teams);
             setQuizDate(r.date);
+            setQuizKey(quizResultKey(r));
           }
         }
         setLoading(false);
@@ -139,8 +142,9 @@ export default function PrezentaciaPage({ params }: { params: { slug: string; da
       total: t.totalWithBonus,
     }));
     try {
-      const res = await fetch(`/api/admin/events/${params.slug}/kviz/${params.date}`, {
+      const res = await fetch(`/api/admin/events/${params.slug}/kviz/${encodeURIComponent(quizKey || params.date)}`, {
         method: "PUT",
+        cache: "no-store",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ date: quizDate, teams: teamsPayload }),
       });
@@ -161,7 +165,7 @@ export default function PrezentaciaPage({ params }: { params: { slug: string; da
   };
 
   const fmtScore = (v: number) => (v % 1 === 0 ? String(v) : String(parseFloat(v.toFixed(2))));
-  const backUrl = `/admin/udalosti/${params.slug}/kviz/${params.date}`;
+  const backUrl = `/admin/udalosti/${params.slug}/kviz/${encodeURIComponent(quizKey || params.date)}`;
   const listGapStyle: CSSProperties = { gap: `${gapPx}px` };
   const numRounds = teams[0]?.rounds?.length ?? 4;
   const rowGrid = `${layout.rankColPx}px 1fr 1fr`;

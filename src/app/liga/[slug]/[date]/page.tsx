@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ChevronLeft, Trophy } from "lucide-react";
+import { findQuizResult } from "@/lib/quiz-result-key";
 import { readEvents } from "@/lib/storage";
 
 export const dynamic = "force-dynamic";
@@ -11,7 +12,7 @@ export default async function QuizDetailPage({ params }: { params: { slug: strin
   if (!event) notFound();
 
   const dateDisplay = params.date.replace(/-/g, ".");
-  const result = event.pastResults.find((r) => r.date.replace(/\./g, "-") === params.date);
+  const result = findQuizResult(event.pastResults, params.date);
   if (!result || !result.teams || result.teams.length === 0) notFound();
 
   const sorted = [...result.teams].sort((a, b) => b.total - a.total);

@@ -5,6 +5,7 @@ import { Plus, Trash2, ChevronLeft, Save, PauseCircle, PlayCircle, Upload, Image
 import Link from "next/link";
 import type { QuizEvent, LeagueEntry, PastResult } from "@/lib/data";
 import { sortLeagueTable } from "@/lib/data";
+import { mergePastResults, quizResultKey } from "@/lib/quiz-result-key";
 import { AdminDatePicker, AdminTimePicker } from "@/components/AdminDatePicker";
 import { TeamAutocomplete } from "@/components/TeamAutocomplete";
 
@@ -38,9 +39,7 @@ function mergeFormWithServer(local: QuizEvent, server: QuizEvent): QuizEvent {
   if ((server.leagueTable?.length ?? 0) >= (local.leagueTable?.length ?? 0)) {
     merged.leagueTable = server.leagueTable;
   }
-  if ((server.pastResults?.length ?? 0) >= (local.pastResults?.length ?? 0)) {
-    merged.pastResults = server.pastResults;
-  }
+  merged.pastResults = mergePastResults(local.pastResults ?? [], server.pastResults ?? []);
   merged.leagueActive = server.leagueActive;
   merged.active = server.active;
   return normalizeEvent(merged);
@@ -113,7 +112,6 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
     setQuizResult(null);
     setQuizMsg(null);
     setMsg(null);
-    const previousCount = form.pastResults.length;
     try {
       const res = await fetch(`/api/admin/events/${params.slug}/kviz`, {
         method: "POST",
@@ -130,7 +128,8 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
 
       const fresh = await loadEventFromServer(params.slug);
       const savedEvent = fresh ?? (data.event ? normalizeEvent(data.event as QuizEvent) : null);
-      if (!savedEvent || savedEvent.pastResults.length <= previousCount) {
+      const savedQuiz = savedEvent?.pastResults?.find((r) => r.date === quizDate);
+      if (!savedEvent || !savedQuiz || !(savedQuiz.teams?.length ?? 0)) {
         setQuizMsg({ text: "Kvíz sa nepodarilo uložiť. Skús znova alebo obnov stránku.", ok: false });
         setMsg({ text: "Kvíz sa nepodarilo uložiť. Skús znova alebo obnov stránku.", ok: false });
         return;
@@ -417,10 +416,12 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
 
   const deleteQuiz = async (quizId: string) => {
     if (!confirm("Naozaj zmazať tento kvíz? Odstránia sa aj ligové body.")) return;
-    const res = await fetch(`/api/admin/events/${params.slug}/kviz/${quizId}`, { method: "DELETE" });
+    const res = await fetch(`/api/admin/events/${params.slug}/kviz/${encodeURIComponent(quizId)}`, {
+      method: "DELETE",
+      cache: "no-store",
+    });
     if (res.ok) {
-      const data = await fetch("/api/admin/events").then((r) => r.json());
-      const ev = data.events.find((e: QuizEvent) => e.slug === params.slug);
+      const ev = await loadEventFromServer(params.slug);
       if (ev) setForm(normalizeEvent(ev));
       setMsg({ text: "Kvíz zmazaný", ok: true });
     } else {
@@ -854,12 +855,12 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
             )}
             {[...form.pastResults].reverse().map((r, i) => {
               const hasDetail = !!(r.teams && r.teams.length > 0);
-              const quizId = r.id ?? r.date.replace(/\./g, "-");
+              const quizKey = encodeURIComponent(quizResultKey(r));
               return (
                 <div key={i} className={`flex items-center gap-3 px-4 py-3 rounded-xl border transition-colors ${hasDetail ? "border-brand-border hover:border-brand-orange hover:bg-brand-warm group" : "border-brand-border bg-brand-surface"}`}>
                   {hasDetail ? (
                     <>
-                      <Link href={`/admin/udalosti/${params.slug}/kviz/${quizId}`} className="flex items-center gap-3 flex-1">
+                      <Link href={`/admin/udalosti/${params.slug}/kviz/${quizKey}`} className="flex items-center gap-3 flex-1">
                         <span className="font-semibold text-brand-text text-sm">{r.date}</span>
                         <span className="text-brand-muted text-sm">víťaz</span>
                         <span className="font-semibold text-brand-orange text-sm">{r.winnerTeam}</span>
@@ -867,7 +868,7 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
                         <ChevronLeft className="w-4 h-4 text-brand-muted-light group-hover:text-brand-orange rotate-180 transition-all" />
                       </Link>
                       <button
-                        onClick={() => deleteQuiz(quizId)}
+                        onClick={() => deleteQuiz(quizResultKey(r))}
                         className="text-brand-muted-light hover:text-red-500 transition-colors shrink-0 p-1"
                         title="Zmazať kvíz"
                       >

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
+import { findQuizResultIndex } from "@/lib/quiz-result-key";
 import { updateEvents } from "@/lib/storage";
-
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -57,7 +57,7 @@ export async function PUT(req: NextRequest, { params }: { params: { slug: string
       if (idx === -1) throw new Error("NOT_FOUND");
 
       const event = events[idx];
-      const resultIdx = event.pastResults.findIndex((r) => (r.id ?? r.date.replace(/\./g, "-")) === params.date);
+      const resultIdx = findQuizResultIndex(event.pastResults, params.date);
       if (resultIdx === -1) throw new Error("RESULT_NOT_FOUND");
 
       const oldResult = event.pastResults[resultIdx];
@@ -126,7 +126,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: { slug: st
         if (idx === -1) throw new Error("NOT_FOUND");
 
         const event = events[idx];
-        const resultIdx = event.pastResults.findIndex((r) => (r.id ?? r.date.replace(/\./g, "-")) === params.date);
+        const resultIdx = findQuizResultIndex(event.pastResults, params.date);
         if (resultIdx === -1) throw new Error("RESULT_NOT_FOUND");
 
         const oldResult = event.pastResults[resultIdx];
