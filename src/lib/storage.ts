@@ -5,8 +5,8 @@ import type { QuizEvent } from "@/lib/data";
 import {
   getSupabaseStorageDiagnostics,
   hasSupabaseStorage,
-  supabaseGetEvents,
-  supabaseGetRegistrations,
+  supabaseFetchEvents,
+  supabaseFetchRegistrations,
   supabaseSetEvents,
   supabaseSetRegistrations,
 } from "@/lib/supabase-storage";
@@ -317,6 +317,13 @@ async function listRegistrationBlobIds(): Promise<string[]> {
   }
 }
 
+async function bootstrapEventsToSupabase(): Promise<QuizEvent[]> {
+  const fromBlob = await loadEventsFromBlobOptional();
+  const events = fromBlob?.length ? fromBlob : readLocalEvents().events;
+  await supabaseSetEvents({ events });
+  return events;
+}
+
 async function persistEvents(events: QuizEvent[]): Promise<void> {
   if (hasSupabaseStorage()) {
     await supabaseSetEvents({ events });
@@ -334,19 +341,14 @@ async function persistEvents(events: QuizEvent[]): Promise<void> {
 
 async function loadEvents(): Promise<QuizEvent[]> {
   if (hasSupabaseStorage()) {
-    const fromSupabase = await supabaseGetEvents();
-    if (fromSupabase?.events?.length) return fromSupabase.events as QuizEvent[];
-
-    const fromBlob = await loadEventsFromBlobOptional();
-    const events = fromBlob?.length ? fromBlob : readLocalEvents().events;
-    if (events.length) {
-      try {
-        await supabaseSetEvents({ events });
-      } catch (error) {
-        console.error("Supabase bootstrap events failed:", error);
-      }
+    const result = await supabaseFetchEvents();
+    if (result.status === "ok") {
+      return (result.value.events ?? []) as QuizEvent[];
     }
-    return events;
+    if (result.status === "error") {
+      throw new Error(`Nepodarilo sa nacitat kvízy zo Supabase: ${result.message}`);
+    }
+    return bootstrapEventsToSupabase();
   }
 
   const fromBlob = await loadEventsFromBlobOptional();
@@ -407,20 +409,17 @@ async function persistRegistrations(registrations: Registration[]): Promise<void
 
 async function loadRegistrations(): Promise<Registration[]> {
   if (hasSupabaseStorage()) {
-    const fromSupabase = await supabaseGetRegistrations();
-    if (fromSupabase?.registrations?.length) {
-      return (fromSupabase.registrations as Registration[]).map(normalizeRegistration);
+    const result = await supabaseFetchRegistrations();
+    if (result.status === "ok") {
+      return ((result.value.registrations ?? []) as Registration[]).map(normalizeRegistration);
+    }
+    if (result.status === "error") {
+      throw new Error(`Nepodarilo sa nacitat registracie zo Supabase: ${result.message}`);
     }
 
     const fromBlob = shouldReadBlob() ? await loadRegsFromBlob() : [];
     const registrations = fromBlob.length ? fromBlob : readLocalRegistrations().registrations;
-    if (registrations.length) {
-      try {
-        await supabaseSetRegistrations({ registrations });
-      } catch (error) {
-        console.error("Supabase bootstrap registrations failed:", error);
-      }
-    }
+    await supabaseSetRegistrations({ registrations });
     return registrations;
   }
 
@@ -460,7 +459,10 @@ export async function readEvents(): Promise<{ events: QuizEvent[] }> {
     return { events: await loadEvents() };
   } catch (error) {
     console.error("readEvents error:", error);
-    return { events: readLocalEvents().events };
+    if (!hasSupabaseStorage() && !isVercel) {
+      return { events: readLocalEvents().events };
+    }
+    throw error instanceof Error ? error : new Error("Nepodarilo sa nacitat udalosti.");
   }
 }
 

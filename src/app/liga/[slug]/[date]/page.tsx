@@ -1,10 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ChevronLeft, Trophy } from "lucide-react";
-import { getEventBySlug } from "@/lib/data";
+import { readEvents } from "@/lib/storage";
 
-export default function QuizDetailPage({ params }: { params: { slug: string; date: string } }) {
-  const event = getEventBySlug(params.slug);
+export const dynamic = "force-dynamic";
+
+export default async function QuizDetailPage({ params }: { params: { slug: string; date: string } }) {
+  const { events } = await readEvents();
+  const event = events.find((e) => e.slug === params.slug);
   if (!event) notFound();
 
   const dateDisplay = params.date.replace(/-/g, ".");
