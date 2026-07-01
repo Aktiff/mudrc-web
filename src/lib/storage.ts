@@ -13,7 +13,7 @@ import {
   supabaseSetRegistrations,
   type EventLeagueData,
 } from "@/lib/supabase-storage";
-import { findQuizResult } from "@/lib/quiz-result-key";
+import { findQuizResult, mergePastResults } from "@/lib/quiz-result-key";
 
 const LEGACY_EVENTS_KEY = "mudrc/events.json";
 const LEGACY_REGS_KEY = "mudrc/registrations.json";
@@ -243,7 +243,9 @@ function mergeEventPreserve(stored: QuizEvent, incoming: QuizEvent): QuizEvent {
   const prevLT = stored.leagueTable ?? [];
   const incLT = incoming.leagueTable ?? [];
 
-  const pastResults = incPR.length >= prevPR.length ? incPR : prevPR;
+  const pastResults = incPR.length >= prevPR.length
+    ? mergePastResults(prevPR, incPR)
+    : mergePastResults(incPR, prevPR);
 
   let leagueTable = prevLT;
   if (incLT.length >= prevLT.length) {
@@ -328,8 +330,8 @@ async function bootstrapEventsToSupabase(): Promise<QuizEvent[]> {
   return events;
 }
 
-function stripLeagueFields(event: QuizEvent): QuizEvent {
-  return { ...event, pastResults: [], leagueTable: [] };
+function pastResultsHaveTeamDetails(results: QuizEvent["pastResults"]): boolean {
+  return (results ?? []).some((r) => (r.teams?.length ?? 0) > 0);
 }
 
 async function attachLeagueData(events: QuizEvent[]): Promise<QuizEvent[]> {
@@ -337,30 +339,35 @@ async function attachLeagueData(events: QuizEvent[]): Promise<QuizEvent[]> {
 
   return Promise.all(
     events.map(async (event) => {
+      const inlinePast = event.pastResults ?? [];
+      const inlineTable = event.leagueTable ?? [];
       const league = await supabaseFetchEventLeague(event.slug);
+
       if (league.status === "ok") {
+        const leaguePast = (league.value.pastResults ?? []) as QuizEvent["pastResults"];
+        const leagueTable = (league.value.leagueTable ?? []) as QuizEvent["leagueTable"];
         return {
           ...event,
-          pastResults: (league.value.pastResults ?? []) as QuizEvent["pastResults"],
-          leagueTable: (league.value.leagueTable ?? []) as QuizEvent["leagueTable"],
+          pastResults: mergePastResults(inlinePast, leaguePast),
+          leagueTable: leagueTable.length >= inlineTable.length ? leagueTable : inlineTable,
           leagueActive:
             typeof league.value.leagueActive === "boolean" ? league.value.leagueActive : event.leagueActive,
         };
       }
 
-      const hasInline =
-        (event.pastResults?.length ?? 0) > 0 ||
-        (event.leagueTable?.length ?? 0) > 0 ||
-        event.leagueActive !== undefined;
+      if (league.status === "error") {
+        console.error(`League read failed for ${event.slug}:`, league.message);
+        return event;
+      }
 
-      if (hasInline) {
-        const payload: EventLeagueData = {
-          pastResults: event.pastResults ?? [],
-          leagueTable: event.leagueTable ?? [],
-          leagueActive: event.leagueActive,
-        };
+      // league missing: zalohuj len ak mame kompletne data (s tymi), nie prazdne sumare
+      if (pastResultsHaveTeamDetails(inlinePast) || inlineTable.length > 0) {
         try {
-          await supabaseSetEventLeague(event.slug, payload);
+          await supabaseSetEventLeague(event.slug, {
+            pastResults: inlinePast,
+            leagueTable: inlineTable,
+            leagueActive: event.leagueActive,
+          });
         } catch (error) {
           console.error(`Migrate league data for ${event.slug} failed:`, error);
         }
@@ -373,7 +380,7 @@ async function attachLeagueData(events: QuizEvent[]): Promise<QuizEvent[]> {
 
 async function persistEvents(events: QuizEvent[]): Promise<void> {
   if (hasSupabaseStorage()) {
-    await supabaseSetEvents({ events: events.map(stripLeagueFields) });
+    // Najprv zaloha ligovych dat, potom cely snapshot (ako registracie v jednom klici)
     await Promise.all(
       events.map((event) =>
         supabaseSetEventLeague(event.slug, {
@@ -383,6 +390,7 @@ async function persistEvents(events: QuizEvent[]): Promise<void> {
         })
       )
     );
+    await supabaseSetEvents({ events });
     return;
   }
   if (shouldWriteBlob()) {

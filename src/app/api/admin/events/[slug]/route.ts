@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import type { QuizEvent, LeagueEntry } from "@/lib/data";
 import { rebuildLeagueTableFromResults, sortLeagueTable } from "@/lib/data";
+import { mergePastResults } from "@/lib/quiz-result-key";
 import { updateEvents } from "@/lib/storage";
 
 export const runtime = "nodejs";
@@ -17,10 +18,7 @@ function applyLeagueDataMerge(existing: QuizEvent, incoming: Partial<QuizEvent>)
   const incomingPR = Array.isArray(incoming.pastResults) ? incoming.pastResults : existingPR;
   const incomingLT = Array.isArray(incoming.leagueTable) ? incoming.leagueTable : existingLT;
 
-  let pastResults = existingPR;
-  if (incomingPR.length >= existingPR.length) {
-    pastResults = incomingPR;
-  }
+  const pastResults = mergePastResults(existingPR, incomingPR);
 
   let leagueTable = existingLT;
   if (existingPR.length > 0 && incomingLT.length < existingLT.length) {
@@ -132,8 +130,8 @@ export async function PUT(req: NextRequest, { params }: { params: { slug: string
           if (Array.isArray(incoming.leagueTable) && incoming.leagueTable.length >= leagueTable.length) {
             leagueTable = incoming.leagueTable;
           }
-          if (Array.isArray(incoming.pastResults) && incoming.pastResults.length >= pastResults.length) {
-            pastResults = incoming.pastResults;
+          if (Array.isArray(incoming.pastResults)) {
+            pastResults = mergePastResults(pastResults, incoming.pastResults);
           }
 
           if (pastResults.length > 0 && leagueTable.length === 0) {

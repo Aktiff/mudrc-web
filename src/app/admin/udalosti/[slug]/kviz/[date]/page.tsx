@@ -17,8 +17,8 @@ type EditRow = { name: string; scores: number[] };
 
 async function loadQuizDetail(slug: string, quizParam: string) {
   const res = await fetch(
-    `/api/admin/events/${slug}/kviz/${encodeURIComponent(quizParam)}?_=${Date.now()}`,
-    { cache: "no-store" }
+    `/api/admin/events/${slug}/kviz/${quizParam}?_=${Date.now()}`,
+    { cache: "no-store", credentials: "same-origin" }
   );
   if (!res.ok) return null;
   return res.json() as Promise<{ event: QuizEvent; result: ResultDetail & { teams: PastResultTeam[] } }>;
@@ -42,7 +42,9 @@ export default function AdminQuizDetailPage({ params }: { params: { slug: string
     setLoadError("");
     const data = await loadQuizDetail(params.slug, params.date);
     if (!data?.result?.teams?.length) {
-      setLoadError("Kvíz nebol nájdený. Možno bol zmazaný alebo ešte nebol uložený do databázy.");
+      setLoadError(
+        "Kvíz nebol nájdený v databáze. Skontroluj, či prebehol deploy (Vercel → Redeploy) a skús kvíz pridať znova."
+      );
       setLoading(false);
       return;
     }
