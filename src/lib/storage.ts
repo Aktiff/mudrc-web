@@ -3,13 +3,13 @@ import path from "path";
 import { del, head, list, put } from "@vercel/blob";
 import type { QuizEvent } from "@/lib/data";
 import {
-  getRedisStorageDiagnostics,
-  hasRedisStorage,
-  redisGetEvents,
-  redisGetRegistrations,
-  redisSetEvents,
-  redisSetRegistrations,
-} from "@/lib/redis-storage";
+  getSupabaseStorageDiagnostics,
+  hasSupabaseStorage,
+  supabaseGetEvents,
+  supabaseGetRegistrations,
+  supabaseSetEvents,
+  supabaseSetRegistrations,
+} from "@/lib/supabase-storage";
 
 const LEGACY_EVENTS_KEY = "mudrc/events.json";
 const LEGACY_REGS_KEY = "mudrc/registrations.json";
@@ -43,25 +43,24 @@ function shouldWriteBlob(): boolean {
 export function getStorageDiagnostics() {
   return {
     vercel: isVercel,
+    supabase: getSupabaseStorageDiagnostics(),
     blobStoreId: !!process.env.BLOB_STORE_ID,
     blobReadWriteToken: !!process.env.BLOB_READ_WRITE_TOKEN,
     vercelOidcToken: !!process.env.VERCEL_OIDC_TOKEN,
-    redis: getRedisStorageDiagnostics(),
     envKeys: Object.keys(process.env).filter(
       (key) =>
         key.includes("BLOB") ||
-        key.includes("UPSTASH") ||
-        key.includes("KV_REST") ||
+        key.includes("SUPABASE") ||
         key === "VERCEL_OIDC_TOKEN"
     ),
   };
 }
 
 export function hasPersistentStorage(): boolean {
-  return hasRedisStorage() || hasBlobStorage();
+  return hasSupabaseStorage() || hasBlobStorage();
 }
 
-export { hasBlobStorage, hasRedisStorage };
+export { hasBlobStorage, hasSupabaseStorage };
 
 /** @deprecated use getStorageDiagnostics */
 export const getBlobStorageDiagnostics = getStorageDiagnostics;
@@ -319,8 +318,8 @@ async function listRegistrationBlobIds(): Promise<string[]> {
 }
 
 async function persistEvents(events: QuizEvent[]): Promise<void> {
-  if (hasRedisStorage()) {
-    await redisSetEvents({ events });
+  if (hasSupabaseStorage()) {
+    await supabaseSetEvents({ events });
     return;
   }
   if (shouldWriteBlob()) {
@@ -334,17 +333,17 @@ async function persistEvents(events: QuizEvent[]): Promise<void> {
 }
 
 async function loadEvents(): Promise<QuizEvent[]> {
-  if (hasRedisStorage()) {
-    const fromRedis = await redisGetEvents();
-    if (fromRedis?.events?.length) return fromRedis.events as QuizEvent[];
+  if (hasSupabaseStorage()) {
+    const fromSupabase = await supabaseGetEvents();
+    if (fromSupabase?.events?.length) return fromSupabase.events as QuizEvent[];
 
     const fromBlob = await loadEventsFromBlobOptional();
     const events = fromBlob?.length ? fromBlob : readLocalEvents().events;
     if (events.length) {
       try {
-        await redisSetEvents({ events });
+        await supabaseSetEvents({ events });
       } catch (error) {
-        console.error("Redis bootstrap events failed:", error);
+        console.error("Supabase bootstrap events failed:", error);
       }
     }
     return events;
@@ -392,8 +391,8 @@ async function persistRegistrationsBlob(registrations: Registration[]): Promise<
 }
 
 async function persistRegistrations(registrations: Registration[]): Promise<void> {
-  if (hasRedisStorage()) {
-    await redisSetRegistrations({ registrations });
+  if (hasSupabaseStorage()) {
+    await supabaseSetRegistrations({ registrations });
     return;
   }
   if (shouldWriteBlob()) {
@@ -407,19 +406,19 @@ async function persistRegistrations(registrations: Registration[]): Promise<void
 }
 
 async function loadRegistrations(): Promise<Registration[]> {
-  if (hasRedisStorage()) {
-    const fromRedis = await redisGetRegistrations();
-    if (fromRedis?.registrations?.length) {
-      return (fromRedis.registrations as Registration[]).map(normalizeRegistration);
+  if (hasSupabaseStorage()) {
+    const fromSupabase = await supabaseGetRegistrations();
+    if (fromSupabase?.registrations?.length) {
+      return (fromSupabase.registrations as Registration[]).map(normalizeRegistration);
     }
 
     const fromBlob = shouldReadBlob() ? await loadRegsFromBlob() : [];
     const registrations = fromBlob.length ? fromBlob : readLocalRegistrations().registrations;
     if (registrations.length) {
       try {
-        await redisSetRegistrations({ registrations });
+        await supabaseSetRegistrations({ registrations });
       } catch (error) {
-        console.error("Redis bootstrap registrations failed:", error);
+        console.error("Supabase bootstrap registrations failed:", error);
       }
     }
     return registrations;

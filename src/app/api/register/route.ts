@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
       {
         error: "Registráciu sa nepodarilo uložiť.",
         detail:
-          "Chýba úložisko. Vo Verceli: Storage → Upstash Redis → Create → Connect to Project (Production) → Redeploy.",
+          "Chýba úložisko. Zdarma: supabase.com → New project → SQL Editor (spusti scripts/supabase.sql) → Settings → API → skopíruj URL a service_role key → vo Verceli pridaj SUPABASE_URL a SUPABASE_SERVICE_ROLE_KEY → Redeploy.",
         storage: getStorageDiagnostics(),
       },
       { status: 500 }
