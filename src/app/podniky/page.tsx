@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Mail, Phone, BarChart2, RefreshCw, TrendingUp, Megaphone, Tv, Users, Mic, FileText, Volume2, Share2, Trophy, CheckCircle } from "lucide-react";
+import { Mail, Phone, BarChart2, RefreshCw, TrendingUp, Megaphone, Tv, Users, Gift, Mic, FileText, Volume2, Share2, Trophy } from "lucide-react";
+import SocialLinks from "@/components/SocialLinks";
 
 export const metadata: Metadata = {
   title: "Pre podniky",
@@ -55,6 +56,7 @@ const benefits = [
 const weNeed = [
   { icon: Tv, text: "TV alebo projektor – viditeľný pre väčšinu stolov na premietanie kvízových otázok." },
   { icon: Users, text: "Kapacitu pre stoly – ideálne priestor pre minimálne 5 až 10 tímov (cca 20 až 50 ľudí)." },
+  { icon: Gift, text: "Ceny pre víťazné tímy." },
 ];
 
 const weBring = [
@@ -85,7 +87,7 @@ export default function PodnikyPage() {
           <div className="flex flex-wrap gap-4 justify-center">
             <a href="mailto:kontakt@mudrc.sk" className="btn-primary text-base px-8 py-4">
               <Mail className="w-5 h-5" />
-              Chcem hostiť kvíz
+              Chcem hosťovať kvíz
             </a>
             <a href="tel:+421951457439" className="btn-outline text-base px-8 py-4">
               <Phone className="w-5 h-5" />
@@ -118,8 +120,7 @@ export default function PodnikyPage() {
       <section className="bg-brand-warm border-y border-brand-border py-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
-            <span className="text-brand-orange-readable text-sm font-semibold uppercase tracking-wider">Prečo áno?</span>
-            <h2 className="section-title mt-2">Prečo spolupracovať s kvízom MUDRC?</h2>
+            <h2 className="section-title">Prečo spolupracovať s kvízom MUDRC?</h2>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             {benefits.map((b) => (
@@ -217,7 +218,7 @@ export default function PodnikyPage() {
         <p className="text-brand-muted text-lg leading-relaxed mb-10 max-w-xl mx-auto">
           Prvá obhliadka priestoru a konzultácia je úplne bezplatná a nezáväzná. Dajte nám vedieť a prídeme sa pozrieť, ako môžeme nakopnúť tržby vo vašom podniku.
         </p>
-        <div className="flex flex-wrap gap-4 justify-center mb-10">
+        <div className="flex flex-wrap gap-4 justify-center mb-8">
           <a href="mailto:kontakt@mudrc.sk" className="btn-primary text-base px-10 py-4">
             <Mail className="w-5 h-5" />
             kontakt@mudrc.sk
@@ -227,6 +228,7 @@ export default function PodnikyPage() {
             +421 951 457 439
           </a>
         </div>
+        <SocialLinks className="justify-center mb-10" />
         <Link href="/" className="text-brand-muted hover:text-brand-orange transition-colors text-sm">
           ← Späť na hlavnú stránku
         </Link>
