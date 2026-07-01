@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import type { QuizEvent } from "@/lib/data";
 import { readEvents, updateEvents } from "@/lib/storage";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 function slugify(text: string) {
   return text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 }

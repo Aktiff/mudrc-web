@@ -26,12 +26,19 @@ async function fetchFreshEvent(slug: string): Promise<QuizEvent | null> {
   return fresh.events?.find((e: QuizEvent) => e.slug === slug) ?? null;
 }
 
+async function loadEventFromServer(slug: string): Promise<QuizEvent | null> {
+  const res = await fetch(`/api/admin/events?_=${Date.now()}`, { cache: "no-store" });
+  if (!res.ok) return null;
+  const data = await res.json();
+  return data.events?.find((e: QuizEvent) => e.slug === slug) ?? null;
+}
+
 function mergeFormWithServer(local: QuizEvent, server: QuizEvent): QuizEvent {
   const merged: QuizEvent = { ...local };
-  if ((server.leagueTable?.length ?? 0) > (local.leagueTable?.length ?? 0)) {
+  if ((server.leagueTable?.length ?? 0) >= (local.leagueTable?.length ?? 0)) {
     merged.leagueTable = server.leagueTable;
   }
-  if ((server.pastResults?.length ?? 0) > (local.pastResults?.length ?? 0)) {
+  if ((server.pastResults?.length ?? 0) >= (local.pastResults?.length ?? 0)) {
     merged.pastResults = server.pastResults;
   }
   merged.leagueActive = server.leagueActive;
@@ -105,36 +112,41 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
     setQuizSubmitting(true);
     setQuizResult(null);
     setQuizMsg(null);
+    setMsg(null);
+    const previousCount = form.pastResults.length;
     try {
       const res = await fetch(`/api/admin/events/${params.slug}/kviz`, {
         method: "POST",
+        cache: "no-store",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ date: quizDate, teams: validTeams }),
       });
       const data = await res.json();
-      if (res.ok) {
-        setQuizResult(data);
-        setQuizTeams(Array.from({ length: 10 }, emptyRow));
-        if (data.event) {
-          setForm(normalizeEvent(data.event));
-        } else {
-          fetch(`/api/admin/events?_=${Date.now()}`, { cache: "no-store" })
-            .then((r) => r.json())
-            .then((d) => {
-              const ev = d.events.find((e: QuizEvent) => e.slug === params.slug);
-              if (ev) setForm(normalizeEvent(ev));
-            });
-        }
-        setMsg({ text: "Kvíz uložený do ligy", ok: true });
-      } else {
+      if (!res.ok) {
         setQuizMsg({ text: data.error ?? "Chyba pri ukladaní.", ok: false });
         setMsg({ text: data.error ?? "Chyba pri ukladaní.", ok: false });
+        return;
       }
+
+      const fresh = await loadEventFromServer(params.slug);
+      const savedEvent = fresh ?? (data.event ? normalizeEvent(data.event as QuizEvent) : null);
+      if (!savedEvent || savedEvent.pastResults.length <= previousCount) {
+        setQuizMsg({ text: "Kvíz sa nepodarilo uložiť. Skús znova alebo obnov stránku.", ok: false });
+        setMsg({ text: "Kvíz sa nepodarilo uložiť. Skús znova alebo obnov stránku.", ok: false });
+        return;
+      }
+
+      setForm(normalizeEvent(savedEvent));
+      setQuizResult(data);
+      setQuizTeams(Array.from({ length: 10 }, emptyRow));
+      setMsg({ text: "Kvíz uložený do ligy", ok: true });
+      setTab("vysledky");
     } catch {
       setQuizMsg({ text: "Sieťová chyba. Skús znova.", ok: false });
       setMsg({ text: "Sieťová chyba. Skús znova.", ok: false });
+    } finally {
+      setQuizSubmitting(false);
     }
-    setQuizSubmitting(false);
   };
 
   const [form, setForm] = useState<QuizEvent>({
@@ -160,12 +172,9 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
 
   useEffect(() => {
     if (!isNew) {
-      fetch("/api/admin/events")
-        .then((r) => r.json())
-        .then((data) => {
-          const ev = data.events.find((e: QuizEvent) => e.slug === params.slug);
-          if (ev) setForm(normalizeEvent(ev));
-        });
+      loadEventFromServer(params.slug).then((ev) => {
+        if (ev) setForm((current) => mergeFormWithServer(current, normalizeEvent(ev)));
+      });
     }
   }, [params.slug, isNew]);
 
@@ -173,12 +182,9 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
     if (isNew) return;
     const reload = () => {
       if (document.visibilityState !== "visible") return;
-      fetch("/api/admin/events")
-        .then((r) => r.json())
-        .then((data) => {
-          const ev = data.events.find((e: QuizEvent) => e.slug === params.slug);
-          if (ev) setForm(normalizeEvent(ev));
-        });
+      loadEventFromServer(params.slug).then((ev) => {
+        if (ev) setForm((current) => mergeFormWithServer(current, normalizeEvent(ev)));
+      });
     };
     window.addEventListener("focus", reload);
     document.addEventListener("visibilitychange", reload);
@@ -190,12 +196,9 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
 
   useEffect(() => {
     if (isNew || (tab !== "liga" && tab !== "vysledky")) return;
-    fetch("/api/admin/events")
-      .then((r) => r.json())
-      .then((data) => {
-        const ev = data.events.find((e: QuizEvent) => e.slug === params.slug);
-        if (ev) setForm(normalizeEvent(ev));
-      });
+    loadEventFromServer(params.slug).then((ev) => {
+      if (ev) setForm((current) => mergeFormWithServer(current, normalizeEvent(ev)));
+    });
   }, [tab, params.slug, isNew]);
 
   useEffect(() => {

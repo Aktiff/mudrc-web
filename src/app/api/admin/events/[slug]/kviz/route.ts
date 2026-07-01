@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
+import { randomUUID } from "crypto";
 import type { QuizEvent } from "@/lib/data";
-import { updateEvents } from "@/lib/storage";
+import { readEvents, updateEvents } from "@/lib/storage";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 type TeamEntry = { name: string; scores: number[] };
-
 export async function POST(req: NextRequest, { params }: { params: { slug: string } }) {
   const { date, teams }: { date: string; teams: TeamEntry[] } = await req.json();
   if (!date || !teams?.length) {
@@ -70,7 +73,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
 
       const pastResults = [
         ...(event.pastResults ?? []),
-        { id: crypto.randomUUID(), date, winnerTeam, points: winnerTotal, teams: teamsDetail },
+        { id: randomUUID(), date, winnerTeam, points: winnerTotal, teams: teamsDetail },
       ];
 
       updatedEvent = { ...event, leagueTable: table, pastResults, leagueActive: true };
@@ -81,7 +84,19 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
     if (error instanceof Error && error.message === "NOT_FOUND") {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
-    throw error;
+    console.error("POST kviz error:", error);
+    const message = error instanceof Error ? error.message : "Chyba pri ukladaní kvízu";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+
+  const { events } = await readEvents();
+  const saved = events.find((e) => e.slug === params.slug);
+  const hasNewQuiz = saved?.pastResults?.some((r) => r.date === date);
+  if (!saved || !hasNewQuiz) {
+    return NextResponse.json(
+      { error: "Kvíz sa nepodarilo uložiť do databázy. Skontroluj Supabase pripojenie." },
+      { status: 500 }
+    );
   }
 
   revalidatePath("/liga");
@@ -90,7 +105,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   return NextResponse.json({
     ok: true,
     winnerTeam,
-    event: updatedEvent,
+    event: saved,
     ligaPoints: responseLigaPoints,
   });
 }

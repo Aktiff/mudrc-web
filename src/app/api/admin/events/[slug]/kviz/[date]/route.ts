@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { updateEvents } from "@/lib/storage";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 type TeamEntry = { name: string; scores: number[]; total?: number };
 
 function calcLigaPoints(teams: TeamEntry[]): { name: string; scores: number[]; total: number; ligaPoints: number }[] {

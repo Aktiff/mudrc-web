@@ -4,6 +4,9 @@ import type { QuizEvent, LeagueEntry } from "@/lib/data";
 import { rebuildLeagueTableFromResults, sortLeagueTable } from "@/lib/data";
 import { updateEvents } from "@/lib/storage";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 function rebuildLeagueTable(event: QuizEvent): LeagueEntry[] {
   return rebuildLeagueTableFromResults(event.pastResults ?? []);
 }
