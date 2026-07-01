@@ -465,12 +465,30 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
     const file = e.target.files?.[0];
     if (!file) return;
     setUploading(true);
-    const fd = new FormData();
-    fd.append("file", file);
-    const res = await fetch("/api/admin/upload", { method: "POST", body: fd });
-    const data = await res.json();
-    if (data.url) set("imageUrl", data.url);
-    setUploading(false);
+    setMsg(null);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/admin/upload", {
+        method: "POST",
+        body: fd,
+        credentials: "same-origin",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setMsg({ text: data.error ?? "Nepodarilo sa nahrať fotku.", ok: false });
+        return;
+      }
+      if (data.url) {
+        set("imageUrl", data.url);
+        setMsg({ text: "Fotka nahraná. Klikni Uložiť zmeny.", ok: true });
+      }
+    } catch {
+      setMsg({ text: "Chyba pri nahrávaní fotky.", ok: false });
+    } finally {
+      setUploading(false);
+      e.target.value = "";
+    }
   };
 
   const tabClass = (t: Tab) =>
