@@ -551,10 +551,6 @@ async function loadEventsBase(): Promise<QuizEvent[]> {
 async function persistEvents(events: QuizEvent[]): Promise<void> {
   if (hasSupabaseStorage()) {
     await supabaseSetEvents({ events });
-    const verify = await supabaseFetchEvents();
-    if (verify.status === "error") {
-      throw new Error(`Overenie zapisu udalosti zlyhalo: ${verify.message}`);
-    }
     return;
   }
   if (shouldWriteBlob()) {
@@ -688,6 +684,84 @@ export async function updateEvents(
 
   await persistEvents(nextBase);
   return { events: nextEnriched };
+}
+
+/** Priame ulozenie jednej udalosti — rovnaky vzor ako addRegistration. */
+export async function patchEvent(
+  slug: string,
+  patch: Partial<QuizEvent>,
+  options?: { includeLeagueData?: boolean }
+): Promise<QuizEvent> {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const base = await loadEventsBase();
+    const idx = base.findIndex((event) => event.slug === slug);
+    if (idx === -1) throw new Error("NOT_FOUND");
+
+    const stored = base[idx];
+    let updated: QuizEvent;
+
+    if (options?.includeLeagueData) {
+      const quizzes = await loadQuizzes();
+      const existing = enrichEventsWithQuizzes(base, quizzes).find((event) => event.slug === slug)!;
+      updated = {
+        ...existing,
+        ...patch,
+        slug,
+        leagueTable: patch.leagueTable ?? existing.leagueTable ?? [],
+        pastResults: patch.pastResults
+          ? mergePastResults(existing.pastResults ?? [], patch.pastResults)
+          : existing.pastResults ?? [],
+        leagueActive: patch.leagueActive ?? existing.leagueActive,
+      };
+    } else {
+      updated = {
+        ...stored,
+        ...patch,
+        slug,
+        leagueTable: stored.leagueTable ?? [],
+        pastResults: stored.pastResults ?? [],
+        leagueActive: stored.leagueActive,
+      };
+    }
+
+    const next = [...base];
+    next[idx] = eventForEventsKey(updated);
+
+    try {
+      await persistEvents(next);
+      const quizzes = await loadQuizzes();
+      const result = enrichEventsWithQuizzes(next, quizzes).find((event) => event.slug === slug);
+      if (!result) throw new Error("NOT_FOUND");
+      return result;
+    } catch (error) {
+      if (attempt === 4) throw error;
+      await sleep(250 * (attempt + 1));
+    }
+  }
+
+  throw new Error("PATCH_EVENT_FAILED");
+}
+
+export async function getEventsStorageMeta(): Promise<{
+  source: string;
+  configured: boolean;
+  eventCount: number;
+}> {
+  if (!hasSupabaseStorage()) {
+    return { source: "local", configured: false, eventCount: readLocalEvents().events.length };
+  }
+  const result = await supabaseFetchEvents();
+  if (result.status === "ok") {
+    return {
+      source: "supabase",
+      configured: true,
+      eventCount: (result.value.events ?? []).length,
+    };
+  }
+  if (result.status === "missing") {
+    return { source: "supabase-missing", configured: true, eventCount: 0 };
+  }
+  return { source: "supabase-error", configured: true, eventCount: 0 };
 }
 
 export async function updateRegistrations(

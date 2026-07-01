@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
-import type { QuizEvent } from "@/lib/data";
 import { normalizeDateKey } from "@/lib/quiz-result-key";
 import { readStoredQuiz, readEvents, updateEvents, upsertStoredQuiz } from "@/lib/storage";
 
@@ -115,6 +114,10 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
 
   revalidatePath("/liga");
   revalidatePath(`/liga/${params.slug}`);
+  revalidatePath("/");
+  revalidatePath(`/udalosti/${params.slug}`);
+  revalidatePath("/api/events");
+  revalidatePath(`/api/events/${params.slug}`);
 
   return NextResponse.json({
     ok: true,
