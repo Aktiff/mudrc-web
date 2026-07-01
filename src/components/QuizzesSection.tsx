@@ -6,14 +6,20 @@ import type { QuizEvent } from "@/lib/data";
 import { isQuizVisible } from "@/lib/data";
 import { formatDuration } from "@/lib/data";
 import RegistrationModal from "./RegistrationModal";
-import Image from "next/image";
+
+function EventCoverImage({ src, alt }: { src: string; alt: string }) {
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={src} alt={alt} className="absolute inset-0 w-full h-full object-cover" loading="lazy" />
+  );
+}
 
 export default function QuizzesSection() {
   const [events, setEvents] = useState<QuizEvent[]>([]);
   const [modalSlug, setModalSlug] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch("/api/events")
+    fetch("/api/events", { cache: "no-store" })
       .then((r) => r.json())
       .then((d) => setEvents(d.events ?? []))
       .catch(() => setEvents([]));
@@ -35,13 +41,13 @@ export default function QuizzesSection() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {visibleEvents.map((event) => (
             <Link key={event.slug} href={`/udalosti/${event.slug}`} className="card group cursor-pointer block">
-              <div className="relative h-44 bg-brand-warm overflow-hidden flex items-center justify-center">
+              <div className="relative w-full aspect-video bg-brand-warm overflow-hidden flex items-center justify-center">
                 {event.imageUrl ? (
-                  <Image src={event.imageUrl} alt={event.venue} fill className="object-cover" />
+                  <EventCoverImage src={event.imageUrl} alt={event.venue} />
                 ) : (
                   <span className="text-7xl opacity-10">🎉</span>
                 )}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent pointer-events-none" />
               </div>
               <div className="p-6">
                 <div className="flex items-start justify-between gap-4 mb-1">
