@@ -5,11 +5,15 @@ import type { QuizEvent } from "@/lib/data";
 import {
   getSupabaseStorageDiagnostics,
   hasSupabaseStorage,
+  supabaseFetchEventLeague,
   supabaseFetchEvents,
   supabaseFetchRegistrations,
+  supabaseSetEventLeague,
   supabaseSetEvents,
   supabaseSetRegistrations,
+  type EventLeagueData,
 } from "@/lib/supabase-storage";
+import { findQuizResult } from "@/lib/quiz-result-key";
 
 const LEGACY_EVENTS_KEY = "mudrc/events.json";
 const LEGACY_REGS_KEY = "mudrc/registrations.json";
@@ -320,13 +324,65 @@ async function listRegistrationBlobIds(): Promise<string[]> {
 async function bootstrapEventsToSupabase(): Promise<QuizEvent[]> {
   const fromBlob = await loadEventsFromBlobOptional();
   const events = fromBlob?.length ? fromBlob : readLocalEvents().events;
-  await supabaseSetEvents({ events });
+  await persistEvents(events);
   return events;
+}
+
+function stripLeagueFields(event: QuizEvent): QuizEvent {
+  return { ...event, pastResults: [], leagueTable: [] };
+}
+
+async function attachLeagueData(events: QuizEvent[]): Promise<QuizEvent[]> {
+  if (!hasSupabaseStorage()) return events;
+
+  return Promise.all(
+    events.map(async (event) => {
+      const league = await supabaseFetchEventLeague(event.slug);
+      if (league.status === "ok") {
+        return {
+          ...event,
+          pastResults: (league.value.pastResults ?? []) as QuizEvent["pastResults"],
+          leagueTable: (league.value.leagueTable ?? []) as QuizEvent["leagueTable"],
+          leagueActive:
+            typeof league.value.leagueActive === "boolean" ? league.value.leagueActive : event.leagueActive,
+        };
+      }
+
+      const hasInline =
+        (event.pastResults?.length ?? 0) > 0 ||
+        (event.leagueTable?.length ?? 0) > 0 ||
+        event.leagueActive !== undefined;
+
+      if (hasInline) {
+        const payload: EventLeagueData = {
+          pastResults: event.pastResults ?? [],
+          leagueTable: event.leagueTable ?? [],
+          leagueActive: event.leagueActive,
+        };
+        try {
+          await supabaseSetEventLeague(event.slug, payload);
+        } catch (error) {
+          console.error(`Migrate league data for ${event.slug} failed:`, error);
+        }
+      }
+
+      return event;
+    })
+  );
 }
 
 async function persistEvents(events: QuizEvent[]): Promise<void> {
   if (hasSupabaseStorage()) {
-    await supabaseSetEvents({ events });
+    await supabaseSetEvents({ events: events.map(stripLeagueFields) });
+    await Promise.all(
+      events.map((event) =>
+        supabaseSetEventLeague(event.slug, {
+          pastResults: event.pastResults ?? [],
+          leagueTable: event.leagueTable ?? [],
+          leagueActive: event.leagueActive,
+        })
+      )
+    );
     return;
   }
   if (shouldWriteBlob()) {
@@ -343,7 +399,8 @@ async function loadEvents(): Promise<QuizEvent[]> {
   if (hasSupabaseStorage()) {
     const result = await supabaseFetchEvents();
     if (result.status === "ok") {
-      return (result.value.events ?? []) as QuizEvent[];
+      const base = (result.value.events ?? []) as QuizEvent[];
+      return attachLeagueData(base);
     }
     if (result.status === "error") {
       throw new Error(`Nepodarilo sa nacitat kvízy zo Supabase: ${result.message}`);
@@ -568,3 +625,12 @@ export async function deleteRegistrationsByIds(ids: string[]): Promise<number> {
 }
 
 export { mergeEventPreserve };
+
+export async function readQuizResult(slug: string, quizParam: string) {
+  const { events } = await readEvents();
+  const event = events.find((e) => e.slug === slug);
+  if (!event) return null;
+  const result = findQuizResult(event.pastResults ?? [], quizParam);
+  if (!result?.teams?.length) return null;
+  return { event, result };
+}

@@ -3,7 +3,6 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { ChevronLeft, Trash2, Pencil, X, Plus, Save } from "lucide-react";
 import type { QuizEvent, PastResultTeam } from "@/lib/data";
-import { findQuizResult } from "@/lib/quiz-result-key";
 import { TeamAutocomplete } from "@/components/TeamAutocomplete";
 import { AdminDatePicker } from "@/components/AdminDatePicker";
 
@@ -16,11 +15,13 @@ type ResultDetail = {
 
 type EditRow = { name: string; scores: number[] };
 
-async function loadEvent(slug: string): Promise<QuizEvent | null> {
-  const res = await fetch(`/api/admin/events?_=${Date.now()}`, { cache: "no-store" });
+async function loadQuizDetail(slug: string, quizParam: string) {
+  const res = await fetch(
+    `/api/admin/events/${slug}/kviz/${encodeURIComponent(quizParam)}?_=${Date.now()}`,
+    { cache: "no-store" }
+  );
   if (!res.ok) return null;
-  const data = await res.json();
-  return data.events?.find((e: QuizEvent) => e.slug === slug) ?? null;
+  return res.json() as Promise<{ event: QuizEvent; result: ResultDetail & { teams: PastResultTeam[] } }>;
 }
 
 export default function AdminQuizDetailPage({ params }: { params: { slug: string; date: string } }) {
@@ -39,22 +40,15 @@ export default function AdminQuizDetailPage({ params }: { params: { slug: string
 
   const loadData = async () => {
     setLoadError("");
-    const event = await loadEvent(params.slug);
-    if (!event) {
-      setLoadError("Udalosť sa nepodarilo načítať.");
+    const data = await loadQuizDetail(params.slug, params.date);
+    if (!data?.result?.teams?.length) {
+      setLoadError("Kvíz nebol nájdený. Možno bol zmazaný alebo ešte nebol uložený do databázy.");
       setLoading(false);
       return;
     }
-    setKnownTeams(event.leagueTable.map((e) => e.teamName));
-    setRounds(event.rounds || 4);
-    const r = findQuizResult(event.pastResults, params.date);
-    if (r?.teams?.length) {
-      setResult(r as ResultDetail);
-    } else if (r) {
-      setLoadError("Kvíz existuje, ale chýbajú dáta tímov. Skús obnoviť stránku udalosti.");
-    } else {
-      setLoadError("Kvíz nebol nájdený. Možno bol zmazaný alebo ešte nebol uložený do databázy.");
-    }
+    setKnownTeams(data.event.leagueTable.map((e) => e.teamName));
+    setRounds(data.event.rounds || 4);
+    setResult(data.result as ResultDetail);
     setLoading(false);
   };
 

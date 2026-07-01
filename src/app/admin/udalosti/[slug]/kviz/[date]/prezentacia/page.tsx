@@ -1,8 +1,7 @@
 "use client";
 import { useState, useEffect, useLayoutEffect, useRef, useMemo, type CSSProperties } from "react";
 import Link from "next/link";
-import type { QuizEvent, PastResultTeam } from "@/lib/data";
-import { findQuizResult, quizResultKey } from "@/lib/quiz-result-key";
+import type { PastResultTeam } from "@/lib/data";
 
 type TeamDisplay = PastResultTeam & { totalWithBonus: number; rowId: number };
 type ScoreGroup = { teams: TeamDisplay[]; baseTotal: number; startRank: number };
@@ -51,17 +50,18 @@ export default function PrezentaciaPage({ params }: { params: { slug: string; da
   }, []);
 
   useEffect(() => {
-    fetch(`/api/admin/events?_=${Date.now()}`, { cache: "no-store" })
-      .then((r) => r.json())
+    fetch(`/api/admin/events/${params.slug}/kviz/${encodeURIComponent(params.date)}?_=${Date.now()}`, {
+      cache: "no-store",
+    })
+      .then(async (r) => {
+        if (!r.ok) return null;
+        return r.json();
+      })
       .then((data) => {
-        const event: QuizEvent = data.events.find((e: QuizEvent) => e.slug === params.slug);
-        if (event) {
-          const r = findQuizResult(event.pastResults, params.date);
-          if (r?.teams?.length) {
-            setTeams(r.teams);
-            setQuizDate(r.date);
-            setQuizKey(quizResultKey(r));
-          }
+        if (data?.result?.teams?.length) {
+          setTeams(data.result.teams);
+          setQuizDate(data.result.date);
+          setQuizKey(decodeURIComponent(params.date));
         }
         setLoading(false);
       });

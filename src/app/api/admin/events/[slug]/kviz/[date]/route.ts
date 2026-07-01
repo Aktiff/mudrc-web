@@ -1,11 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { findQuizResultIndex } from "@/lib/quiz-result-key";
-import { updateEvents } from "@/lib/storage";
+import { readQuizResult, updateEvents } from "@/lib/storage";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 type TeamEntry = { name: string; scores: number[]; total?: number };
+
+export async function GET(_req: NextRequest, { params }: { params: { slug: string; date: string } }) {
+  const data = await readQuizResult(params.slug, params.date);
+  if (!data) {
+    return NextResponse.json({ error: "Kvíz nebol nájdený alebo nemá dáta tímov." }, { status: 404 });
+  }
+  return NextResponse.json(data, {
+    headers: { "Cache-Control": "no-store, no-cache, must-revalidate" },
+  });
+}
 
 function calcLigaPoints(teams: TeamEntry[]): { name: string; scores: number[]; total: number; ligaPoints: number }[] {
   const withTotals = teams.map((t) => ({

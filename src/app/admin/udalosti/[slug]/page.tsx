@@ -5,7 +5,7 @@ import { Plus, Trash2, ChevronLeft, Save, PauseCircle, PlayCircle, Upload, Image
 import Link from "next/link";
 import type { QuizEvent, LeagueEntry, PastResult } from "@/lib/data";
 import { sortLeagueTable } from "@/lib/data";
-import { mergePastResults, quizResultKey } from "@/lib/quiz-result-key";
+import { findQuizResult, mergePastResults, normalizeDateKey, quizResultKey } from "@/lib/quiz-result-key";
 import { AdminDatePicker, AdminTimePicker } from "@/components/AdminDatePicker";
 import { TeamAutocomplete } from "@/components/TeamAutocomplete";
 
@@ -128,8 +128,10 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
 
       const fresh = await loadEventFromServer(params.slug);
       const savedEvent = fresh ?? (data.event ? normalizeEvent(data.event as QuizEvent) : null);
-      const savedQuiz = savedEvent?.pastResults?.find((r) => r.date === quizDate);
-      if (!savedEvent || !savedQuiz || !(savedQuiz.teams?.length ?? 0)) {
+      const savedQuiz = savedEvent
+        ? findQuizResult(savedEvent.pastResults ?? [], normalizeDateKey(quizDate))
+        : undefined;
+      if (!savedEvent || !savedQuiz?.teams?.length) {
         setQuizMsg({ text: "Kvíz sa nepodarilo uložiť. Skús znova alebo obnov stránku.", ok: false });
         setMsg({ text: "Kvíz sa nepodarilo uložiť. Skús znova alebo obnov stránku.", ok: false });
         return;
