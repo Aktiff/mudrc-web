@@ -72,12 +72,14 @@ export function TeamAutocomplete({ value, onChange, suggestions, placeholder, cl
         autoComplete="off"
       />
       {showDropdown && (
-        <ul className="absolute z-50 top-full mt-1 left-0 right-0 bg-white border border-stone-200 rounded-xl shadow-lg overflow-hidden">
+        <ul className="absolute z-50 top-full mt-1 left-0 right-0 bg-brand-card border border-brand-border rounded-xl shadow-lg overflow-hidden">
           {filtered.map((s, i) => (
             <li
               key={s}
               className={`px-3 py-2 text-sm cursor-pointer transition-colors ${
-                i === highlighted ? "bg-brand-warm text-brand-orange font-semibold" : "text-stone-700 hover:bg-stone-50"
+                i === highlighted
+                  ? "bg-brand-orange text-brand-btn-fg font-semibold"
+                  : "text-brand-text hover:bg-brand-hover"
               }`}
               onMouseDown={(e) => { e.preventDefault(); select(s); }}
               onMouseEnter={() => setHighlighted(i)}
