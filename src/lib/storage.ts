@@ -296,21 +296,21 @@ async function saveEventsDiff(before: QuizEvent[], after: QuizEvent[], destructi
   const afterMap = new Map(after.map((event) => [event.slug, event]));
 
   if (destructive) {
-    for (const slug of beforeMap.keys()) {
+    for (const slug of Array.from(beforeMap.keys())) {
       if (!afterMap.has(slug)) {
         await deleteBlob(eventBlobKey(slug));
       }
     }
   }
 
-  for (const [slug, event] of afterMap) {
+  for (const [slug, event] of Array.from(afterMap.entries())) {
     const prev = beforeMap.get(slug);
     if (!prev || JSON.stringify(prev) !== JSON.stringify(event)) {
       await writeBlob(eventBlobKey(slug), event);
     }
   }
 
-  await writeBlob(EVENTS_MANIFEST_KEY, { slugs: [...afterMap.keys()] } satisfies EventsManifest);
+  await writeBlob(EVENTS_MANIFEST_KEY, { slugs: Array.from(afterMap.keys()) } satisfies EventsManifest);
 }
 
 async function saveRegsDiff(before: Registration[], after: Registration[], destructive?: boolean): Promise<void> {
@@ -323,7 +323,7 @@ async function saveRegsDiff(before: Registration[], after: Registration[], destr
   const afterIds = new Set(after.map((reg) => reg.id));
 
   if (destructive) {
-    for (const id of beforeIds) {
+    for (const id of Array.from(beforeIds)) {
       if (!afterIds.has(id)) {
         await deleteBlob(regBlobKey(id));
       }
@@ -338,7 +338,7 @@ async function saveRegsDiff(before: Registration[], after: Registration[], destr
     }
   }
 
-  await writeBlob(REGS_MANIFEST_KEY, { ids: [...afterIds] } satisfies RegsManifest);
+  await writeBlob(REGS_MANIFEST_KEY, { ids: Array.from(afterIds) } satisfies RegsManifest);
 }
 
 async function loadEvents(): Promise<QuizEvent[]> {
@@ -565,7 +565,7 @@ export async function deleteRegistrationsByIds(ids: string[]): Promise<number> {
 
   if (useBlob) {
     let removed = 0;
-    for (const id of idSet) {
+    for (const id of Array.from(idSet)) {
       const existing = await readBlob<Registration>(regBlobKey(id));
       if (!existing) continue;
       await deleteBlob(regBlobKey(id));
