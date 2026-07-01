@@ -6,6 +6,7 @@ import {
   hasPersistentStorage,
   readRegistrations,
 } from "@/lib/storage";
+import { sendRegistrationEmail } from "@/lib/registration-email";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -40,7 +41,6 @@ export async function POST(req: NextRequest) {
 
   try {
     await addRegistration(reg);
-    return NextResponse.json({ ok: true });
   } catch (error) {
     console.error("addRegistration failed:", error);
     const message = error instanceof Error ? error.message : "Neznáma chyba";
@@ -53,6 +53,13 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     );
   }
+
+  const emailResult = await sendRegistrationEmail(reg);
+  if (!emailResult.ok) {
+    console.warn("Registration saved but notification email was not sent:", reg.id, emailResult.error);
+  }
+
+  return NextResponse.json({ ok: true });
 }
 
 export async function GET(req: NextRequest) {
