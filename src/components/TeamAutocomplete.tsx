@@ -15,7 +15,7 @@ function normalizeSearch(text: string): string {
     .trim()
     .toLowerCase()
     .normalize("NFD")
-    .replace(/\p{M}/gu, "");
+    .replace(/[\u0300-\u036f]/g, "");
 }
 
 function matchesSuggestion(query: string, suggestion: string): boolean {
