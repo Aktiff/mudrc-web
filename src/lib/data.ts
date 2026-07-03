@@ -38,6 +38,17 @@ export function formatDuration(minutes: number): string {
   return `${h} hod. ${m} min.`;
 }
 
+const SK_WEEKDAYS = ["nedeľa", "pondelok", "utorok", "streda", "štvrtok", "piatok", "sobota"] as const;
+
+export function formatSkWeekday(date: string): string | null {
+  const match = date.trim().match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+  if (!match) return null;
+  const [, day, month, year] = match;
+  const parsed = new Date(Number(year), Number(month) - 1, Number(day));
+  if (Number.isNaN(parsed.getTime())) return null;
+  return SK_WEEKDAYS[parsed.getDay()];
+}
+
 export function isQuizVisible(event: QuizEvent): boolean {
   return event.active !== false;
 }
