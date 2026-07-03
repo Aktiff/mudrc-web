@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { findQuizResultIndex, normalizeDateKey } from "@/lib/quiz-result-key";
-import { deleteStoredQuiz, readQuizResult, updateEvents, upsertStoredQuiz } from "@/lib/storage";
+import { revalidatePublicEventPaths } from "@/lib/revalidate-public";
+import { deleteStoredQuiz, readQuizResult, rebuildLeagueTableForEvent, updateEvents, upsertStoredQuiz } from "@/lib/storage";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -171,9 +172,8 @@ export async function DELETE(_req: NextRequest, { params }: { params: { slug: st
         const resultIdx = findQuizResultIndex(event.pastResults, params.date);
         if (resultIdx === -1) throw new Error("RESULT_NOT_FOUND");
 
-        const oldResult = event.pastResults[resultIdx];
         const table = [...(event.leagueTable ?? [])];
-        reverseQuizFromTable(table, oldResult);
+        reverseQuizFromTable(table, existing.result);
         table.sort((a, b) => b.points - a.points || b.quizzesPlayed - a.quizzesPlayed);
         table.forEach((r, rank) => {
           r.rank = rank + 1;
@@ -185,6 +185,24 @@ export async function DELETE(_req: NextRequest, { params }: { params: { slug: st
       },
       { destructive: true }
     );
+
+    const { events } = await updateEvents((events) => events);
+    const event = events.find((entry) => entry.slug === params.slug);
+    if (event) {
+      const rebuilt = await rebuildLeagueTableForEvent(event);
+      if (rebuilt.length > 0) {
+        await updateEvents((all) =>
+          all.map((entry) =>
+            entry.slug === params.slug ? { ...entry, leagueTable: rebuilt, leagueActive: true } : entry
+          )
+        );
+      }
+    }
+
+    await revalidatePublicEventPaths(params.slug);
+    revalidatePath("/liga");
+    revalidatePath(`/liga/${params.slug}`);
+
     return NextResponse.json({ ok: true });
   } catch (error) {
     if (error instanceof Error && error.message === "NOT_FOUND") {

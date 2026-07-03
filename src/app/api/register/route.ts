@@ -59,7 +59,14 @@ export async function POST(req: NextRequest) {
     console.warn("Registration saved but notification email was not sent:", reg.id, emailResult.error);
   }
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({
+    ok: true,
+    emailSent: emailResult.ok,
+    emailId: emailResult.id,
+    emailWarning: emailResult.ok
+      ? undefined
+      : emailResult.error ?? "Notifikačný e-mail sa nepodarilo odoslať.",
+  });
 }
 
 export async function GET(req: NextRequest) {

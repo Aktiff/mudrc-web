@@ -3,7 +3,7 @@ import type { QuizEvent, LeagueEntry } from "@/lib/data";
 import { rebuildLeagueTableFromResults, sortLeagueTable } from "@/lib/data";
 import { mergePastResults } from "@/lib/quiz-result-key";
 import { revalidatePublicEventPaths } from "@/lib/revalidate-public";
-import { patchEvent, updateEvents } from "@/lib/storage";
+import { patchEvent, rebuildLeagueTableForEvent, updateEvents } from "@/lib/storage";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -86,6 +86,26 @@ export async function PUT(req: NextRequest, { params }: { params: { slug: string
 
   try {
     if (resetLeague || leagueToggle || quizToggle || recalculateLeague) {
+      const fromQuizzes = body.fromQuizzes === true;
+      let rebuiltFromQuizzes: LeagueEntry[] | null = null;
+      if (recalculateLeague && fromQuizzes) {
+        const { events: currentEvents } = await updateEvents((events) => events);
+        const current = currentEvents.find((event) => event.slug === params.slug);
+        if (!current) {
+          return NextResponse.json({ error: "Not found" }, { status: 404 });
+        }
+        rebuiltFromQuizzes = await rebuildLeagueTableForEvent(current);
+        if (rebuiltFromQuizzes.length === 0 && (current.leagueTable?.length ?? 0) > 0) {
+          return NextResponse.json(
+            {
+              error:
+                "Ligu sa nepodarilo prepočítať z kvízov — chýbajú detailné dáta tímov. Liga nebola zmenená. Použi „Obnoviť ligu zo zálohy“ alebo kontaktuj podporu.",
+            },
+            { status: 400 }
+          );
+        }
+      }
+
       const { events } = await updateEvents(
         (events) => {
           const idx = events.findIndex((e) => e.slug === params.slug);
@@ -135,11 +155,10 @@ export async function PUT(req: NextRequest, { params }: { params: { slug: string
           }
 
           if (recalculateLeague) {
-            const fromQuizzes = body.fromQuizzes === true;
             const pastResults = existing.pastResults ?? [];
-            let leagueTable =
-              fromQuizzes && pastResults.length > 0
-                ? rebuildLeagueTable(existing)
+            const leagueTable =
+              fromQuizzes && rebuiltFromQuizzes
+                ? rebuiltFromQuizzes
                 : sortLeagueTable(existing.leagueTable ?? []);
 
             events[idx] = {

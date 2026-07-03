@@ -7,6 +7,7 @@ import type { QuizEvent, LeagueEntry, PastResult } from "@/lib/data";
 import { sortLeagueTable } from "@/lib/data";
 import { findQuizResult, mergePastResults, normalizeDateKey, quizResultKey } from "@/lib/quiz-result-key";
 import { REGION_OPTIONS } from "@/lib/regions";
+import { hasSeedLeagueBackup } from "@/lib/league-seed";
 import { AdminDatePicker, AdminTimePicker } from "@/components/AdminDatePicker";
 import { TeamAutocomplete } from "@/components/TeamAutocomplete";
 
@@ -369,6 +370,14 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
   };
 
   const recalculateLeague = async (fromQuizzes = false) => {
+    if (
+      fromQuizzes &&
+      !confirm(
+        "Prepočítať ligu z uložených kvízov? Ak chýbajú detailné dáta tímov, operácia sa zruší a liga zostane nezmenená."
+      )
+    ) {
+      return;
+    }
     setRecalculating(true);
     setMsg(null);
     try {
@@ -387,6 +396,38 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
       }
     } catch {
       setMsg({ text: "Sieťová chyba pri prepočítaní", ok: false });
+    } finally {
+      setRecalculating(false);
+    }
+  };
+
+  const restoreLeagueFromSeed = async () => {
+    if (
+      !confirm(
+        "Obnoviť ligu zo zálohy v projekte? Prepíše aktuálnu ligovú tabuľku a súhrnné výsledky (napr. 32 tímov pre Alipub)."
+      )
+    ) {
+      return;
+    }
+    setRecalculating(true);
+    setMsg(null);
+    try {
+      const res = await fetch(`/api/admin/events/${params.slug}/restore-league`, {
+        method: "POST",
+        cache: "no-store",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setForm(normalizeEvent(data.event));
+        setMsg({
+          text: `Liga obnovená (${data.restoredTeams} tímov, ${data.restoredResults} výsledkov). Skontroluj tabuľku a klikni Uložiť zmeny, ak treba.`,
+          ok: true,
+        });
+      } else {
+        setMsg({ text: data.error ?? "Obnova ligy zlyhala.", ok: false });
+      }
+    } catch {
+      setMsg({ text: "Sieťová chyba pri obnove ligy.", ok: false });
     } finally {
       setRecalculating(false);
     }
@@ -681,6 +722,16 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
                 <Trash2 className="w-4 h-4" />
                 Resetovať ligu
               </button>
+              {!isNew && form.leagueTable.length === 0 && hasSeedLeagueBackup(params.slug) && (
+                <button
+                  onClick={restoreLeagueFromSeed}
+                  disabled={recalculating}
+                  className="flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded-xl border border-green-500/40 text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-950/30 hover:bg-green-100 dark:hover:bg-green-950/50 transition-colors disabled:opacity-40"
+                >
+                  <RefreshCw className={`w-4 h-4 ${recalculating ? "animate-spin" : ""}`} />
+                  Obnoviť ligu zo zálohy
+                </button>
+              )}
             </div>
           )}
           {form.leagueTable.length > 0 && (
@@ -694,7 +745,10 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
           )}
           <div className="space-y-2 mb-4">
             {form.leagueTable.length === 0 && (
-              <p className="text-brand-muted text-sm py-4 text-center">Zatiaľ žiadne tímy. Pridaj prvý tím.</p>
+              <p className="text-brand-muted text-sm py-4 text-center">
+                Zatiaľ žiadne tímy v lige.
+                {hasSeedLeagueBackup(params.slug) ? " Klikni „Obnoviť ligu zo zálohy“ vyššie." : " Pridaj prvý tím alebo pridaj kvíz."}
+              </p>
             )}
             {form.leagueTable.map((row, i) => (
               <div key={i} className="grid grid-cols-[2rem_1fr_6rem_6rem_2rem] gap-2 items-center">
