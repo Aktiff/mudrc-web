@@ -283,18 +283,21 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
 
   const resetPollVotes = async () => {
     if ((pollAdmin?.teamCount ?? 0) === 0) return;
-    if (!confirm(`Naozaj vymazať všetky hlasy (${pollAdmin?.teamCount} tímov)? Anketa ostane, tímy budú môcť hlasovať znova.`)) return;
+    if (!confirm(`Naozaj vymazať všetky hlasy (${pollAdmin?.teamCount} tímov)? Anketa ostane zapnutá, termíny sa nezmenia.`)) return;
 
     setPollResetting(true);
     try {
-      const res = await fetch(`/api/admin/poll?slug=${encodeURIComponent(params.slug)}`, { method: "DELETE" });
+      const res = await fetch(
+        `/api/admin/poll?slug=${encodeURIComponent(params.slug)}&venue=${encodeURIComponent(form.venue)}`,
+        { method: "DELETE" }
+      );
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setMsg({ text: data.error ?? "Nepodarilo sa resetovať anketu.", ok: false });
+        setMsg({ text: data.error ?? "Nepodarilo sa resetovať hlasy.", ok: false });
         return;
       }
-      loadPollAdmin();
-      setMsg({ text: `Vymazané hlasy ${data.removed ?? 0} tímov.`, ok: true });
+      applyPollAdminData(data);
+      setMsg({ text: `Vymazané hlasy ${data.removed ?? 0} tímov. Anketa ostáva aktívna.`, ok: true });
     } finally {
       setPollResetting(false);
     }
@@ -1201,7 +1204,7 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
                     className="flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded-xl border border-red-200 dark:border-red-900 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors disabled:opacity-50"
                   >
                     <Trash2 className="w-4 h-4" />
-                    {pollResetting ? "Mažem…" : "Resetovať celú anketu"}
+                    {pollResetting ? "Mažem…" : "Resetovať hlasy"}
                   </button>
                 </div>
               )}
