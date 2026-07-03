@@ -9,6 +9,7 @@ import { formatPollOptionLabel, pollOptionsMatch } from "@/lib/poll";
 import { findQuizResult, mergePastResults, normalizeDateKey, quizResultKey } from "@/lib/quiz-result-key";
 import { REGION_OPTIONS } from "@/lib/regions";
 import { AdminDatePicker, AdminTimePicker } from "@/components/AdminDatePicker";
+import { PollAdminMultiDatePicker } from "@/components/PollAdminMultiDatePicker";
 import { TeamAutocomplete } from "@/components/TeamAutocomplete";
 
 type Tab = "info" | "liga" | "vysledky" | "pravidla" | "pridat" | "registracie" | "anketa";
@@ -95,7 +96,7 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
   const [pollToggling, setPollToggling] = useState(false);
   const [pollResetting, setPollResetting] = useState(false);
   const [deletingPollTeam, setDeletingPollTeam] = useState<string | null>(null);
-  const [pollDateDraft, setPollDateDraft] = useState("");
+  const [pollSelectedDates, setPollSelectedDates] = useState<string[]>([]);
   const [pollOptionsSaving, setPollOptionsSaving] = useState(false);
 
   const loadRegistrations = () => {
@@ -218,16 +219,18 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
   }, [params.slug, form.venue, isNew]);
 
   const applyPollAdminData = (data: Record<string, unknown>) => {
+    const configOptions = (data.configOptions as string[]) ?? [];
     setPollAdmin({
       config: data.config ? { active: (data.config as { active: boolean; title: string }).active, title: (data.config as { active: boolean; title: string }).title } : null,
       votes: (data.votes as PollAdminState["votes"]) ?? [],
       teamCount: (data.teamCount as number) ?? 0,
       upcomingOptions: (data.upcomingOptions as string[]) ?? [],
-      configOptions: (data.configOptions as string[]) ?? [],
+      configOptions,
       publicPath: (data.publicPath as string) ?? "",
       storage: (data.storage as PollAdminState["storage"]) ?? "unconfigured",
       publicVisible: (data.publicVisible as boolean) ?? false,
     });
+    setPollSelectedDates(configOptions);
   };
 
   const loadPollAdmin = () => {
@@ -317,26 +320,14 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
     }
   };
 
-  const addPollDate = async () => {
-    if (!pollDateDraft.trim()) {
-      setMsg({ text: "Vyber dátum v kalendári.", ok: false });
-      return;
-    }
-    const current = pollAdmin?.configOptions ?? [];
-    if (current.some((option) => pollOptionsMatch(option, pollDateDraft))) {
-      setMsg({ text: "Tento termín už v ankete je.", ok: false });
-      return;
-    }
-    const ok = await savePollOptions([...current, pollDateDraft]);
-    if (ok) {
-      setPollDateDraft("");
-      setMsg({ text: "Termín pridaný do ankety.", ok: true });
-    }
+  const saveSelectedPollDates = async () => {
+    const ok = await savePollOptions(pollSelectedDates);
+    if (ok) setMsg({ text: `Uložených ${pollSelectedDates.length} termínov.`, ok: true });
   };
 
   const removePollDate = async (option: string) => {
     const current = pollAdmin?.configOptions ?? [];
-    const next = current.filter((entry) => entry !== option);
+    const next = current.filter((entry) => !pollOptionsMatch(entry, option));
     const ok = await savePollOptions(next);
     if (ok) setMsg({ text: "Termín odstránený z ankety.", ok: true });
   };
@@ -1134,29 +1125,21 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
                 <div>
                   <h3 className="font-display text-xl text-brand-text tracking-wide">Termíny v ankete</h3>
                   <p className="text-brand-muted text-sm mt-2">
-                    Vyber konkrétne dni v kalendári — môžeš pridať piatky, utorky alebo akýkoľvek iný termín.
+                    Otvor kalendár, označ viac termínov naraz (napr. všetky piatky) a potom klikni „Uložiť termíny“.
                   </p>
                 </div>
 
-                <div className="flex flex-wrap items-end gap-3">
-                  <div className="min-w-[220px]">
-                    <label className="label">Pridať termín</label>
-                    <AdminDatePicker value={pollDateDraft} onChange={setPollDateDraft} placeholder="Vyber dátum" />
-                  </div>
-                  <button
-                    type="button"
-                    onClick={addPollDate}
-                    disabled={pollOptionsSaving || !pollDateDraft}
-                    className="btn-primary px-4 py-2.5 flex items-center gap-2 disabled:opacity-50"
-                  >
-                    <Plus className="w-4 h-4" />
-                    {pollOptionsSaving ? "Ukladám…" : "Pridať termín"}
-                  </button>
-                </div>
+                <PollAdminMultiDatePicker
+                  selected={pollSelectedDates}
+                  onChange={setPollSelectedDates}
+                  onSave={saveSelectedPollDates}
+                  saving={pollOptionsSaving}
+                />
 
-                {(pollAdmin.configOptions.length > 0 ? pollAdmin.configOptions : pollAdmin.upcomingOptions).length > 0 ? (
-                  <div className="space-y-2">
-                    {(pollAdmin.configOptions.length > 0 ? pollAdmin.configOptions : pollAdmin.upcomingOptions).map((option) => {
+                {pollAdmin.configOptions.length > 0 ? (
+                  <div className="space-y-2 pt-2 border-t border-brand-border">
+                    <p className="text-brand-muted text-xs uppercase tracking-wider">Uložené termíny</p>
+                    {pollAdmin.configOptions.map((option) => {
                       const isPast = !pollAdmin.upcomingOptions.some((entry) => pollOptionsMatch(entry, option));
                       return (
                         <div
@@ -1165,7 +1148,11 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
                         >
                           <div>
                             <div className="font-medium text-brand-text">{formatPollOptionLabel(option)}</div>
-                            {isPast && <div className="text-xs text-brand-muted mt-1">Minulý termín — na verejnej stránke sa nezobrazí.</div>}
+                            {isPast && (
+                              <div className="text-xs text-brand-muted mt-1">
+                                Minulý termín — na verejnej stránke sa nezobrazí.
+                              </div>
+                            )}
                           </div>
                           <button
                             type="button"
@@ -1182,7 +1169,7 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
                   </div>
                 ) : (
                   <p className="text-brand-muted text-sm py-4 text-center border border-dashed border-brand-border rounded-xl">
-                    Zatiaľ žiadne termíny. Pridaj aspoň jeden budúci dátum, aby sa anketa zobrazila na webe.
+                    Zatiaľ žiadne uložené termíny. Vyber dátumy v kalendári a ulož ich naraz.
                   </p>
                 )}
               </div>
