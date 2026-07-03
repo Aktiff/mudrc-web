@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Trash2, ChevronLeft, Save, PauseCircle, PlayCircle, Upload, ImageIcon, Phone, Users, Clock, RefreshCw, Vote, ExternalLink } from "lucide-react";
 import Link from "next/link";
@@ -13,6 +13,13 @@ import { PollAdminMultiDatePicker } from "@/components/PollAdminMultiDatePicker"
 import { TeamAutocomplete } from "@/components/TeamAutocomplete";
 
 type Tab = "info" | "liga" | "vysledky" | "pravidla" | "pridat" | "registracie" | "anketa";
+
+const VALID_TABS: Tab[] = ["info", "liga", "vysledky", "pravidla", "pridat", "registracie", "anketa"];
+
+function parseTab(value: string | null): Tab {
+  if (value && VALID_TABS.includes(value as Tab)) return value as Tab;
+  return "info";
+}
 
 type PollAdminState = {
   config: { active: boolean; title: string } | null;
@@ -69,7 +76,7 @@ function formatDuration(minutes: number): string {
 export default function EditEventPage({ params }: { params: { slug: string } }) {
   const router = useRouter();
   const isNew = params.slug === "nova";
-  const [tab, setTab] = useState<Tab>("info");
+  const [tab, setTabState] = useState<Tab>("info");
   const [saving, setSaving] = useState(false);
   const [recalculating, setRecalculating] = useState(false);
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
@@ -98,6 +105,22 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
   const [deletingPollTeam, setDeletingPollTeam] = useState<string | null>(null);
   const [pollSelectedDates, setPollSelectedDates] = useState<string[]>([]);
   const [pollOptionsSaving, setPollOptionsSaving] = useState(false);
+
+  useEffect(() => {
+    setTabState(parseTab(new URLSearchParams(window.location.search).get("tab")));
+  }, [params.slug]);
+
+  const setTab = useCallback(
+    (next: Tab) => {
+      setTabState(next);
+      const query = new URLSearchParams(window.location.search);
+      if (next === "info") query.delete("tab");
+      else query.set("tab", next);
+      const qs = query.toString();
+      router.replace(`/admin/udalosti/${params.slug}${qs ? `?${qs}` : ""}`, { scroll: false });
+    },
+    [params.slug, router]
+  );
 
   const loadRegistrations = () => {
     setRegsLoading(true);
