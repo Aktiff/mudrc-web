@@ -15,6 +15,7 @@ export const metadata: Metadata = {
     title: DEFAULT_SITE_TITLE,
     description: DEFAULT_SITE_DESCRIPTION,
     url: absoluteUrl("/"),
+    type: "website",
     images: [
       {
         url: "/opengraph-image",
