@@ -7,7 +7,6 @@ import type { QuizEvent, LeagueEntry, PastResult } from "@/lib/data";
 import { sortLeagueTable } from "@/lib/data";
 import { findQuizResult, mergePastResults, normalizeDateKey, quizResultKey } from "@/lib/quiz-result-key";
 import { REGION_OPTIONS } from "@/lib/regions";
-import { hasSeedLeagueBackup } from "@/lib/league-seed";
 import { AdminDatePicker, AdminTimePicker } from "@/components/AdminDatePicker";
 import { TeamAutocomplete } from "@/components/TeamAutocomplete";
 
@@ -722,7 +721,7 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
                 <Trash2 className="w-4 h-4" />
                 Resetovať ligu
               </button>
-              {!isNew && form.leagueTable.length === 0 && hasSeedLeagueBackup(params.slug) && (
+              {!isNew && form.leagueTable.length === 0 && (
                 <button
                   onClick={restoreLeagueFromSeed}
                   disabled={recalculating}
@@ -746,8 +745,7 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
           <div className="space-y-2 mb-4">
             {form.leagueTable.length === 0 && (
               <p className="text-brand-muted text-sm py-4 text-center">
-                Zatiaľ žiadne tímy v lige.
-                {hasSeedLeagueBackup(params.slug) ? " Klikni „Obnoviť ligu zo zálohy“ vyššie." : " Pridaj prvý tím alebo pridaj kvíz."}
+                Zatiaľ žiadne tímy v lige. Ak si omylom vymazal tabuľku, skús zelené tlačidlo „Obnoviť ligu zo zálohy“ vyššie.
               </p>
             )}
             {form.leagueTable.map((row, i) => (
