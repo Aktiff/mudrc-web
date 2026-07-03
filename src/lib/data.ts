@@ -98,3 +98,28 @@ export function rebuildLeagueTableFromResults(pastResults: PastResult[]): League
 export function getVisibleLeagues(events: QuizEvent[]): QuizEvent[] {
   return events.filter(isLeagueVisible);
 }
+
+export function collectEventTeamNames(event: QuizEvent, extra: string[] = []): string[] {
+  const names = new Set<string>();
+
+  for (const entry of event.leagueTable ?? []) {
+    const name = entry.teamName?.trim();
+    if (name) names.add(name);
+  }
+
+  for (const result of event.pastResults ?? []) {
+    const winner = result.winnerTeam?.trim();
+    if (winner) names.add(winner);
+    for (const team of result.teams ?? []) {
+      const name = team.teamName?.trim();
+      if (name) names.add(name);
+    }
+  }
+
+  for (const name of extra) {
+    const trimmed = name?.trim();
+    if (trimmed) names.add(trimmed);
+  }
+
+  return Array.from(names).sort((a, b) => a.localeCompare(b, "sk"));
+}
