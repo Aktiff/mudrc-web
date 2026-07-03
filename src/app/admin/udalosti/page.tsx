@@ -1,12 +1,14 @@
 import Link from "next/link";
-import { Plus, Calendar, PauseCircle, ChevronRight } from "lucide-react";
+import { Plus, Calendar, ChevronRight } from "lucide-react";
 import { RestoreMissingEvents } from "@/components/admin/RestoreMissingEvents";
+import { getPollActiveFlagsBySlug } from "@/lib/poll-storage";
 import { listMissingSeedEvents, readEvents } from "@/lib/storage";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminUdalostitPage() {
   const [{ events }, missing] = await Promise.all([readEvents(), listMissingSeedEvents()]);
+  const pollActiveBySlug = await getPollActiveFlagsBySlug(events.map((event) => event.slug));
 
   return (
     <div className="max-w-4xl">
@@ -39,16 +41,33 @@ export default async function AdminUdalostitPage() {
                     <span className="font-semibold text-brand-text group-hover:text-brand-orange-readable transition-colors">
                       {e.venue}
                     </span>
-                    {!e.active && (
-                      <span className="flex items-center gap-1 text-xs text-amber-600 bg-amber-50 dark:bg-amber-950/40 dark:text-amber-300 px-2 py-0.5 rounded-full">
-                        <PauseCircle className="w-3 h-3" /> Kvíz vypnutý
-                      </span>
-                    )}
-                    {e.leagueActive === false && (
-                      <span className="text-xs text-brand-muted bg-brand-surface px-2 py-0.5 rounded-full border border-brand-border">
-                        Liga vypnutá
-                      </span>
-                    )}
+                    <span
+                      className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
+                        e.active
+                          ? "bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-300"
+                          : "bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300"
+                      }`}
+                    >
+                      {e.active ? "Kvíz aktívny" : "Kvíz vypnutý"}
+                    </span>
+                    <span
+                      className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
+                        e.leagueActive !== false
+                          ? "bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300"
+                          : "bg-brand-surface text-brand-muted border border-brand-border"
+                      }`}
+                    >
+                      {e.leagueActive !== false ? "Liga zapnutá" : "Liga vypnutá"}
+                    </span>
+                    <span
+                      className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
+                        pollActiveBySlug[e.slug]
+                          ? "bg-purple-100 text-purple-700 dark:bg-purple-950/50 dark:text-purple-300"
+                          : "bg-brand-surface text-brand-muted border border-brand-border"
+                      }`}
+                    >
+                      {pollActiveBySlug[e.slug] ? "Anketa zapnutá" : "Anketa vypnutá"}
+                    </span>
                   </div>
                   <div className="text-brand-muted text-sm">
                     {e.city} &mdash; {e.date} o {e.time}
