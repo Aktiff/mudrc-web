@@ -18,6 +18,8 @@ type PollAdminState = {
   teamCount: number;
   upcomingOptions: string[];
   publicPath: string;
+  storage: "supabase" | "local" | "unconfigured";
+  publicVisible: boolean;
 };
 
 const DURATION_OPTIONS = [60, 75, 90, 105, 120, 135, 150, 165, 180, 195, 210, 225, 240];
@@ -224,6 +226,8 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
             teamCount: data.teamCount ?? 0,
             upcomingOptions: data.upcomingOptions ?? [],
             publicPath: data.publicPath ?? "",
+            storage: data.storage ?? "unconfigured",
+            publicVisible: data.publicVisible ?? false,
           });
         }
       })
@@ -263,6 +267,8 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
         teamCount: data.teamCount ?? 0,
         upcomingOptions: data.upcomingOptions ?? [],
         publicPath: data.publicPath ?? "",
+        storage: data.storage ?? "unconfigured",
+        publicVisible: data.publicVisible ?? false,
       });
       setMsg({ text: nextActive ? "Anketa zapnutá." : "Anketa vypnutá.", ok: true });
     } finally {
@@ -1043,7 +1049,7 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
                 <div className="rounded-xl border border-brand-border bg-brand-surface/50 p-4">
                   <div className="text-brand-muted text-xs uppercase tracking-wider mb-1">Stav</div>
                   <div className="font-semibold text-brand-text">
-                    {pollAdmin.config?.active ? "Verejná anketa je zapnutá" : "Anketa je vypnutá"}
+                    {pollAdmin.config?.active ? "Anketa je zapnutá" : "Anketa je vypnutá"}
                   </div>
                 </div>
                 <div className="rounded-xl border border-brand-border bg-brand-surface/50 p-4">
@@ -1052,7 +1058,29 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
                     {pollAdmin.teamCount} {pollAdmin.teamCount === 1 ? "tím" : "tímov"}
                   </div>
                 </div>
+                <div className="rounded-xl border border-brand-border bg-brand-surface/50 p-4">
+                  <div className="text-brand-muted text-xs uppercase tracking-wider mb-1">Uložisko</div>
+                  <div className="font-semibold text-brand-text">
+                    {pollAdmin.storage === "supabase"
+                      ? "Supabase"
+                      : pollAdmin.storage === "local"
+                        ? "Lokálny súbor (dev)"
+                        : "Nenastavené"}
+                  </div>
+                </div>
+                <div className="rounded-xl border border-brand-border bg-brand-surface/50 p-4">
+                  <div className="text-brand-muted text-xs uppercase tracking-wider mb-1">Verejná stránka</div>
+                  <div className={`font-semibold ${pollAdmin.publicVisible ? "text-green-700 dark:text-green-300" : "text-amber-700 dark:text-amber-300"}`}>
+                    {pollAdmin.publicVisible ? "Viditeľná" : "Skrytá"}
+                  </div>
+                </div>
               </div>
+
+              {!pollAdmin.publicVisible && pollAdmin.teamCount > 0 && (
+                <p className="text-amber-700 dark:text-amber-300 text-sm rounded-xl border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/30 px-4 py-3">
+                  Hlasy sú uložené v admin rozhraní, ale verejná anketa nie je viditeľná. Skontroluj, či je anketa zapnutá a či existujú budúce termíny.
+                </p>
+              )}
 
               {pollAdmin.config?.active && pollAdmin.publicPath && (
                 <a
