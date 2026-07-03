@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Trash2, ChevronLeft, Save, PauseCircle, PlayCircle, Upload, ImageIcon, Phone, Users, Clock, RefreshCw } from "lucide-react";
+import { Plus, Trash2, ChevronLeft, Save, PauseCircle, PlayCircle, Upload, ImageIcon, Phone, Users, Clock, RefreshCw, Vote, ExternalLink } from "lucide-react";
 import Link from "next/link";
 import type { QuizEvent, LeagueEntry, PastResult } from "@/lib/data";
 import { sortLeagueTable } from "@/lib/data";
@@ -10,7 +10,15 @@ import { REGION_OPTIONS } from "@/lib/regions";
 import { AdminDatePicker, AdminTimePicker } from "@/components/AdminDatePicker";
 import { TeamAutocomplete } from "@/components/TeamAutocomplete";
 
-type Tab = "info" | "liga" | "vysledky" | "pravidla" | "pridat" | "registracie";
+type Tab = "info" | "liga" | "vysledky" | "pravidla" | "pridat" | "registracie" | "anketa";
+
+type PollAdminState = {
+  config: { active: boolean; title: string } | null;
+  votes: { id: string; teamName: string; optionDates: string[]; updatedAt: string }[];
+  teamCount: number;
+  upcomingOptions: string[];
+  publicPath: string;
+};
 
 const DURATION_OPTIONS = [60, 75, 90, 105, 120, 135, 150, 165, 180, 195, 210, 225, 240];
 
@@ -78,6 +86,11 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
   const [regsLoading, setRegsLoading] = useState(false);
   const [deletingRegId, setDeletingRegId] = useState<string | null>(null);
   const [clearingRegs, setClearingRegs] = useState(false);
+  const [pollAdmin, setPollAdmin] = useState<PollAdminState | null>(null);
+  const [pollLoading, setPollLoading] = useState(false);
+  const [pollToggling, setPollToggling] = useState(false);
+  const [pollResetting, setPollResetting] = useState(false);
+  const [deletingPollTeam, setDeletingPollTeam] = useState<string | null>(null);
 
   const loadRegistrations = () => {
     setRegsLoading(true);
@@ -197,6 +210,103 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
     if (isNew || !form.venue) return;
     loadRegistrations();
   }, [params.slug, form.venue, isNew]);
+
+  const loadPollAdmin = () => {
+    if (isNew) return;
+    setPollLoading(true);
+    fetch(`/api/admin/poll?slug=${encodeURIComponent(params.slug)}&_=${Date.now()}`, { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data) {
+          setPollAdmin({
+            config: data.config ? { active: data.config.active, title: data.config.title } : null,
+            votes: data.votes ?? [],
+            teamCount: data.teamCount ?? 0,
+            upcomingOptions: data.upcomingOptions ?? [],
+            publicPath: data.publicPath ?? "",
+          });
+        }
+      })
+      .finally(() => setPollLoading(false));
+  };
+
+  useEffect(() => {
+    if (isNew) return;
+    loadPollAdmin();
+  }, [params.slug, isNew]);
+
+  useEffect(() => {
+    if (isNew || tab !== "anketa") return;
+    loadPollAdmin();
+  }, [tab, params.slug, isNew]);
+
+  const togglePollActive = async () => {
+    const nextActive = !(pollAdmin?.config?.active ?? false);
+    const label = nextActive ? "Zapnúť anketu pre tento podnik?" : "Vypnúť anketu? Verejný odkaz a tlačidlo na stránke podniku zmiznú.";
+    if (!confirm(label)) return;
+
+    setPollToggling(true);
+    try {
+      const res = await fetch("/api/admin/poll", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slug: params.slug, venue: form.venue, active: nextActive }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setMsg({ text: data.error ?? "Nepodarilo sa upraviť anketu.", ok: false });
+        return;
+      }
+      setPollAdmin({
+        config: data.config ? { active: data.config.active, title: data.config.title } : null,
+        votes: data.votes ?? [],
+        teamCount: data.teamCount ?? 0,
+        upcomingOptions: data.upcomingOptions ?? [],
+        publicPath: data.publicPath ?? "",
+      });
+      setMsg({ text: nextActive ? "Anketa zapnutá." : "Anketa vypnutá.", ok: true });
+    } finally {
+      setPollToggling(false);
+    }
+  };
+
+  const resetPollVotes = async () => {
+    if ((pollAdmin?.teamCount ?? 0) === 0) return;
+    if (!confirm(`Naozaj vymazať všetky hlasy (${pollAdmin?.teamCount} tímov)? Anketa ostane, tímy budú môcť hlasovať znova.`)) return;
+
+    setPollResetting(true);
+    try {
+      const res = await fetch(`/api/admin/poll?slug=${encodeURIComponent(params.slug)}`, { method: "DELETE" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setMsg({ text: data.error ?? "Nepodarilo sa resetovať anketu.", ok: false });
+        return;
+      }
+      loadPollAdmin();
+      setMsg({ text: `Vymazané hlasy ${data.removed ?? 0} tímov.`, ok: true });
+    } finally {
+      setPollResetting(false);
+    }
+  };
+
+  const deletePollTeam = async (teamName: string) => {
+    if (!confirm(`Naozaj vymazať hlas tímu „${teamName}"?`)) return;
+    setDeletingPollTeam(teamName);
+    try {
+      const res = await fetch(
+        `/api/admin/poll?slug=${encodeURIComponent(params.slug)}&team=${encodeURIComponent(teamName)}`,
+        { method: "DELETE" }
+      );
+      if (res.ok) {
+        loadPollAdmin();
+        setMsg({ text: "Hlas tímu vymazaný.", ok: true });
+      } else {
+        setMsg({ text: "Chyba pri mazaní hlasu.", ok: false });
+      }
+    } finally {
+      setDeletingPollTeam(null);
+    }
+  };
 
   const deleteRegistration = async (id: string, teamName: string) => {
     if (!confirm(`Naozaj zmazať registráciu tímu „${teamName}"?`)) return;
@@ -556,6 +666,9 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
               <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${form.leagueActive !== false ? "bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300" : "bg-brand-surface text-brand-muted border border-brand-border"}`}>
                 {form.leagueActive !== false ? "Liga zapnutá" : "Liga vypnutá"}
               </span>
+              <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${pollAdmin?.config?.active ? "bg-purple-100 text-purple-700 dark:bg-purple-950/50 dark:text-purple-300" : "bg-brand-surface text-brand-muted border border-brand-border"}`}>
+                {pollAdmin?.config?.active ? "Anketa zapnutá" : "Anketa vypnutá"}
+              </span>
             </>
           )}
         </div>
@@ -580,6 +693,7 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
         <button className={tabClass("liga")} onClick={() => setTab("liga")}>Liga ({form.leagueTable.length})</button>
         <button className={tabClass("vysledky")} onClick={() => setTab("vysledky")}>Výsledky ({form.pastResults.length})</button>
         <button className={tabClass("registracie")} onClick={() => setTab("registracie")}>Registrácie ({registrations.length})</button>
+        <button className={tabClass("anketa")} onClick={() => setTab("anketa")}>Anketa ({pollAdmin?.teamCount ?? 0})</button>
         <button className={tabClass("pravidla")} onClick={() => setTab("pravidla")}>Pravidlá ({(form.rules ?? []).length})</button>
       </div>
 
@@ -895,6 +1009,114 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {tab === "anketa" && !isNew && (
+        <div className="bg-brand-card rounded-2xl border border-brand-border p-6 space-y-6">
+          <div className="flex flex-wrap items-start justify-between gap-4 pb-6 border-b border-brand-border">
+            <div>
+              <h2 className="font-display text-2xl text-brand-text tracking-wide">Letná anketa</h2>
+              <p className="text-brand-muted text-sm mt-2 max-w-xl">
+                Nezáväžné hlasovanie o termín. Zapni len u podnikov, kde chceš zisťovať letný záujem. U ostatných nechaj vypnuté.
+              </p>
+            </div>
+            <button
+              onClick={togglePollActive}
+              disabled={pollToggling}
+              className={`flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded-xl border transition-colors disabled:opacity-50 ${
+                pollAdmin?.config?.active
+                  ? "border-brand-orange/40 text-brand-orange-readable bg-brand-tint/40 hover:bg-brand-tint"
+                  : "border-green-500/40 text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-950/30 hover:bg-green-100 dark:hover:bg-green-950/50"
+              }`}
+            >
+              {pollAdmin?.config?.active ? <PauseCircle className="w-4 h-4" /> : <PlayCircle className="w-4 h-4" />}
+              {pollToggling ? "Ukladám…" : pollAdmin?.config?.active ? "Vypnúť anketu" : "Zapnúť anketu"}
+            </button>
+          </div>
+
+          {pollLoading && <p className="text-brand-muted text-sm">Načítavam…</p>}
+
+          {!pollLoading && pollAdmin && (
+            <>
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div className="rounded-xl border border-brand-border bg-brand-surface/50 p-4">
+                  <div className="text-brand-muted text-xs uppercase tracking-wider mb-1">Stav</div>
+                  <div className="font-semibold text-brand-text">
+                    {pollAdmin.config?.active ? "Verejná anketa je zapnutá" : "Anketa je vypnutá"}
+                  </div>
+                </div>
+                <div className="rounded-xl border border-brand-border bg-brand-surface/50 p-4">
+                  <div className="text-brand-muted text-xs uppercase tracking-wider mb-1">Hlasy</div>
+                  <div className="font-semibold text-brand-text">
+                    {pollAdmin.teamCount} {pollAdmin.teamCount === 1 ? "tím" : "tímov"}
+                  </div>
+                </div>
+              </div>
+
+              {pollAdmin.config?.active && pollAdmin.publicPath && (
+                <a
+                  href={pollAdmin.publicPath}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 text-sm font-semibold text-brand-orange-readable hover:underline"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  Otvoriť verejnú anketu
+                </a>
+              )}
+
+              {pollAdmin.config?.active && pollAdmin.upcomingOptions.length > 0 && (
+                <p className="text-brand-muted text-sm">
+                  Aktívne termíny: {pollAdmin.upcomingOptions.join(", ")}
+                </p>
+              )}
+
+              {pollAdmin.teamCount > 0 && (
+                <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+                  <p className="text-brand-muted text-sm">Zoznam tímov, ktoré už hlasovali</p>
+                  <button
+                    onClick={resetPollVotes}
+                    disabled={pollResetting}
+                    className="flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded-xl border border-red-200 dark:border-red-900 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors disabled:opacity-50"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    {pollResetting ? "Mažem…" : "Resetovať celú anketu"}
+                  </button>
+                </div>
+              )}
+
+              {pollAdmin.teamCount === 0 && !pollLoading && (
+                <p className="text-brand-muted text-sm py-6 text-center">Zatiaľ žiadne hlasy.</p>
+              )}
+
+              <div className="space-y-3">
+                {pollAdmin.votes.map((vote) => (
+                  <div
+                    key={vote.id}
+                    className="rounded-xl border border-brand-border p-4 flex items-start justify-between gap-4"
+                  >
+                    <div className="min-w-0">
+                      <div className="font-display text-xl text-brand-text">{vote.teamName}</div>
+                      <div className="text-brand-muted text-sm mt-2">{vote.optionDates.join(", ")}</div>
+                      <div className="text-brand-muted text-xs mt-1 flex items-center gap-1.5">
+                        <Clock className="w-3.5 h-3.5" />
+                        {vote.updatedAt}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => deletePollTeam(vote.teamName)}
+                      disabled={deletingPollTeam === vote.teamName}
+                      className="shrink-0 flex items-center gap-1.5 text-sm font-medium px-3 py-2 rounded-xl border border-red-200 dark:border-red-900 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors disabled:opacity-50"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      {deletingPollTeam === vote.teamName ? "..." : "Zmazať hlas"}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       )}
 
