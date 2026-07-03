@@ -5,6 +5,7 @@ import { Plus, Trash2, ChevronLeft, Save, PauseCircle, PlayCircle, Upload, Image
 import Link from "next/link";
 import type { QuizEvent, LeagueEntry, PastResult } from "@/lib/data";
 import { sortLeagueTable } from "@/lib/data";
+import { formatPollOptionLabel, pollOptionsMatch } from "@/lib/poll";
 import { findQuizResult, mergePastResults, normalizeDateKey, quizResultKey } from "@/lib/quiz-result-key";
 import { REGION_OPTIONS } from "@/lib/regions";
 import { AdminDatePicker, AdminTimePicker } from "@/components/AdminDatePicker";
@@ -17,6 +18,7 @@ type PollAdminState = {
   votes: { id: string; teamName: string; optionDates: string[]; updatedAt: string }[];
   teamCount: number;
   upcomingOptions: string[];
+  configOptions: string[];
   publicPath: string;
   storage: "supabase" | "local" | "unconfigured";
   publicVisible: boolean;
@@ -93,6 +95,8 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
   const [pollToggling, setPollToggling] = useState(false);
   const [pollResetting, setPollResetting] = useState(false);
   const [deletingPollTeam, setDeletingPollTeam] = useState<string | null>(null);
+  const [pollDateDraft, setPollDateDraft] = useState("");
+  const [pollOptionsSaving, setPollOptionsSaving] = useState(false);
 
   const loadRegistrations = () => {
     setRegsLoading(true);
@@ -213,23 +217,29 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
     loadRegistrations();
   }, [params.slug, form.venue, isNew]);
 
+  const applyPollAdminData = (data: Record<string, unknown>) => {
+    setPollAdmin({
+      config: data.config ? { active: (data.config as { active: boolean; title: string }).active, title: (data.config as { active: boolean; title: string }).title } : null,
+      votes: (data.votes as PollAdminState["votes"]) ?? [],
+      teamCount: (data.teamCount as number) ?? 0,
+      upcomingOptions: (data.upcomingOptions as string[]) ?? [],
+      configOptions: (data.configOptions as string[]) ?? [],
+      publicPath: (data.publicPath as string) ?? "",
+      storage: (data.storage as PollAdminState["storage"]) ?? "unconfigured",
+      publicVisible: (data.publicVisible as boolean) ?? false,
+    });
+  };
+
   const loadPollAdmin = () => {
-    if (isNew) return;
+    if (isNew || !form.venue) return;
     setPollLoading(true);
-    fetch(`/api/admin/poll?slug=${encodeURIComponent(params.slug)}&_=${Date.now()}`, { cache: "no-store" })
+    fetch(
+      `/api/admin/poll?slug=${encodeURIComponent(params.slug)}&venue=${encodeURIComponent(form.venue)}&_=${Date.now()}`,
+      { cache: "no-store" }
+    )
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
-        if (data) {
-          setPollAdmin({
-            config: data.config ? { active: data.config.active, title: data.config.title } : null,
-            votes: data.votes ?? [],
-            teamCount: data.teamCount ?? 0,
-            upcomingOptions: data.upcomingOptions ?? [],
-            publicPath: data.publicPath ?? "",
-            storage: data.storage ?? "unconfigured",
-            publicVisible: data.publicVisible ?? false,
-          });
-        }
+        if (data) applyPollAdminData(data);
       })
       .finally(() => setPollLoading(false));
   };
@@ -237,12 +247,12 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
   useEffect(() => {
     if (isNew) return;
     loadPollAdmin();
-  }, [params.slug, isNew]);
+  }, [params.slug, isNew, form.venue]);
 
   useEffect(() => {
     if (isNew || tab !== "anketa") return;
     loadPollAdmin();
-  }, [tab, params.slug, isNew]);
+  }, [tab, params.slug, isNew, form.venue]);
 
   const togglePollActive = async () => {
     const nextActive = !(pollAdmin?.config?.active ?? false);
@@ -261,15 +271,7 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
         setMsg({ text: data.error ?? "Nepodarilo sa upraviť anketu.", ok: false });
         return;
       }
-      setPollAdmin({
-        config: data.config ? { active: data.config.active, title: data.config.title } : null,
-        votes: data.votes ?? [],
-        teamCount: data.teamCount ?? 0,
-        upcomingOptions: data.upcomingOptions ?? [],
-        publicPath: data.publicPath ?? "",
-        storage: data.storage ?? "unconfigured",
-        publicVisible: data.publicVisible ?? false,
-      });
+      applyPollAdminData(data);
       setMsg({ text: nextActive ? "Anketa zapnutá." : "Anketa vypnutá.", ok: true });
     } finally {
       setPollToggling(false);
@@ -295,12 +297,56 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
     }
   };
 
-  const deletePollTeam = async (teamName: string) => {
+  const savePollOptions = async (options: string[]) => {
+    setPollOptionsSaving(true);
+    try {
+      const res = await fetch("/api/admin/poll", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slug: params.slug, venue: form.venue, options }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setMsg({ text: data.error ?? "Nepodarilo sa uložiť termíny.", ok: false });
+        return false;
+      }
+      applyPollAdminData(data);
+      return true;
+    } finally {
+      setPollOptionsSaving(false);
+    }
+  };
+
+  const addPollDate = async () => {
+    if (!pollDateDraft.trim()) {
+      setMsg({ text: "Vyber dátum v kalendári.", ok: false });
+      return;
+    }
+    const current = pollAdmin?.configOptions ?? [];
+    if (current.some((option) => pollOptionsMatch(option, pollDateDraft))) {
+      setMsg({ text: "Tento termín už v ankete je.", ok: false });
+      return;
+    }
+    const ok = await savePollOptions([...current, pollDateDraft]);
+    if (ok) {
+      setPollDateDraft("");
+      setMsg({ text: "Termín pridaný do ankety.", ok: true });
+    }
+  };
+
+  const removePollDate = async (option: string) => {
+    const current = pollAdmin?.configOptions ?? [];
+    const next = current.filter((entry) => entry !== option);
+    const ok = await savePollOptions(next);
+    if (ok) setMsg({ text: "Termín odstránený z ankety.", ok: true });
+  };
+
+  const deletePollTeam = async (voteId: string, teamName: string) => {
     if (!confirm(`Naozaj vymazať hlas tímu „${teamName}"?`)) return;
-    setDeletingPollTeam(teamName);
+    setDeletingPollTeam(voteId);
     try {
       const res = await fetch(
-        `/api/admin/poll?slug=${encodeURIComponent(params.slug)}&team=${encodeURIComponent(teamName)}`,
+        `/api/admin/poll?slug=${encodeURIComponent(params.slug)}&voteId=${encodeURIComponent(voteId)}&venue=${encodeURIComponent(form.venue)}`,
         { method: "DELETE" }
       );
       if (res.ok) {
@@ -1076,11 +1122,70 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
                 </div>
               </div>
 
-              {!pollAdmin.publicVisible && pollAdmin.teamCount > 0 && (
+              {!pollAdmin.publicVisible && pollAdmin.config?.active && (
                 <p className="text-amber-700 dark:text-amber-300 text-sm rounded-xl border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/30 px-4 py-3">
-                  Hlasy sú uložené v admin rozhraní, ale verejná anketa nie je viditeľná. Skontroluj, či je anketa zapnutá a či existujú budúce termíny.
+                  {pollAdmin.teamCount > 0
+                    ? "Hlasy sú uložené v admin rozhraní, ale verejná anketa nie je viditeľná. Pridaj aspoň jeden budúci termín v kalendári nižšie."
+                    : "Anketa je zapnutá, ale verejná stránka sa zobrazí až po pridaní aspoň jedného budúceho termínu v kalendári."}
                 </p>
               )}
+
+              <div className="rounded-2xl border border-brand-border p-5 space-y-4">
+                <div>
+                  <h3 className="font-display text-xl text-brand-text tracking-wide">Termíny v ankete</h3>
+                  <p className="text-brand-muted text-sm mt-2">
+                    Vyber konkrétne dni v kalendári — môžeš pridať piatky, utorky alebo akýkoľvek iný termín.
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap items-end gap-3">
+                  <div className="min-w-[220px]">
+                    <label className="label">Pridať termín</label>
+                    <AdminDatePicker value={pollDateDraft} onChange={setPollDateDraft} placeholder="Vyber dátum" />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={addPollDate}
+                    disabled={pollOptionsSaving || !pollDateDraft}
+                    className="btn-primary px-4 py-2.5 flex items-center gap-2 disabled:opacity-50"
+                  >
+                    <Plus className="w-4 h-4" />
+                    {pollOptionsSaving ? "Ukladám…" : "Pridať termín"}
+                  </button>
+                </div>
+
+                {(pollAdmin.configOptions.length > 0 ? pollAdmin.configOptions : pollAdmin.upcomingOptions).length > 0 ? (
+                  <div className="space-y-2">
+                    {(pollAdmin.configOptions.length > 0 ? pollAdmin.configOptions : pollAdmin.upcomingOptions).map((option) => {
+                      const isPast = !pollAdmin.upcomingOptions.some((entry) => pollOptionsMatch(entry, option));
+                      return (
+                        <div
+                          key={option}
+                          className="flex items-center justify-between gap-3 rounded-xl border border-brand-border px-4 py-3"
+                        >
+                          <div>
+                            <div className="font-medium text-brand-text">{formatPollOptionLabel(option)}</div>
+                            {isPast && <div className="text-xs text-brand-muted mt-1">Minulý termín — na verejnej stránke sa nezobrazí.</div>}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => removePollDate(option)}
+                            disabled={pollOptionsSaving}
+                            className="shrink-0 flex items-center gap-1.5 text-sm font-medium px-3 py-2 rounded-xl border border-red-200 dark:border-red-900 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors disabled:opacity-50"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                            Odstrániť
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-brand-muted text-sm py-4 text-center border border-dashed border-brand-border rounded-xl">
+                    Zatiaľ žiadne termíny. Pridaj aspoň jeden budúci dátum, aby sa anketa zobrazila na webe.
+                  </p>
+                )}
+              </div>
 
               {pollAdmin.config?.active && pollAdmin.publicPath && (
                 <a
@@ -1096,7 +1201,7 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
 
               {pollAdmin.config?.active && pollAdmin.upcomingOptions.length > 0 && (
                 <p className="text-brand-muted text-sm">
-                  Aktívne termíny: {pollAdmin.upcomingOptions.join(", ")}
+                  Aktívne termíny na webe: {pollAdmin.upcomingOptions.map(formatPollOptionLabel).join(" · ")}
                 </p>
               )}
 
@@ -1126,19 +1231,21 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
                   >
                     <div className="min-w-0">
                       <div className="font-display text-xl text-brand-text">{vote.teamName}</div>
-                      <div className="text-brand-muted text-sm mt-2">{vote.optionDates.join(", ")}</div>
+                      <div className="text-brand-muted text-sm mt-2">
+                        {vote.optionDates.map(formatPollOptionLabel).join(", ")}
+                      </div>
                       <div className="text-brand-muted text-xs mt-1 flex items-center gap-1.5">
                         <Clock className="w-3.5 h-3.5" />
                         {vote.updatedAt}
                       </div>
                     </div>
                     <button
-                      onClick={() => deletePollTeam(vote.teamName)}
-                      disabled={deletingPollTeam === vote.teamName}
+                      onClick={() => deletePollTeam(vote.id, vote.teamName)}
+                      disabled={deletingPollTeam === vote.id}
                       className="shrink-0 flex items-center gap-1.5 text-sm font-medium px-3 py-2 rounded-xl border border-red-200 dark:border-red-900 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors disabled:opacity-50"
                     >
                       <Trash2 className="w-4 h-4" />
-                      {deletingPollTeam === vote.teamName ? "..." : "Zmazať hlas"}
+                      {deletingPollTeam === vote.id ? "..." : "Zmazať hlas"}
                     </button>
                   </div>
                 ))}
