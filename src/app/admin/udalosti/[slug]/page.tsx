@@ -624,10 +624,29 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
   };
 
   const deleteEvent = async () => {
-    if (!confirm("Naozaj zmazať túto udalosť?")) return;
+    if (
+      !confirm(
+        "Naozaj navždy zmazať celú udalosť vrátane ligy a výsledkov? Toto nie je reset hlasov ankety."
+      )
+    ) {
+      return;
+    }
+    const typed = prompt(`Pre potvrdenie napíš presne slug: ${params.slug}`);
+    if (typed?.trim() !== params.slug) {
+      setMsg({ text: "Zmazanie zrušené — slug nesedí.", ok: false });
+      return;
+    }
     setDeleting(true);
-    await fetch(`/api/admin/events/${params.slug}`, { method: "DELETE" });
-    router.push("/admin/udalosti");
+    try {
+      const res = await fetch(`/api/admin/events/${params.slug}`, { method: "DELETE" });
+      if (!res.ok) {
+        setMsg({ text: "Nepodarilo sa zmazať udalosť.", ok: false });
+        return;
+      }
+      router.push("/admin/udalosti");
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const addLeagueRow = () =>
@@ -1329,9 +1348,14 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
       <div className="flex items-center justify-between mt-6">
         <div>
           {!isNew && (
-            <button onClick={deleteEvent} disabled={deleting} className="text-sm text-red-400 hover:text-red-600 transition-colors flex items-center gap-1.5">
+            <button
+              onClick={deleteEvent}
+              disabled={deleting}
+              className="text-sm text-red-400 hover:text-red-600 transition-colors flex items-center gap-1.5"
+              title="Natrvalo zmazať celý podnik z databázy"
+            >
               <Trash2 className="w-4 h-4" />
-              {deleting ? "Mažem..." : "Zmazať udalosť"}
+              {deleting ? "Mažem..." : "Zmazať celú udalosť (podnik)"}
             </button>
           )}
         </div>

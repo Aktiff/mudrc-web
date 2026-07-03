@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { Plus, Calendar, PauseCircle, ChevronRight } from "lucide-react";
-import { readEvents } from "@/lib/storage";
+import { RestoreMissingEvents } from "@/components/admin/RestoreMissingEvents";
+import { listMissingSeedEvents, readEvents } from "@/lib/storage";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminUdalostitPage() {
-  const { events } = await readEvents();
+  const [{ events }, missing] = await Promise.all([readEvents(), listMissingSeedEvents()]);
 
   return (
     <div className="max-w-4xl">
@@ -18,6 +19,9 @@ export default async function AdminUdalostitPage() {
           <Plus className="w-4 h-4" /> Nová udalosť
         </Link>
       </div>
+      <RestoreMissingEvents
+        missing={missing.map((event) => ({ slug: event.slug, venue: event.venue, city: event.city }))}
+      />
       <div className="space-y-3">
         {events.map((e) => (
           <Link

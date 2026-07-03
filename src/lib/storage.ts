@@ -764,6 +764,52 @@ export async function patchEvent(
   throw new Error("PATCH_EVENT_FAILED");
 }
 
+export function getSeedEvents(): QuizEvent[] {
+  try {
+    let raw = fs.readFileSync(eventsPath, "utf-8");
+    if (raw.charCodeAt(0) === 0xfeff) raw = raw.slice(1);
+    const data = JSON.parse(raw) as { events?: QuizEvent[] };
+    return data.events ?? [];
+  } catch {
+    return [];
+  }
+}
+
+export async function listMissingSeedEvents(): Promise<QuizEvent[]> {
+  const seed = getSeedEvents();
+  const base = await loadEventsBase();
+  const slugs = new Set(base.map((event) => event.slug));
+  return seed.filter((event) => !slugs.has(event.slug));
+}
+
+export async function restoreEventsFromSeed(slugs?: string[]): Promise<{ restored: string[]; skipped: string[] }> {
+  const seed = getSeedEvents();
+  const wanted = slugs?.length ? new Set(slugs) : null;
+  const candidates = wanted ? seed.filter((event) => wanted.has(event.slug)) : seed;
+
+  const base = await loadEventsBase();
+  const existing = new Set(base.map((event) => event.slug));
+
+  const restored: string[] = [];
+  const skipped: string[] = [];
+  const toAdd: QuizEvent[] = [];
+
+  for (const event of candidates) {
+    if (existing.has(event.slug)) {
+      skipped.push(event.slug);
+      continue;
+    }
+    toAdd.push({ ...event, leagueActive: event.leagueActive !== false });
+    restored.push(event.slug);
+  }
+
+  if (toAdd.length > 0) {
+    await updateEvents((events) => [...events, ...toAdd]);
+  }
+
+  return { restored, skipped };
+}
+
 export async function getEventsStorageMeta(): Promise<{
   source: string;
   configured: boolean;
