@@ -2,7 +2,7 @@ import fs from "fs";
 import path from "path";
 import { del, head, list, put } from "@vercel/blob";
 import type { QuizEvent, PastResult, PastResultTeam, LeagueEntry } from "@/lib/data";
-import { rebuildLeagueTableFromResults, sortLeagueTable } from "@/lib/data";
+import { rebuildLeagueTableFromResults, sortEventsByDate, sortLeagueTable } from "@/lib/data";
 import {
   getSupabaseStorageDiagnostics,
   hasSupabaseStorage,
@@ -846,11 +846,11 @@ export async function updateRegistrations(
 
 export async function readEvents(): Promise<{ events: QuizEvent[] }> {
   try {
-    return { events: await loadEvents() };
+    return { events: sortEventsByDate(await loadEvents()) };
   } catch (error) {
     console.error("readEvents error:", error);
     if (!hasSupabaseStorage() && !isVercel) {
-      return { events: readLocalEvents().events };
+      return { events: sortEventsByDate(readLocalEvents().events) };
     }
     throw error instanceof Error ? error : new Error("Nepodarilo sa nacitat udalosti.");
   }

@@ -40,6 +40,31 @@ export function formatDuration(minutes: number): string {
 
 const SK_WEEKDAYS = ["nedeľa", "pondelok", "utorok", "streda", "štvrtok", "piatok", "sobota"] as const;
 
+export function parseSkEventDateTime(date: string, time?: string): Date | null {
+  const match = date.trim().match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+  if (!match) return null;
+  const [, day, month, year] = match;
+  let hours = 0;
+  let minutes = 0;
+  if (time) {
+    const timeMatch = time.trim().match(/^(\d{1,2}):(\d{2})$/);
+    if (timeMatch) {
+      hours = Number(timeMatch[1]);
+      minutes = Number(timeMatch[2]);
+    }
+  }
+  const parsed = new Date(Number(year), Number(month) - 1, Number(day), hours, minutes);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+export function sortEventsByDate(events: QuizEvent[]): QuizEvent[] {
+  return [...events].sort((a, b) => {
+    const dateA = parseSkEventDateTime(a.date, a.time)?.getTime() ?? Number.POSITIVE_INFINITY;
+    const dateB = parseSkEventDateTime(b.date, b.time)?.getTime() ?? Number.POSITIVE_INFINITY;
+    return dateA - dateB || a.venue.localeCompare(b.venue, "sk");
+  });
+}
+
 export function formatSkWeekday(date: string): string | null {
   const match = date.trim().match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
   if (!match) return null;
@@ -47,6 +72,11 @@ export function formatSkWeekday(date: string): string | null {
   const parsed = new Date(Number(year), Number(month) - 1, Number(day));
   if (Number.isNaN(parsed.getTime())) return null;
   return SK_WEEKDAYS[parsed.getDay()];
+}
+
+export function formatEventDateLabel(date: string): string {
+  const weekday = formatSkWeekday(date);
+  return weekday ? `${weekday} - ${date}` : date;
 }
 
 export function isQuizVisible(event: QuizEvent): boolean {
@@ -96,7 +126,7 @@ export function rebuildLeagueTableFromResults(pastResults: PastResult[]): League
 }
 
 export function getVisibleLeagues(events: QuizEvent[]): QuizEvent[] {
-  return events.filter(isLeagueVisible);
+  return sortEventsByDate(events.filter(isLeagueVisible));
 }
 
 export function collectEventTeamNames(event: QuizEvent, extra: string[] = []): string[] {

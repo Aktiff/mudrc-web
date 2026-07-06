@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { readEvents, getEventsStorageMeta } from "@/lib/storage";
-import { getVisibleLeagues, isQuizVisible } from "@/lib/data";
+import { getVisibleLeagues, isQuizVisible, sortEventsByDate } from "@/lib/data";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,7 +13,7 @@ export async function GET(req: Request) {
   const filtered =
     view === "liga"
       ? getVisibleLeagues(events)
-      : events.filter(isQuizVisible);
+      : sortEventsByDate(events.filter(isQuizVisible));
 
   return NextResponse.json(
     { events: filtered, _storage: storage },

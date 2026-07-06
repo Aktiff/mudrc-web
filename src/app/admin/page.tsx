@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Calendar, Plus, PauseCircle } from "lucide-react";
+import { formatEventDateLabel } from "@/lib/data";
 import { readEvents } from "@/lib/storage";
 
 export const dynamic = "force-dynamic";
@@ -65,7 +66,7 @@ export default async function AdminDashboard() {
                     )}
                   </div>
                   <div className="text-brand-muted text-sm">
-                    {e.city} &mdash; {e.date} o {e.time}
+                    {e.city} &mdash; {formatEventDateLabel(e.date)} o {e.time}
                   </div>
                 </div>
               </div>

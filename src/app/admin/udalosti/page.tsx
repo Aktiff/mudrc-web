@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Plus, Calendar, ChevronRight } from "lucide-react";
 import { RestoreMissingEvents } from "@/components/admin/RestoreMissingEvents";
+import { formatEventDateLabel } from "@/lib/data";
 import { getPollActiveFlagsBySlug } from "@/lib/poll-storage";
 import { listMissingSeedEvents, readEvents } from "@/lib/storage";
 
@@ -70,7 +71,7 @@ export default async function AdminUdalostitPage() {
                     </span>
                   </div>
                   <div className="text-brand-muted text-sm">
-                    {e.city} &mdash; {e.date} o {e.time}
+                    {e.city} &mdash; {formatEventDateLabel(e.date)} o {e.time}
                   </div>
                 </div>
               </div>
