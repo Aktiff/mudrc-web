@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { del, head, list, put } from "@vercel/blob";
-import type { QuizEvent, LeagueEntry, PastResult } from "@/lib/data";
+import type { QuizEvent, LeagueEntry, PastResult, PastResultTeam } from "@/lib/data";
 import {
   applyUnsyncedDetailedResultsToLeague,
   markDetailedResultsLeagueSynced,
