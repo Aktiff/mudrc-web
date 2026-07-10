@@ -1,8 +1,14 @@
 import fs from "fs";
 import path from "path";
 import { del, head, list, put } from "@vercel/blob";
-import type { QuizEvent, PastResult, PastResultTeam, LeagueEntry } from "@/lib/data";
-import { rebuildLeagueTableFromResults, sortEventsByDate, sortLeagueTable } from "@/lib/data";
+import type { QuizEvent, LeagueEntry, PastResult } from "@/lib/data";
+import {
+  applyUnsyncedDetailedResultsToLeague,
+  markDetailedResultsLeagueSynced,
+  rebuildLeagueTableFromResults,
+  sortEventsByDate,
+  sortLeagueTable,
+} from "@/lib/data";
 import {
   getSupabaseStorageDiagnostics,
   hasSupabaseStorage,
@@ -387,15 +393,29 @@ function enrichEventsWithQuizzes(events: QuizEvent[], quizzes: StoredQuiz[]): Qu
 }
 
 /** Prepočet ligy z uložených kvízov (Supabase `quizzes`) + súhrnných výsledkov v `events`. */
-export async function rebuildLeagueTableForEvent(event: QuizEvent): Promise<LeagueEntry[]> {
+export async function rebuildLeagueTableForEvent(event: QuizEvent): Promise<{
+  leagueTable: LeagueEntry[];
+  pastResults: PastResult[];
+}> {
   const quizzes = await loadQuizzes();
   const eventQuizzes = quizzes
     .filter((quiz) => quiz.eventSlug === event.slug)
     .map(storedQuizToPastResult);
   const mergedResults = mergePastResults(event.pastResults ?? [], eventQuizzes);
-  return rebuildLeagueTableFromResults(mergedResults, {
-    preserveFromTable: event.leagueTable ?? [],
-  });
+  const base = event.leagueTable ?? [];
+
+  if (base.length === 0) {
+    return {
+      leagueTable: rebuildLeagueTableFromResults(mergedResults),
+      pastResults: markDetailedResultsLeagueSynced(mergedResults),
+    };
+  }
+
+  const { leagueTable, appliedKeys } = applyUnsyncedDetailedResultsToLeague(base, mergedResults);
+  return {
+    leagueTable,
+    pastResults: markDetailedResultsLeagueSynced(mergedResults, appliedKeys),
+  };
 }
 
 async function loadQuizzesRaw(): Promise<StoredQuiz[]> {

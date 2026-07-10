@@ -128,6 +128,7 @@ export async function PUT(req: NextRequest, { params }: { params: { slug: string
         winnerTeam,
         points: newSorted[0].total,
         teams: teamsDetail,
+        leagueSynced: true,
       };
 
       events[idx] = { ...event, leagueTable: table, pastResults, leagueActive: true };
@@ -190,10 +191,12 @@ export async function DELETE(_req: NextRequest, { params }: { params: { slug: st
     const event = events.find((entry) => entry.slug === params.slug);
     if (event) {
       const rebuilt = await rebuildLeagueTableForEvent(event);
-      if (rebuilt.length > 0) {
+      if (rebuilt.leagueTable.length > 0) {
         await updateEvents((all) =>
           all.map((entry) =>
-            entry.slug === params.slug ? { ...entry, leagueTable: rebuilt, leagueActive: true } : entry
+            entry.slug === params.slug
+              ? { ...entry, leagueTable: rebuilt.leagueTable, pastResults: rebuilt.pastResults, leagueActive: true }
+              : entry
           )
         );
       }

@@ -94,7 +94,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
 
       const pastResults = [
         ...(event.pastResults ?? []).filter((r) => normalizeDateKey(r.date) !== resultId && r.id !== resultId),
-        { id: resultId, date, winnerTeam, points: winnerTotal, teams: teamsDetail },
+        { id: resultId, date, winnerTeam, points: winnerTotal, teams: teamsDetail, leagueSynced: true },
       ];
 
       events[idx] = { ...event, leagueTable: table, pastResults, leagueActive: true };

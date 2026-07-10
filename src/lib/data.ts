@@ -21,7 +21,15 @@ export type QuizEvent = {
 };
 export type LeagueEntry = { rank: number; teamName: string; points: number; quizzesPlayed: number };
 export type PastResultTeam = { teamName: string; rounds: number[]; total: number; ligaPoints: number };
-export type PastResult = { id: string; date: string; winnerTeam: string; points: number; teams?: PastResultTeam[] };
+export type PastResult = {
+  id: string;
+  date: string;
+  winnerTeam: string;
+  points: number;
+  teams?: PastResultTeam[];
+  /** Detailný kvíz už započítaný v leagueTable (aby sa pri obnove / prepočte nezdvojil). */
+  leagueSynced?: boolean;
+};
 
 import eventsData from "@/data/events.json";
 import { quizResultKey } from "@/lib/quiz-result-key";
@@ -126,6 +134,53 @@ export function mergeLeagueTablesMax(a: LeagueEntry[], b: LeagueEntry[]): League
   for (const row of a) upsert(row);
   for (const row of b) upsert(row);
   return sortLeagueTable(Array.from(map.values()));
+}
+
+export function markDetailedResultsLeagueSynced(
+  pastResults: PastResult[],
+  appliedKeys?: Set<string>
+): PastResult[] {
+  return pastResults.map((result) => {
+    if (!result.teams?.length) return result;
+    if (appliedKeys && !appliedKeys.has(quizResultKey(result))) return result;
+    if (result.leagueSynced) return result;
+    return { ...result, leagueSynced: true };
+  });
+}
+
+export function applyUnsyncedDetailedResultsToLeague(
+  leagueTable: LeagueEntry[],
+  pastResults: PastResult[]
+): { leagueTable: LeagueEntry[]; appliedKeys: Set<string> } {
+  const table = leagueTable.map((row) => ({ ...row, rank: 0 }));
+  const appliedKeys = new Set<string>();
+
+  const addContribution = (teamName: string, ligaPoints: number, quizzes = 1) => {
+    const name = teamName.trim();
+    if (!name) return;
+    const existing = table.find((row) => row.teamName === name);
+    if (existing) {
+      existing.points += ligaPoints;
+      existing.quizzesPlayed += quizzes;
+      return;
+    }
+    table.push({
+      rank: 0,
+      teamName: name,
+      points: ligaPoints,
+      quizzesPlayed: quizzes,
+    });
+  };
+
+  for (const result of pastResults) {
+    if (!result.teams?.length || result.leagueSynced) continue;
+    appliedKeys.add(quizResultKey(result));
+    for (const team of result.teams) {
+      addContribution(team.teamName, team.ligaPoints, 1);
+    }
+  }
+
+  return { leagueTable: sortLeagueTable(table), appliedKeys };
 }
 
 export function rebuildLeagueTableFromResults(

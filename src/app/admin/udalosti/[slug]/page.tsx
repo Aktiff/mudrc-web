@@ -568,7 +568,7 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
       if (res.ok) {
         const data = await res.json();
         setForm(normalizeEvent(data));
-        setMsg({ text: fromQuizzes ? "Liga prepočítaná z kvízov" : "Poradie prepočítané", ok: true });
+        setMsg({ text: fromQuizzes ? "Liga prepočítaná z kvízov" : "Poradie prepočítané (nezapísané kvízy doplnené)", ok: true });
       } else {
         const err = await res.json().catch(() => ({}));
         setMsg({ text: err.error ?? "Chyba pri prepočítaní", ok: false });

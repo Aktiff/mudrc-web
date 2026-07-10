@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import type { QuizEvent, LeagueEntry } from "@/lib/data";
+import type { QuizEvent, LeagueEntry, PastResult } from "@/lib/data";
 import { rebuildLeagueTableFromResults, sortLeagueTable } from "@/lib/data";
 import { mergePastResults } from "@/lib/quiz-result-key";
 import { revalidatePublicEventPaths } from "@/lib/revalidate-public";
@@ -89,15 +89,15 @@ export async function PUT(req: NextRequest, { params }: { params: { slug: string
   try {
     if (resetLeague || leagueToggle || quizToggle || recalculateLeague) {
       const fromQuizzes = body.fromQuizzes === true;
-      let rebuiltFromQuizzes: LeagueEntry[] | null = null;
-      if (recalculateLeague && fromQuizzes) {
+      let rebuiltLeague: { leagueTable: LeagueEntry[]; pastResults: PastResult[] } | null = null;
+      if (recalculateLeague) {
         const { events: currentEvents } = await updateEvents((events) => events);
         const current = currentEvents.find((event) => event.slug === params.slug);
         if (!current) {
           return NextResponse.json({ error: "Not found" }, { status: 404 });
         }
-        rebuiltFromQuizzes = await rebuildLeagueTableForEvent(current);
-        if (rebuiltFromQuizzes.length === 0 && (current.leagueTable?.length ?? 0) === 0) {
+        rebuiltLeague = await rebuildLeagueTableForEvent(current);
+        if (fromQuizzes && rebuiltLeague.leagueTable.length === 0 && (current.leagueTable?.length ?? 0) === 0) {
           return NextResponse.json(
             {
               error:
@@ -157,16 +157,18 @@ export async function PUT(req: NextRequest, { params }: { params: { slug: string
           }
 
           if (recalculateLeague) {
-            const pastResults = existing.pastResults ?? [];
-            const leagueTable =
-              fromQuizzes && rebuiltFromQuizzes
-                ? rebuiltFromQuizzes
-                : sortLeagueTable(existing.leagueTable ?? []);
+            if (!rebuiltLeague) {
+              throw new Error("LEAGUE_REBUILD_FAILED");
+            }
 
             events[idx] = {
               ...existing,
-              leagueTable,
-              leagueActive: leagueTable.length > 0 || pastResults.length > 0 ? existing.leagueActive : false,
+              leagueTable: rebuiltLeague.leagueTable,
+              pastResults: rebuiltLeague.pastResults,
+              leagueActive:
+                rebuiltLeague.leagueTable.length > 0 || rebuiltLeague.pastResults.length > 0
+                  ? existing.leagueActive
+                  : false,
             };
             return events;
           }
