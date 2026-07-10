@@ -139,7 +139,7 @@ export default function EventDetailPage({ event, region, pollHref }: EventDetail
 
             <div className="space-y-4">
               <div className="bg-brand-card rounded-2xl border border-brand-border p-6 sticky top-24">
-                <h3 className="font-display text-xl text-brand-text tracking-wide mb-4">Pridaj sa zahrať!</h3>
+                <h3 className="font-display text-xl text-brand-text tracking-wide mb-4">Príď si zasúťažiť</h3>
                 <p className="text-brand-muted text-sm mb-5">
                   {event.registrationOpen === false
                     ? "Kapacita podniku je naplnená. Registrácia je uzavretá."
