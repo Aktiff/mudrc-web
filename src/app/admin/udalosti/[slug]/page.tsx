@@ -5,6 +5,7 @@ import { Plus, Trash2, ChevronLeft, Save, PauseCircle, PlayCircle, Upload, Image
 import Link from "next/link";
 import type { QuizEvent, LeagueEntry, PastResult } from "@/lib/data";
 import { sortLeagueTable } from "@/lib/data";
+import { hasSeedLeagueBackup } from "@/lib/league-seed";
 import { formatPollOptionLabel, pollOptionsMatch } from "@/lib/poll";
 import { findQuizResult, mergePastResults, normalizeDateKey, quizResultKey } from "@/lib/quiz-result-key";
 import { REGION_OPTIONS } from "@/lib/regions";
@@ -582,7 +583,7 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
   const restoreLeagueFromSeed = async () => {
     if (
       !confirm(
-        "Obnoviť ligu zo zálohy v projekte? Prepíše aktuálnu ligovú tabuľku a súhrnné výsledky (napr. 32 tímov pre Alipub)."
+        "Obnoviť ligu zo zálohy v projekte? Prepíše aktuálnu ligovú tabuľku a súhrnné výsledky (napr. 14 tímov pre Lili Cafe)."
       )
     ) {
       return;
@@ -923,7 +924,7 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
                 <Trash2 className="w-4 h-4" />
                 Resetovať ligu
               </button>
-              {!isNew && form.leagueTable.length === 0 && (
+              {!isNew && hasSeedLeagueBackup(params.slug) && (
                 <button
                   onClick={restoreLeagueFromSeed}
                   disabled={recalculating}
@@ -947,7 +948,7 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
           <div className="space-y-2 mb-4">
             {form.leagueTable.length === 0 && (
               <p className="text-brand-muted text-sm py-4 text-center">
-                Zatiaľ žiadne tímy v lige. Ak si omylom vymazal tabuľku, skús zelené tlačidlo „Obnoviť ligu zo zálohy“ vyššie.
+                Zatiaľ žiadne tímy v lige. Použi zelené tlačidlo „Obnoviť ligu zo zálohy“ vyššie.
               </p>
             )}
             {form.leagueTable.map((row, i) => (
