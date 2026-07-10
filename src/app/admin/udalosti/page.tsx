@@ -69,6 +69,11 @@ export default async function AdminUdalostitPage() {
                     >
                       {pollActiveBySlug[e.slug] ? "Anketa zapnutá" : "Anketa vypnutá"}
                     </span>
+                    {e.registrationOpen === false && (
+                      <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-brand-surface text-brand-muted border border-brand-border">
+                        Registrácie zatvorené
+                      </span>
+                    )}
                   </div>
                   <div className="text-brand-muted text-sm">
                     {e.city} &mdash; {formatEventDateLabel(e.date)} o {e.time}

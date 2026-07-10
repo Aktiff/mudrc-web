@@ -4,8 +4,10 @@ import {
   addRegistration,
   getStorageDiagnostics,
   hasPersistentStorage,
+  readEvents,
   readRegistrations,
 } from "@/lib/storage";
+import { isRegistrationOpen } from "@/lib/data";
 import { sendRegistrationEmail } from "@/lib/registration-email";
 
 export const runtime = "nodejs";
@@ -15,6 +17,18 @@ export async function POST(req: NextRequest) {
   const { venue, eventSlug, teamName, players, phone } = await req.json();
   if (!venue || !teamName || !phone) {
     return NextResponse.json({ error: "Chybajú údaje." }, { status: 400 });
+  }
+
+  const slug = String(eventSlug ?? "").trim();
+  if (slug) {
+    const { events } = await readEvents();
+    const event = events.find((entry) => entry.slug === slug);
+    if (event && !isRegistrationOpen(event)) {
+      return NextResponse.json(
+        { error: "Registrácie sú uzavreté — kvíz je plný." },
+        { status: 403 }
+      );
+    }
   }
 
   if (!hasPersistentStorage()) {

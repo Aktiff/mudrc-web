@@ -75,18 +75,26 @@ export async function PUT(req: NextRequest, { params }: { params: { slug: string
   const resetLeague = body._resetLeague === true;
   const leagueToggle = body._leagueToggle === true;
   const quizToggle = body._quizToggle === true;
+  const registrationToggle = body._registrationToggle === true;
   const includeLeagueData = body._includeLeagueData === true;
   const recalculateLeague = body._recalculateLeague === true;
   const {
     _resetLeague: _r,
     _leagueToggle: _lt,
     _quizToggle: _qt,
+    _registrationToggle: _rt,
     _includeLeagueData: _ild,
     _recalculateLeague: _rl,
     ...incoming
   } = body;
 
   try {
+    if (registrationToggle && typeof incoming.registrationOpen === "boolean") {
+      const updated = await patchEvent(params.slug, { registrationOpen: incoming.registrationOpen });
+      await revalidatePublicEventPaths(params.slug);
+      return NextResponse.json(updated);
+    }
+
     if (resetLeague || leagueToggle || quizToggle || recalculateLeague) {
       const fromQuizzes = body.fromQuizzes === true;
       let rebuiltLeague: { leagueTable: LeagueEntry[]; pastResults: PastResult[] } | null = null;

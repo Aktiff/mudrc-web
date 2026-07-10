@@ -14,6 +14,8 @@ export type QuizEvent = {
   durationMinutes: number;
   active: boolean;
   leagueActive?: boolean;
+  /** false = podnik plný, registrácia na webe vypnutá */
+  registrationOpen?: boolean;
   imageUrl?: string;
   rules?: string[];
   leagueTable: LeagueEntry[];
@@ -90,6 +92,10 @@ export function formatEventDateLabel(date: string): string {
 
 export function isQuizVisible(event: QuizEvent): boolean {
   return event.active !== false;
+}
+
+export function isRegistrationOpen(event: Pick<QuizEvent, "registrationOpen">): boolean {
+  return event.registrationOpen !== false;
 }
 
 export function isLeagueActive(event: QuizEvent): boolean {

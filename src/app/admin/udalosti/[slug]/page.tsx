@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Trash2, ChevronLeft, Save, PauseCircle, PlayCircle, Upload, ImageIcon, Phone, Users, Clock, RefreshCw, Vote, ExternalLink } from "lucide-react";
+import { Plus, Trash2, ChevronLeft, Save, PauseCircle, PlayCircle, Upload, ImageIcon, Phone, Users, Clock, RefreshCw, Vote, ExternalLink, UserPlus, UserX } from "lucide-react";
 import Link from "next/link";
 import type { QuizEvent, LeagueEntry, PastResult } from "@/lib/data";
 import { sortLeagueTable } from "@/lib/data";
@@ -40,6 +40,7 @@ function normalizeEvent(ev: QuizEvent): QuizEvent {
     ...ev,
     durationMinutes: ev.durationMinutes ?? 120,
     leagueActive: ev.leagueActive === false ? false : true,
+    registrationOpen: ev.registrationOpen === false ? false : true,
     leagueTable: sortLeagueTable(ev.leagueTable ?? []),
   };
 }
@@ -216,6 +217,7 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
     durationMinutes: 120,
     active: true,
     leagueActive: true,
+    registrationOpen: true,
     imageUrl: "",
     rules: [],
     leagueTable: [],
@@ -484,6 +486,30 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
         setMsg({ text: newActive ? "Kvíz aktivovaný" : "Kvíz vypnutý", ok: true });
       } else {
         setForm((f) => ({ ...f, active: !newActive }));
+        setMsg({ text: "Chyba pri ukladaní", ok: false });
+      }
+    }
+  };
+
+  const toggleRegistrationOpen = async () => {
+    const open = form.registrationOpen !== false;
+    const newOpen = !open;
+    setForm((f) => ({ ...f, registrationOpen: newOpen }));
+    if (!isNew) {
+      const res = await fetch(`/api/admin/events/${params.slug}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ registrationOpen: newOpen, _registrationToggle: true }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setForm(normalizeEvent(data));
+        setMsg({
+          text: newOpen ? "Registrácie zapnuté" : "Registrácie vypnuté — na webe sa zobrazí „Kvíz je plný“",
+          ok: true,
+        });
+      } else {
+        setForm((f) => ({ ...f, registrationOpen: open }));
         setMsg({ text: "Chyba pri ukladaní", ok: false });
       }
     }
@@ -758,21 +784,37 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
               <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${pollAdmin?.config?.active ? "bg-purple-100 text-purple-700 dark:bg-purple-950/50 dark:text-purple-300" : "bg-brand-surface text-brand-muted border border-brand-border"}`}>
                 {pollAdmin?.config?.active ? "Anketa zapnutá" : "Anketa vypnutá"}
               </span>
+              <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${form.registrationOpen !== false ? "bg-teal-100 text-teal-800 dark:bg-teal-950/50 dark:text-teal-300" : "bg-brand-surface text-brand-muted border border-brand-border"}`}>
+                {form.registrationOpen !== false ? "Registrácie otvorené" : "Registrácie zatvorené"}
+              </span>
             </>
           )}
         </div>
         {!isNew && (
-          <button
-            onClick={toggleQuizActive}
-            className={`flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded-xl border transition-colors ${
-              form.active
-                ? "border-brand-orange/40 text-brand-orange-readable bg-brand-tint/40 hover:bg-brand-tint"
-                : "border-green-500/40 text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-950/30 hover:bg-green-100 dark:hover:bg-green-950/50"
-            }`}
-          >
-            {form.active ? <PauseCircle className="w-4 h-4" /> : <PlayCircle className="w-4 h-4" />}
-            {form.active ? "Vypnúť kvíz" : "Zapnúť kvíz"}
-          </button>
+          <div className="flex flex-col sm:flex-row gap-2 shrink-0">
+            <button
+              onClick={toggleRegistrationOpen}
+              className={`flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded-xl border transition-colors ${
+                form.registrationOpen !== false
+                  ? "border-brand-border text-brand-muted hover:bg-brand-hover"
+                  : "border-teal-500/40 text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/30 hover:bg-teal-100 dark:hover:bg-teal-950/50"
+              }`}
+            >
+              {form.registrationOpen !== false ? <UserX className="w-4 h-4" /> : <UserPlus className="w-4 h-4" />}
+              {form.registrationOpen !== false ? "Vypnúť registrácie" : "Zapnúť registrácie"}
+            </button>
+            <button
+              onClick={toggleQuizActive}
+              className={`flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded-xl border transition-colors ${
+                form.active
+                  ? "border-brand-orange/40 text-brand-orange-readable bg-brand-tint/40 hover:bg-brand-tint"
+                  : "border-green-500/40 text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-950/30 hover:bg-green-100 dark:hover:bg-green-950/50"
+              }`}
+            >
+              {form.active ? <PauseCircle className="w-4 h-4" /> : <PlayCircle className="w-4 h-4" />}
+              {form.active ? "Vypnúť kvíz" : "Zapnúť kvíz"}
+            </button>
+          </div>
         )}
       </div>
 
@@ -1045,6 +1087,24 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
 
       {tab === "registracie" && !isNew && (
         <div className="bg-brand-card rounded-2xl border border-brand-border p-6">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-6 pb-6 border-b border-brand-border">
+            <p className="text-brand-muted text-sm">
+              {form.registrationOpen !== false
+                ? "Registrácie sú otvorené — nové tímy sa môžu prihlásiť cez web."
+                : "Registrácie sú zatvorené — na webe sa zobrazí „Kvíz je plný“."}
+            </p>
+            <button
+              onClick={toggleRegistrationOpen}
+              className={`flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded-xl border transition-colors ${
+                form.registrationOpen !== false
+                  ? "border-brand-border text-brand-muted hover:bg-brand-hover"
+                  : "border-teal-500/40 text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/30"
+              }`}
+            >
+              {form.registrationOpen !== false ? <UserX className="w-4 h-4" /> : <UserPlus className="w-4 h-4" />}
+              {form.registrationOpen !== false ? "Vypnúť registrácie" : "Zapnúť registrácie"}
+            </button>
+          </div>
           {registrations.length > 0 && (
             <div className="flex flex-wrap items-center justify-between gap-3 mb-6 pb-6 border-b border-brand-border">
               <p className="text-brand-muted text-sm">
