@@ -393,7 +393,9 @@ export async function rebuildLeagueTableForEvent(event: QuizEvent): Promise<Leag
     .filter((quiz) => quiz.eventSlug === event.slug)
     .map(storedQuizToPastResult);
   const mergedResults = mergePastResults(event.pastResults ?? [], eventQuizzes);
-  return sortLeagueTable(rebuildLeagueTableFromResults(mergedResults));
+  return rebuildLeagueTableFromResults(mergedResults, {
+    preserveFromTable: event.leagueTable ?? [],
+  });
 }
 
 async function loadQuizzesRaw(): Promise<StoredQuiz[]> {

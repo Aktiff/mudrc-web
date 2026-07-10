@@ -9,7 +9,9 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 function rebuildLeagueTable(event: QuizEvent): LeagueEntry[] {
-  return rebuildLeagueTableFromResults(event.pastResults ?? []);
+  return rebuildLeagueTableFromResults(event.pastResults ?? [], {
+    preserveFromTable: event.leagueTable ?? [],
+  });
 }
 
 class NotFoundError extends Error {
@@ -95,11 +97,11 @@ export async function PUT(req: NextRequest, { params }: { params: { slug: string
           return NextResponse.json({ error: "Not found" }, { status: 404 });
         }
         rebuiltFromQuizzes = await rebuildLeagueTableForEvent(current);
-        if (rebuiltFromQuizzes.length === 0 && (current.leagueTable?.length ?? 0) > 0) {
+        if (rebuiltFromQuizzes.length === 0 && (current.leagueTable?.length ?? 0) === 0) {
           return NextResponse.json(
             {
               error:
-                "Ligu sa nepodarilo prepočítať z kvízov — chýbajú detailné dáta tímov. Liga nebola zmenená. Použi „Obnoviť ligu zo zálohy“ alebo kontaktuj podporu.",
+                "Ligu sa nepodarilo prepočítať — chýbajú kvízové dáta aj existujúca tabuľka. Pridaj kvíz cez prezentáciu alebo obnov ligu zo zálohy.",
             },
             { status: 400 }
           );

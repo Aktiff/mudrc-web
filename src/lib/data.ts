@@ -24,6 +24,7 @@ export type PastResultTeam = { teamName: string; rounds: number[]; total: number
 export type PastResult = { id: string; date: string; winnerTeam: string; points: number; teams?: PastResultTeam[] };
 
 import eventsData from "@/data/events.json";
+import { quizResultKey } from "@/lib/quiz-result-key";
 
 export const events: QuizEvent[] = eventsData.events as QuizEvent[];
 
@@ -103,26 +104,83 @@ export function sortLeagueTable(table: LeagueEntry[]): LeagueEntry[] {
     .map((entry, index) => ({ ...entry, rank: index + 1 }));
 }
 
-export function rebuildLeagueTableFromResults(pastResults: PastResult[]): LeagueEntry[] {
+export function mergeLeagueTablesMax(a: LeagueEntry[], b: LeagueEntry[]): LeagueEntry[] {
+  const map = new Map<string, LeagueEntry>();
+
+  const upsert = (row: LeagueEntry) => {
+    const name = row.teamName.trim();
+    if (!name) return;
+    const prev = map.get(name);
+    if (!prev) {
+      map.set(name, { ...row, teamName: name, rank: 0 });
+      return;
+    }
+    map.set(name, {
+      rank: 0,
+      teamName: name,
+      points: Math.max(prev.points, row.points),
+      quizzesPlayed: Math.max(prev.quizzesPlayed, row.quizzesPlayed),
+    });
+  };
+
+  for (const row of a) upsert(row);
+  for (const row of b) upsert(row);
+  return sortLeagueTable(Array.from(map.values()));
+}
+
+export function rebuildLeagueTableFromResults(
+  pastResults: PastResult[],
+  options?: { preserveFromTable?: LeagueEntry[] }
+): LeagueEntry[] {
   const table: LeagueEntry[] = [];
+  const detailedKeys = new Set<string>();
+
+  const addContribution = (teamName: string, ligaPoints: number, quizzes = 1) => {
+    const name = teamName.trim();
+    if (!name) return;
+    const existing = table.find((row) => row.teamName === name);
+    if (existing) {
+      existing.points += ligaPoints;
+      existing.quizzesPlayed += quizzes;
+      return;
+    }
+    table.push({
+      rank: 0,
+      teamName: name,
+      points: ligaPoints,
+      quizzesPlayed: quizzes,
+    });
+  };
+
   for (const result of pastResults) {
     if (!result.teams?.length) continue;
+    detailedKeys.add(quizResultKey(result));
     for (const team of result.teams) {
-      const existing = table.find((row) => row.teamName === team.teamName);
-      if (existing) {
-        existing.points += team.ligaPoints;
-        existing.quizzesPlayed += 1;
-      } else {
-        table.push({
-          rank: 0,
-          teamName: team.teamName,
-          points: team.ligaPoints,
-          quizzesPlayed: 1,
-        });
-      }
+      addContribution(team.teamName, team.ligaPoints, 1);
     }
   }
-  return sortLeagueTable(table);
+
+  const preserveFromTable = options?.preserveFromTable ?? [];
+  for (const result of pastResults) {
+    if (result.teams?.length) continue;
+    const key = quizResultKey(result);
+    if (detailedKeys.has(key)) continue;
+
+    const winner = result.winnerTeam?.trim();
+    if (!winner) continue;
+
+    const preserved = preserveFromTable.find((row) => row.teamName === winner);
+    const estimatedPoints =
+      preserved && preserved.quizzesPlayed > 0
+        ? preserved.points / preserved.quizzesPlayed
+        : Math.max(0, preserveFromTable.filter((row) => row.quizzesPlayed > 0).length - 1);
+
+    addContribution(winner, estimatedPoints, 1);
+  }
+
+  const rebuilt = sortLeagueTable(table);
+  if (preserveFromTable.length === 0) return rebuilt;
+  return mergeLeagueTablesMax(rebuilt, preserveFromTable);
 }
 
 export function getVisibleLeagues(events: QuizEvent[]): QuizEvent[] {

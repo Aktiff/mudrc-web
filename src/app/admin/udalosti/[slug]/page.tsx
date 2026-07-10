@@ -551,7 +551,7 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
     if (
       fromQuizzes &&
       !confirm(
-        "Prepočítať ligu z uložených kvízov? Ak chýbajú detailné dáta tímov, operácia sa zruší a liga zostane nezmenená."
+        "Prepočítať ligu z kvízov? Detailné kvízy (prezentácia) sa prepočítajú presne. Súhrnné výsledky bez tímov a existujúca tabuľka sa zachovajú — nič sa nevymaže."
       )
     ) {
       return;
