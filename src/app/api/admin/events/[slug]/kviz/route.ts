@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
-import { normalizeDateKey } from "@/lib/quiz-result-key";
+import { sortLeagueTable } from "@/lib/data";
+import { normalizeDateKey } from "@/lib/quiz-result-key";import { buildQuizTeamsDetail } from "@/lib/quiz-save";
 import { revalidatePublicEventPaths } from "@/lib/revalidate-public";
 import { hasQuizForDate, readStoredQuiz, readEvents, updateEvents, upsertStoredQuiz } from "@/lib/storage";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-type TeamEntry = { name: string; scores: number[] };
+type TeamEntry = { name: string; scores: number[]; total?: number };
 
 export async function POST(req: NextRequest, { params }: { params: { slug: string } }) {
   const { date, teams }: { date: string; teams: TeamEntry[] } = await req.json();
@@ -15,36 +16,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
     return NextResponse.json({ error: "Chýba dátum alebo tímy" }, { status: 400 });
   }
 
-  const withTotals = teams.map((t) => ({
-    name: t.name.trim(),
-    scores: t.scores.map((s) => Number(s) || 0),
-    total: t.scores.reduce((a, b) => a + (Number(b) || 0), 0),
-  }));
-
-  const sorted = [...withTotals].sort((a, b) => b.total - a.total);
-  const n = sorted.length;
-  const ligaPoints: number[] = new Array(n);
-  let i = 0;
-  while (i < n) {
-    let j = i;
-    while (j < n - 1 && sorted[j].total === sorted[j + 1].total) j++;
-    const avgPoints = (n - 1 - i + (n - 1 - j)) / 2;
-    for (let k = i; k <= j; k++) ligaPoints[k] = avgPoints;
-    i = j + 1;
-  }
-
-  const winnerTotal = sorted[0].total;
-  const winners = sorted.filter((t) => t.total === winnerTotal);
-  const winnerTeam = winners.length === 1 ? winners[0].name : winners.map((t) => t.name).join(" / ");
-  const responseLigaPoints = sorted.map((t, idx) => ({ name: t.name, total: t.total, liga: ligaPoints[idx] }));
-
-  const teamsDetail = sorted.map((team, rankIdx) => ({
-    teamName: team.name,
-    rounds: team.scores,
-    total: team.total,
-    ligaPoints: ligaPoints[rankIdx],
-  }));
-
+  const { sorted, teamsDetail, winnerTeam, winnerTotal, responseLigaPoints } = buildQuizTeamsDetail(teams);
   const resultId = normalizeDateKey(date);
 
   if (await hasQuizForDate(params.slug, date)) {
@@ -76,8 +48,8 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
 
       const event = events[idx];
       const table = [...(event.leagueTable ?? [])];
-      sorted.forEach((team, rankIdx) => {
-        const pts = ligaPoints[rankIdx];
+      sorted.forEach((team) => {
+        const pts = teamsDetail.find((row) => row.teamName === team.name)?.ligaPoints ?? 0;
         const existing = table.find((r) => r.teamName === team.name);
         if (existing) {
           existing.points += pts;
@@ -88,18 +60,14 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
       });
 
       table.sort((a, b) => b.points - a.points || b.quizzesPlayed - a.quizzesPlayed);
-      table.forEach((r, rank) => {
-        r.rank = rank + 1;
-      });
-
+      const sortedTable = sortLeagueTable(table);
       const pastResults = [
         ...(event.pastResults ?? []).filter((r) => normalizeDateKey(r.date) !== resultId && r.id !== resultId),
         { id: resultId, date, winnerTeam, points: winnerTotal, teams: teamsDetail, leagueSynced: true },
       ];
 
-      events[idx] = { ...event, leagueTable: table, pastResults, leagueActive: true };
-      return events;
-    });
+      events[idx] = { ...event, leagueTable: sortedTable, pastResults, leagueActive: true };
+      return events;    });
   } catch (error) {
     if (error instanceof Error && error.message === "NOT_FOUND") {
       return NextResponse.json({ error: "Not found" }, { status: 404 });

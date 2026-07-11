@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { QuizEvent, LeagueEntry, PastResult } from "@/lib/data";
-import { rebuildLeagueTableFromResults, sortLeagueTable } from "@/lib/data";
+import { sortLeagueTable } from "@/lib/data";
+import { rebuildLeagueFromPastResults } from "@/lib/league-rebuild";
 import { mergePastResults } from "@/lib/quiz-result-key";
 import { revalidatePublicEventPaths } from "@/lib/revalidate-public";
 import { patchEvent, rebuildLeagueTableForEvent, updateEvents } from "@/lib/storage";
@@ -9,9 +10,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 function rebuildLeagueTable(event: QuizEvent): LeagueEntry[] {
-  return rebuildLeagueTableFromResults(event.pastResults ?? [], {
-    preserveFromTable: event.leagueTable ?? [],
-  });
+  return rebuildLeagueFromPastResults(event.pastResults ?? [], event.slug).leagueTable;
 }
 
 class NotFoundError extends Error {
@@ -98,14 +97,14 @@ export async function PUT(req: NextRequest, { params }: { params: { slug: string
     if (resetLeague || leagueToggle || quizToggle || recalculateLeague) {
       const fromQuizzes = body.fromQuizzes === true;
       let rebuiltLeague: { leagueTable: LeagueEntry[]; pastResults: PastResult[] } | null = null;
-      if (recalculateLeague) {
+      if (recalculateLeague && fromQuizzes) {
         const { events: currentEvents } = await updateEvents((events) => events);
         const current = currentEvents.find((event) => event.slug === params.slug);
         if (!current) {
           return NextResponse.json({ error: "Not found" }, { status: 404 });
         }
         rebuiltLeague = await rebuildLeagueTableForEvent(current);
-        if (fromQuizzes && rebuiltLeague.leagueTable.length === 0 && (current.leagueTable?.length ?? 0) === 0) {
+        if (rebuiltLeague.leagueTable.length === 0 && (current.leagueTable?.length ?? 0) === 0) {
           return NextResponse.json(
             {
               error:
@@ -165,18 +164,23 @@ export async function PUT(req: NextRequest, { params }: { params: { slug: string
           }
 
           if (recalculateLeague) {
-            if (!rebuiltLeague) {
-              throw new Error("LEAGUE_REBUILD_FAILED");
+            if (fromQuizzes && rebuiltLeague) {
+              events[idx] = {
+                ...existing,
+                leagueTable: rebuiltLeague.leagueTable,
+                pastResults: rebuiltLeague.pastResults,
+                leagueActive:
+                  rebuiltLeague.leagueTable.length > 0 || rebuiltLeague.pastResults.length > 0
+                    ? existing.leagueActive
+                    : false,
+              };
+              return events;
             }
 
             events[idx] = {
               ...existing,
-              leagueTable: rebuiltLeague.leagueTable,
-              pastResults: rebuiltLeague.pastResults,
-              leagueActive:
-                rebuiltLeague.leagueTable.length > 0 || rebuiltLeague.pastResults.length > 0
-                  ? existing.leagueActive
-                  : false,
+              leagueTable: sortLeagueTable(existing.leagueTable ?? []),
+              leagueActive: existing.leagueActive,
             };
             return events;
           }

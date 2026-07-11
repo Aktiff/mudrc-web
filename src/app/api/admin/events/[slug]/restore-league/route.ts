@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSeedLeagueData } from "@/lib/league-seed";
+import { rebuildLeagueFromPastResults } from "@/lib/league-rebuild";
 import { mergePastResults } from "@/lib/quiz-result-key";
-import { applyUnsyncedDetailedResultsToLeague, markDetailedResultsLeagueSynced } from "@/lib/data";
 import { revalidatePublicEventPaths } from "@/lib/revalidate-public";
 import { patchEvent, readEvents } from "@/lib/storage";
 
@@ -21,17 +21,13 @@ export async function POST(_req: Request, { params }: { params: { slug: string }
     const { events } = await readEvents();
     const current = events.find((event) => event.slug === params.slug);
     const mergedPastResults = mergePastResults(seed.pastResults, current?.pastResults ?? []);
-    const { leagueTable, appliedKeys } = applyUnsyncedDetailedResultsToLeague(
-      seed.leagueTable,
-      mergedPastResults
-    );
-    const pastResults = markDetailedResultsLeagueSynced(mergedPastResults, appliedKeys);
+    const rebuilt = rebuildLeagueFromPastResults(mergedPastResults, params.slug);
 
     const updated = await patchEvent(
       params.slug,
       {
-        leagueTable,
-        pastResults,
+        leagueTable: rebuilt.leagueTable,
+        pastResults: rebuilt.pastResults,
         leagueActive: true,
       },
       { includeLeagueData: true }
@@ -42,8 +38,8 @@ export async function POST(_req: Request, { params }: { params: { slug: string }
     return NextResponse.json({
       ok: true,
       event: updated,
-      restoredTeams: leagueTable.length,
-      restoredResults: pastResults.length,
+      restoredTeams: rebuilt.leagueTable.length,
+      restoredResults: rebuilt.pastResults.length,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Obnova ligy zlyhala.";

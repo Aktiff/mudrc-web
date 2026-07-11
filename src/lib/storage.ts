@@ -2,13 +2,8 @@ import fs from "fs";
 import path from "path";
 import { del, head, list, put } from "@vercel/blob";
 import type { QuizEvent, LeagueEntry, PastResult, PastResultTeam } from "@/lib/data";
-import {
-  applyUnsyncedDetailedResultsToLeague,
-  markDetailedResultsLeagueSynced,
-  rebuildLeagueTableFromResults,
-  sortEventsByDate,
-  sortLeagueTable,
-} from "@/lib/data";
+import { sortEventsByDate, sortLeagueTable } from "@/lib/data";
+import { rebuildLeagueFromPastResults } from "@/lib/league-rebuild";
 import {
   getSupabaseStorageDiagnostics,
   hasSupabaseStorage,
@@ -402,20 +397,14 @@ export async function rebuildLeagueTableForEvent(event: QuizEvent): Promise<{
     .filter((quiz) => quiz.eventSlug === event.slug)
     .map(storedQuizToPastResult);
   const mergedResults = mergePastResults(event.pastResults ?? [], eventQuizzes);
-  const base = event.leagueTable ?? [];
+  const rebuilt = rebuildLeagueFromPastResults(mergedResults, event.slug);
 
-  if (base.length === 0) {
-    return {
-      leagueTable: rebuildLeagueTableFromResults(mergedResults),
-      pastResults: markDetailedResultsLeagueSynced(mergedResults),
-    };
+  for (const result of rebuilt.pastResults) {
+    if (!result.teams?.length) continue;
+    await upsertStoredQuiz(pastResultToStoredQuiz(event.slug, result));
   }
 
-  const { leagueTable, appliedKeys } = applyUnsyncedDetailedResultsToLeague(base, mergedResults);
-  return {
-    leagueTable,
-    pastResults: markDetailedResultsLeagueSynced(mergedResults, appliedKeys),
-  };
+  return rebuilt;
 }
 
 async function loadQuizzesRaw(): Promise<StoredQuiz[]> {

@@ -575,10 +575,17 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
   };
 
   const recalculateLeague = async (fromQuizzes = false) => {
-    if (
-      fromQuizzes &&
+    if (fromQuizzes) {
+      if (
+        !confirm(
+          "Prepočítať ligu z kvízov? Súčet bodov sa vypočíta zo všetkých detailných kvízov a pripočíta k histórii zo zálohy. Včerajší kvíz zostane v zozname výsledkov."
+        )
+      ) {
+        return;
+      }
+    } else if (
       !confirm(
-        "Prepočítať ligu z kvízov? Detailné kvízy (prezentácia) sa prepočítajú presne. Súhrnné výsledky bez tímov a existujúca tabuľka sa zachovajú — nič sa nevymaže."
+        "Prepočítať poradie? Zoradí sa len existujúca tabuľka — body sa nepridávajú ani neodoberajú."
       )
     ) {
       return;
@@ -594,7 +601,7 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
       if (res.ok) {
         const data = await res.json();
         setForm(normalizeEvent(data));
-        setMsg({ text: fromQuizzes ? "Liga prepočítaná z kvízov" : "Poradie prepočítané (nezapísané kvízy doplnené)", ok: true });
+        setMsg({ text: fromQuizzes ? "Liga prepočítaná z kvízov" : "Poradie zoradené (body sa nemenili)", ok: true });
       } else {
         const err = await res.json().catch(() => ({}));
         setMsg({ text: err.error ?? "Chyba pri prepočítaní", ok: false });
