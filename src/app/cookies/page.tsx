@@ -1,22 +1,33 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowLeft, CheckCircle2, ClipboardList, Mail, Moon, ShieldCheck, Trash2 } from "lucide-react";
+import { ArrowLeft, BarChart3, CheckCircle2, Mail, Megaphone, Moon, ShieldCheck, Trash2 } from "lucide-react";
+import CookiePreferencesPanel from "@/components/CookiePreferencesPanel";
 
 export const metadata: Metadata = {
   title: "Cookies",
-  description: "Informácie o cookies a ukladaní údajov na webe Mudrc Kvíz.",
+  description: "Informácie o cookies, súhlase a meraní na webe Mudrc Kvíz.",
 };
 
 const storedItems = [
   {
     icon: CheckCircle2,
     title: "Súhlas s upozornením",
-    desc: "Po kliknutí na „Súhlasím“ si prehliadač zapamätá, že ste lištu videli — neukazuje sa stále dokola.",
+    desc: "Zapamätáme, že ste si prečítali lištu o cookies.",
   },
   {
     icon: Moon,
-    title: "Svetlá alebo tmavá téma",
-    desc: "Váš výber v hlavičke stránky si prehliadač uloží, aby ste nemuseli prepínať pri každej návšteve.",
+    title: "Téma webu",
+    desc: "Svetlý alebo tmavý režim podľa vášho výberu.",
+  },
+  {
+    icon: BarChart3,
+    title: "Štatistiky (voliteľné)",
+    desc: "Po súhlase: návštevnosť, konverzie (registrácia tímu), výkon stránky — Google Analytics 4, Vercel Analytics.",
+  },
+  {
+    icon: Megaphone,
+    title: "Marketing (voliteľné)",
+    desc: "Po súhlase: meranie reklám Google Ads, Meta (Facebook / Instagram), remarketing — spravuje sa cez Google Tag Manager.",
   },
 ];
 
@@ -30,8 +41,8 @@ export default function CookiesPage() {
           </span>
           <h1 className="font-display text-5xl sm:text-6xl text-brand-text tracking-wide mt-3">COOKIES</h1>
           <p className="text-brand-muted text-lg mt-4 leading-relaxed max-w-2xl">
-            Ako mudrc.sk pracuje s cookies a údajmi v prehliadači. Bez reklamného sledovania, len to nevyhnutné pre
-            pohodlné používanie webu.
+            Nevyhnutné cookies sú vždy zapnuté. Štatistiky a reklamné meranie (PPC) len so súhlasom — môžete kedykoľvek
+            zmeniť výber nižšie.
           </p>
         </div>
       </section>
@@ -42,16 +53,19 @@ export default function CookiesPage() {
             <ShieldCheck className="w-7 h-7 text-brand-orange" />
           </div>
           <div>
-            <h2 className="font-display text-2xl sm:text-3xl text-brand-text tracking-wide">Bez sledovacích cookies</h2>
+            <h2 className="font-display text-2xl sm:text-3xl text-brand-text tracking-wide">Google Consent Mode</h2>
             <p className="text-brand-muted mt-3 leading-relaxed">
-              Nepoužívame Google Analytics, reklamné pixely ani iné nástroje, ktoré by vás sledovali po webe. Na
-              mudrc.sk nepredávame vaše správanie tretím stranám.
+              Pred súhlasom neukladáme marketingové cookies. Po „Prijať všetko“ alebo vlastnom výbere sa zapnú len
+              zvolené kategórie. Tagy (GA4, Google Ads, Meta Pixel) sa typicky spravujú v Google Tag Manageri — bez
+              zbytočných úprav kódu pri každej kampani.
             </p>
           </div>
         </div>
 
+        <CookiePreferencesPanel />
+
         <div>
-          <h2 className="section-title text-2xl sm:text-3xl mb-6">Čo sa u vás môže uložiť</h2>
+          <h2 className="section-title text-2xl sm:text-3xl mb-6">Prehľad kategórií</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
             {storedItems.map((item) => (
               <div key={item.title} className="card p-6 sm:p-7 h-full">
@@ -65,25 +79,12 @@ export default function CookiesPage() {
           </div>
         </div>
 
-        <div className="card p-6 sm:p-8 flex gap-5">
-          <div className="w-11 h-11 rounded-xl bg-brand-tint flex items-center justify-center shrink-0">
-            <ClipboardList className="w-5 h-5 text-brand-orange" />
-          </div>
-          <div>
-            <h2 className="font-semibold text-brand-text text-lg mb-2">Registrácia na kvíz</h2>
-            <p className="text-brand-muted text-sm sm:text-base leading-relaxed">
-              Meno tímu a kontakt z formulára posielame na náš server kvôli organizácii večera — to nie sú cookies v
-              prehliadači. Pri registrácii vás informujeme o spracovaní údajov; pri otázkach nás kontaktujte.
-            </p>
-          </div>
-        </div>
-
         <div className="rounded-2xl border border-brand-border bg-brand-warm/50 px-6 py-5 sm:px-8 sm:py-6 flex gap-4">
           <Trash2 className="w-5 h-5 text-brand-orange shrink-0 mt-0.5" />
           <p className="text-brand-muted text-sm sm:text-base leading-relaxed">
-            <span className="font-medium text-brand-text">Vymazanie údajov: </span>
-            V nastaveniach prehliadača môžete zmazať cookies a údaje pre mudrc.sk. Lišta o cookies sa môže znova
-            zobraziť a tému si zvolíte odznova.
+            <span className="font-medium text-brand-text">Vymazanie: </span>
+            V prehliadači môžete zmazať cookies a údaje pre mudrc.sk. Lišta sa znova zobrazí a meranie sa vypne, kým
+            znovu nesúhlasíte.
           </p>
         </div>
 

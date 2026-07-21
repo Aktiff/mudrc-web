@@ -20,6 +20,7 @@ import { getRegion } from "@/lib/regions";
 import Breadcrumbs from "@/components/Breadcrumbs";
 import RegistrationAction from "@/components/RegistrationAction";
 import RegistrationModal from "./RegistrationModal";
+import QuizViewTracker from "@/components/QuizViewTracker";
 
 const medalStyles = [
   { bg: "#FFD700", color: "#5a3e00", border: "#c9a800" },
@@ -41,6 +42,7 @@ export default function EventDetailPage({ event, region, pollHref }: EventDetail
 
   return (
     <>
+      <QuizViewTracker eventSlug={event.slug} venue={event.venue} />
       <div className="min-h-screen bg-brand-bg pt-16">
         <section className="bg-brand-warm border-b border-brand-border">
           <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12">

@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { X } from "lucide-react";
+import { trackRegistrationComplete } from "@/lib/analytics";
 
 interface Props {
   eventSlug: string;
@@ -29,6 +30,11 @@ export default function RegistrationModal({ eventSlug, venue, minPlayers = 2, ma
         body: JSON.stringify({ venue, eventSlug, teamName, players, phone }),
       });
       if (res.ok) {
+        trackRegistrationComplete({
+          eventSlug,
+          venue,
+          players: Number(players) || undefined,
+        });
         setSubmitted(true);
       } else {
         const data = await res.json().catch(() => ({}));
