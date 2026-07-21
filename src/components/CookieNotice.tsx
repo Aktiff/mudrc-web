@@ -35,9 +35,10 @@ export default function CookieNotice() {
             Cookies a ukladanie v prehliadači
           </p>
           <p id="cookie-notice-desc" className="text-brand-muted text-xs sm:text-sm mt-1 leading-relaxed">
-            Používame nevyhnutné údaje na fungovanie webu (napr. zapamätanie témy). Viac v{" "}
+            Web nevyužíva reklamné sledovanie. Vo vašom prehliadači si môžeme zapamätať súhlas s týmto upozornením a
+            zvolenú tému. Viac na stránke{" "}
             <Link href="/cookies" className="text-brand-orange-readable font-medium hover:underline">
-              informáciách o cookies
+              Cookies
             </Link>
             .
           </p>
