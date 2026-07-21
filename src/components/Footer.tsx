@@ -41,9 +41,20 @@ export default function Footer() {
             <SocialLinks />
           </div>
         </div>
-        <div className="border-t border-black/10 dark:border-brand-border mt-10 pt-6 flex flex-col sm:flex-row justify-between items-center gap-2">
+        <div className="border-t border-black/10 dark:border-brand-border mt-10 pt-6 flex flex-col sm:flex-row justify-between items-center gap-3">
           <p className="text-black/65 dark:text-brand-muted-light text-xs">© 2026 Mudrc Kvíz. Všetky práva vyhradené.</p>
-          <p className="text-black/65 dark:text-brand-muted-light text-xs">Vytvorené s láskou ku kvízom</p>
+          <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs">
+            <Link
+              href="/cookies"
+              className="text-black/65 hover:text-black dark:text-brand-muted-light dark:hover:text-brand-orange-readable transition-colors"
+            >
+              Cookies
+            </Link>
+            <span className="text-black/40 dark:text-brand-border hidden sm:inline" aria-hidden>
+              ·
+            </span>
+            <p className="text-black/65 dark:text-brand-muted-light">Vytvorené s láskou ku kvízom</p>
+          </div>
         </div>
       </div>
     </footer>

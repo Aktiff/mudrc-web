@@ -4,6 +4,7 @@ import "./globals.css";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import ThemeSync from "@/components/ThemeSync";
+import CookieNotice from "@/components/CookieNotice";
 import { defaultSiteMetadata } from "@/lib/site-metadata";
 
 const poppins = Poppins({ subsets: ["latin"], weight: ["400","500","600","700"], variable: "--font-poppins", display: "swap" });
@@ -23,6 +24,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <Navbar />
         <main>{children}</main>
         <Footer />
+        <CookieNotice />
       </body>
     </html>
   );
