@@ -106,36 +106,38 @@ export function isMarketingAllowed(): boolean {
   return getConsentPreferences()?.marketing ?? false;
 }
 
-/** Inline script v layout — musí bežať pred GTM. */
-export const CONSENT_BOOTSTRAP_SCRIPT = `(function(){
-  window.dataLayer=window.dataLayer||[];
-  function gtag(){dataLayer.push(arguments);}
-  window.gtag=gtag;
-  gtag('consent','default',{
-    ad_storage:'denied',
-    ad_user_data:'denied',
-    ad_personalization:'denied',
-    analytics_storage:'denied',
-    functionality_storage:'granted',
-    security_storage:'granted',
-    wait_for_update:500
-  });
-  try{
-    var key='${CONSENT_STORAGE_KEY}';
-    var legacy='${LEGACY_STORAGE_KEY}';
-    var raw=localStorage.getItem(key);
-    var p=null;
-    if(raw){p=JSON.parse(raw);}
-    else if(localStorage.getItem(legacy)==='accepted'){
-      p={analytics:true,marketing:true};
-    }
-    if(p){
-      gtag('consent','update',{
-        analytics_storage:p.analytics?'granted':'denied',
-        ad_storage:p.marketing?'granted':'denied',
-        ad_user_data:p.marketing?'granted':'denied',
-        ad_personalization:p.marketing?'granted':'denied'
-      });
-    }
-  }catch(e){}
-})();`;
+/** Inline telo pre Consent Mode — musí bežať pred GTM. */
+export const CONSENT_BOOTSTRAP_SCRIPT = `
+window.dataLayer = window.dataLayer || [];
+function gtag(){dataLayer.push(arguments);}
+window.gtag = gtag;
+
+gtag('consent', 'default', {
+  'ad_storage': 'denied',
+  'analytics_storage': 'denied',
+  'ad_user_data': 'denied',
+  'ad_personalization': 'denied',
+  'functionality_storage': 'granted',
+  'security_storage': 'granted',
+  'wait_for_update': 500
+});
+
+try {
+  var key = '${CONSENT_STORAGE_KEY}';
+  var legacy = '${LEGACY_STORAGE_KEY}';
+  var raw = localStorage.getItem(key);
+  var p = null;
+  if (raw) { p = JSON.parse(raw); }
+  else if (localStorage.getItem(legacy) === 'accepted') {
+    p = { analytics: true, marketing: true };
+  }
+  if (p) {
+    gtag('consent', 'update', {
+      'analytics_storage': p.analytics ? 'granted' : 'denied',
+      'ad_storage': p.marketing ? 'granted' : 'denied',
+      'ad_user_data': p.marketing ? 'granted' : 'denied',
+      'ad_personalization': p.marketing ? 'granted' : 'denied'
+    });
+  }
+} catch (e) {}
+`.trim();

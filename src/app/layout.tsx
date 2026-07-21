@@ -5,9 +5,9 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import ThemeSync from "@/components/ThemeSync";
 import CookieNotice from "@/components/CookieNotice";
-import GoogleTagManager from "@/components/GoogleTagManager";
+import GoogleConsentMode from "@/components/GoogleConsentMode";
+import GoogleTagManager, { GoogleTagManagerNoScript } from "@/components/GoogleTagManager";
 import VercelAnalyticsWithConsent from "@/components/VercelAnalyticsWithConsent";
-import { CONSENT_BOOTSTRAP_SCRIPT } from "@/lib/cookie-consent";
 import { defaultSiteMetadata } from "@/lib/site-metadata";
 
 const poppins = Poppins({ subsets: ["latin"], weight: ["400","500","600","700"], variable: "--font-poppins", display: "swap" });
@@ -21,10 +21,13 @@ const themeScript = `(function(){try{var t=localStorage.getItem('theme');var pre
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="sk" className={`${poppins.variable} ${bebasNeue.variable}`} suppressHydrationWarning>
-      <body suppressHydrationWarning>
-        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
-        <script dangerouslySetInnerHTML={{ __html: CONSENT_BOOTSTRAP_SCRIPT }} />
+      <head>
+        <GoogleConsentMode />
         <GoogleTagManager />
+      </head>
+      <body suppressHydrationWarning>
+        <GoogleTagManagerNoScript />
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
         <ThemeSync />
         <Navbar />
         <main>{children}</main>
