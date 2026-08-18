@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { QuizEvent } from "@/lib/data";
+import { revalidateAfterNewEvent } from "@/lib/revalidate-public";
 import { readEvents, updateEvents } from "@/lib/storage";
 
 export const runtime = "nodejs";
@@ -23,6 +24,8 @@ export async function POST(req: NextRequest) {
   const newEvent: QuizEvent = {
     ...body,
     slug: body.slug || slugify(body.venue),
+    regionSlug: body.regionSlug || "prievidza",
+    active: body.active !== false,
     leagueTable: body.leagueTable ?? [],
     pastResults: body.pastResults ?? [],
   };
@@ -38,6 +41,8 @@ export async function POST(req: NextRequest) {
     }
     throw error;
   }
+
+  revalidateAfterNewEvent(newEvent);
 
   return NextResponse.json(newEvent, { status: 201 });
 }

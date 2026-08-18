@@ -7,6 +7,7 @@ import { buildHomepageMetadata } from "@/lib/homepage-metadata";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export function generateMetadata() {
   return buildHomepageMetadata();
