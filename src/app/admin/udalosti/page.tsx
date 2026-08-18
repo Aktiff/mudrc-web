@@ -2,13 +2,14 @@ import Link from "next/link";
 import { Plus, Calendar, ChevronRight } from "lucide-react";
 import { RestoreMissingEvents } from "@/components/admin/RestoreMissingEvents";
 import { formatEventDateLabel } from "@/lib/data";
+import { isValidStoredEvent } from "@/lib/event-normalize";
 import { getPollActiveFlagsBySlug } from "@/lib/poll-storage";
-import { listMissingSeedEvents, readEvents } from "@/lib/storage";
+import { listMissingSeedEvents, readAllEventsRaw } from "@/lib/storage";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminUdalostitPage() {
-  const [{ events }, missing] = await Promise.all([readEvents(), listMissingSeedEvents()]);
+  const [{ events }, missing] = await Promise.all([readAllEventsRaw(), listMissingSeedEvents()]);
   const pollActiveBySlug = await getPollActiveFlagsBySlug(events.map((event) => event.slug));
 
   return (
@@ -26,11 +27,15 @@ export default async function AdminUdalostitPage() {
         missing={missing.map((event) => ({ slug: event.slug, venue: event.venue, city: event.city }))}
       />
       <div className="space-y-3">
-        {events.map((e) => (
+        {events.map((e) => {
+          const invalid = !isValidStoredEvent(e);
+          return (
           <Link
             key={e.slug}
             href={`/admin/udalosti/${e.slug}`}
-            className="block bg-brand-card rounded-2xl border border-brand-border px-6 py-5 hover:border-brand-orange hover:bg-brand-warm transition-colors group"
+            className={`block bg-brand-card rounded-2xl border px-6 py-5 hover:border-brand-orange hover:bg-brand-warm transition-colors group ${
+              invalid ? "border-red-400/60" : "border-brand-border"
+            }`}
           >
             <div className="flex items-center justify-between gap-4">
               <div className="flex items-center gap-4 min-w-0">
@@ -78,6 +83,7 @@ export default async function AdminUdalostitPage() {
                   <div className="text-brand-muted text-sm">
                     {e.city} &mdash; {formatEventDateLabel(e.date)} o {e.time}
                   </div>
+                  <div className="text-brand-muted-light text-xs mt-1 font-mono">/{e.slug}{invalid ? " · neúplný záznam" : ""}</div>
                 </div>
               </div>
               <div className="flex items-center gap-4 text-sm text-brand-muted shrink-0">
@@ -87,7 +93,8 @@ export default async function AdminUdalostitPage() {
               </div>
             </div>
           </Link>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

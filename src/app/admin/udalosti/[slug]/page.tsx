@@ -445,18 +445,29 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
         }
       );
       if (res.ok) {
-        const fresh = !isNew ? await loadEventFromServer(params.slug) : null;
+        const saved = await res.json();
+        if (isNew) {
+          setMsg({ text: "Uložené!", ok: true });
+          router.push(`/admin/udalosti/${saved.slug}`);
+          return;
+        }
+        const fresh = await loadEventFromServer(params.slug);
         if (fresh) {
           setForm(normalizeEvent(fresh));
-        } else if (!isNew) {
-          const data = await res.json();
-          setForm(normalizeEvent(data));
+        } else {
+          setForm(normalizeEvent(saved));
         }
         setMsg({ text: "Uložené!", ok: true });
-        if (isNew) router.push("/admin/udalosti");
       } else {
         const err = await res.json();
-        setMsg({ text: err.error ?? "Chyba pri ukladaní", ok: false });
+        if (res.status === 409 && err.editUrl) {
+          setMsg({
+            text: `${err.error ?? "Slug už existuje."} Skús otvoriť /admin/udalosti/${err.slug ?? form.slug}`,
+            ok: false,
+          });
+        } else {
+          setMsg({ text: err.error ?? "Chyba pri ukladaní", ok: false });
+        }
       }
     } catch {
       setMsg({ text: "Sieťová chyba pri ukladaní", ok: false });

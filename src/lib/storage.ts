@@ -3,6 +3,7 @@ import path from "path";
 import { del, head, list, put } from "@vercel/blob";
 import type { QuizEvent, LeagueEntry, PastResult, PastResultTeam } from "@/lib/data";
 import { sortEventsByDate, sortLeagueTable } from "@/lib/data";
+import { isValidStoredEvent } from "@/lib/event-normalize";
 import { rebuildLeagueFromPastResults } from "@/lib/league-rebuild";
 import {
   getSupabaseStorageDiagnostics,
@@ -857,14 +858,33 @@ export async function updateRegistrations(
 
 export async function readEvents(): Promise<{ events: QuizEvent[] }> {
   try {
-    return { events: sortEventsByDate(await loadEvents()) };
+    const loaded = sortEventsByDate(await loadEvents());
+    return { events: loaded.filter(isValidStoredEvent) };
   } catch (error) {
     console.error("readEvents error:", error);
+    if (!hasSupabaseStorage() && !isVercel) {
+      return { events: sortEventsByDate(readLocalEvents().events.filter(isValidStoredEvent)) };
+    }
+    throw error instanceof Error ? error : new Error("Nepodarilo sa nacitat udalosti.");
+  }
+}
+
+/** Všetky záznamy vrátane neúplných — pre admin a kontrolu slug. */
+export async function readAllEventsRaw(): Promise<{ events: QuizEvent[] }> {
+  try {
+    return { events: sortEventsByDate(await loadEvents()) };
+  } catch (error) {
+    console.error("readAllEventsRaw error:", error);
     if (!hasSupabaseStorage() && !isVercel) {
       return { events: sortEventsByDate(readLocalEvents().events) };
     }
     throw error instanceof Error ? error : new Error("Nepodarilo sa nacitat udalosti.");
   }
+}
+
+export async function storedEventSlugExists(slug: string): Promise<boolean> {
+  const base = await loadEventsBase();
+  return base.some((event) => event.slug === slug);
 }
 
 export async function writeEvents(data: { events: QuizEvent[] }, options?: WriteOptions): Promise<void> {

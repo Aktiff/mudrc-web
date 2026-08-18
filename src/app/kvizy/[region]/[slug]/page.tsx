@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { buildBreadcrumbJsonLd, buildEventJsonLd, buildEventMetadata } from "@/lib/seo";
 import { isPollActive } from "@/lib/poll-storage";
 import { getEventRegionSlug, getRegion, isRegionSlug } from "@/lib/regions";
-import { getPublicEvent } from "@/lib/public-events";
+import { getPublicEventBySlug } from "@/lib/public-events";
 import EventDetailPage from "@/components/EventDetailPage";
 import JsonLd from "@/components/JsonLd";
 
@@ -14,18 +14,23 @@ type PageProps = { params: { region: string; slug: string } };
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   if (!isRegionSlug(params.region)) return {};
-  const event = await getPublicEvent(params.region, params.slug);
+  const event = await getPublicEventBySlug(params.slug);
   if (!event) return {};
-  return buildEventMetadata(event, params.region);
+  return buildEventMetadata(event, getEventRegionSlug(event));
 }
 
 export default async function QuizEventPage({ params }: PageProps) {
   if (!isRegionSlug(params.region)) notFound();
-  const event = await getPublicEvent(params.region, params.slug);
+
+  const event = await getPublicEventBySlug(params.slug);
   if (!event) notFound();
 
-  const region = getRegion(params.region)!;
   const regionSlug = getEventRegionSlug(event);
+  if (params.region !== regionSlug) {
+    redirect(`/kvizy/${regionSlug}/${params.slug}`);
+  }
+
+  const region = getRegion(regionSlug)!;
   const pollActive = await isPollActive(event.slug, event.venue);
   const pollHref = pollActive ? `/kvizy/${regionSlug}/${event.slug}/hlasovanie` : undefined;
 

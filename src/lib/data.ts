@@ -72,7 +72,7 @@ export function sortEventsByDate(events: QuizEvent[]): QuizEvent[] {
   return [...events].sort((a, b) => {
     const dateA = parseSkEventDateTime(a.date, a.time)?.getTime() ?? Number.POSITIVE_INFINITY;
     const dateB = parseSkEventDateTime(b.date, b.time)?.getTime() ?? Number.POSITIVE_INFINITY;
-    return dateA - dateB || a.venue.localeCompare(b.venue, "sk");
+    return dateA - dateB || (a.venue ?? "").localeCompare(b.venue ?? "", "sk");
   });
 }
 
