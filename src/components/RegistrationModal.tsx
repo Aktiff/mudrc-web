@@ -77,7 +77,7 @@ export default function RegistrationModal({ eventSlug, venue, minPlayers = 2, ma
                   required
                   value={teamName}
                   onChange={(e) => setTeamName(e.target.value)}
-                  placeholder={"napr. Bzdochy"}
+                  placeholder={"napr. Mudrc"}
                   className="w-full border border-brand-border rounded-xl px-4 py-3 text-brand-text bg-brand-surface placeholder:text-brand-muted-light focus:outline-none focus:border-brand-orange transition-colors"
                 />
               </div>
