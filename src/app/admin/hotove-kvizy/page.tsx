@@ -8,8 +8,8 @@ export default function HotoveKvizyPage() {
       <div className="mb-8">
         <h1 className="font-display text-4xl text-brand-text tracking-wide mb-1">Hotové kvízy</h1>
         <p className="text-brand-muted text-sm max-w-2xl leading-relaxed">
-          Knižnica otázok na recykláciu. Pri zadávaní výsledkov vyberieš ktorý kvíz si použil — systém si pamätá kde,
-          kedy a s akými tímami hral. Filtruj podľa nahlásených tímov, aby si neopakoval kvíz pre tímy, ktoré ho už mali.
+          Knižnica otázok na recykláciu. Hore zapíšeš výsledok rovnako ako pri podniku — vyber podnik, kvíz, načítaj
+          tímy do tabuľky a ulož body. Systém si pamätá kde, kedy a s kým kvíz hral.
         </p>
       </div>
       <HotoveKvizyList />
