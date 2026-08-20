@@ -46,14 +46,16 @@ export default function HotoveKvizyList() {
   const selectedEvent = events.find((event) => event.slug === selectedEventSlug);
   const rounds = selectedEvent?.rounds || 4;
 
-  const loadQuizzes = useCallback(async (teams: string[] = filterTeams) => {
-    const qs = teams.length ? `?teams=${encodeURIComponent(teams.join("\n"))}` : "";
-    const res = await fetch(`/api/admin/quiz-library${qs}&_=${Date.now()}`.replace("?&", "?"), { cache: "no-store" });
+  const loadQuizzes = useCallback(async (teams: string[] = []) => {
+    const params = new URLSearchParams();
+    if (teams.length) params.set("teams", teams.join("\n"));
+    params.set("_", String(Date.now()));
+    const res = await fetch(`/api/admin/quiz-library?${params}`, { cache: "no-store" });
     if (res.ok) {
       const data = await res.json();
       setQuizzes(data.quizzes ?? []);
     }
-  }, [filterTeams]);
+  }, []);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
@@ -71,6 +73,12 @@ export default function HotoveKvizyList() {
   useEffect(() => {
     loadAll();
   }, [loadAll]);
+
+  useEffect(() => {
+    const refresh = () => loadQuizzes(filterTeams);
+    window.addEventListener("focus", refresh);
+    return () => window.removeEventListener("focus", refresh);
+  }, [filterTeams, loadQuizzes]);
 
   const loadTeamsForEvent = useCallback(
     async (slug: string, venue: string, silent = false) => {
