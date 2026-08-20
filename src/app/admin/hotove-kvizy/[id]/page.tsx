@@ -72,6 +72,11 @@ export default async function HotovyKvizDetailPage({ params }: PageProps) {
       </div>
 
       <h2 className="font-display text-2xl text-brand-text tracking-wide mb-4">Slidy a otázky</h2>
+      <p className="text-brand-muted text-sm mb-4 max-w-2xl">
+        Štandardný flow: <strong className="text-brand-text">Pravidlá</strong> → Kolo 1 (15 otázok) → Opravovanie →
+        Správne odpovede → Kolo 2… → Kolo 4 (5 otázok + 5 hudby) → Vyhodnotenie. Ak máš starú štruktúru, klikni{" "}
+        <strong className="text-brand-text">Štandardná štruktúra</strong>.
+      </p>
       <QuizLibraryEditor quizId={params.id} initialQuiz={quiz} />
     </div>
   );

@@ -13,8 +13,20 @@ import {
 } from "lucide-react";
 import type { QuizLibraryItem, QuizSlide, QuizSlideType } from "@/lib/quiz-library";
 import { createEmptySlide, createSlideId, slideTypeLabel } from "@/lib/quiz-deck";
+import { buildStandardMudrcQuizSlides, describeSlideFlow } from "@/lib/quiz-template";
+import type { QuizEvent } from "@/lib/data";
 
-const SLIDE_TYPES: QuizSlideType[] = ["title", "round", "question", "text", "scores"];
+const SLIDE_TYPES: QuizSlideType[] = [
+  "rules",
+  "round",
+  "question",
+  "music",
+  "correction",
+  "answer",
+  "text",
+  "scores",
+  "title",
+];
 
 type Props = {
   quizId: string;
@@ -27,6 +39,8 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
   const [addType, setAddType] = useState<QuizSlideType>("question");
+  const [events, setEvents] = useState<QuizEvent[]>([]);
+  const [playEventSlug, setPlayEventSlug] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -40,7 +54,22 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
 
   useEffect(() => {
     if (!initialQuiz) load();
+    fetch(`/api/admin/events?_=${Date.now()}`, { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d) => setEvents(d.events ?? []));
   }, [initialQuiz, load]);
+
+  const regenerateTemplate = () => {
+    if (
+      !window.confirm(
+        "Nahradiť všetky slidy štandardnou štruktúrou Mudrc kvízu? (Pravidlá → 4 kolá → opravy → odpovede → vyhodnotenie)"
+      )
+    ) {
+      return;
+    }
+    setQuiz((prev) => (prev ? { ...prev, slides: buildStandardMudrcQuizSlides() } : prev));
+    setMsg({ text: "Štruktúra vygenerovaná — doplň otázky a odpovede, potom Uložiť.", ok: true });
+  };
 
   const slides = useMemo(() => quiz?.slides ?? [], [quiz?.slides]);
 
@@ -137,21 +166,35 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
 
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <p className="text-brand-muted text-sm">{slides.length} slidov</p>
+          <p className="text-brand-muted text-sm">{describeSlideFlow(slides)}</p>
           {msg && (
             <p className={`text-sm mt-1 ${msg.ok ? "text-green-600 dark:text-green-400" : "text-red-500"}`}>
               {msg.text}
             </p>
           )}
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2 items-end">
+          <div>
+            <label className="label text-xs">Podnik (pravidlá)</label>
+            <select className="input text-sm py-2 min-w-[180px]" value={playEventSlug} onChange={(e) => setPlayEventSlug(e.target.value)}>
+              <option value="">Pri spustení vyberiem</option>
+              {events.map((event) => (
+                <option key={event.slug} value={event.slug}>
+                  {event.venue}
+                </option>
+              ))}
+            </select>
+          </div>
           <Link
-            href={`/admin/hotove-kvizy/${quizId}/prehrat`}
+            href={`/admin/hotove-kvizy/${quizId}/prehrat${playEventSlug ? `?event=${playEventSlug}` : ""}`}
             className="btn-primary text-sm py-2.5 px-4 inline-flex items-center gap-2"
           >
             <MonitorPlay className="w-4 h-4" />
             Spustiť na projektor
           </Link>
+          <button type="button" onClick={regenerateTemplate} className="btn-outline text-sm py-2.5 px-4">
+            Štandardná štruktúra
+          </button>
           <button type="button" onClick={save} disabled={saving} className="btn-outline text-sm py-2.5 px-4 inline-flex items-center gap-2">
             <Save className="w-4 h-4" />
             {saving ? "Ukladám…" : "Uložiť"}
@@ -195,21 +238,39 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
             )}
 
             {slide.type === "round" && (
-              <div>
-                <label className="label">Číslo kola</label>
-                <input
-                  className="input max-w-[8rem]"
-                  type="number"
-                  min={1}
-                  value={slide.roundNumber ?? 1}
-                  onChange={(e) => updateSlide(slide.id, { roundNumber: Number(e.target.value) || 1 })}
-                />
-              </div>
+              <>
+                <div>
+                  <label className="label">Podnadpis (napr. 15 otázok)</label>
+                  <input className="input" value={slide.subtitle ?? ""} onChange={(e) => updateSlide(slide.id, { subtitle: e.target.value })} />
+                </div>
+                <div>
+                  <label className="label">Číslo kola</label>
+                  <input
+                    className="input max-w-[8rem]"
+                    type="number"
+                    min={1}
+                    value={slide.roundNumber ?? 1}
+                    onChange={(e) => updateSlide(slide.id, { roundNumber: Number(e.target.value) || 1 })}
+                  />
+                </div>
+              </>
             )}
 
-            {(slide.type === "question" || slide.type === "text" || slide.type === "scores") && (
+            {(slide.type === "question" ||
+              slide.type === "music" ||
+              slide.type === "answer" ||
+              slide.type === "text" ||
+              slide.type === "correction" ||
+              slide.type === "rules" ||
+              slide.type === "scores") && (
               <div>
-                <label className="label">{slide.type === "question" ? "Text otázky" : "Text na slide"}</label>
+                <label className="label">
+                  {slide.type === "question" || slide.type === "music"
+                    ? "Text otázky / ukážky"
+                    : slide.type === "answer"
+                      ? "Text otázky (voliteľné, na kontrolu)"
+                      : "Text na slide"}
+                </label>
                 <textarea
                   className="input min-h-[100px] resize-y"
                   value={slide.body ?? ""}
@@ -218,12 +279,17 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
               </div>
             )}
 
-            {slide.type === "question" && (
+            {(slide.type === "question" || slide.type === "music" || slide.type === "answer") && (
+              <div>
+                <label className="label">
+                  {slide.type === "answer" ? "Správna odpoveď (zobrazí sa na projektore)" : "Správna odpoveď (len pre editor — na projektore až v sekcii odpovedí)"}
+                </label>
+                <input className="input" value={slide.answer ?? ""} onChange={(e) => updateSlide(slide.id, { answer: e.target.value })} />
+              </div>
+            )}
+
+            {(slide.type === "question" || slide.type === "music") && (
               <>
-                <div>
-                  <label className="label">Správna odpoveď</label>
-                  <input className="input" value={slide.answer ?? ""} onChange={(e) => updateSlide(slide.id, { answer: e.target.value })} />
-                </div>
                 <div>
                   <label className="label">Obrázok (URL)</label>
                   <input
@@ -233,6 +299,17 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
                     placeholder="https://…"
                   />
                 </div>
+                {slide.type === "music" && (
+                  <div>
+                    <label className="label">Audio ukážka (URL)</label>
+                    <input
+                      className="input"
+                      value={slide.audioUrl ?? ""}
+                      onChange={(e) => updateSlide(slide.id, { audioUrl: e.target.value })}
+                      placeholder="https://…mp3"
+                    />
+                  </div>
+                )}
               </>
             )}
           </div>

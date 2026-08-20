@@ -1,4 +1,15 @@
-export type QuizSlideType = "title" | "round" | "question" | "text" | "scores";
+import { buildStandardMudrcQuizSlides } from "@/lib/quiz-template";
+
+export type QuizSlideType =
+  | "title"
+  | "rules"
+  | "round"
+  | "question"
+  | "music"
+  | "correction"
+  | "answer"
+  | "text"
+  | "scores";
 
 export type QuizSlide = {
   id: string;
@@ -8,7 +19,9 @@ export type QuizSlide = {
   body?: string;
   answer?: string;
   imageUrl?: string;
+  audioUrl?: string;
   roundNumber?: number;
+  questionNumber?: number;
 };
 
 export type QuizDeck = {
@@ -26,14 +39,22 @@ export function slideTypeLabel(type: QuizSlideType): string {
   switch (type) {
     case "title":
       return "Úvod";
+    case "rules":
+      return "Pravidlá";
     case "round":
       return "Kolo";
     case "question":
       return "Otázka";
+    case "music":
+      return "Hudobná ukážka";
+    case "correction":
+      return "Opravovanie";
+    case "answer":
+      return "Správna odpoveď";
     case "text":
-      return "Text / prestávka";
+      return "Text / oddelenie";
     case "scores":
-      return "Výsledky";
+      return "Vyhodnotenie";
     default:
       return type;
   }
@@ -44,14 +65,22 @@ export function createEmptySlide(type: QuizSlideType): QuizSlide {
   switch (type) {
     case "title":
       return { id, type, title: "MUDRC KVÍZ", subtitle: "" };
+    case "rules":
+      return { id, type, title: "Pravidlá", body: "" };
     case "round":
       return { id, type, title: "Kolo 1", roundNumber: 1 };
     case "question":
       return { id, type, title: "Otázka", body: "", answer: "" };
+    case "music":
+      return { id, type, title: "Hudobná ukážka", body: "", answer: "", audioUrl: "" };
+    case "correction":
+      return { id, type, title: "Opravovanie", body: "Skontrolujte odpovede…" };
+    case "answer":
+      return { id, type, title: "Správna odpoveď", body: "", answer: "" };
     case "text":
-      return { id, type, title: "Prestávka", body: "Zber odpovedí…" };
+      return { id, type, title: "Oddelenie", body: "" };
     case "scores":
-      return { id, type, title: "Výsledky", body: "Prejdite na odhalenie tabuľky v admin → Výsledky → Prezentácia." };
+      return { id, type, title: "Vyhodnotenie", body: "Odhalenie tabuľky v admin → Výsledky → Prezentácia." };
   }
 }
 
@@ -60,15 +89,7 @@ export function defaultDeck(eventSlug: string, venueTitle: string): QuizDeck {
     eventSlug,
     venueTitle,
     updatedAt: new Date().toISOString(),
-    slides: [
-      { ...createEmptySlide("title"), title: "MUDRC KVÍZ", subtitle: venueTitle },
-      { ...createEmptySlide("round"), title: "Kolo 1", roundNumber: 1 },
-      { ...createEmptySlide("question"), title: "1. Otázka", body: "Sem napíš text otázky…", answer: "Správna odpoveď" },
-      { ...createEmptySlide("text"), title: "Prestávka", body: "Zber odpovedí — pripravte sa na ďalšie kolo." },
-      { ...createEmptySlide("round"), title: "Kolo 2", roundNumber: 2 },
-      { ...createEmptySlide("question"), title: "2. Otázka", body: "Sem napíš text otázky…", answer: "Správna odpoveď" },
-      { ...createEmptySlide("scores"), title: "Finále", body: "Po zadaní bodov spustite odhalenie tabuľky." },
-    ],
+    slides: buildStandardMudrcQuizSlides(),
   };
 }
 
@@ -84,7 +105,9 @@ export function normalizeQuizDeck(input: Partial<QuizDeck>, eventSlug: string, v
           body: slide.body?.trim() || undefined,
           answer: slide.answer?.trim() || undefined,
           imageUrl: slide.imageUrl?.trim() || undefined,
+          audioUrl: slide.audioUrl?.trim() || undefined,
           roundNumber: typeof slide.roundNumber === "number" ? slide.roundNumber : undefined,
+          questionNumber: typeof slide.questionNumber === "number" ? slide.questionNumber : undefined,
         }))
     : [];
 

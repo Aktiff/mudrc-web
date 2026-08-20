@@ -1,5 +1,6 @@
 import type { QuizSlide, QuizSlideType } from "@/lib/quiz-deck";
 import { createEmptySlide, createSlideId } from "@/lib/quiz-deck";
+import { buildStandardMudrcQuizSlides } from "@/lib/quiz-template";
 import { teamKey } from "@/lib/poll";
 
 export type { QuizSlide, QuizSlideType };
@@ -34,18 +35,7 @@ export function defaultLibraryQuiz(title = "Nový kvíz"): QuizLibraryItem {
     title,
     createdAt: now,
     updatedAt: now,
-    slides: [
-      { ...createEmptySlide("title"), title: "MUDRC KVÍZ", subtitle: title },
-      { ...createEmptySlide("round"), title: "Kolo 1", roundNumber: 1 },
-      {
-        ...createEmptySlide("question"),
-        title: "1. Otázka",
-        body: "Sem napíš text otázky…",
-        answer: "Správna odpoveď",
-      },
-      { ...createEmptySlide("text"), title: "Prestávka", body: "Zber odpovedí — pripravte sa na ďalšie kolo." },
-      { ...createEmptySlide("scores"), title: "Finále", body: "Po zadaní bodov spustite odhalenie tabuľky." },
-    ],
+    slides: buildStandardMudrcQuizSlides(),
   };
 }
 
@@ -63,7 +53,9 @@ export function normalizeLibraryQuiz(input: Partial<QuizLibraryItem>): QuizLibra
           body: slide.body?.trim() || undefined,
           answer: slide.answer?.trim() || undefined,
           imageUrl: slide.imageUrl?.trim() || undefined,
+          audioUrl: slide.audioUrl?.trim() || undefined,
           roundNumber: typeof slide.roundNumber === "number" ? slide.roundNumber : undefined,
+          questionNumber: typeof slide.questionNumber === "number" ? slide.questionNumber : undefined,
         }))
     : defaultLibraryQuiz(title).slides;
 
