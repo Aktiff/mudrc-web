@@ -28,6 +28,7 @@ export default function HotoveKvizyList() {
   const [events, setEvents] = useState<QuizEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
 
   const [teamNamesText, setTeamNamesText] = useState("");
   const [filterTeams, setFilterTeams] = useState<string[]>([]);
@@ -71,9 +72,34 @@ export default function HotoveKvizyList() {
     loadAll();
   }, [loadAll]);
 
+  const loadTeamsForEvent = useCallback(
+    async (slug: string, venue: string, silent = false) => {
+      const res = await fetch(`/api/register?slug=${slug}&venue=${encodeURIComponent(venue)}&_=${Date.now()}`, {
+        cache: "no-store",
+      });
+      const data = await res.json();
+      const names = (data.registrations ?? []).map((row: { teamName: string }) => row.teamName).filter(Boolean);
+      if (!names.length) {
+        if (!silent) setMessage({ text: "Žiadne registrácie pre tento podnik.", ok: false });
+        setTeamNamesText("");
+        setFilterTeams([]);
+        setQuizTeams(teamsFromNames([], rounds));
+        await loadQuizzes([]);
+        return;
+      }
+      setTeamNamesText(names.join("\n"));
+      setFilterTeams(names);
+      setQuizTeams(teamsFromNames(names, rounds));
+      await loadQuizzes(names);
+      if (!silent) setMessage({ text: `Načítaných ${names.length} tímov z registrácií.`, ok: true });
+    },
+    [loadQuizzes, rounds]
+  );
+
   useEffect(() => {
-    loadQuizzes(filterTeams);
-  }, [filterTeams, loadQuizzes]);
+    if (!selectedEventSlug || !selectedEvent) return;
+    loadTeamsForEvent(selectedEventSlug, selectedEvent.venue, true);
+  }, [selectedEventSlug, selectedEvent, loadTeamsForEvent]);
 
   useEffect(() => {
     setQuizTeams((teams) => {
@@ -105,21 +131,7 @@ export default function HotoveKvizyList() {
 
   const loadFromRegistrations = async () => {
     if (!selectedEventSlug || !selectedEvent) return;
-    const res = await fetch(
-      `/api/register?slug=${selectedEventSlug}&venue=${encodeURIComponent(selectedEvent.venue)}&_=${Date.now()}`,
-      { cache: "no-store" }
-    );
-    const data = await res.json();
-    const names = (data.registrations ?? []).map((row: { teamName: string }) => row.teamName).filter(Boolean);
-    if (!names.length) {
-      setMessage({ text: "Žiadne registrácie pre tento podnik.", ok: false });
-      return;
-    }
-    setTeamNamesText(names.join("\n"));
-    setFilterTeams(names);
-    setQuizTeams(teamsFromNames(names, rounds));
-    await loadQuizzes(names);
-    setMessage({ text: `Načítaných ${names.length} tímov z registrácií.`, ok: true });
+    await loadTeamsForEvent(selectedEventSlug, selectedEvent.venue, false);
   };
 
   const submitResult = async () => {
@@ -169,16 +181,21 @@ export default function HotoveKvizyList() {
     const title = window.prompt("Názov nového kvízu:", "Nový kvíz");
     if (!title?.trim()) return;
     setCreating(true);
+    setCreateError(null);
     try {
       const res = await fetch("/api/admin/quiz-library", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: title.trim() }),
       });
-      if (res.ok) {
-        const quiz = await res.json();
-        window.location.href = `/admin/hotove-kvizy/${quiz.id}`;
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setCreateError(data.error ?? "Nepodarilo sa vytvoriť kvíz.");
+        return;
       }
+      window.location.href = `/admin/hotove-kvizy/${data.id}`;
+    } catch {
+      setCreateError("Sieťová chyba pri vytváraní kvízu.");
     } finally {
       setCreating(false);
     }
@@ -216,7 +233,10 @@ export default function HotoveKvizyList() {
       )}
 
       <div className="flex items-center justify-between gap-4">
-        <p className="text-brand-muted text-sm">{loading ? "Načítavam…" : `${quizzes.length} kvízov v knižnici`}</p>
+        <div>
+          <p className="text-brand-muted text-sm">{loading ? "Načítavam…" : `${quizzes.length} kvízov v knižnici`}</p>
+          {createError && <p className="text-sm text-red-500 mt-1">{createError}</p>}
+        </div>
         <button
           type="button"
           onClick={createQuiz}

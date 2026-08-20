@@ -6,28 +6,71 @@ import { createLibraryQuizId, defaultLibraryQuiz, normalizeLibraryQuiz } from "@
 import { readAllQuizDecks } from "@/lib/quiz-deck-storage";
 import {
   hasSupabaseStorage,
+  supabaseDeleteQuizLibraryItem,
   supabaseFetchQuizLibrary,
-  supabaseSetQuizLibrary,
+  supabaseFetchQuizLibraryIndex,
+  supabaseFetchQuizLibraryItem,
+  supabaseSetQuizLibraryIndex,
+  supabaseSetQuizLibraryItem,
 } from "@/lib/supabase-storage";
 
-const localPath = path.join(process.cwd(), "src/data/quiz-library.local.json");
+const localIndexPath = path.join(process.cwd(), "src/data/quiz-library-index.local.json");
+const localItemPath = (id: string) => path.join(process.cwd(), `src/data/quiz-library-${id}.local.json`);
 
-type LibraryStore = { quizzes: QuizLibraryItem[] };
+type LibraryIndex = { items: QuizLibraryIndexEntry[] };
+type QuizLibraryIndexEntry = {
+  id: string;
+  title: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+  slideCount: number;
+};
 
-function readLocalLibrary(): LibraryStore {
+function toIndexEntry(quiz: QuizLibraryItem): QuizLibraryIndexEntry {
+  return {
+    id: quiz.id,
+    title: quiz.title,
+    notes: quiz.notes,
+    createdAt: quiz.createdAt,
+    updatedAt: quiz.updatedAt,
+    slideCount: quiz.slides.length,
+  };
+}
+
+function readLocalIndex(): LibraryIndex {
   try {
-    if (!fs.existsSync(localPath)) return { quizzes: [] };
-    const raw = fs.readFileSync(localPath, "utf-8");
-    const data = JSON.parse(raw) as LibraryStore;
-    return { quizzes: Array.isArray(data.quizzes) ? data.quizzes : [] };
+    if (!fs.existsSync(localIndexPath)) return { items: [] };
+    const raw = fs.readFileSync(localIndexPath, "utf-8");
+    const data = JSON.parse(raw) as LibraryIndex;
+    return { items: Array.isArray(data.items) ? data.items : [] };
   } catch {
-    return { quizzes: [] };
+    return { items: [] };
   }
 }
 
-function writeLocalLibrary(store: LibraryStore): void {
-  fs.mkdirSync(path.dirname(localPath), { recursive: true });
-  fs.writeFileSync(localPath, JSON.stringify(store, null, 2), "utf-8");
+function writeLocalIndex(index: LibraryIndex): void {
+  fs.mkdirSync(path.dirname(localIndexPath), { recursive: true });
+  fs.writeFileSync(localIndexPath, JSON.stringify(index, null, 2), "utf-8");
+}
+
+function readLocalItem(id: string): QuizLibraryItem | null {
+  try {
+    const filePath = localItemPath(id);
+    if (!fs.existsSync(filePath)) return null;
+    return JSON.parse(fs.readFileSync(filePath, "utf-8")) as QuizLibraryItem;
+  } catch {
+    return null;
+  }
+}
+
+function writeLocalItem(quiz: QuizLibraryItem): void {
+  fs.writeFileSync(localItemPath(quiz.id), JSON.stringify(quiz, null, 2), "utf-8");
+}
+
+function deleteLocalItem(id: string): void {
+  const filePath = localItemPath(id);
+  if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
 }
 
 function deckToLibraryItem(deck: QuizDeck): QuizLibraryItem {
@@ -42,37 +85,90 @@ function deckToLibraryItem(deck: QuizDeck): QuizLibraryItem {
   });
 }
 
+async function migrateLegacyMonolithicStore(): Promise<QuizLibraryItem[]> {
+  if (!hasSupabaseStorage()) return [];
+  const legacy = await supabaseFetchQuizLibrary();
+  if (legacy.status !== "ok") return [];
+  const quizzes = (legacy.value.quizzes ?? []) as QuizLibraryItem[];
+  if (!quizzes.length) return [];
+  for (const quiz of quizzes) {
+    await supabaseSetQuizLibraryItem(quiz.id, quiz);
+  }
+  await supabaseSetQuizLibraryIndex({ items: quizzes.map(toIndexEntry) });
+  return quizzes;
+}
+
 async function migrateLegacyDecks(existing: QuizLibraryItem[]): Promise<QuizLibraryItem[]> {
   if (existing.length) return existing;
   const legacyDecks = await readAllQuizDecks();
   if (!legacyDecks.length) return existing;
   const migrated = legacyDecks.filter((deck) => deck.slides.length).map(deckToLibraryItem);
-  if (migrated.length) await persistAllQuizzes(migrated);
+  for (const quiz of migrated) {
+    await persistQuiz(quiz);
+  }
   return migrated;
 }
 
-async function loadAllQuizzes(): Promise<QuizLibraryItem[]> {
+async function readIndex(): Promise<LibraryIndex> {
   if (hasSupabaseStorage()) {
-    const result = await supabaseFetchQuizLibrary();
+    let result = await supabaseFetchQuizLibraryIndex();
+    if (result.status === "missing") {
+      await migrateLegacyMonolithicStore();
+      result = await supabaseFetchQuizLibraryIndex();
+    }
     if (result.status === "ok") {
-      const quizzes = (result.value.quizzes ?? []) as QuizLibraryItem[];
-      return migrateLegacyDecks(quizzes);
+      return { items: (result.value.items ?? []) as QuizLibraryIndexEntry[] };
     }
     if (result.status === "error") {
-      throw new Error(`Nepodarilo sa načítať knižnicu kvízov: ${result.message}`);
+      throw new Error(`Nepodarilo sa načítať index kvízov: ${result.message}`);
     }
-    return migrateLegacyDecks([]);
+    return { items: [] };
   }
-  const local = readLocalLibrary().quizzes;
-  return migrateLegacyDecks(local);
+  return readLocalIndex();
 }
 
-async function persistAllQuizzes(quizzes: QuizLibraryItem[]): Promise<void> {
+async function readQuizById(id: string): Promise<QuizLibraryItem | null> {
   if (hasSupabaseStorage()) {
-    await supabaseSetQuizLibrary({ quizzes });
+    const result = await supabaseFetchQuizLibraryItem(id);
+    if (result.status === "ok") return result.value as QuizLibraryItem;
+    if (result.status === "error") {
+      throw new Error(`Nepodarilo sa načítať kvíz ${id}: ${result.message}`);
+    }
+    return null;
+  }
+  return readLocalItem(id);
+}
+
+async function persistQuiz(quiz: QuizLibraryItem): Promise<void> {
+  const normalized = normalizeLibraryQuiz(quiz);
+  if (hasSupabaseStorage()) {
+    await supabaseSetQuizLibraryItem(normalized.id, normalized);
+    const index = await readIndex();
+    const entry = toIndexEntry(normalized);
+    const items = [...index.items.filter((item) => item.id !== normalized.id), entry].sort((a, b) =>
+      b.updatedAt.localeCompare(a.updatedAt)
+    );
+    await supabaseSetQuizLibraryIndex({ items });
     return;
   }
-  writeLocalLibrary({ quizzes });
+  writeLocalItem(normalized);
+  const index = readLocalIndex();
+  const entry = toIndexEntry(normalized);
+  writeLocalIndex({
+    items: [...index.items.filter((item) => item.id !== normalized.id), entry].sort((a, b) =>
+      b.updatedAt.localeCompare(a.updatedAt)
+    ),
+  });
+}
+
+async function loadAllQuizzes(): Promise<QuizLibraryItem[]> {
+  const index = await readIndex();
+  const quizzes: QuizLibraryItem[] = [];
+  for (const entry of index.items) {
+    const quiz = await readQuizById(entry.id);
+    if (quiz) quizzes.push(quiz);
+  }
+  return migrateLegacyDecks(quizzes);
 }
 
 export async function readAllLibraryQuizzes(): Promise<QuizLibraryItem[]> {
@@ -80,38 +176,39 @@ export async function readAllLibraryQuizzes(): Promise<QuizLibraryItem[]> {
 }
 
 export async function readLibraryQuiz(id: string): Promise<QuizLibraryItem | null> {
-  const quizzes = await loadAllQuizzes();
-  return quizzes.find((quiz) => quiz.id === id) ?? null;
+  return readQuizById(id);
 }
 
 export async function createLibraryQuiz(title?: string): Promise<QuizLibraryItem> {
   const quiz = defaultLibraryQuiz(title?.trim() || "Nový kvíz");
-  const quizzes = await loadAllQuizzes();
-  await persistAllQuizzes([...quizzes, quiz]);
+  await persistQuiz(quiz);
   return quiz;
 }
 
 export async function saveLibraryQuiz(input: Partial<QuizLibraryItem>): Promise<QuizLibraryItem> {
-  const quizzes = await loadAllQuizzes();
-  const existing = input.id ? quizzes.find((quiz) => quiz.id === input.id) : undefined;
+  const existing = input.id ? await readQuizById(input.id) : null;
   const normalized = normalizeLibraryQuiz({
     ...existing,
     ...input,
     id: input.id || existing?.id,
     createdAt: existing?.createdAt,
   });
-  const idx = quizzes.findIndex((quiz) => quiz.id === normalized.id);
-  const next = [...quizzes];
-  if (idx === -1) next.push(normalized);
-  else next[idx] = normalized;
-  await persistAllQuizzes(next);
+  await persistQuiz(normalized);
   return normalized;
 }
 
 export async function deleteLibraryQuiz(id: string): Promise<boolean> {
-  const quizzes = await loadAllQuizzes();
-  const next = quizzes.filter((quiz) => quiz.id !== id);
-  if (next.length === quizzes.length) return false;
-  await persistAllQuizzes(next);
+  const existing = await readQuizById(id);
+  if (!existing) return false;
+
+  if (hasSupabaseStorage()) {
+    await supabaseDeleteQuizLibraryItem(id);
+    const index = await readIndex();
+    await supabaseSetQuizLibraryIndex({ items: index.items.filter((item) => item.id !== id) });
+  } else {
+    deleteLocalItem(id);
+    const index = readLocalIndex();
+    writeLocalIndex({ items: index.items.filter((item) => item.id !== id) });
+  }
   return true;
 }

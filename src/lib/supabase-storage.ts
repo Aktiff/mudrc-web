@@ -5,6 +5,8 @@ const REGS_KEY = "registrations";
 const QUIZZES_KEY = "quizzes";
 const QUIZ_DECKS_KEY = "quiz-decks";
 const QUIZ_LIBRARY_KEY = "quiz-library";
+const QUIZ_LIBRARY_INDEX_KEY = "quiz-library-index";
+export const quizLibraryItemKey = (id: string) => `quiz-library:${id}`;
 const POLL_CONFIGS_KEY = "poll-configs";
 const POLL_VOTES_KEY = "poll-votes";
 const eventLeagueKey = (slug: string) => `event-league:${slug}`;
@@ -64,6 +66,12 @@ async function supabaseSet(key: string, value: unknown): Promise<void> {
   if (error) throw new Error(`Supabase write failed (${key}): ${error.message}`);
 }
 
+async function supabaseDelete(key: string): Promise<void> {
+  const supabase = getSupabase();
+  const { error } = await supabase.from("app_storage").delete().eq("key", key);
+  if (error) throw new Error(`Supabase delete failed (${key}): ${error.message}`);
+}
+
 export async function supabaseFetchEvents(): Promise<SupabaseFetchResult<{ events: unknown[] }>> {
   return supabaseFetch<{ events: unknown[] }>(EVENTS_KEY);
 }
@@ -102,6 +110,28 @@ export async function supabaseFetchQuizLibrary(): Promise<SupabaseFetchResult<{ 
 
 export async function supabaseSetQuizLibrary(data: { quizzes: unknown[] }): Promise<void> {
   await supabaseSet(QUIZ_LIBRARY_KEY, data);
+}
+
+export async function supabaseFetchQuizLibraryIndex(): Promise<
+  SupabaseFetchResult<{ items: unknown[] }>
+> {
+  return supabaseFetch<{ items: unknown[] }>(QUIZ_LIBRARY_INDEX_KEY);
+}
+
+export async function supabaseSetQuizLibraryIndex(data: { items: unknown[] }): Promise<void> {
+  await supabaseSet(QUIZ_LIBRARY_INDEX_KEY, data);
+}
+
+export async function supabaseFetchQuizLibraryItem(id: string): Promise<SupabaseFetchResult<unknown>> {
+  return supabaseFetch(quizLibraryItemKey(id));
+}
+
+export async function supabaseSetQuizLibraryItem(id: string, value: unknown): Promise<void> {
+  await supabaseSet(quizLibraryItemKey(id), value);
+}
+
+export async function supabaseDeleteQuizLibraryItem(id: string): Promise<void> {
+  await supabaseDelete(quizLibraryItemKey(id));
 }
 
 export async function supabaseFetchPollConfigs(): Promise<SupabaseFetchResult<{ configs: unknown[] }>> {

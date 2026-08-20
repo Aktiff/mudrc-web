@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { collectPlayedTeamNames, getConflictingTeams, isQuizSafeForTeams, parseTeamFilterInput } from "@/lib/quiz-library";
 import { buildQuizUsageMap } from "@/lib/quiz-library-usage";
-import { readAllLibraryQuizzes } from "@/lib/quiz-library-storage";
+import { createLibraryQuiz, readAllLibraryQuizzes } from "@/lib/quiz-library-storage";
 import { readAllEventsRaw, readAllStoredQuizzes } from "@/lib/storage";
 
 export const runtime = "nodejs";
@@ -52,10 +52,10 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = (await req.json()) as { title?: string };
-    const { createLibraryQuiz } = await import("@/lib/quiz-library-storage");
     const quiz = await createLibraryQuiz(body.title);
     return NextResponse.json(quiz);
   } catch (error) {
+    console.error("createLibraryQuiz error:", error);
     const message = error instanceof Error ? error.message : "Nepodarilo sa vytvoriť kvíz.";
     return NextResponse.json({ error: message }, { status: 500 });
   }

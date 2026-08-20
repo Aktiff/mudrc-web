@@ -132,7 +132,8 @@ export default function QuizResultsEntryForm({
           <AdminDatePicker value={quizDate} onChange={onQuizDateChange} />
         </div>
         <div>
-          <label className="label">Tímy na večer (predvyplnenie)</label>
+          <label className="label">Tímy na večer</label>
+          <p className="text-brand-muted text-xs mb-2">Po výbere podniku sa načítajú z registrácií. Môžeš upraviť ručne.</p>
           <textarea
             className="input min-h-[88px] resize-y"
             value={teamNamesText}
