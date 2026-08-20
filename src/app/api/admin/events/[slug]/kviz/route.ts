@@ -11,9 +11,13 @@ export const dynamic = "force-dynamic";
 type TeamEntry = { name: string; scores: number[]; total?: number };
 
 export async function POST(req: NextRequest, { params }: { params: { slug: string } }) {
-  const { date, teams }: { date: string; teams: TeamEntry[] } = await req.json();
+  const { date, teams, libraryQuizId }: { date: string; teams: TeamEntry[]; libraryQuizId?: string } =
+    await req.json();
   if (!date || !teams?.length) {
     return NextResponse.json({ error: "Chýba dátum alebo tímy" }, { status: 400 });
+  }
+  if (!libraryQuizId?.trim()) {
+    return NextResponse.json({ error: "Vyber hotový kvíz z knižnice." }, { status: 400 });
   }
 
   const { sorted, teamsDetail, winnerTeam, winnerTotal, responseLigaPoints } = buildQuizTeamsDetail(teams);
@@ -34,6 +38,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
       winnerTeam,
       points: winnerTotal,
       teams: teamsDetail,
+      libraryQuizId: libraryQuizId.trim(),
     });
   } catch (error) {
     console.error("upsertStoredQuiz error:", error);
@@ -63,7 +68,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
       const sortedTable = sortLeagueTable(table);
       const pastResults = [
         ...(event.pastResults ?? []).filter((r) => normalizeDateKey(r.date) !== resultId && r.id !== resultId),
-        { id: resultId, date, winnerTeam, points: winnerTotal, teams: teamsDetail, leagueSynced: true },
+        { id: resultId, date, winnerTeam, points: winnerTotal, teams: teamsDetail, leagueSynced: true, libraryQuizId: libraryQuizId.trim() },
       ];
 
       events[idx] = { ...event, leagueTable: sortedTable, pastResults, leagueActive: true };

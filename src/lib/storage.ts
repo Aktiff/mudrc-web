@@ -108,6 +108,7 @@ export type StoredQuiz = {
   winnerTeam: string;
   points: number;
   teams: PastResultTeam[];
+  libraryQuizId?: string;
 };
 
 export type WriteOptions = {
@@ -351,6 +352,7 @@ function pastResultToStoredQuiz(eventSlug: string, result: PastResult): StoredQu
     winnerTeam: result.winnerTeam,
     points: result.points,
     teams: result.teams ?? [],
+    libraryQuizId: result.libraryQuizId,
   };
 }
 
@@ -361,6 +363,7 @@ function storedQuizToPastResult(quiz: StoredQuiz): PastResult {
     winnerTeam: quiz.winnerTeam,
     points: quiz.points,
     teams: quiz.teams,
+    libraryQuizId: quiz.libraryQuizId,
   };
 }
 
@@ -484,6 +487,10 @@ async function loadQuizzes(): Promise<StoredQuiz[]> {
     }
   }
   return quizzes;
+}
+
+export async function readAllStoredQuizzes(): Promise<StoredQuiz[]> {
+  return loadQuizzes();
 }
 
 export async function upsertStoredQuiz(quiz: StoredQuiz): Promise<void> {

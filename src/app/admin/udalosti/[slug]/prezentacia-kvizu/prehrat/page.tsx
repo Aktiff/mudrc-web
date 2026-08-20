@@ -1,9 +1,7 @@
-import QuizDeckShow from "@/components/QuizDeckShow";
-
-export const dynamic = "force-dynamic";
+import { redirect } from "next/navigation";
 
 type PageProps = { params: { slug: string } };
 
-export default function PrezentaciaKvizuShowPage({ params }: PageProps) {
-  return <QuizDeckShow eventSlug={params.slug} />;
+export default function LegacyPrezentaciaPrehratRedirect({ params }: PageProps) {
+  redirect("/admin/hotove-kvizy");
 }

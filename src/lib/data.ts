@@ -31,6 +31,8 @@ export type PastResult = {
   teams?: PastResultTeam[];
   /** Detailný kvíz už započítaný v leagueTable (aby sa pri obnove / prepočte nezdvojil). */
   leagueSynced?: boolean;
+  /** Odkaz na hotový kvíz z knižnice (recyklácia otázok). */
+  libraryQuizId?: string;
 };
 
 import eventsData from "@/data/events.json";

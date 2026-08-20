@@ -4,6 +4,7 @@ const EVENTS_KEY = "events";
 const REGS_KEY = "registrations";
 const QUIZZES_KEY = "quizzes";
 const QUIZ_DECKS_KEY = "quiz-decks";
+const QUIZ_LIBRARY_KEY = "quiz-library";
 const POLL_CONFIGS_KEY = "poll-configs";
 const POLL_VOTES_KEY = "poll-votes";
 const eventLeagueKey = (slug: string) => `event-league:${slug}`;
@@ -93,6 +94,14 @@ export async function supabaseFetchQuizDecks(): Promise<SupabaseFetchResult<{ de
 
 export async function supabaseSetQuizDecks(data: { decks: unknown[] }): Promise<void> {
   await supabaseSet(QUIZ_DECKS_KEY, data);
+}
+
+export async function supabaseFetchQuizLibrary(): Promise<SupabaseFetchResult<{ quizzes: unknown[] }>> {
+  return supabaseFetch<{ quizzes: unknown[] }>(QUIZ_LIBRARY_KEY);
+}
+
+export async function supabaseSetQuizLibrary(data: { quizzes: unknown[] }): Promise<void> {
+  await supabaseSet(QUIZ_LIBRARY_KEY, data);
 }
 
 export async function supabaseFetchPollConfigs(): Promise<SupabaseFetchResult<{ configs: unknown[] }>> {

@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Trash2, ChevronLeft, Save, PauseCircle, PlayCircle, Upload, ImageIcon, Phone, Users, Clock, RefreshCw, Vote, ExternalLink, UserPlus, UserX, MonitorPlay } from "lucide-react";
+import { Plus, Trash2, ChevronLeft, Save, PauseCircle, PlayCircle, Upload, ImageIcon, Phone, Users, Clock, RefreshCw, Vote, ExternalLink, UserPlus, UserX } from "lucide-react";
 import Link from "next/link";
 import type { QuizEvent, LeagueEntry, PastResult } from "@/lib/data";
 import { sortLeagueTable } from "@/lib/data";
@@ -12,6 +12,7 @@ import { REGION_OPTIONS } from "@/lib/regions";
 import { AdminDatePicker, AdminTimePicker } from "@/components/AdminDatePicker";
 import { PollAdminMultiDatePicker } from "@/components/PollAdminMultiDatePicker";
 import { TeamAutocomplete } from "@/components/TeamAutocomplete";
+import LibraryQuizPicker from "@/components/LibraryQuizPicker";
 
 type Tab = "info" | "liga" | "vysledky" | "pravidla" | "pridat" | "registracie" | "anketa";
 
@@ -95,6 +96,7 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
   const [quizResult, setQuizResult] = useState<{ winnerTeam: string; ligaPoints: {name:string;total:number;liga:number}[] } | null>(null);
   const [quizSubmitting, setQuizSubmitting] = useState(false);
   const [quizMsg, setQuizMsg] = useState<{ text: string; ok: boolean } | null>(null);
+  const [libraryQuizId, setLibraryQuizId] = useState("");
   type EventRegistration = { id: string; eventSlug: string; venue: string; teamName: string; players: string; phone: string; createdAt: string };
   const [registrations, setRegistrations] = useState<EventRegistration[]>([]);
   const [regsLoading, setRegsLoading] = useState(false);
@@ -150,6 +152,10 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
 
   const submitQuiz = async () => {
     const validTeams = quizTeams.filter((t) => t.name.trim());
+    if (!libraryQuizId) {
+      setQuizMsg({ text: "Vyber hotový kvíz z knižnice.", ok: false });
+      return;
+    }
     if (!quizDate || validTeams.length < 2) {
       setQuizMsg({ text: "Zadaj dátum a aspoň 2 tímy.", ok: false });
       return;
@@ -168,7 +174,7 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
         method: "POST",
         cache: "no-store",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ date: quizDate, teams: validTeams }),
+        body: JSON.stringify({ date: quizDate, teams: validTeams, libraryQuizId }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -844,15 +850,6 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
         <button className={tabClass("registracie")} onClick={() => setTab("registracie")}>Registrácie ({registrations.length})</button>
         <button className={tabClass("anketa")} onClick={() => setTab("anketa")}>Anketa ({pollAdmin?.teamCount ?? 0})</button>
         <button className={tabClass("pravidla")} onClick={() => setTab("pravidla")}>Pravidlá ({(form.rules ?? []).length})</button>
-        {!isNew && (
-          <Link
-            href={`/admin/udalosti/${params.slug}/prezentacia-kvizu`}
-            className="px-4 py-2 rounded-lg text-sm font-semibold transition-colors text-brand-orange-readable hover:bg-brand-tint inline-flex items-center gap-1.5"
-          >
-            <MonitorPlay className="w-4 h-4" />
-            Slidy kvízu
-          </Link>
-        )}
       </div>
 
       {tab === "info" && (
@@ -1043,6 +1040,11 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
           <p className="text-brand-muted text-sm mb-6">
             Zadaj výsledky kvízu. Prázdne riadky sa automaticky ignorujú.
           </p>
+          <LibraryQuizPicker
+            value={libraryQuizId}
+            onChange={setLibraryQuizId}
+            teamNames={quizTeams.map((team) => team.name)}
+          />
           <div className="mb-6">
             <label className="label">Dátum kvízu</label>
             <div className="max-w-xs">
@@ -1084,9 +1086,38 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
               </div>
             ))}
           </div>
-          <div className="flex gap-3 mb-4">
+          <div className="flex gap-3 mb-4 flex-wrap">
             <button onClick={addQuizTeam} className="btn-outline text-sm py-2.5 px-5">
               <Plus className="w-4 h-4" /> Pridať tím
+            </button>
+            <button
+              type="button"
+              onClick={async () => {
+                const res = await fetch(
+                  `/api/register?slug=${params.slug}&venue=${encodeURIComponent(form.venue)}&_=${Date.now()}`,
+                  { cache: "no-store" }
+                );
+                const data = await res.json();
+                const names = (data.registrations ?? [])
+                  .map((r: EventRegistration) => r.teamName)
+                  .filter(Boolean);
+                if (!names.length) {
+                  setQuizMsg({ text: "Žiadne registrácie — pridaj tímy ručne.", ok: false });
+                  return;
+                }
+                setQuizTeams((rows) => {
+                  const next = [...rows];
+                  names.forEach((name: string, index: number) => {
+                    if (index < next.length) next[index] = { ...next[index], name };
+                    else next.push({ name, scores: Array(form.rounds || 4).fill(0) });
+                  });
+                  return next;
+                });
+                setQuizMsg({ text: `Načítaných ${names.length} tímov z registrácií.`, ok: true });
+              }}
+              className="btn-outline text-sm py-2.5 px-5"
+            >
+              <Users className="w-4 h-4" /> Načítať tímy z registrácií
             </button>
           </div>
           {quizMsg && (

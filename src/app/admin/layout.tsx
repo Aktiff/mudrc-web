@@ -18,8 +18,7 @@ const navItems = [
     label: "Hotové kvízy",
     icon: MonitorPlay,
     exact: false,
-    isActive: (pathname: string) =>
-      pathname.startsWith("/admin/hotove-kvizy") || pathname.includes("/prezentacia-kvizu"),
+    isActive: (pathname: string) => pathname.startsWith("/admin/hotove-kvizy"),
   },
   { href: "/admin/registracie", label: "Registrácie", icon: ClipboardList, exact: false },
 ];
@@ -27,7 +26,8 @@ const navItems = [
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const isFullscreen = pathname.includes("/prezentacia") || pathname.endsWith("/prehrat");
+  const isFullscreen =
+    pathname.includes("/prezentacia") || /\/hotove-kvizy\/[^/]+\/prehrat$/.test(pathname);
 
   if (isFullscreen) {
     return <>{children}</>;
