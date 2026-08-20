@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Trash2, ChevronLeft, Save, PauseCircle, PlayCircle, Upload, ImageIcon, Phone, Users, Clock, RefreshCw, Vote, ExternalLink, UserPlus, UserX } from "lucide-react";
+import { Plus, Trash2, ChevronLeft, Save, PauseCircle, PlayCircle, Upload, ImageIcon, Phone, Users, Clock, RefreshCw, Vote, ExternalLink, UserPlus, UserX, MonitorPlay } from "lucide-react";
 import Link from "next/link";
 import type { QuizEvent, LeagueEntry, PastResult } from "@/lib/data";
 import { sortLeagueTable } from "@/lib/data";
@@ -844,6 +844,15 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
         <button className={tabClass("registracie")} onClick={() => setTab("registracie")}>Registrácie ({registrations.length})</button>
         <button className={tabClass("anketa")} onClick={() => setTab("anketa")}>Anketa ({pollAdmin?.teamCount ?? 0})</button>
         <button className={tabClass("pravidla")} onClick={() => setTab("pravidla")}>Pravidlá ({(form.rules ?? []).length})</button>
+        {!isNew && (
+          <Link
+            href={`/admin/udalosti/${params.slug}/prezentacia-kvizu`}
+            className="px-4 py-2 rounded-lg text-sm font-semibold transition-colors text-brand-orange-readable hover:bg-brand-tint inline-flex items-center gap-1.5"
+          >
+            <MonitorPlay className="w-4 h-4" />
+            Slidy kvízu
+          </Link>
+        )}
       </div>
 
       {tab === "info" && (

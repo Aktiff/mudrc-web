@@ -3,6 +3,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 const EVENTS_KEY = "events";
 const REGS_KEY = "registrations";
 const QUIZZES_KEY = "quizzes";
+const QUIZ_DECKS_KEY = "quiz-decks";
 const POLL_CONFIGS_KEY = "poll-configs";
 const POLL_VOTES_KEY = "poll-votes";
 const eventLeagueKey = (slug: string) => `event-league:${slug}`;
@@ -84,6 +85,14 @@ export async function supabaseFetchQuizzes(): Promise<SupabaseFetchResult<{ quiz
 
 export async function supabaseSetQuizzes(data: { quizzes: unknown[] }): Promise<void> {
   await supabaseSet(QUIZZES_KEY, data);
+}
+
+export async function supabaseFetchQuizDecks(): Promise<SupabaseFetchResult<{ decks: unknown[] }>> {
+  return supabaseFetch<{ decks: unknown[] }>(QUIZ_DECKS_KEY);
+}
+
+export async function supabaseSetQuizDecks(data: { decks: unknown[] }): Promise<void> {
+  await supabaseSet(QUIZ_DECKS_KEY, data);
 }
 
 export async function supabaseFetchPollConfigs(): Promise<SupabaseFetchResult<{ configs: unknown[] }>> {

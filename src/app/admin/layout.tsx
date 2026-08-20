@@ -1,18 +1,33 @@
 "use client";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Calendar, LayoutDashboard, LogOut, ClipboardList } from "lucide-react";
+import { Calendar, ClipboardList, LayoutDashboard, LogOut, MonitorPlay } from "lucide-react";
 
 const navItems = [
   { href: "/admin", label: "Prehľad", icon: LayoutDashboard, exact: true },
-  { href: "/admin/udalosti", label: "Udalosti", icon: Calendar, exact: false },
+  {
+    href: "/admin/udalosti",
+    label: "Udalosti",
+    icon: Calendar,
+    exact: false,
+    isActive: (pathname: string) =>
+      pathname.startsWith("/admin/udalosti") && !pathname.includes("/prezentacia-kvizu"),
+  },
+  {
+    href: "/admin/hotove-kvizy",
+    label: "Hotové kvízy",
+    icon: MonitorPlay,
+    exact: false,
+    isActive: (pathname: string) =>
+      pathname.startsWith("/admin/hotove-kvizy") || pathname.includes("/prezentacia-kvizu"),
+  },
   { href: "/admin/registracie", label: "Registrácie", icon: ClipboardList, exact: false },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const isFullscreen = pathname.includes("/prezentacia");
+  const isFullscreen = pathname.includes("/prezentacia") || pathname.endsWith("/prehrat");
 
   if (isFullscreen) {
     return <>{children}</>;
@@ -33,7 +48,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </div>
         <nav className="flex-1 p-3 space-y-1">
           {navItems.map((item) => {
-            const active = item.exact ? pathname === item.href : pathname.startsWith(item.href);
+            const active = item.isActive
+              ? item.isActive(pathname)
+              : item.exact
+                ? pathname === item.href
+                : pathname.startsWith(item.href);
             return (
               <Link
                 key={item.href}
