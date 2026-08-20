@@ -1,17 +1,29 @@
-import type { QuizSlide, QuizSlideType } from "@/lib/quiz-deck";
-import { createEmptySlide, createSlideId } from "@/lib/quiz-deck";
-import { buildStandardMudrcQuizSlides } from "@/lib/quiz-template";
+import { buildStandardMudrcQuestions, migrateSlidesToQuestions } from "@/lib/quiz-template";
 import { teamKey } from "@/lib/poll";
 
-export type { QuizSlide, QuizSlideType };
+export type QuizQuestionKind = "normal" | "music";
+
+export type QuizQuestionItem = {
+  id: string;
+  roundNumber: number;
+  questionNumber: number;
+  kind: QuizQuestionKind;
+  body: string;
+  answer: string;
+  imageUrl?: string;
+  audioUrl?: string;
+  /** true = obrázok aj pri otázke; false = len pri správnych odpovediach */
+  imageDuringQuestion: boolean;
+};
 
 export type QuizLibraryItem = {
   id: string;
   title: string;
-  slides: QuizSlide[];
+  questions: QuizQuestionItem[];
   notes?: string;
   createdAt: string;
   updatedAt: string;
+  formatVersion: number;
 };
 
 export type QuizUsage = {
@@ -35,35 +47,51 @@ export function defaultLibraryQuiz(title = "Nový kvíz"): QuizLibraryItem {
     title,
     createdAt: now,
     updatedAt: now,
-    slides: buildStandardMudrcQuizSlides(),
+    formatVersion: 2,
+    questions: buildStandardMudrcQuestions(),
   };
 }
 
-export function normalizeLibraryQuiz(input: Partial<QuizLibraryItem>): QuizLibraryItem {
+function normalizeQuestion(input: Partial<QuizQuestionItem>): QuizQuestionItem | null {
+  if (!input.id || !input.roundNumber || !input.questionNumber) return null;
+  return {
+    id: String(input.id),
+    roundNumber: Number(input.roundNumber),
+    questionNumber: Number(input.questionNumber),
+    kind: input.kind === "music" ? "music" : "normal",
+    body: input.body?.trim() ?? "",
+    answer: input.answer?.trim() ?? "",
+    imageUrl: input.imageUrl?.trim() || undefined,
+    audioUrl: input.audioUrl?.trim() || undefined,
+    imageDuringQuestion: Boolean(input.imageDuringQuestion),
+  };
+}
+
+export function normalizeLibraryQuiz(
+  input: Partial<QuizLibraryItem> & { slides?: unknown[] }
+): QuizLibraryItem {
   const title = input.title?.trim() || "Bez názvu";
   const now = new Date().toISOString();
-  const slides = Array.isArray(input.slides)
-    ? input.slides
-        .filter((slide): slide is QuizSlide => Boolean(slide && typeof slide === "object" && slide.id && slide.type))
-        .map((slide) => ({
-          id: String(slide.id),
-          type: slide.type as QuizSlideType,
-          title: slide.title?.trim() || undefined,
-          subtitle: slide.subtitle?.trim() || undefined,
-          body: slide.body?.trim() || undefined,
-          answer: slide.answer?.trim() || undefined,
-          imageUrl: slide.imageUrl?.trim() || undefined,
-          audioUrl: slide.audioUrl?.trim() || undefined,
-          roundNumber: typeof slide.roundNumber === "number" ? slide.roundNumber : undefined,
-          questionNumber: typeof slide.questionNumber === "number" ? slide.questionNumber : undefined,
-        }))
-    : defaultLibraryQuiz(title).slides;
+
+  let questions: QuizQuestionItem[] = [];
+  if (Array.isArray(input.questions) && input.questions.length) {
+    questions = input.questions
+      .map((q) => normalizeQuestion(q as QuizQuestionItem))
+      .filter((q): q is QuizQuestionItem => Boolean(q));
+  } else if (Array.isArray(input.slides) && input.slides.length) {
+    questions = migrateSlidesToQuestions(input.slides as import("@/lib/quiz-deck").QuizSlide[]);
+  }
+
+  if (!questions.length) {
+    questions = buildStandardMudrcQuestions();
+  }
 
   return {
     id: input.id?.trim() || createLibraryQuizId(),
     title,
     notes: input.notes?.trim() || undefined,
-    slides: slides.length ? slides : defaultLibraryQuiz(title).slides,
+    questions,
+    formatVersion: 2,
     createdAt: input.createdAt || now,
     updatedAt: now,
   };

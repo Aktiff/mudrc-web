@@ -3,6 +3,8 @@ import { ChevronLeft, ExternalLink, Trophy } from "lucide-react";
 import { notFound } from "next/navigation";
 import QuizLibraryEditor from "@/components/QuizLibraryEditor";
 import { getQuizUsages } from "@/lib/quiz-library-usage";
+import { describeQuizContent } from "@/lib/quiz-template";
+import { buildPresentationSlides } from "@/lib/quiz-presentation";
 import { readLibraryQuiz } from "@/lib/quiz-library-storage";
 import { readAllEventsRaw, readAllStoredQuizzes } from "@/lib/storage";
 
@@ -32,7 +34,8 @@ export default async function HotovyKvizDetailPage({ params }: PageProps) {
 
       <h1 className="font-display text-4xl text-brand-text tracking-wide mb-1">{quiz.title}</h1>
       <p className="text-brand-muted text-sm mb-8">
-        {quiz.slides.length} slidov · {usages.length === 0 ? "ešte nepoužitý" : `${usages.length}× hraný`}
+        {describeQuizContent(quiz.questions)} · {buildPresentationSlides(quiz.questions).length} slidov na projektore
+        {usages.length === 0 ? " · ešte nepoužitý" : ` · ${usages.length}× hraný`}
       </p>
 
       <div className="bg-brand-card rounded-2xl border border-brand-border p-6 mb-8">
@@ -73,9 +76,8 @@ export default async function HotovyKvizDetailPage({ params }: PageProps) {
 
       <h2 className="font-display text-2xl text-brand-text tracking-wide mb-4">Slidy a otázky</h2>
       <p className="text-brand-muted text-sm mb-4 max-w-2xl">
-        Štandardný flow: <strong className="text-brand-text">Pravidlá</strong> → Kolo 1 (15 otázok) → Opravovanie →
-        Správne odpovede → Kolo 2… → Kolo 4 (5 otázok + 5 hudby) → Vyhodnotenie. Ak máš starú štruktúru, klikni{" "}
-        <strong className="text-brand-text">Štandardná štruktúra</strong>.
+        Každá otázka má text a odpoveď na jednom mieste. Obrázok môžeš zobraziť pri otázke alebo len pri správnych
+        odpovediach — flow na projektore sa vygeneruje automaticky.
       </p>
       <QuizLibraryEditor quizId={params.id} initialQuiz={quiz} />
     </div>

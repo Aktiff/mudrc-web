@@ -34,7 +34,7 @@ function toIndexEntry(quiz: QuizLibraryItem): QuizLibraryIndexEntry {
     notes: quiz.notes,
     createdAt: quiz.createdAt,
     updatedAt: quiz.updatedAt,
-    slideCount: quiz.slides.length,
+    slideCount: quiz.questions?.length ?? 0,
   };
 }
 

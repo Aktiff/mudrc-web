@@ -1,5 +1,3 @@
-import { buildStandardMudrcQuizSlides } from "@/lib/quiz-template";
-
 export type QuizSlideType =
   | "title"
   | "rules"
@@ -89,7 +87,7 @@ export function defaultDeck(eventSlug: string, venueTitle: string): QuizDeck {
     eventSlug,
     venueTitle,
     updatedAt: new Date().toISOString(),
-    slides: buildStandardMudrcQuizSlides(),
+    slides: [],
   };
 }
 

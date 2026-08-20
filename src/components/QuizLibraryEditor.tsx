@@ -2,53 +2,39 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  ChevronDown,
-  ChevronUp,
-  Copy,
-  MonitorPlay,
-  Plus,
-  Save,
-  Trash2,
-} from "lucide-react";
-import type { QuizLibraryItem, QuizSlide, QuizSlideType } from "@/lib/quiz-library";
-import { createEmptySlide, createSlideId, slideTypeLabel } from "@/lib/quiz-deck";
-import { buildStandardMudrcQuizSlides, describeSlideFlow } from "@/lib/quiz-template";
+import { MonitorPlay, Save } from "lucide-react";
 import type { QuizEvent } from "@/lib/data";
-
-const SLIDE_TYPES: QuizSlideType[] = [
-  "rules",
-  "round",
-  "question",
-  "music",
-  "correction",
-  "answer",
-  "text",
-  "scores",
-  "title",
-];
+import type { QuizLibraryItem, QuizQuestionItem } from "@/lib/quiz-library";
+import { buildStandardMudrcQuestions, describeQuizContent, roundLabels } from "@/lib/quiz-template";
+import { buildPresentationSlides } from "@/lib/quiz-presentation";
 
 type Props = {
   quizId: string;
   initialQuiz?: QuizLibraryItem | null;
 };
 
+function questionsInRound(questions: QuizQuestionItem[], round: number) {
+  return questions
+    .filter((q) => q.roundNumber === round)
+    .sort(
+      (a, b) =>
+        a.questionNumber - b.questionNumber || (a.kind === "music" ? 1 : 0) - (b.kind === "music" ? 1 : 0)
+    );
+}
+
 export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props) {
   const [quiz, setQuiz] = useState<QuizLibraryItem | null>(initialQuiz);
   const [loading, setLoading] = useState(!initialQuiz);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
-  const [addType, setAddType] = useState<QuizSlideType>("question");
   const [events, setEvents] = useState<QuizEvent[]>([]);
   const [playEventSlug, setPlayEventSlug] = useState("");
+  const [openRound, setOpenRound] = useState<number>(1);
 
   const load = useCallback(async () => {
     setLoading(true);
     const res = await fetch(`/api/admin/quiz-library/${quizId}?_=${Date.now()}`, { cache: "no-store" });
-    if (res.ok) {
-      const data = await res.json();
-      setQuiz(data);
-    }
+    if (res.ok) setQuiz(await res.json());
     setLoading(false);
   }, [quizId]);
 
@@ -59,54 +45,27 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
       .then((d) => setEvents(d.events ?? []));
   }, [initialQuiz, load]);
 
-  const regenerateTemplate = () => {
-    if (
-      !window.confirm(
-        "Nahradiť všetky slidy štandardnou štruktúrou Mudrc kvízu? (Pravidlá → 4 kolá → opravy → odpovede → vyhodnotenie)"
-      )
-    ) {
-      return;
-    }
-    setQuiz((prev) => (prev ? { ...prev, slides: buildStandardMudrcQuizSlides() } : prev));
-    setMsg({ text: "Štruktúra vygenerovaná — doplň otázky a odpovede, potom Uložiť.", ok: true });
-  };
+  const questions = useMemo(() => quiz?.questions ?? [], [quiz?.questions]);
+  const presentationCount = useMemo(
+    () => (questions.length ? buildPresentationSlides(questions).length : 0),
+    [questions]
+  );
 
-  const slides = useMemo(() => quiz?.slides ?? [], [quiz?.slides]);
-
-  const updateSlide = (id: string, patch: Partial<QuizSlide>) => {
+  const updateQuestion = (id: string, patch: Partial<QuizQuestionItem>) => {
     setQuiz((prev) =>
       prev
         ? {
             ...prev,
-            slides: prev.slides.map((slide) => (slide.id === id ? { ...slide, ...patch } : slide)),
+            questions: prev.questions.map((q) => (q.id === id ? { ...q, ...patch } : q)),
           }
         : prev
     );
   };
 
-  const moveSlide = (index: number, direction: -1 | 1) => {
-    setQuiz((prev) => {
-      if (!prev) return prev;
-      const next = [...prev.slides];
-      const target = index + direction;
-      if (target < 0 || target >= next.length) return prev;
-      [next[index], next[target]] = [next[target], next[index]];
-      return { ...prev, slides: next };
-    });
-  };
-
-  const duplicateSlide = (slide: QuizSlide) => {
-    setQuiz((prev) =>
-      prev ? { ...prev, slides: [...prev.slides, { ...slide, id: createSlideId() }] } : prev
-    );
-  };
-
-  const removeSlide = (id: string) => {
-    setQuiz((prev) => (prev ? { ...prev, slides: prev.slides.filter((slide) => slide.id !== id) } : prev));
-  };
-
-  const addSlide = () => {
-    setQuiz((prev) => (prev ? { ...prev, slides: [...prev.slides, createEmptySlide(addType)] } : prev));
+  const regenerateTemplate = () => {
+    if (!window.confirm("Vymazať obsah a vytvoriť prázdnu štruktúru 55 otázok (4 kolá)?")) return;
+    setQuiz((prev) => (prev ? { ...prev, questions: buildStandardMudrcQuestions() } : prev));
+    setMsg({ text: "Štruktúra pripravená — doplň otázky a odpovede.", ok: true });
   };
 
   const save = async () => {
@@ -133,13 +92,8 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
     }
   };
 
-  if (loading) {
-    return <p className="text-brand-muted text-sm">Načítavam slidy…</p>;
-  }
-
-  if (!quiz) {
-    return <p className="text-red-500 text-sm">Kvíz sa nepodarilo načítať.</p>;
-  }
+  if (loading) return <p className="text-brand-muted text-sm">Načítavam…</p>;
+  if (!quiz) return <p className="text-red-500 text-sm">Kvíz sa nepodarilo načítať.</p>;
 
   return (
     <div className="space-y-6">
@@ -154,23 +108,22 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
           />
         </div>
         <div>
-          <label className="label">Poznámka (voliteľné)</label>
+          <label className="label">Poznámka</label>
           <input
             className="input"
             value={quiz.notes ?? ""}
             onChange={(e) => setQuiz({ ...quiz, notes: e.target.value })}
-            placeholder="Téma, obtiažnosť, poznámky…"
+            placeholder="Téma, obtiažnosť…"
           />
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-4">
+      <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-brand-muted text-sm">{describeSlideFlow(slides)}</p>
+          <p className="text-brand-muted text-sm">{describeQuizContent(questions)}</p>
+          <p className="text-brand-muted text-xs mt-0.5">{presentationCount} slidov na projektore</p>
           {msg && (
-            <p className={`text-sm mt-1 ${msg.ok ? "text-green-600 dark:text-green-400" : "text-red-500"}`}>
-              {msg.text}
-            </p>
+            <p className={`text-sm mt-1 ${msg.ok ? "text-green-600" : "text-red-500"}`}>{msg.text}</p>
           )}
         </div>
         <div className="flex flex-wrap gap-2 items-end">
@@ -190,10 +143,10 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
             className="btn-primary text-sm py-2.5 px-4 inline-flex items-center gap-2"
           >
             <MonitorPlay className="w-4 h-4" />
-            Spustiť na projektor
+            Spustiť
           </Link>
           <button type="button" onClick={regenerateTemplate} className="btn-outline text-sm py-2.5 px-4">
-            Štandardná štruktúra
+            Reset štruktúry
           </button>
           <button type="button" onClick={save} disabled={saving} className="btn-outline text-sm py-2.5 px-4 inline-flex items-center gap-2">
             <Save className="w-4 h-4" />
@@ -202,135 +155,94 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
         </div>
       </div>
 
-      <div className="space-y-4">
-        {slides.map((slide, index) => (
-          <div key={slide.id} className="bg-brand-card border border-brand-border rounded-2xl p-5 space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <span className="text-xs font-bold uppercase tracking-wider text-brand-orange-readable bg-brand-tint px-2.5 py-1 rounded-lg">
-                {index + 1}. {slideTypeLabel(slide.type)}
-              </span>
-              <div className="flex items-center gap-1">
-                <button type="button" onClick={() => moveSlide(index, -1)} className="p-2 rounded-lg hover:bg-brand-hover text-brand-muted">
-                  <ChevronUp className="w-4 h-4" />
-                </button>
-                <button type="button" onClick={() => moveSlide(index, 1)} className="p-2 rounded-lg hover:bg-brand-hover text-brand-muted">
-                  <ChevronDown className="w-4 h-4" />
-                </button>
-                <button type="button" onClick={() => duplicateSlide(slide)} className="p-2 rounded-lg hover:bg-brand-hover text-brand-muted">
-                  <Copy className="w-4 h-4" />
-                </button>
-                <button type="button" onClick={() => removeSlide(slide.id)} className="p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/30 text-red-500">
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
+      <p className="text-brand-muted text-sm bg-brand-warm border border-brand-border rounded-xl px-4 py-3">
+        Každá otázka má text a odpoveď na jednom mieste. Obrázok môžeš zobraziť pri otázke (zaškrtnuté) alebo len pri
+        správnych odpovediach. Na projektore sa flow generuje automaticky.
+      </p>
 
-            <div>
-              <label className="label">Nadpis</label>
-              <input className="input" value={slide.title ?? ""} onChange={(e) => updateSlide(slide.id, { title: e.target.value })} />
-            </div>
-
-            {slide.type === "title" && (
-              <div>
-                <label className="label">Podnadpis</label>
-                <input className="input" value={slide.subtitle ?? ""} onChange={(e) => updateSlide(slide.id, { subtitle: e.target.value })} />
-              </div>
-            )}
-
-            {slide.type === "round" && (
-              <>
-                <div>
-                  <label className="label">Podnadpis (napr. 15 otázok)</label>
-                  <input className="input" value={slide.subtitle ?? ""} onChange={(e) => updateSlide(slide.id, { subtitle: e.target.value })} />
-                </div>
-                <div>
-                  <label className="label">Číslo kola</label>
-                  <input
-                    className="input max-w-[8rem]"
-                    type="number"
-                    min={1}
-                    value={slide.roundNumber ?? 1}
-                    onChange={(e) => updateSlide(slide.id, { roundNumber: Number(e.target.value) || 1 })}
-                  />
-                </div>
-              </>
-            )}
-
-            {(slide.type === "question" ||
-              slide.type === "music" ||
-              slide.type === "answer" ||
-              slide.type === "text" ||
-              slide.type === "correction" ||
-              slide.type === "rules" ||
-              slide.type === "scores") && (
-              <div>
-                <label className="label">
-                  {slide.type === "question" || slide.type === "music"
-                    ? "Text otázky / ukážky"
-                    : slide.type === "answer"
-                      ? "Text otázky (voliteľné, na kontrolu)"
-                      : "Text na slide"}
-                </label>
-                <textarea
-                  className="input min-h-[100px] resize-y"
-                  value={slide.body ?? ""}
-                  onChange={(e) => updateSlide(slide.id, { body: e.target.value })}
-                />
-              </div>
-            )}
-
-            {(slide.type === "question" || slide.type === "music" || slide.type === "answer") && (
-              <div>
-                <label className="label">
-                  {slide.type === "answer" ? "Správna odpoveď (zobrazí sa na projektore)" : "Správna odpoveď (len pre editor — na projektore až v sekcii odpovedí)"}
-                </label>
-                <input className="input" value={slide.answer ?? ""} onChange={(e) => updateSlide(slide.id, { answer: e.target.value })} />
-              </div>
-            )}
-
-            {(slide.type === "question" || slide.type === "music") && (
-              <>
-                <div>
-                  <label className="label">Obrázok (URL)</label>
-                  <input
-                    className="input"
-                    value={slide.imageUrl ?? ""}
-                    onChange={(e) => updateSlide(slide.id, { imageUrl: e.target.value })}
-                    placeholder="https://…"
-                  />
-                </div>
-                {slide.type === "music" && (
-                  <div>
-                    <label className="label">Audio ukážka (URL)</label>
-                    <input
-                      className="input"
-                      value={slide.audioUrl ?? ""}
-                      onChange={(e) => updateSlide(slide.id, { audioUrl: e.target.value })}
-                      placeholder="https://…mp3"
-                    />
-                  </div>
-                )}
-              </>
-            )}
-          </div>
+      <div className="flex gap-2 flex-wrap">
+        {[1, 2, 3, 4].map((round) => (
+          <button
+            key={round}
+            type="button"
+            onClick={() => setOpenRound(round)}
+            className={`px-4 py-2 rounded-xl text-sm font-semibold border transition-colors ${
+              openRound === round
+                ? "bg-brand-orange text-brand-btn-fg border-brand-orange"
+                : "border-brand-border text-brand-muted hover:border-brand-orange"
+            }`}
+          >
+            Kolo {round}
+          </button>
         ))}
       </div>
 
-      <div className="flex flex-wrap items-end gap-3 bg-brand-warm border border-brand-border rounded-2xl p-5">
-        <div className="flex-1 min-w-[200px]">
-          <label className="label">Pridať slide</label>
-          <select className="input" value={addType} onChange={(e) => setAddType(e.target.value as QuizSlideType)}>
-            {SLIDE_TYPES.map((type) => (
-              <option key={type} value={type}>
-                {slideTypeLabel(type)}
-              </option>
-            ))}
-          </select>
-        </div>
-        <button type="button" onClick={addSlide} className="btn-outline text-sm py-2.5 px-4 inline-flex items-center gap-2">
-          <Plus className="w-4 h-4" />
-          Pridať slide
-        </button>
+      <div className="space-y-4">
+        <h3 className="font-display text-xl text-brand-text">
+          Kolo {openRound} — {roundLabels[openRound]}
+        </h3>
+        {questionsInRound(questions, openRound).map((question) => (
+          <div key={question.id} className="bg-brand-card border border-brand-border rounded-2xl p-5 space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-brand-orange-readable bg-brand-tint px-2.5 py-1 rounded-lg">
+                {question.kind === "music"
+                  ? `Hudba ${question.questionNumber}`
+                  : `Otázka ${question.questionNumber}`}
+              </span>
+            </div>
+            <div>
+              <label className="label">Text otázky</label>
+              <textarea
+                className="input min-h-[80px] resize-y"
+                value={question.body}
+                onChange={(e) => updateQuestion(question.id, { body: e.target.value })}
+                placeholder="Sem napíš otázku…"
+              />
+            </div>
+            <div>
+              <label className="label">Správna odpoveď</label>
+              <input
+                className="input"
+                value={question.answer}
+                onChange={(e) => updateQuestion(question.id, { answer: e.target.value })}
+                placeholder="Správna odpoveď"
+              />
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <label className="label">Obrázok (URL)</label>
+                <input
+                  className="input"
+                  value={question.imageUrl ?? ""}
+                  onChange={(e) => updateQuestion(question.id, { imageUrl: e.target.value })}
+                  placeholder="https://…"
+                />
+              </div>
+              {question.kind === "music" && (
+                <div>
+                  <label className="label">Audio ukážka (URL)</label>
+                  <input
+                    className="input"
+                    value={question.audioUrl ?? ""}
+                    onChange={(e) => updateQuestion(question.id, { audioUrl: e.target.value })}
+                    placeholder="https://…mp3"
+                  />
+                </div>
+              )}
+            </div>
+            {question.imageUrl?.trim() && (
+              <label className="flex items-center gap-2 text-sm text-brand-text cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={question.imageDuringQuestion}
+                  onChange={(e) => updateQuestion(question.id, { imageDuringQuestion: e.target.checked })}
+                  className="rounded border-brand-border"
+                />
+                Zobraziť obrázok aj počas otázky (inak len pri správnych odpovediach)
+              </label>
+            )}
+          </div>
+        ))}
       </div>
     </div>
   );

@@ -271,7 +271,12 @@ export default function HotoveKvizyList() {
                 <div className="flex flex-wrap items-center gap-2 mt-2 text-xs">
                   <span className="font-semibold px-2.5 py-1 rounded-full inline-flex items-center gap-1 bg-brand-surface text-brand-muted border border-brand-border">
                     <Layers className="w-3 h-3" />
-                    {quiz.slides.length} {quiz.slides.length === 1 ? "slide" : quiz.slides.length < 5 ? "slidy" : "slidov"}
+                    {quiz.questions?.length ?? 0}{" "}
+                    {(quiz.questions?.length ?? 0) === 1
+                      ? "otázka"
+                      : (quiz.questions?.length ?? 0) < 5
+                        ? "otázky"
+                        : "otázok"}
                   </span>
                   <span className="text-brand-muted">{quiz.usageCount === 0 ? "Ešte nepoužitý" : `${quiz.usageCount}× hraný`}</span>
                   {filterTeams.length > 0 && (
@@ -320,7 +325,7 @@ export default function HotoveKvizyList() {
               <Link
                 href={`/admin/hotove-kvizy/${quiz.id}/prehrat`}
                 className={`inline-flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded-xl transition-colors ${
-                  quiz.slides.length
+                  (quiz.questions?.length ?? 0)
                     ? "bg-brand-orange text-brand-btn-fg hover:opacity-90"
                     : "bg-brand-surface text-brand-muted border border-brand-border pointer-events-none opacity-60"
                 }`}
