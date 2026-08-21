@@ -11,7 +11,7 @@ import {
   shouldShowImageInQuestionPhase,
   type PresentationSlide,
 } from "@/lib/quiz-presentation";
-import { getQuestionBodyText, getQuestionOptions, optionLetter } from "@/lib/quiz-question-options";
+import { findCorrectOptionIndex, getQuestionBodyText, getQuestionOptions, optionLetter } from "@/lib/quiz-question-options";
 
 type Props = {
   quizId: string;
@@ -56,6 +56,50 @@ function RulesSlide({ rules, venueName }: { rules: string[]; venueName: string }
   );
 }
 
+function OptionsGrid({
+  options,
+  highlightCorrectIndex = -1,
+}: {
+  options: string[];
+  highlightCorrectIndex?: number;
+}) {
+  if (!options.length) return null;
+
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 w-full max-w-[96vw] xl:max-w-[88rem]">
+      {options.map((option, index) => {
+        const isCorrect = index === highlightCorrectIndex;
+
+        return (
+          <div
+            key={`${index}-${option}`}
+            className={`flex items-center gap-5 sm:gap-6 min-h-[5.5rem] sm:min-h-[7rem] md:min-h-[8.5rem] px-6 sm:px-8 md:px-10 py-5 sm:py-6 md:py-7 rounded-2xl border-2 shadow-[0_12px_48px_rgba(0,0,0,0.45)] ${
+              isCorrect
+                ? "border-[#f0c800] bg-gradient-to-br from-[#f0c800] to-[#e6b800] text-black ring-4 ring-[#f0c800]/35"
+                : "border-white/20 bg-white/[0.06] backdrop-blur-sm text-white"
+            }`}
+          >
+            <span
+              className={`font-display text-4xl sm:text-5xl md:text-6xl lg:text-7xl leading-none shrink-0 w-14 sm:w-16 md:w-20 text-left ${
+                isCorrect ? "text-black/70" : "text-[#f0c800]"
+              }`}
+            >
+              {optionLetter(index)})
+            </span>
+            <p
+              className={`flex-1 font-display text-2xl sm:text-3xl md:text-4xl lg:text-5xl tracking-wide leading-snug text-left ${
+                isCorrect ? "font-bold" : ""
+              }`}
+            >
+              {option}
+            </p>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function QuestionContent({
   question,
   phase,
@@ -66,10 +110,12 @@ function QuestionContent({
   const showImage =
     phase === "question" ? shouldShowImageInQuestionPhase(question) : shouldShowImageInAnswerPhase(question);
   const questionText = getQuestionBodyText(question) || "Otázka";
-  const options = phase === "question" ? getQuestionOptions(question) : [];
+  const options = getQuestionOptions(question);
+  const correctOptionIndex =
+    phase === "answer" ? findCorrectOptionIndex(options, question.answer) : -1;
 
   return (
-    <div className="w-full max-w-6xl px-6 sm:px-10 flex flex-col items-center gap-6 sm:gap-8">
+    <div className="w-full max-w-[96vw] xl:max-w-[88rem] px-4 sm:px-8 flex flex-col items-center gap-8 sm:gap-10 md:gap-12">
       {phase === "question" && question.kind === "music" && question.audioUrl?.trim() && (
         <audio
           controls
@@ -85,33 +131,27 @@ function QuestionContent({
         <img
           src={question.imageUrl}
           alt=""
-          className="max-h-[36vh] max-w-full rounded-2xl object-contain shadow-[0_24px_80px_rgba(0,0,0,0.6)] ring-1 ring-white/10"
+          className="max-h-[30vh] max-w-full rounded-2xl object-contain shadow-[0_24px_80px_rgba(0,0,0,0.6)] ring-1 ring-white/10"
         />
       )}
 
-      <p className="font-display text-3xl sm:text-5xl md:text-6xl lg:text-7xl text-white text-center leading-tight tracking-wide whitespace-pre-wrap drop-shadow-lg">
+      <p className="font-display text-4xl sm:text-6xl md:text-7xl lg:text-8xl xl:text-[6.5rem] text-white text-center leading-[1.05] tracking-wide whitespace-pre-wrap drop-shadow-lg px-2">
         {questionText}
       </p>
 
       {options.length > 0 && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 w-full max-w-5xl">
-          {options.map((option, index) => (
-            <div
-              key={`${index}-${option}`}
-              className="px-4 sm:px-6 py-3 sm:py-4 rounded-2xl border border-white/15 bg-white/[0.06] backdrop-blur-sm text-white text-center shadow-[0_8px_32px_rgba(0,0,0,0.35)]"
-            >
-              <p className="text-lg sm:text-xl md:text-2xl font-display tracking-wide leading-snug">
-                <span className="text-[#f0c800]/80 font-mono text-base sm:text-lg mr-2">{optionLetter(index)})</span>
-                {option}
-              </p>
-            </div>
-          ))}
+        <OptionsGrid options={options} highlightCorrectIndex={correctOptionIndex} />
+      )}
+
+      {phase === "answer" && options.length > 0 && correctOptionIndex < 0 && question.answer.trim() && (
+        <div className="px-10 sm:px-14 py-8 sm:py-10 rounded-2xl bg-gradient-to-br from-[#f0c800] to-[#e6b800] text-black text-center max-w-5xl w-full shadow-[0_20px_60px_rgba(240,200,0,0.25)]">
+          <p className="text-3xl sm:text-5xl md:text-6xl lg:text-7xl font-display tracking-wide">{question.answer}</p>
         </div>
       )}
 
-      {phase === "answer" && (
-        <div className="px-8 sm:px-12 py-6 sm:py-8 rounded-2xl bg-gradient-to-br from-[#f0c800] to-[#e6b800] text-black text-center max-w-4xl w-full shadow-[0_20px_60px_rgba(240,200,0,0.25)]">
-          <p className="text-2xl sm:text-4xl md:text-5xl font-display tracking-wide">{question.answer || "—"}</p>
+      {phase === "answer" && options.length === 0 && (
+        <div className="px-10 sm:px-14 py-8 sm:py-10 rounded-2xl bg-gradient-to-br from-[#f0c800] to-[#e6b800] text-black text-center max-w-5xl w-full shadow-[0_20px_60px_rgba(240,200,0,0.25)]">
+          <p className="text-3xl sm:text-5xl md:text-6xl lg:text-7xl font-display tracking-wide">{question.answer || "—"}</p>
         </div>
       )}
     </div>

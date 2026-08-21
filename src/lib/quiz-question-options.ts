@@ -62,3 +62,9 @@ export function getQuestionBodyText(question: QuizQuestionItem): string {
 export function optionLetter(index: number): string {
   return OPTION_LETTERS[index] ?? String(index + 1);
 }
+
+export function findCorrectOptionIndex(options: string[], answer: string): number {
+  const normalizedAnswer = answer.trim().toLowerCase();
+  if (!normalizedAnswer) return -1;
+  return options.findIndex((option) => option.trim().toLowerCase() === normalizedAnswer);
+}
