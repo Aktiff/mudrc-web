@@ -116,14 +116,10 @@ function PresentationView({
   if (slide.type === "round") {
     return (
       <div className="text-center px-8">
-        <div className="relative inline-block">
-          <div className="absolute -inset-8 rounded-full border border-[#f0c800]/20 scale-110" />
-          <div className="absolute -inset-16 rounded-full border border-[#f0c800]/10 scale-110" />
-          <p className="relative font-display text-7xl sm:text-9xl md:text-[10rem] text-white tracking-wide leading-none">
-            {slide.title}
-          </p>
-        </div>
-        {slide.subtitle && <p className="text-xl sm:text-3xl text-white/70 mt-10 font-medium">{slide.subtitle}</p>}
+        <p className="font-display text-7xl sm:text-9xl md:text-[10rem] text-white tracking-wide leading-none">
+          {slide.title}
+        </p>
+        {slide.subtitle && <p className="text-xl sm:text-3xl text-white/65 mt-8 font-medium">{slide.subtitle}</p>}
       </div>
     );
   }
