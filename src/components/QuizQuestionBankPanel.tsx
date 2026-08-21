@@ -5,6 +5,13 @@ import { BookOpen, Check, ClipboardCopy, Trash2 } from "lucide-react";
 import type { QuizQuestionItem } from "@/lib/quiz-library";
 import { findFirstEmptyQuestionSlot, isQuestionSlotEmpty } from "@/lib/quiz-library";
 import {
+  bankQuestionTagScore,
+  collectTagsFromBank,
+  countTagUsageInQuestions,
+  filterBankQuestionsByTags,
+  sortBankQuestionsByTagBalance,
+} from "@/lib/quiz-question-tags";
+import {
   filterVisibleBankQuestions,
   formatBankQuestionBody,
   readHiddenBankQuestionIds,
@@ -14,31 +21,62 @@ import {
 
 type Props = {
   roundQuestions: QuizQuestionItem[];
+  allQuizQuestions: QuizQuestionItem[];
   usedBankQuestionIds: string[];
   onInsert: (
     bankId: string,
     targetQuestionId: string,
     body: string,
     answer: string,
-    options: string[]
+    options: string[],
+    tags: string[]
   ) => void;
 };
 
 const OPTION_LETTERS = ["A", "B", "C", "D", "E", "F"] as const;
 
-export default function QuizQuestionBankPanel({ roundQuestions, usedBankQuestionIds, onInsert }: Props) {
+function TagChip({ tag, active = false }: { tag: string; active?: boolean }) {
+  return (
+    <span
+      className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${
+        active
+          ? "border-brand-orange bg-brand-tint text-brand-orange-readable"
+          : "border-brand-border bg-brand-card text-brand-muted"
+      }`}
+    >
+      {tag}
+    </span>
+  );
+}
+
+export default function QuizQuestionBankPanel({
+  roundQuestions,
+  allQuizQuestions,
+  usedBankQuestionIds,
+  onInsert,
+}: Props) {
   const [hiddenIds, setHiddenIds] = useState<string[]>([]);
   const [targetByBankId, setTargetByBankId] = useState<Record<string, string>>({});
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
 
   useEffect(() => {
     setHiddenIds(readHiddenBankQuestionIds());
   }, []);
 
-  const visibleQuestions = useMemo(
+  const tagCounts = useMemo(() => countTagUsageInQuestions(allQuizQuestions), [allQuizQuestions]);
+
+  const availableQuestions = useMemo(
     () => filterVisibleBankQuestions(usedBankQuestionIds, hiddenIds),
     [usedBankQuestionIds, hiddenIds]
   );
+
+  const bankTags = useMemo(() => collectTagsFromBank(availableQuestions), [availableQuestions]);
+
+  const visibleQuestions = useMemo(() => {
+    const filtered = filterBankQuestionsByTags(availableQuestions, selectedTags);
+    return sortBankQuestionsByTagBalance(filtered, tagCounts);
+  }, [availableQuestions, selectedTags, tagCounts]);
 
   const normalQuestions = useMemo(
     () =>
@@ -52,6 +90,12 @@ export default function QuizQuestionBankPanel({ roundQuestions, usedBankQuestion
     () => findFirstEmptyQuestionSlot(normalQuestions)?.id ?? normalQuestions[0]?.id ?? "",
     [normalQuestions]
   );
+
+  const toggleTagFilter = (tag: string) => {
+    setSelectedTags((prev) =>
+      prev.includes(tag) ? prev.filter((entry) => entry !== tag) : [...prev, tag]
+    );
+  };
 
   const copyText = async (text: string, id: string) => {
     try {
@@ -72,7 +116,7 @@ export default function QuizQuestionBankPanel({ roundQuestions, usedBankQuestion
   const handleInsert = (item: QuizBankQuestion) => {
     const targetId = getTargetId(item.id);
     if (!targetId) return;
-    onInsert(item.id, targetId, item.body, item.answer, [...item.options]);
+    onInsert(item.id, targetId, item.body, item.answer, [...item.options], [...item.tags]);
     setTargetByBankId((prev) => {
       const next = { ...prev };
       delete next[item.id];
@@ -89,7 +133,7 @@ export default function QuizQuestionBankPanel({ roundQuestions, usedBankQuestion
 
   return (
     <div className="bg-brand-card border border-brand-border rounded-2xl flex flex-col min-w-0 max-w-full h-full max-h-[calc(100vh-10rem)] overflow-hidden">
-      <div className="px-4 py-4 border-b border-brand-border shrink-0">
+      <div className="px-4 py-4 border-b border-brand-border shrink-0 space-y-3">
         <div className="flex items-start gap-3">
           <div className="w-9 h-9 rounded-xl bg-brand-tint flex items-center justify-center shrink-0">
             <BookOpen className="w-4 h-4 text-brand-orange" />
@@ -97,33 +141,72 @@ export default function QuizQuestionBankPanel({ roundQuestions, usedBankQuestion
           <div className="min-w-0">
             <p className="font-semibold text-brand-text text-sm leading-snug">Banka otázok</p>
             <p className="text-brand-muted text-xs mt-0.5 leading-relaxed">
-              {visibleQuestions.length} k dispozícii · Vložiť ide do prvej prázdnej otázky
+              {visibleQuestions.length} k dispozícii · zoradené podľa najmenej použitých tagov
             </p>
           </div>
         </div>
+
+        {bankTags.length > 0 && (
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-brand-muted mb-1.5">
+              Filter podľa tagov
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {bankTags.map((tag) => (
+                <button
+                  key={tag}
+                  type="button"
+                  onClick={() => toggleTagFilter(tag)}
+                  className="rounded-full"
+                >
+                  <TagChip tag={tag} active={selectedTags.includes(tag)} />
+                </button>
+              ))}
+              {selectedTags.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedTags([])}
+                  className="text-[10px] font-semibold text-brand-muted hover:text-brand-text px-1.5"
+                >
+                  Zrušiť filter
+                </button>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 min-h-0">
         {visibleQuestions.length === 0 ? (
           <p className="text-brand-muted text-sm text-center py-8">
-            Všetky otázky z banky sú vložené alebo odstránené.
+            {selectedTags.length
+              ? "Pre zvolené tagy nie sú dostupné otázky."
+              : "Všetky otázky z banky sú vložené alebo odstránené."}
           </p>
         ) : (
-          visibleQuestions.map((item, index) => {
+          visibleQuestions.map((item) => {
             const targetId = getTargetId(item.id);
+            const tagScore = bankQuestionTagScore(item, tagCounts);
 
             return (
               <div key={item.id} className="rounded-xl border border-brand-border bg-brand-surface/50 p-3 space-y-2.5">
                 <div>
                   <div className="flex flex-wrap items-center gap-1.5 mb-1">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-brand-orange-readable bg-brand-tint px-1.5 py-0.5 rounded">
-                      #{index + 1}
-                    </span>
                     <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-brand-card border border-brand-border text-brand-muted">
                       {item.difficulty}/10
                     </span>
+                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-green-50 text-green-800 border border-green-200 dark:bg-green-950/30 dark:text-green-200 dark:border-green-800">
+                      tag skóre {tagScore}
+                    </span>
                   </div>
                   <p className="text-sm font-semibold text-brand-text leading-snug break-words">{item.body}</p>
+                  {item.tags.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {item.tags.map((tag) => (
+                        <TagChip key={tag} tag={tag} />
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 <ul className="space-y-1">

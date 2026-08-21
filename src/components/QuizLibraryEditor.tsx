@@ -9,7 +9,9 @@ import { collectUsedBankQuestionIdsFromQuiz } from "@/lib/quiz-library";
 import { buildStandardMudrcQuestions, describeQuizContent, roundLabels } from "@/lib/quiz-template";
 import { buildPresentationSlides } from "@/lib/quiz-presentation";
 import QuizQuestionBankPanel from "@/components/QuizQuestionBankPanel";
+import QuizTagStats from "@/components/QuizTagStats";
 import { optionLetter } from "@/lib/quiz-question-options";
+import { formatTagsInput, parseTagsInput } from "@/lib/quiz-question-tags";
 import {
   clearQuizDraft,
   parseQuizPayload,
@@ -203,7 +205,8 @@ export default function QuizLibraryEditor({ quizId }: Props) {
     targetQuestionId: string,
     body: string,
     answer: string,
-    options: string[]
+    options: string[],
+    tags: string[]
   ) => {
     const target = questions.find((q) => q.id === targetQuestionId);
     const displacedBankId = target?.bankQuestionId;
@@ -227,6 +230,7 @@ export default function QuizLibraryEditor({ quizId }: Props) {
                 answer,
                 options: options.length ? options : undefined,
                 bankQuestionId: bankId,
+                tags: tags.length ? tags : undefined,
               }
             : q
         ),
@@ -261,6 +265,7 @@ export default function QuizLibraryEditor({ quizId }: Props) {
                     answer: "",
                     options: undefined,
                     bankQuestionId: undefined,
+                    tags: undefined,
                   }
                 : q
             ),
@@ -398,6 +403,8 @@ export default function QuizLibraryEditor({ quizId }: Props) {
         </div>
       </div>
 
+      <QuizTagStats questions={questions} />
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 min-w-0 max-w-full">
         <div className="min-w-0 max-w-full overflow-x-hidden space-y-4">
           <div className="flex gap-2 flex-wrap">
@@ -516,6 +523,29 @@ export default function QuizLibraryEditor({ quizId }: Props) {
               />
             </div>
             {question.kind === "normal" && (
+              <div>
+                <label className="label">Tagy (oddelené čiarkou)</label>
+                <input
+                  className="input"
+                  value={formatTagsInput(question.tags)}
+                  onChange={(e) => updateQuestion(question.id, { tags: parseTagsInput(e.target.value) })}
+                  placeholder="história, geografia, afrika"
+                />
+                {(question.tags?.length ?? 0) > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mt-2">
+                    {question.tags!.map((tag) => (
+                      <span
+                        key={tag}
+                        className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full border border-brand-border bg-brand-card text-brand-muted"
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+            {question.kind === "normal" && (
               <div className="space-y-2">
                 <div className="flex items-center justify-between gap-2">
                   <label className="label mb-0">Možnosti (voliteľné)</label>
@@ -619,6 +649,7 @@ export default function QuizLibraryEditor({ quizId }: Props) {
         <div className="min-w-0 max-w-full overflow-x-hidden lg:sticky lg:top-24 lg:self-start">
           <QuizQuestionBankPanel
             roundQuestions={roundQuestions}
+            allQuizQuestions={questions}
             usedBankQuestionIds={globalUsedBankQuestionIds}
             onInsert={insertFromBank}
           />

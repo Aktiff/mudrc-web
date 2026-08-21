@@ -1,5 +1,6 @@
 import { buildStandardMudrcQuestions, migrateSlidesToQuestions } from "@/lib/quiz-template";
 import { normalizeQuestionOptions, parseEmbeddedOptions } from "@/lib/quiz-question-options";
+import { normalizeTags } from "@/lib/quiz-question-tags";
 import { teamKey } from "@/lib/poll";
 
 export type QuizQuestionKind = "normal" | "music";
@@ -21,6 +22,8 @@ export type QuizQuestionItem = {
   imageDuringQuestion: boolean;
   /** true = obrázok na samostatnom fullscreen slide hneď po otázke */
   imageOnNextSlide?: boolean;
+  /** Tématické tagy pre vyváženie kvízu (napr. história, geografia) */
+  tags?: string[];
 };
 
 export type QuizLibraryItem = {
@@ -88,6 +91,7 @@ function normalizeQuestion(input: Partial<QuizQuestionItem>): QuizQuestionItem |
     audioUrl: input.audioUrl?.trim() || undefined,
     imageDuringQuestion: Boolean(input.imageDuringQuestion),
     imageOnNextSlide: Boolean(input.imageOnNextSlide),
+    tags: normalizeTags(input.tags),
   };
 }
 

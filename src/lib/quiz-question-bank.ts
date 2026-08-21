@@ -8,6 +8,8 @@ export type QuizBankQuestion = {
   difficulty: number;
   /** Overená poznámka / prečo je to tak */
   note: string;
+  /** Tématické tagy (história, geografia, …) */
+  tags: string[];
 };
 
 /** Všeobecný pub kvíz — overené fakty, vhodné pre tím ~5 hráčov. */
@@ -20,6 +22,7 @@ export const PUB_QUIZ_BANK: QuizBankQuestion[] = [
     correctIndex: 3,
     difficulty: 8,
     note: "Väčšina tipuje Rusko (11 pásiem), ale Francúzsko má 12 — vďaka metropole plus zámorským územiam od Tahiti po Réunion. Klasická pub pasca.",
+    tags: ["geografia", "svet", "európa"],
   },
   {
     id: "bank-02",
@@ -36,6 +39,7 @@ export const PUB_QUIZ_BANK: QuizBankQuestion[] = [
     correctIndex: 2,
     difficulty: 7,
     note: "Názov láká na Maroko, ale celý film vznikol vo Warner Bros v Burbanku pri Los Angeles. Letisko v záverečných scénach bolo tiež len kulisa vo štúdiu.",
+    tags: ["film", "história", "usa"],
   },
   {
     id: "bank-03",
@@ -45,6 +49,7 @@ export const PUB_QUIZ_BANK: QuizBankQuestion[] = [
     correctIndex: 2,
     difficulty: 4,
     note: "Dve srdcia pumpujú krv do žiaber, tretie do zvyšku tela. Krv chobotnice je modrá vďaka medi namiesto železa v hemoglobíne.",
+    tags: ["príroda", "veda", "zvieratá"],
   },
   {
     id: "bank-04",
@@ -54,6 +59,7 @@ export const PUB_QUIZ_BANK: QuizBankQuestion[] = [
     correctIndex: 3,
     difficulty: 5,
     note: "Urán má sklon osi okolo 98°, takže sa valí po obežnej dráhe. Pravdepodobne ho v minulosti silno naklonila kolízia s protoplanetárneym teleso.",
+    tags: ["veda", "vesmír", "astronómia"],
   },
   {
     id: "bank-05",
@@ -63,6 +69,7 @@ export const PUB_QUIZ_BANK: QuizBankQuestion[] = [
     correctIndex: 3,
     difficulty: 7,
     note: "Systolický tlak u žirafy pri srdci môže presiahnuť 300 mm Hg. Má aj špeciálne chlopne vo vene krknej, aby pri sklonení hlavy nepreplavilo mozog.",
+    tags: ["príroda", "zvieratá", "veda"],
   },
   {
     id: "bank-06",
@@ -72,6 +79,7 @@ export const PUB_QUIZ_BANK: QuizBankQuestion[] = [
     correctIndex: 2,
     difficulty: 5,
     note: "V egyptských hrobkách našli stále jedlý med tisícročia starý. Enzýmy a nízka aktivita vody bránia rastu baktérii — netreba chladničku.",
+    tags: ["jedlo", "veda", "história"],
   },
   {
     id: "bank-07",
@@ -81,6 +89,7 @@ export const PUB_QUIZ_BANK: QuizBankQuestion[] = [
     correctIndex: 3,
     difficulty: 6,
     note: "Antarktída je polárna púšť, ale horúcu púšť v zmysle Sahary na Európe nemáme. Aj preto je to obľúbená pub otázka s háčikom okolo Antarktídy.",
+    tags: ["geografia", "svet", "európa"],
   },
   {
     id: "bank-08",
@@ -90,6 +99,7 @@ export const PUB_QUIZ_BANK: QuizBankQuestion[] = [
     correctIndex: 2,
     difficulty: 3,
     note: "9. november 1989 — po tlačenici na tlačovej konferencii sa hranice otvorili ešte v ten večer. Zjednotenie Nemecka prišlo až v roku 1990.",
+    tags: ["história", "politika", "európa"],
   },
   {
     id: "bank-09",
@@ -99,6 +109,7 @@ export const PUB_QUIZ_BANK: QuizBankQuestion[] = [
     correctIndex: 2,
     difficulty: 6,
     note: "Charles Darrow predával hru s názvami z Atlantic City v New Jersey. Nie Wall Street ani Vegas — prekvapí aj hráčov, čo Monopoly poznajú celý život.",
+    tags: ["hry", "kultúra", "usa"],
   },
   {
     id: "bank-10",
@@ -108,6 +119,17 @@ export const PUB_QUIZ_BANK: QuizBankQuestion[] = [
     correctIndex: 2,
     difficulty: 7,
     note: "Kov sa pri teple roztiahne — pri 300 m výške to dá zhruba 15 cm. Veža sa teda doslova „nafúkne“ slnkom; v noci zase mierne klesne.",
+    tags: ["veda", "fyzika", "francúzsko"],
+  },
+  {
+    id: "bank-11",
+    body: "Ako sa dnes volá krajina, ktorá do roku 1984 niesla názov Horná Volta?",
+    answer: "Burkina Faso",
+    options: ["Mali", "Niger", "Burkina Faso", "Benin", "Togo", "Ghana"],
+    correctIndex: 2,
+    difficulty: 6,
+    note: "Horná Volta sa v auguste 1984 premenovala na Burkina Faso („krajina spravodlivých ľudí“). Typická otázka, kde väčšina tipuje susedný štát.",
+    tags: ["história", "geografia", "afrika"],
   },
 ];
 
