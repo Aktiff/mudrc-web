@@ -2,12 +2,12 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState, Fragment } from "react";
-import { ChevronDown, ChevronUp, GripVertical, MonitorPlay, Plus, RotateCcw, Save, X } from "lucide-react";
+import { ChevronDown, ChevronUp, GripVertical, MonitorPlay, Plus, RotateCcw, Save, Trash2, X } from "lucide-react";
 import type { QuizEvent } from "@/lib/data";
 import type { QuizLibraryItem, QuizQuestionItem, QuizQuestionKind } from "@/lib/quiz-library";
 import { collectUsedBankQuestionIdsFromQuiz } from "@/lib/quiz-library";
 import { findBankQuestionById } from "@/lib/quiz-question-bank";
-import { buildStandardMudrcQuestions, describeQuizContent, insertQuestionAfter, roundLabels } from "@/lib/quiz-template";
+import { buildStandardMudrcQuestions, describeQuizContent, insertQuestionAfter, removeQuestion, roundLabels } from "@/lib/quiz-template";
 import { buildPresentationSlides } from "@/lib/quiz-presentation";
 import QuizQuestionBankPanel from "@/components/QuizQuestionBankPanel";
 import QuizTagStats from "@/components/QuizTagStats";
@@ -345,6 +345,32 @@ export default function QuizLibraryEditor({ quizId }: Props) {
     });
   };
 
+  const deleteQuestion = (questionId: string) => {
+    const question = questions.find((q) => q.id === questionId);
+    if (!question) return;
+
+    const label =
+      question.kind === "music"
+        ? `hudobnú ukážku ${question.questionNumber}`
+        : `otázku ${question.questionNumber}`;
+    const bankNote = question.bankQuestionId ? " Otázka z banky bude znova dostupná." : "";
+
+    if (!window.confirm(`Naozaj zmazať ${label}?${bankNote}`)) return;
+
+    setQuiz((prev) => {
+      if (!prev) return prev;
+      const bankId = question.bankQuestionId;
+      return {
+        ...prev,
+        questions: removeQuestion(prev.questions, questionId),
+        usedBankQuestionIds: bankId
+          ? (prev.usedBankQuestionIds ?? []).filter((id) => id !== bankId)
+          : prev.usedBankQuestionIds,
+      };
+    });
+    setMsg({ text: "Otázka zmazaná — nezabudni uložiť.", ok: true });
+  };
+
   const regenerateTemplate = () => {
     if (!window.confirm("Vymazať obsah a vytvoriť prázdnu štruktúru 55 otázok (4 kolá)?")) return;
     setQuiz((prev) => (prev ? { ...prev, questions: buildStandardMudrcQuestions() } : prev));
@@ -540,6 +566,14 @@ export default function QuizLibraryEditor({ quizId }: Props) {
                   title="Posunúť dole / vymeniť s nasledujúcou"
                 >
                   <ChevronDown className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => deleteQuestion(question.id)}
+                  className="p-1.5 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
+                  title="Zmazať otázku"
+                >
+                  <Trash2 className="w-4 h-4" />
                 </button>
               </div>
             </div>

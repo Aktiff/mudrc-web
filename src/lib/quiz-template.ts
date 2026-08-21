@@ -77,6 +77,29 @@ export function insertQuestionAfter(
   );
 }
 
+/** Odstráni otázku a prečísluje zvyšok v rovnakej skupine (kolo + typ). */
+export function removeQuestion(questions: QuizQuestionItem[], questionId: string): QuizQuestionItem[] {
+  const target = questions.find((q) => q.id === questionId);
+  if (!target) return questions;
+
+  const remaining = questions.filter((q) => q.id !== questionId);
+  const group = remaining
+    .filter((q) => q.roundNumber === target.roundNumber && q.kind === target.kind)
+    .sort((a, b) => a.questionNumber - b.questionNumber)
+    .map((q, index) => ({ ...q, questionNumber: index + 1 }));
+
+  const rest = remaining.filter(
+    (q) => q.roundNumber !== target.roundNumber || q.kind !== target.kind
+  );
+
+  return [...rest, ...group].sort(
+    (a, b) =>
+      a.roundNumber - b.roundNumber ||
+      a.questionNumber - b.questionNumber ||
+      (a.kind === "music" ? 1 : 0) - (b.kind === "music" ? 1 : 0)
+  );
+}
+
 /** Import starého formátu (samostatné slidy otázka + odpoveď). */
 export function migrateSlidesToQuestions(slides: QuizSlide[]): QuizQuestionItem[] {
   const map = new Map<string, QuizQuestionItem>();
