@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ChevronDown, ChevronUp, GripVertical, MonitorPlay, Plus, Save, X } from "lucide-react";
+import { ChevronDown, ChevronUp, GripVertical, MonitorPlay, Plus, RotateCcw, Save, X } from "lucide-react";
 import type { QuizEvent } from "@/lib/data";
 import type { QuizLibraryItem, QuizQuestionItem, QuizQuestionKind } from "@/lib/quiz-library";
 import { buildStandardMudrcQuestions, describeQuizContent, roundLabels } from "@/lib/quiz-template";
@@ -156,7 +156,13 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
             ...prev,
             questions: prev.questions.map((q) =>
               q.id === targetQuestionId
-                ? { ...q, body, answer, options: options.length ? options : undefined }
+                ? {
+                    ...q,
+                    body,
+                    answer,
+                    options: options.length ? options : undefined,
+                    bankQuestionId: bankId,
+                  }
                 : q
             ),
             usedBankQuestionIds: Array.from(new Set([...(prev.usedBankQuestionIds ?? []), bankId])),
@@ -164,6 +170,34 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
         : prev
     );
     setMsg({ text: "Otázka vložená a odstránená z banky pre tento kvíz — nezabudni uložiť.", ok: true });
+  };
+
+  const returnQuestionToBank = (questionId: string) => {
+    const question = questions.find((q) => q.id === questionId);
+    const bankId = question?.bankQuestionId;
+    if (!bankId) return;
+    if (!window.confirm("Vrátiť otázku do banky? Obsah otázky sa vymaže.")) return;
+
+    setQuiz((prev) =>
+      prev
+        ? {
+            ...prev,
+            questions: prev.questions.map((q) =>
+              q.id === questionId
+                ? {
+                    ...q,
+                    body: "",
+                    answer: "",
+                    options: undefined,
+                    bankQuestionId: undefined,
+                  }
+                : q
+            ),
+            usedBankQuestionIds: (prev.usedBankQuestionIds ?? []).filter((id) => id !== bankId),
+          }
+        : prev
+    );
+    setMsg({ text: "Otázka vrátená do banky — nezabudni uložiť.", ok: true });
   };
 
   const updateQuestionOptions = (id: string, options: string[]) => {
@@ -357,6 +391,17 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
                 </span>
               </div>
               <div className="flex items-center gap-1 shrink-0">
+                {question.bankQuestionId && (
+                  <button
+                    type="button"
+                    onClick={() => returnQuestionToBank(question.id)}
+                    className="px-2.5 py-1.5 rounded-lg border border-brand-border text-xs font-semibold text-brand-muted hover:text-brand-orange-readable hover:border-brand-orange inline-flex items-center gap-1 transition-colors"
+                    title="Vrátiť otázku do banky"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    Vrátiť do banky
+                  </button>
+                )}
                 <button
                   type="button"
                   disabled={!canMoveUp}
@@ -463,15 +508,32 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
               )}
             </div>
             {question.imageUrl?.trim() && (
-              <label className="flex items-center gap-2 text-sm text-brand-text cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={question.imageDuringQuestion}
-                  onChange={(e) => updateQuestion(question.id, { imageDuringQuestion: e.target.checked })}
-                  className="rounded border-brand-border"
-                />
-                Zobraziť obrázok aj počas otázky (inak len pri správnych odpovediach)
-              </label>
+              <div className="space-y-2">
+                <label className="flex items-center gap-2 text-sm text-brand-text cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={question.imageDuringQuestion}
+                    disabled={Boolean(question.imageOnNextSlide)}
+                    onChange={(e) => updateQuestion(question.id, { imageDuringQuestion: e.target.checked })}
+                    className="rounded border-brand-border"
+                  />
+                  Zobraziť obrázok aj počas otázky (inak len pri správnych odpovediach)
+                </label>
+                <label className="flex items-center gap-2 text-sm text-brand-text cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(question.imageOnNextSlide)}
+                    onChange={(e) =>
+                      updateQuestion(question.id, {
+                        imageOnNextSlide: e.target.checked,
+                        imageDuringQuestion: e.target.checked ? false : question.imageDuringQuestion,
+                      })
+                    }
+                    className="rounded border-brand-border"
+                  />
+                  Pridať na ďalší slide (fullscreen po otázke)
+                </label>
+              </div>
             )}
           </div>
           );

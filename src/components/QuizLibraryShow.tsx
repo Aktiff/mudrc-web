@@ -169,6 +169,21 @@ function QuestionContent({
   );
 }
 
+function ImageSlide({ question }: { question: QuizQuestionItem }) {
+  if (!question.imageUrl?.trim()) return null;
+
+  return (
+    <div className="w-[95vw] h-[88vh] flex items-center justify-center">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={question.imageUrl}
+        alt=""
+        className="max-w-full max-h-full object-contain rounded-2xl shadow-[0_24px_80px_rgba(0,0,0,0.6)] ring-1 ring-white/10"
+      />
+    </div>
+  );
+}
+
 function PresentationView({
   slide,
   eventRules,
@@ -210,6 +225,9 @@ function PresentationView({
   }
   if (slide.type === "question_phase") {
     return <QuestionContent question={slide.question} phase="question" />;
+  }
+  if (slide.type === "image_slide") {
+    return <ImageSlide question={slide.question} />;
   }
   if (slide.type === "answer_phase") {
     return <QuestionContent question={slide.question} phase="answer" />;
@@ -403,8 +421,12 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
   }
 
   const activeQuestion =
-    slide?.type === "question_phase" || slide?.type === "answer_phase" ? slide.question : null;
-  const showQuestionBadge = slide?.type === "question_phase";
+    slide?.type === "question_phase" ||
+    slide?.type === "answer_phase" ||
+    slide?.type === "image_slide"
+      ? slide.question
+      : null;
+  const showQuestionBadge = slide?.type === "question_phase" || slide?.type === "image_slide";
 
   return (
     <div

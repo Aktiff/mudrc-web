@@ -9,6 +9,7 @@ export type PresentationSlide =
   | { type: "rules" }
   | { type: "round"; roundNumber: number; title: string; subtitle: string }
   | { type: "question_phase"; question: QuizQuestionItem }
+  | { type: "image_slide"; question: QuizQuestionItem }
   | { type: "correction"; roundNumber: number; body: string }
   | { type: "answers_intro"; roundNumber: number; title: string }
   | { type: "answer_phase"; question: QuizQuestionItem }
@@ -43,6 +44,9 @@ export function buildPresentationSlides(questions: QuizQuestionItem[]): Presenta
 
     for (const question of roundQuestions) {
       slides.push({ type: "question_phase", question });
+      if (shouldShowImageOnNextSlide(question)) {
+        slides.push({ type: "image_slide", question });
+      }
     }
 
     slides.push({
@@ -79,9 +83,15 @@ export function questionPhaseTitle(question: QuizQuestionItem): string {
 }
 
 export function shouldShowImageInQuestionPhase(question: QuizQuestionItem): boolean {
-  return Boolean(question.imageUrl?.trim() && question.imageDuringQuestion);
+  return Boolean(
+    question.imageUrl?.trim() && question.imageDuringQuestion && !question.imageOnNextSlide
+  );
 }
 
 export function shouldShowImageInAnswerPhase(question: QuizQuestionItem): boolean {
-  return Boolean(question.imageUrl?.trim());
+  return Boolean(question.imageUrl?.trim() && !question.imageOnNextSlide);
+}
+
+export function shouldShowImageOnNextSlide(question: QuizQuestionItem): boolean {
+  return Boolean(question.imageUrl?.trim() && question.imageOnNextSlide);
 }

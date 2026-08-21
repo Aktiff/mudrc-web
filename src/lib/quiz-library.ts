@@ -13,10 +13,14 @@ export type QuizQuestionItem = {
   answer: string;
   /** Voliteľné možnosti A–F (zobrazené v dvoch stĺpcoch pri projekcii) */
   options?: string[];
+  /** ID otázky z banky vloženej do tohto slotu */
+  bankQuestionId?: string;
   imageUrl?: string;
   audioUrl?: string;
   /** true = obrázok aj pri otázke; false = len pri správnych odpovediach */
   imageDuringQuestion: boolean;
+  /** true = obrázok na samostatnom fullscreen slide hneď po otázke */
+  imageOnNextSlide?: boolean;
 };
 
 export type QuizLibraryItem = {
@@ -79,9 +83,11 @@ function normalizeQuestion(input: Partial<QuizQuestionItem>): QuizQuestionItem |
     body,
     answer: input.answer?.trim() ?? "",
     options,
+    bankQuestionId: input.bankQuestionId?.trim() || undefined,
     imageUrl: input.imageUrl?.trim() || undefined,
     audioUrl: input.audioUrl?.trim() || undefined,
     imageDuringQuestion: Boolean(input.imageDuringQuestion),
+    imageOnNextSlide: Boolean(input.imageOnNextSlide),
   };
 }
 
