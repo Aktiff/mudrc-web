@@ -687,7 +687,7 @@ export default function QuizLibraryEditor({ quizId }: Props) {
           </div>
         </div>
 
-        <div className="min-w-0 max-w-full overflow-x-hidden lg:sticky lg:top-24 lg:self-start">
+        <div className="min-w-0 lg:sticky lg:top-24 lg:self-start lg:z-10 lg:h-[calc(100vh-7rem)] lg:max-h-[calc(100vh-7rem)]">
           <QuizQuestionBankPanel
             roundQuestions={roundQuestions}
             allQuizQuestions={questions}

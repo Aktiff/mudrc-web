@@ -27,7 +27,7 @@ export const PUB_QUIZ_BANK: QuizBankQuestion[] = [
     correctIndex: 3,
     difficulty: 8,
     note: "Väčšina tipuje Rusko (11 pásiem), ale Francúzsko má 12 — vďaka metropole plus zámorským územiam od Tahiti po Réunion. Klasická pub pasca.",
-    tags: ["geografia", "svet", "európa"],
+    tags: ["geografia", "francúzsko"],
   },
   {
     id: "bank-02",
@@ -54,7 +54,7 @@ export const PUB_QUIZ_BANK: QuizBankQuestion[] = [
     correctIndex: 2,
     difficulty: 4,
     note: "Dve srdcia pumpujú krv do žiaber, tretie do zvyšku tela. Krv chobotnice je modrá vďaka medi namiesto železa v hemoglobíne.",
-    tags: ["príroda", "veda", "zvieratá"],
+    tags: ["zvieratá", "morské"],
   },
   {
     id: "bank-04",
@@ -64,7 +64,7 @@ export const PUB_QUIZ_BANK: QuizBankQuestion[] = [
     correctIndex: 3,
     difficulty: 5,
     note: "Urán má sklon osi okolo 98°, takže sa valí po obežnej dráhe. Pravdepodobne ho v minulosti silno naklonila kolízia s protoplanetárneym teleso.",
-    tags: ["veda", "vesmír", "astronómia"],
+    tags: ["astronómia", "planéty"],
   },
   {
     id: "bank-05",
@@ -74,7 +74,7 @@ export const PUB_QUIZ_BANK: QuizBankQuestion[] = [
     correctIndex: 3,
     difficulty: 7,
     note: "Systolický tlak u žirafy pri srdci môže presiahnuť 300 mm Hg. Má aj špeciálne chlopne vo vene krknej, aby pri sklonení hlavy nepreplavilo mozog.",
-    tags: ["príroda", "zvieratá", "veda"],
+    tags: ["zvieratá", "safari"],
   },
   {
     id: "bank-06",
@@ -84,7 +84,7 @@ export const PUB_QUIZ_BANK: QuizBankQuestion[] = [
     correctIndex: 2,
     difficulty: 5,
     note: "V egyptských hrobkách našli stále jedlý med tisícročia starý. Enzýmy a nízka aktivita vody bránia rastu baktérii — netreba chladničku.",
-    tags: ["jedlo", "veda", "história"],
+    tags: ["jedlo", "história"],
   },
   {
     id: "bank-07",
@@ -94,7 +94,7 @@ export const PUB_QUIZ_BANK: QuizBankQuestion[] = [
     correctIndex: 3,
     difficulty: 6,
     note: "Antarktída je polárna púšť, ale horúcu púšť v zmysle Sahary na Európe nemáme. Aj preto je to obľúbená pub otázka s háčikom okolo Antarktídy.",
-    tags: ["geografia", "svet", "európa"],
+    tags: ["geografia", "európa"],
   },
   {
     id: "bank-08",
@@ -114,7 +114,7 @@ export const PUB_QUIZ_BANK: QuizBankQuestion[] = [
     correctIndex: 2,
     difficulty: 6,
     note: "Charles Darrow predával hru s názvami z Atlantic City v New Jersey. Nie Wall Street ani Vegas — prekvapí aj hráčov, čo Monopoly poznajú celý život.",
-    tags: ["hry", "kultúra", "usa"],
+    tags: ["hry", "usa"],
   },
   {
     id: "bank-10",
@@ -124,7 +124,7 @@ export const PUB_QUIZ_BANK: QuizBankQuestion[] = [
     correctIndex: 2,
     difficulty: 7,
     note: "Kov sa pri teple roztiahne — pri 300 m výške to dá zhruba 15 cm. Veža sa teda doslova „nafúkne“ slnkom; v noci zase mierne klesne.",
-    tags: ["veda", "fyzika", "francúzsko"],
+    tags: ["fyzika", "francúzsko"],
   },
   {
     id: "bank-11",

@@ -10,7 +10,7 @@ export const PUB_QUIZ_BANK_EXTRA: QuizBankQuestion[] = [
     correctIndex: 0,
     difficulty: 6,
     note: "Kolumbia je marketingová ikona, ale Brazília desaťročia vedie objem. Vietnam je silný v robuste, nie v celkovom mýte.",
-    tags: ["geografia", "svet", "jedlo"],
+    tags: ["geografia","brazília"],
   },
   {
     id: "bank-13",
@@ -20,7 +20,7 @@ export const PUB_QUIZ_BANK_EXTRA: QuizBankQuestion[] = [
     correctIndex: 3,
     difficulty: 7,
     note: "Päť párov „srdiečok“ — pub klasika, väčšina tipuje jedno alebo žiadne. Chobotnica má tri, dážďovka päť.",
-    tags: ["veda", "príroda", "zvieratá"],
+    tags: ["zvieratá","morské"],
   },
   {
     id: "bank-14",
@@ -30,7 +30,7 @@ export const PUB_QUIZ_BANK_EXTRA: QuizBankQuestion[] = [
     correctIndex: 0,
     difficulty: 7,
     note: "Dunaj je ikona strednej Európy, ale Volga v Rusku je dlhšia. Dunaj preteká viacerými krajinami — to je iná otázka.",
-    tags: ["geografia", "európa", "svet"],
+    tags: ["geografia","rusko"],
   },
   {
     id: "bank-15",
@@ -40,7 +40,7 @@ export const PUB_QUIZ_BANK_EXTRA: QuizBankQuestion[] = [
     correctIndex: 1,
     difficulty: 6,
     note: "Kyslík ~21 %, dusík ~78 %. Tímy často tipujú kyslík, lebo „dýchame ho“.",
-    tags: ["veda", "fyzika", "svet"],
+    tags: ["fyzika","atmosféra"],
   },
   {
     id: "bank-16",
@@ -50,7 +50,7 @@ export const PUB_QUIZ_BANK_EXTRA: QuizBankQuestion[] = [
     correctIndex: 0,
     difficulty: 7,
     note: "Francúzsko ho zpopularizovalo, ale legenda siedmi rokov Viedne je pub pasca. Francúzsko je falošný tip č. 1.",
-    tags: ["história", "jedlo", "európa"],
+    tags: ["jedlo","rakúsko"],
   },
   {
     id: "bank-17",
@@ -60,7 +60,7 @@ export const PUB_QUIZ_BANK_EXTRA: QuizBankQuestion[] = [
     correctIndex: 0,
     difficulty: 8,
     note: "Od objavov okolo Saturnu (2020+) prekonal Jupiter. Staré kvízy stále tipujú Jupiter — aktualizovaná pub otázka.",
-    tags: ["veda", "vesmír", "astronómia"],
+    tags: ["astronómia","planéty"],
   },
   {
     id: "bank-18",
@@ -70,7 +70,7 @@ export const PUB_QUIZ_BANK_EXTRA: QuizBankQuestion[] = [
     correctIndex: 0,
     difficulty: 6,
     note: "Plumbum — latinský názov. Po je polónium, tímy zamieňajú podľa zvuku.",
-    tags: ["veda", "chémia", "svet"],
+    tags: ["chémia","olovo"],
   },
   {
     id: "bank-19",
@@ -80,7 +80,7 @@ export const PUB_QUIZ_BANK_EXTRA: QuizBankQuestion[] = [
     correctIndex: 0,
     difficulty: 7,
     note: "Aljaška 1959 ako 49., Havaj ešte v tom roku ako 50. Aljaška je obľúbená pasca.",
-    tags: ["geografia", "usa", "história"],
+    tags: ["geografia","usa"],
   },
   {
     id: "bank-20",
@@ -90,7 +90,7 @@ export const PUB_QUIZ_BANK_EXTRA: QuizBankQuestion[] = [
     correctIndex: 0,
     difficulty: 7,
     note: "Gin, Campari, červený vermut. Vodka Negroni existuje, ale klasika je gin.",
-    tags: ["jedlo", "kultúra", "svet"],
+    tags: ["jedlo","drinky"],
   },
   {
     id: "bank-21",
@@ -100,7 +100,7 @@ export const PUB_QUIZ_BANK_EXTRA: QuizBankQuestion[] = [
     correctIndex: 0,
     difficulty: 6,
     note: "Regenerácia pečene je unikátna — srdce a mozog sa neobnovia takto. Oblička áno čiastočne, ale pub odpoveď je pečeň.",
-    tags: ["veda", "medicína", "svet"],
+    tags: ["medicína","anatómia"],
   },
   {
     id: "bank-22",
@@ -110,7 +110,7 @@ export const PUB_QUIZ_BANK_EXTRA: QuizBankQuestion[] = [
     correctIndex: 0,
     difficulty: 7,
     note: "Synonymum „koniec sveta“ — Mali v Sahare. Niger je sused, nie domov Timbuktu.",
-    tags: ["geografia", "afrika", "história"],
+    tags: ["geografia","afrika"],
   },
   {
     id: "bank-23",
@@ -127,7 +127,7 @@ export const PUB_QUIZ_BANK_EXTRA: QuizBankQuestion[] = [
     correctIndex: 0,
     difficulty: 7,
     note: "Magický realizmus, Kolumbia. Borges je pasca pre latinoamerickú literatúru.",
-    tags: ["literatúra", "kultúra", "svet"],
+    tags: ["literatúra","kolumbia"],
   },
   {
     id: "bank-24",
@@ -137,7 +137,7 @@ export const PUB_QUIZ_BANK_EXTRA: QuizBankQuestion[] = [
     correctIndex: 0,
     difficulty: 6,
     note: "Galium sa topí v dlani, ale izbová teplota = rtuť. Césium reaguje so vzduchom — nie stabilná kvapalina.",
-    tags: ["veda", "chémia", "svet"],
+    tags: ["chémia","kovy"],
   },
   {
     id: "bank-25",
@@ -154,7 +154,7 @@ export const PUB_QUIZ_BANK_EXTRA: QuizBankQuestion[] = [
     correctIndex: 0,
     difficulty: 6,
     note: "Lev (Anglicko) a jednorožec (Škótsko) — oficiálny erb UK. Škótsko samostatne má len jednorožca.",
-    tags: ["história", "európa", "kultúra"],
+    tags: ["história","británia"],
   },
   {
     id: "bank-26",
@@ -164,7 +164,7 @@ export const PUB_QUIZ_BANK_EXTRA: QuizBankQuestion[] = [
     correctIndex: 2,
     difficulty: 7,
     note: "Washingtonská zmluva apríl 1949. 1945 je koniec vojny — pasca.",
-    tags: ["história", "politika", "svet"],
+    tags: ["história","politika"],
   },
   {
     id: "bank-27",
@@ -181,7 +181,7 @@ export const PUB_QUIZ_BANK_EXTRA: QuizBankQuestion[] = [
     correctIndex: 0,
     difficulty: 8,
     note: "Peregrine falcon — ponor cez 300 km/h. Albatros lieta dlho, nie najrýchlejší ponor.",
-    tags: ["príroda", "zvieratá", "veda"],
+    tags: ["zvieratá","vtáky"],
   },
   {
     id: "bank-28",
@@ -191,7 +191,7 @@ export const PUB_QUIZ_BANK_EXTRA: QuizBankQuestion[] = [
     correctIndex: 0,
     difficulty: 8,
     note: "Andorra sa spolieha na Francúzsko/Španielsko. Island má pobrežnú stráž — nie je úplne bez ozbrojených zložiek.",
-    tags: ["geografia", "európa", "politika"],
+    tags: ["geografia","andorra"],
   },
   {
     id: "bank-29",
@@ -201,7 +201,7 @@ export const PUB_QUIZ_BANK_EXTRA: QuizBankQuestion[] = [
     correctIndex: 0,
     difficulty: 6,
     note: "Vatikán ~0,44 km². Monaco je druhé — tímy často tipujú Monako.",
-    tags: ["geografia", "svet", "európa"],
+    tags: ["geografia","vatikán"],
   },
   {
     id: "bank-30",
@@ -211,7 +211,7 @@ export const PUB_QUIZ_BANK_EXTRA: QuizBankQuestion[] = [
     correctIndex: 0,
     difficulty: 6,
     note: "399 pred n. l., Athény. Platón bol žiak, nie obeť.",
-    tags: ["história", "filozofia", "svet"],
+    tags: ["história","grécko"],
   },
   {
     id: "bank-31",
@@ -221,7 +221,7 @@ export const PUB_QUIZ_BANK_EXTRA: QuizBankQuestion[] = [
     correctIndex: 0,
     difficulty: 7,
     note: "Zinc coating — poznáme z „pozinkovaného“ plechu. Nikel je iný proces.",
-    tags: ["veda", "chémia", "technológie"],
+    tags: ["chémia","technológie"],
   },
   {
     id: "bank-32",
@@ -231,7 +231,7 @@ export const PUB_QUIZ_BANK_EXTRA: QuizBankQuestion[] = [
     correctIndex: 0,
     difficulty: 5,
     note: "Ingvar Kamprad, Älmhult. Nemecko je najväčší trh, nie pôvod.",
-    tags: ["kultúra", "história", "európa"],
+    tags: ["história","švédsko"],
   },
   {
     id: "bank-33",
@@ -248,7 +248,7 @@ export const PUB_QUIZ_BANK_EXTRA: QuizBankQuestion[] = [
     correctIndex: 0,
     difficulty: 9,
     note: "Rusko aj Čína majú 14 susedov — remíza. Brazília 10, Nemecko 9. Ťažká, ale férová otázka.",
-    tags: ["geografia", "svet", "politika"],
+    tags: ["geografia","politika"],
   },
   {
     id: "bank-34",
@@ -258,7 +258,7 @@ export const PUB_QUIZ_BANK_EXTRA: QuizBankQuestion[] = [
     correctIndex: 0,
     difficulty: 7,
     note: "Sodík aj draslík áno — v školskom deme klasicky sodík. Draslík ešte prudšie, ale pub štandard je sodík.",
-    tags: ["veda", "chémia", "svet"],
+    tags: ["chémia","kovy"],
   },
   {
     id: "bank-35",
@@ -268,7 +268,7 @@ export const PUB_QUIZ_BANK_EXTRA: QuizBankQuestion[] = [
     correctIndex: 0,
     difficulty: 6,
     note: "Drakula marketing — Rumunsko, nie Maďarsko (hoci história sa prelína).",
-    tags: ["geografia", "európa", "história"],
+    tags: ["geografia","rumunsko"],
   },
   {
     id: "bank-36",
@@ -278,7 +278,7 @@ export const PUB_QUIZ_BANK_EXTRA: QuizBankQuestion[] = [
     correctIndex: 0,
     difficulty: 6,
     note: "Angličtina vedie ako druhý jazyk, nie rodný. Španielčina je tretia v rodených.",
-    tags: ["kultúra", "svet", "geografia"],
+    tags: ["jazyky","čína"],
   },
   {
     id: "bank-37",
@@ -288,7 +288,7 @@ export const PUB_QUIZ_BANK_EXTRA: QuizBankQuestion[] = [
     correctIndex: 0,
     difficulty: 6,
     note: "Arktický — okolo severného pólu. Južný okolo Antarktídy je väčší.",
-    tags: ["geografia", "svet", "príroda"],
+    tags: ["geografia","oceány"],
   },
   {
     id: "bank-38",
@@ -298,7 +298,7 @@ export const PUB_QUIZ_BANK_EXTRA: QuizBankQuestion[] = [
     correctIndex: 2,
     difficulty: 6,
     note: "8 x 4 = 32. Bez múdrosti 28 — otázka špecifikuje úplný chrup.",
-    tags: ["veda", "medicína", "svet"],
+    tags: ["medicína","anatómia"],
   },
   {
     id: "bank-39",
@@ -315,7 +315,7 @@ export const PUB_QUIZ_BANK_EXTRA: QuizBankQuestion[] = [
     correctIndex: 0,
     difficulty: 5,
     note: "Belgičan s fúzikmi — Christie. Doyle = Holmes.",
-    tags: ["literatúra", "kultúra", "svet"],
+    tags: ["literatúra","detektívky"],
   },
   {
     id: "bank-40",
@@ -332,7 +332,7 @@ export const PUB_QUIZ_BANK_EXTRA: QuizBankQuestion[] = [
     correctIndex: 0,
     difficulty: 6,
     note: "Nolan — sny a čas. Villeneuve Dune/Arrival — častá pasca.",
-    tags: ["film", "kultúra", "svet"],
+    tags: ["film","nolan"],
   },
   {
     id: "bank-41",
@@ -342,7 +342,7 @@ export const PUB_QUIZ_BANK_EXTRA: QuizBankQuestion[] = [
     correctIndex: 0,
     difficulty: 8,
     note: "Elbrus je v Kaukaze (Rusko) — geologicky vyšší, ale pub verzia „Európa“ = Mont Blanc 4810 m.",
-    tags: ["geografia", "európa", "príroda"],
+    tags: ["geografia","alpy"],
   },
   {
     id: "bank-42",
@@ -352,7 +352,7 @@ export const PUB_QUIZ_BANK_EXTRA: QuizBankQuestion[] = [
     correctIndex: 0,
     difficulty: 5,
     note: "Rio nie je hlavné mesto (Brasília), ale je v Brazílii — Portugalsko je pasca.",
-    tags: ["geografia", "svet", "kultúra"],
+    tags: ["geografia","brazília"],
   },
   {
     id: "bank-43",
@@ -362,7 +362,7 @@ export const PUB_QUIZ_BANK_EXTRA: QuizBankQuestion[] = [
     correctIndex: 0,
     difficulty: 5,
     note: "Aurum — latinsky. Ag = striebro — častá zámiena pri rýchlom tipovaní.",
-    tags: ["veda", "chémia", "svet"],
+    tags: ["chémia","zlato"],
   },
   {
     id: "bank-44",
@@ -372,7 +372,7 @@ export const PUB_QUIZ_BANK_EXTRA: QuizBankQuestion[] = [
     correctIndex: 0,
     difficulty: 5,
     note: "Apeninský polostrov — základná geografia, ale funguje aj v pub kvíze ako rýchla.",
-    tags: ["geografia", "európa", "svet"],
+    tags: ["geografia","taliansko"],
   },
   {
     id: "bank-45",
@@ -389,7 +389,7 @@ export const PUB_QUIZ_BANK_EXTRA: QuizBankQuestion[] = [
     correctIndex: 0,
     difficulty: 8,
     note: "Americano = Campari + sweet vermut + soda. Negroni nahrádza sodu ginom.",
-    tags: ["jedlo", "kultúra", "svet"],
+    tags: ["jedlo","drinky"],
   },
   {
     id: "bank-46",
@@ -406,7 +406,7 @@ export const PUB_QUIZ_BANK_EXTRA: QuizBankQuestion[] = [
     correctIndex: 0,
     difficulty: 7,
     note: "Hviezdoslav — Moru, mať je školská klasika. Sládkovič = Marína.",
-    tags: ["literatúra", "slovensko", "kultúra"],
+    tags: ["literatúra","slovensko"],
   },
   {
     id: "bank-47",
@@ -416,7 +416,7 @@ export const PUB_QUIZ_BANK_EXTRA: QuizBankQuestion[] = [
     correctIndex: 0,
     difficulty: 5,
     note: "Modrá veľryba aj najväčšie zviera vôbec. Plejtvák obrovský je dlhší, nie ťažší.",
-    tags: ["príroda", "zvieratá", "veda"],
+    tags: ["zvieratá","oceán"],
   },
   {
     id: "bank-48",
@@ -426,7 +426,7 @@ export const PUB_QUIZ_BANK_EXTRA: QuizBankQuestion[] = [
     correctIndex: 1,
     difficulty: 7,
     note: "Larry Page a Sergey Brin — september 1998. 2004 je IPO.",
-    tags: ["technológie", "história", "svet"],
+    tags: ["technológie","internet"],
   },
   {
     id: "bank-49",
@@ -436,7 +436,7 @@ export const PUB_QUIZ_BANK_EXTRA: QuizBankQuestion[] = [
     correctIndex: 0,
     difficulty: 8,
     note: "Venuša najbližšia planéta pri perigé, ale Mesiac je stále bližšie než akákoľvek planéta. Pub háčik na „planéta“ vs Mesiac.",
-    tags: ["veda", "vesmír", "astronómia"],
+    tags: ["astronómia","mesiac"],
   },
   {
     id: "bank-50",
@@ -446,7 +446,7 @@ export const PUB_QUIZ_BANK_EXTRA: QuizBankQuestion[] = [
     correctIndex: 0,
     difficulty: 6,
     note: "Aljaška je exkláva na severe kontinentu, ale stále Amerika. Havaj = Tichý oceán.",
-    tags: ["geografia", "usa", "svet"],
+    tags: ["geografia","usa"],
   },
   {
     id: "bank-51",
@@ -463,7 +463,7 @@ export const PUB_QUIZ_BANK_EXTRA: QuizBankQuestion[] = [
     correctIndex: 0,
     difficulty: 6,
     note: "1824 Viedeň — dirigent musel otočiť na potlesk. Beethoven nepočul.",
-    tags: ["hudba", "história", "kultúra"],
+    tags: ["hudba","klasika"],
   },
   {
     id: "bank-52",
@@ -473,7 +473,7 @@ export const PUB_QUIZ_BANK_EXTRA: QuizBankQuestion[] = [
     correctIndex: 0,
     difficulty: 6,
     note: "Maple leaf od 1965. Libanon má cédrový strom — častá pasca v pub kvíze.",
-    tags: ["geografia", "svet", "kultúra"],
+    tags: ["geografia","kanada"],
   },
   {
     id: "bank-53",
@@ -490,7 +490,7 @@ export const PUB_QUIZ_BANK_EXTRA: QuizBankQuestion[] = [
     correctIndex: 0,
     difficulty: 7,
     note: "Edikt tolerancie — Konštantín, nie Nero (ten kresťanov prenasledoval).",
-    tags: ["história", "svet", "európa"],
+    tags: ["história","rím"],
   },
   {
     id: "bank-54",
@@ -500,7 +500,7 @@ export const PUB_QUIZ_BANK_EXTRA: QuizBankQuestion[] = [
     correctIndex: 0,
     difficulty: 7,
     note: "Fermentovaná ryža + kōji. Nie slad ako pri pive — pub pasca.",
-    tags: ["jedlo", "kultúra", "ázia"],
+    tags: ["jedlo","japonsko"],
   },
   {
     id: "bank-55",
@@ -517,7 +517,7 @@ export const PUB_QUIZ_BANK_EXTRA: QuizBankQuestion[] = [
     correctIndex: 0,
     difficulty: 6,
     note: "2654 m n. m. Lomnica 2634 — tesne druhý. Kriváň je ikona, nie výška.",
-    tags: ["geografia", "slovensko", "príroda"],
+    tags: ["geografia","slovensko"],
   },
   {
     id: "bank-56",
@@ -534,7 +534,7 @@ export const PUB_QUIZ_BANK_EXTRA: QuizBankQuestion[] = [
     correctIndex: 0,
     difficulty: 5,
     note: "Špeciálna 1905, všeobecná 1915. Newton = gravitácia klasicizmu.",
-    tags: ["veda", "fyzika", "história"],
+    tags: ["fyzika","einstein"],
   },
   {
     id: "bank-57",
@@ -544,7 +544,7 @@ export const PUB_QUIZ_BANK_EXTRA: QuizBankQuestion[] = [
     correctIndex: 0,
     difficulty: 7,
     note: "Skalné mesto Nabatejcov — Jordánsko. Egypt = pyramídy, iná pasca.",
-    tags: ["geografia", "história", "svet"],
+    tags: ["geografia","jordánsko"],
   },
   {
     id: "bank-58",
@@ -561,7 +561,7 @@ export const PUB_QUIZ_BANK_EXTRA: QuizBankQuestion[] = [
     correctIndex: 0,
     difficulty: 7,
     note: "CH₃COOH — 5–8 % v kuchynskom octe. Citrónová = citrusy.",
-    tags: ["veda", "chémia", "jedlo"],
+    tags: ["chémia","jedlo"],
   },
   {
     id: "bank-59",
@@ -578,7 +578,7 @@ export const PUB_QUIZ_BANK_EXTRA: QuizBankQuestion[] = [
     correctIndex: 0,
     difficulty: 7,
     note: "Stav k 2024 — Djoković prekonal 24. Nadal/Federer blízko — aktualizuj ak bude medzera.",
-    tags: ["šport", "svet", "kultúra"],
+    tags: ["šport","tenis"],
   },
   {
     id: "bank-60",
@@ -588,7 +588,7 @@ export const PUB_QUIZ_BANK_EXTRA: QuizBankQuestion[] = [
     correctIndex: 0,
     difficulty: 5,
     note: "Grónsko patrí Dánsku — Reykjavík je len Island.",
-    tags: ["geografia", "európa", "svet"],
+    tags: ["geografia","island"],
   },
   {
     id: "bank-61",
@@ -605,6 +605,6 @@ export const PUB_QUIZ_BANK_EXTRA: QuizBankQuestion[] = [
     correctIndex: 0,
     difficulty: 8,
     note: "Fuks — groteska, Karlovy Vary. Kundera = Nesnesiteľná ľahkosť bytia.",
-    tags: ["literatúra", "česko", "kultúra"],
+    tags: ["literatúra","česko"],
   },
 ];

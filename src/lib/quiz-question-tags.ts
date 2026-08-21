@@ -65,15 +65,15 @@ export function sortBankQuestionsByTagBalance(
 ): QuizBankQuestion[] {
   const sortGroup = (group: QuizBankQuestion[]) =>
     [...group].sort((a, b) => {
+      const sumDiff = bankQuestionTagUsageSum(a, tagCounts) - bankQuestionTagUsageSum(b, tagCounts);
+      if (sumDiff !== 0) return sumDiff;
+
       const scoreDiff = bankQuestionTagScore(a, tagCounts) - bankQuestionTagScore(b, tagCounts);
       if (scoreDiff !== 0) return scoreDiff;
 
       const overlapDiff =
         bankQuestionUsedTagCount(a, tagCounts) - bankQuestionUsedTagCount(b, tagCounts);
       if (overlapDiff !== 0) return overlapDiff;
-
-      const sumDiff = bankQuestionTagUsageSum(a, tagCounts) - bankQuestionTagUsageSum(b, tagCounts);
-      if (sumDiff !== 0) return sumDiff;
 
       return a.body.localeCompare(b.body, "sk");
     });

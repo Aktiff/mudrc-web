@@ -107,7 +107,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </div>
       </nav>
 
-      <main className="box-border min-w-0 max-w-full overflow-x-hidden mt-16 pt-14 lg:pt-0 py-6 lg:py-8 px-4 sm:px-6 lg:px-8 lg:ml-56 lg:w-[calc(100%-14rem)]">
+      <main className="box-border min-w-0 max-w-full overflow-x-clip mt-16 pt-14 lg:pt-0 py-6 lg:py-8 px-4 sm:px-6 lg:px-8 lg:ml-56 lg:w-[calc(100%-14rem)]">
         {children}
       </main>
     </div>
