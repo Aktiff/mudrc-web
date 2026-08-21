@@ -6,6 +6,7 @@ import { Maximize2, X } from "lucide-react";
 import type { QuizEvent } from "@/lib/data";
 import type { QuizLibraryItem, QuizQuestionItem } from "@/lib/quiz-library";
 import {
+  bestPresentationImageUrl,
   buildPresentationSlides,
   shouldShowImageInAnswerPhase,
   shouldShowImageInQuestionPhase,
@@ -56,13 +57,43 @@ function RulesSlide({ rules, venueName }: { rules: string[]; venueName: string }
   );
 }
 
-function questionTextScale(text: string): string {
+function questionTextScale(text: string, compact = false): string {
+  if (compact) {
+    if (text.length > 80) return "text-[clamp(1.5rem,3vmin,2.75rem)]";
+    return "text-[clamp(1.75rem,3.5vmin,3.25rem)]";
+  }
+
   const len = text.length;
-  if (len > 140) return "text-3xl sm:text-4xl md:text-5xl";
-  if (len > 100) return "text-4xl sm:text-5xl md:text-6xl";
-  if (len > 70) return "text-5xl sm:text-6xl md:text-7xl";
-  if (len > 45) return "text-5xl sm:text-7xl md:text-8xl";
-  return "text-6xl sm:text-7xl md:text-8xl xl:text-9xl";
+  if (len > 140) return "text-[clamp(2.25rem,4.8vmin,5.5rem)]";
+  if (len > 100) return "text-[clamp(2.5rem,5.2vmin,6rem)]";
+  if (len > 70) return "text-[clamp(2.75rem,5.8vmin,6.75rem)]";
+  if (len > 45) return "text-[clamp(3rem,6.2vmin,7.5rem)]";
+  return "text-[clamp(3.25rem,6.8vmin,8.5rem)]";
+}
+
+const OPTION_LETTER_STYLE = { fontSize: "clamp(2.75rem, 5.5vmin, 6.5rem)" } as const;
+const OPTION_TEXT_STYLE = { fontSize: "clamp(2.25rem, 4.8vmin, 5.25rem)" } as const;
+const ANSWER_TEXT_STYLE = { fontSize: "clamp(2.5rem, 5.5vmin, 6.5rem)" } as const;
+
+function PresentationImage({
+  src,
+  variant,
+}: {
+  src: string;
+  variant: "hero" | "with-options" | "full-slide";
+}) {
+  const resolved = bestPresentationImageUrl(src);
+  const className =
+    variant === "full-slide"
+      ? "max-w-[98vw] max-h-[90vh] w-auto h-auto object-contain rounded-2xl shadow-[0_24px_80px_rgba(0,0,0,0.6)] ring-1 ring-white/10"
+      : variant === "hero"
+        ? "max-w-[98vw] max-h-[min(82vh,calc(100dvh-10rem))] w-auto h-auto object-contain rounded-2xl shadow-[0_24px_80px_rgba(0,0,0,0.6)] ring-1 ring-white/10"
+        : "max-w-[98vw] max-h-[min(48vh,calc(100dvh-28rem))] w-auto h-auto object-contain rounded-2xl shadow-[0_24px_80px_rgba(0,0,0,0.6)] ring-1 ring-white/10";
+
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={resolved} alt="" className={className} decoding="async" />
+  );
 }
 
 function OptionsGrid({
@@ -75,30 +106,32 @@ function OptionsGrid({
   if (!options.length) return null;
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 sm:gap-6 w-full max-w-[90vw]">
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 sm:gap-8 w-full max-w-[98vw]">
       {options.map((option, index) => {
         const isCorrect = index === highlightCorrectIndex;
 
         return (
           <div
             key={`${index}-${option}`}
-            className={`flex items-center gap-5 sm:gap-6 w-full px-6 sm:px-8 py-4 sm:py-5 rounded-2xl border-2 shadow-[0_12px_48px_rgba(0,0,0,0.45)] ${
+            className={`flex items-center gap-5 sm:gap-7 w-full px-7 sm:px-10 py-5 sm:py-7 rounded-2xl border-2 shadow-[0_12px_48px_rgba(0,0,0,0.45)] ${
               isCorrect
                 ? "border-[#f0c800] bg-gradient-to-br from-[#f0c800] to-[#e6b800] text-black ring-4 ring-[#f0c800]/35"
                 : "border-white/20 bg-white/[0.06] backdrop-blur-sm text-white"
             }`}
           >
             <span
-              className={`font-display text-5xl sm:text-6xl md:text-7xl leading-none shrink-0 w-16 sm:w-20 text-left ${
+              className={`font-display leading-none shrink-0 w-[4.5rem] sm:w-24 text-left ${
                 isCorrect ? "text-black/70" : "text-[#f0c800]"
               }`}
+              style={OPTION_LETTER_STYLE}
             >
               {optionLetter(index)})
             </span>
             <p
-              className={`flex-1 min-w-0 font-display text-3xl sm:text-4xl md:text-5xl lg:text-6xl tracking-wide leading-snug text-left ${
+              className={`flex-1 min-w-0 font-display tracking-wide leading-snug text-left ${
                 isCorrect ? "font-bold" : ""
               }`}
+              style={OPTION_TEXT_STYLE}
             >
               {option}
             </p>
@@ -122,9 +155,15 @@ function QuestionContent({
   const options = getQuestionOptions(question);
   const correctOptionIndex =
     phase === "answer" ? findCorrectOptionIndex(options, question.answer) : -1;
+  const imageHero = showImage && options.length === 0;
+  const imageWithOptions = showImage && options.length > 0;
 
   return (
-    <div className="w-full max-w-[90vw] flex flex-col items-center gap-8 sm:gap-10">
+    <div
+      className={`w-full flex flex-col items-center ${
+        imageHero ? "h-full max-h-[88vh] justify-center gap-4 sm:gap-6" : "max-w-[98vw] gap-6 sm:gap-8"
+      }`}
+    >
       {phase === "question" && question.kind === "music" && question.audioUrl?.trim() && (
         <audio
           controls
@@ -135,18 +174,26 @@ function QuestionContent({
         />
       )}
 
-      <p
-        className={`${questionTextScale(questionText)} font-display text-white text-center leading-[1.08] tracking-wide whitespace-pre-wrap drop-shadow-lg px-2`}
-      >
-        {questionText}
-      </p>
+      {!imageHero && (
+        <p
+          className={`${questionTextScale(questionText, imageWithOptions)} font-display text-white text-center leading-[1.08] tracking-wide whitespace-pre-wrap drop-shadow-lg px-2`}
+        >
+          {questionText}
+        </p>
+      )}
+
+      {imageHero && (
+        <p
+          className={`${questionTextScale(questionText, true)} font-display text-white text-center leading-[1.08] tracking-wide whitespace-pre-wrap drop-shadow-lg px-2 shrink-0`}
+        >
+          {questionText}
+        </p>
+      )}
 
       {showImage && question.imageUrl && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
+        <PresentationImage
           src={question.imageUrl}
-          alt=""
-          className="max-h-[32vh] max-w-full rounded-2xl object-contain shadow-[0_24px_80px_rgba(0,0,0,0.6)] ring-1 ring-white/10"
+          variant={imageHero ? "hero" : imageWithOptions ? "with-options" : "hero"}
         />
       )}
 
@@ -155,14 +202,18 @@ function QuestionContent({
       )}
 
       {phase === "answer" && options.length > 0 && correctOptionIndex < 0 && question.answer.trim() && (
-        <div className="px-10 sm:px-14 py-6 sm:py-8 rounded-2xl bg-gradient-to-br from-[#f0c800] to-[#e6b800] text-black text-center max-w-[90vw] w-full shadow-[0_20px_60px_rgba(240,200,0,0.25)]">
-          <p className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-display tracking-wide">{question.answer}</p>
+        <div className="px-10 sm:px-14 py-6 sm:py-8 rounded-2xl bg-gradient-to-br from-[#f0c800] to-[#e6b800] text-black text-center max-w-[98vw] w-full shadow-[0_20px_60px_rgba(240,200,0,0.25)]">
+          <p className="font-display tracking-wide" style={ANSWER_TEXT_STYLE}>
+            {question.answer}
+          </p>
         </div>
       )}
 
       {phase === "answer" && options.length === 0 && (
-        <div className="px-10 sm:px-14 py-6 sm:py-8 rounded-2xl bg-gradient-to-br from-[#f0c800] to-[#e6b800] text-black text-center max-w-[90vw] w-full shadow-[0_20px_60px_rgba(240,200,0,0.25)]">
-          <p className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-display tracking-wide">{question.answer || "—"}</p>
+        <div className="px-10 sm:px-14 py-6 sm:py-8 rounded-2xl bg-gradient-to-br from-[#f0c800] to-[#e6b800] text-black text-center max-w-[98vw] w-full shadow-[0_20px_60px_rgba(240,200,0,0.25)]">
+          <p className="font-display tracking-wide" style={ANSWER_TEXT_STYLE}>
+            {question.answer || "—"}
+          </p>
         </div>
       )}
     </div>
@@ -173,13 +224,8 @@ function ImageSlide({ question }: { question: QuizQuestionItem }) {
   if (!question.imageUrl?.trim()) return null;
 
   return (
-    <div className="w-[95vw] h-[88vh] flex items-center justify-center">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={question.imageUrl}
-        alt=""
-        className="max-w-full max-h-full object-contain rounded-2xl shadow-[0_24px_80px_rgba(0,0,0,0.6)] ring-1 ring-white/10"
-      />
+    <div className="w-[98vw] h-[90vh] flex items-center justify-center">
+      <PresentationImage src={question.imageUrl} variant="full-slide" />
     </div>
   );
 }

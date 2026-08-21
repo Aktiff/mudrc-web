@@ -96,3 +96,18 @@ export function shouldShowImageInAnswerPhase(question: QuizQuestionItem): boolea
 export function shouldShowImageOnNextSlide(question: QuizQuestionItem): boolean {
   return Boolean(question.imageUrl?.trim() && question.imageOnNextSlide);
 }
+
+/** Wikimedia thumb URL → plné rozlíšenie (inak ponechá pôvodnú URL). */
+export function bestPresentationImageUrl(url: string): string {
+  const trimmed = url.trim();
+  if (!trimmed) return trimmed;
+
+  const wikiThumb = trimmed.match(
+    /^https:\/\/upload\.wikimedia\.org\/wikipedia\/commons\/thumb\/(.+\/)(?:\d+px-)?([^/?#]+)$/i
+  );
+  if (wikiThumb) {
+    return `https://upload.wikimedia.org/wikipedia/commons/${wikiThumb[1]}${wikiThumb[2]}`;
+  }
+
+  return trimmed;
+}
