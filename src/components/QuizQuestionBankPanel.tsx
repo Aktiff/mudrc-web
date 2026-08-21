@@ -38,12 +38,18 @@ type Props = {
 
 const OPTION_LETTERS = ["A", "B", "C", "D", "E", "F"] as const;
 
-function TagChip({ tag, active = false }: { tag: string; active?: boolean }) {
+function TagChip({
+  tag,
+  excluded = false,
+}: {
+  tag: string;
+  excluded?: boolean;
+}) {
   return (
     <span
       className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${
-        active
-          ? "border-brand-orange bg-brand-tint text-brand-orange-readable"
+        excluded
+          ? "border-red-300 bg-red-50 text-red-700 line-through dark:bg-red-950/30 dark:text-red-300 dark:border-red-800"
           : "border-brand-border bg-brand-card text-brand-muted"
       }`}
     >
@@ -61,7 +67,7 @@ export default function QuizQuestionBankPanel({
   const [hiddenIds, setHiddenIds] = useState<string[]>([]);
   const [targetByBankId, setTargetByBankId] = useState<Record<string, string>>({});
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [excludedTags, setExcludedTags] = useState<string[]>([]);
 
   useEffect(() => {
     setHiddenIds(readHiddenBankQuestionIds());
@@ -103,12 +109,12 @@ export default function QuizQuestionBankPanel({
   }, [defaultTargetQuestion]);
 
   const visibleQuestions = useMemo(() => {
-    const filtered = filterBankQuestionsByTags(availableQuestions, selectedTags);
+    const filtered = filterBankQuestionsByTags(availableQuestions, excludedTags);
     return sortBankQuestionsByTagBalance(filtered, tagCounts, { prioritizeImageQuestions });
-  }, [availableQuestions, selectedTags, tagCounts, prioritizeImageQuestions]);
+  }, [availableQuestions, excludedTags, tagCounts, prioritizeImageQuestions]);
 
-  const toggleTagFilter = (tag: string) => {
-    setSelectedTags((prev) =>
+  const toggleTagExclusion = (tag: string) => {
+    setExcludedTags((prev) =>
       prev.includes(tag) ? prev.filter((entry) => entry !== tag) : [...prev, tag]
     );
   };
@@ -175,26 +181,27 @@ export default function QuizQuestionBankPanel({
         {bankTags.length > 0 && (
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-wider text-brand-muted mb-1.5">
-              Filter podľa tagov
+              Skryť otázky s tagom
             </p>
             <div className="flex flex-wrap gap-1.5">
               {bankTags.map((tag) => (
                 <button
                   key={tag}
                   type="button"
-                  onClick={() => toggleTagFilter(tag)}
+                  onClick={() => toggleTagExclusion(tag)}
                   className="rounded-full"
+                  title={excludedTags.includes(tag) ? "Znova zobraziť otázky s týmto tagom" : "Skryť otázky s týmto tagom"}
                 >
-                  <TagChip tag={tag} active={selectedTags.includes(tag)} />
+                  <TagChip tag={tag} excluded={excludedTags.includes(tag)} />
                 </button>
               ))}
-              {selectedTags.length > 0 && (
+              {excludedTags.length > 0 && (
                 <button
                   type="button"
-                  onClick={() => setSelectedTags([])}
+                  onClick={() => setExcludedTags([])}
                   className="text-[10px] font-semibold text-brand-muted hover:text-brand-text px-1.5"
                 >
-                  Zrušiť filter
+                  Zobraziť všetko
                 </button>
               )}
             </div>
@@ -205,8 +212,8 @@ export default function QuizQuestionBankPanel({
       <div className="flex-1 overflow-y-auto overscroll-y-contain px-4 py-3 space-y-3 min-h-0">
         {visibleQuestions.length === 0 ? (
           <p className="text-brand-muted text-sm text-center py-8">
-            {selectedTags.length
-              ? "Pre zvolené tagy nie sú dostupné otázky."
+            {excludedTags.length
+              ? "Po vylúčení zvolených tagov nie sú dostupné otázky."
               : "Všetky otázky z banky sú vložené alebo odstránené."}
           </p>
         ) : (

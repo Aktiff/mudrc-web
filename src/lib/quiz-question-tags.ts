@@ -89,11 +89,11 @@ export function sortBankQuestionsByTagBalance(
 
 export function filterBankQuestionsByTags(
   items: QuizBankQuestion[],
-  selectedTags: string[]
+  excludedTags: string[]
 ): QuizBankQuestion[] {
-  if (!selectedTags.length) return items;
-  const selected = new Set(selectedTags);
-  return items.filter((item) => item.tags?.some((tag) => selected.has(tag)));
+  if (!excludedTags.length) return items;
+  const excluded = new Set(excludedTags);
+  return items.filter((item) => !item.tags?.some((tag) => excluded.has(tag)));
 }
 
 export function collectTagsFromBank(items: QuizBankQuestion[]): string[] {
