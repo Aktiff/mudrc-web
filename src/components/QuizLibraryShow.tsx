@@ -116,7 +116,6 @@ function PresentationView({
   if (slide.type === "round") {
     return (
       <div className="text-center px-8">
-        <p className="text-[#f0c800]/80 text-lg sm:text-xl uppercase tracking-[0.4em] mb-6">Kolo {slide.roundNumber}</p>
         <div className="relative inline-block">
           <div className="absolute -inset-8 rounded-full border border-[#f0c800]/20 scale-110" />
           <div className="absolute -inset-16 rounded-full border border-[#f0c800]/10 scale-110" />

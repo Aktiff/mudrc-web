@@ -37,7 +37,7 @@ export function buildPresentationSlides(questions: QuizQuestionItem[]): Presenta
     slides.push({
       type: "round",
       roundNumber: round,
-      title: `Kolo ${round}`,
+      title: `${round}. kolo`,
       subtitle: roundLabels[round] ?? "",
     });
 
