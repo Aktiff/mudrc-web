@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { AlertTriangle, Layers, MonitorPlay, Pencil, Play, Plus } from "lucide-react";
+import { AlertTriangle, Layers, MonitorPlay, Pencil, Play, Plus, Trash2 } from "lucide-react";
 import type { QuizEvent } from "@/lib/data";
 import type { QuizLibraryItem, QuizUsage } from "@/lib/quiz-library";
 import QuizResultsEntryForm, {
@@ -29,6 +29,8 @@ export default function HotoveKvizyList() {
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
+  const [actionQuizId, setActionQuizId] = useState<string | null>(null);
+  const [listMessage, setListMessage] = useState<{ text: string; ok: boolean } | null>(null);
 
   const [teamNamesText, setTeamNamesText] = useState("");
   const [filterTeams, setFilterTeams] = useState<string[]>([]);
@@ -209,6 +211,55 @@ export default function HotoveKvizyList() {
     }
   };
 
+  const renameQuiz = async (quiz: QuizListItem) => {
+    const newTitle = window.prompt("Nový názov kvízu:", quiz.title);
+    if (!newTitle?.trim() || newTitle.trim() === quiz.title) return;
+
+    setActionQuizId(quiz.id);
+    setListMessage(null);
+    try {
+      const res = await fetch(`/api/admin/quiz-library/${quiz.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: newTitle.trim() }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setListMessage({ text: data.error ?? "Premenovanie zlyhalo.", ok: false });
+        return;
+      }
+      setListMessage({ text: `Kvíz premenovaný na „${newTitle.trim()}“.`, ok: true });
+      await loadQuizzes(filterTeams);
+    } catch {
+      setListMessage({ text: "Sieťová chyba pri premenovaní.", ok: false });
+    } finally {
+      setActionQuizId(null);
+    }
+  };
+
+  const deleteQuiz = async (quiz: QuizListItem) => {
+    if (!window.confirm(`Vymazať kvíz „${quiz.title}"?`)) return;
+    if (!window.confirm("Naozaj natrvalo? Túto akciu nie je možné vrátiť.")) return;
+
+    setActionQuizId(quiz.id);
+    setListMessage(null);
+    try {
+      const res = await fetch(`/api/admin/quiz-library/${quiz.id}`, { method: "DELETE" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setListMessage({ text: data.error ?? "Vymazanie zlyhalo.", ok: false });
+        return;
+      }
+      if (libraryQuizId === quiz.id) setLibraryQuizId("");
+      setListMessage({ text: `Kvíz „${quiz.title}" bol vymazaný.`, ok: true });
+      await loadQuizzes(filterTeams);
+    } catch {
+      setListMessage({ text: "Sieťová chyba pri mazaní.", ok: false });
+    } finally {
+      setActionQuizId(null);
+    }
+  };
+
   const safeCount = quizzes.filter((quiz) => quiz.isSafe).length;
 
   return (
@@ -244,6 +295,9 @@ export default function HotoveKvizyList() {
         <div>
           <p className="text-brand-muted text-sm">{loading ? "Načítavam…" : `${quizzes.length} kvízov v knižnici`}</p>
           {createError && <p className="text-sm text-red-500 mt-1">{createError}</p>}
+          {listMessage && (
+            <p className={`text-sm mt-1 ${listMessage.ok ? "text-green-600" : "text-red-500"}`}>{listMessage.text}</p>
+          )}
         </div>
         <button
           type="button"
@@ -312,7 +366,7 @@ export default function HotoveKvizyList() {
                 )}
               </div>
             </div>
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
               <button
                 type="button"
                 onClick={() => {
@@ -341,6 +395,23 @@ export default function HotoveKvizyList() {
                 <Play className="w-4 h-4" />
                 Prehrať
               </Link>
+              <button
+                type="button"
+                onClick={() => renameQuiz(quiz)}
+                disabled={actionQuizId === quiz.id}
+                className="inline-flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded-xl border border-brand-border text-brand-text hover:border-brand-orange hover:text-brand-orange-readable transition-colors disabled:opacity-50"
+              >
+                Premenovať
+              </button>
+              <button
+                type="button"
+                onClick={() => deleteQuiz(quiz)}
+                disabled={actionQuizId === quiz.id}
+                className="inline-flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors disabled:opacity-50"
+              >
+                <Trash2 className="w-4 h-4" />
+                Vymazať
+              </button>
             </div>
           </div>
         ))}
