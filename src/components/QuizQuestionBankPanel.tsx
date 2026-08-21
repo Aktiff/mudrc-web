@@ -1,14 +1,16 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { BookOpen, Check, ClipboardCopy, Trash2 } from "lucide-react";
+import { BookOpen, Check, ClipboardCopy, Shuffle, Trash2 } from "lucide-react";
 import type { QuizQuestionItem } from "@/lib/quiz-library";
 import { findFirstEmptyQuestionSlot, isQuestionSlotEmpty } from "@/lib/quiz-library";
 import {
+  applyBankQuestionOrder,
   bankQuestionTagScore,
   collectTagsFromBank,
   countTagUsageInQuestions,
   filterBankQuestionsByTags,
+  shuffleBankQuestionsByTagBalance,
   sortBankQuestionsByTagBalance,
 } from "@/lib/quiz-question-tags";
 import {
@@ -68,6 +70,7 @@ export default function QuizQuestionBankPanel({
   const [targetByBankId, setTargetByBankId] = useState<Record<string, string>>({});
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [excludedTags, setExcludedTags] = useState<string[]>([]);
+  const [manualOrderIds, setManualOrderIds] = useState<string[] | null>(null);
 
   useEffect(() => {
     setHiddenIds(readHiddenBankQuestionIds());
@@ -108,15 +111,33 @@ export default function QuizQuestionBankPanel({
     );
   }, [defaultTargetQuestion]);
 
+  useEffect(() => {
+    setManualOrderIds(null);
+  }, [excludedTags, usedBankQuestionIds, hiddenIds]);
+
+  const filteredQuestions = useMemo(
+    () => filterBankQuestionsByTags(availableQuestions, excludedTags),
+    [availableQuestions, excludedTags]
+  );
+
   const visibleQuestions = useMemo(() => {
-    const filtered = filterBankQuestionsByTags(availableQuestions, excludedTags);
-    return sortBankQuestionsByTagBalance(filtered, tagCounts, { prioritizeImageQuestions });
-  }, [availableQuestions, excludedTags, tagCounts, prioritizeImageQuestions]);
+    if (manualOrderIds) {
+      return applyBankQuestionOrder(filteredQuestions, manualOrderIds);
+    }
+    return sortBankQuestionsByTagBalance(filteredQuestions, tagCounts, { prioritizeImageQuestions });
+  }, [filteredQuestions, manualOrderIds, tagCounts, prioritizeImageQuestions]);
 
   const toggleTagExclusion = (tag: string) => {
     setExcludedTags((prev) =>
       prev.includes(tag) ? prev.filter((entry) => entry !== tag) : [...prev, tag]
     );
+  };
+
+  const shuffleQuestions = () => {
+    const mixed = shuffleBankQuestionsByTagBalance(filteredQuestions, tagCounts, {
+      prioritizeImageQuestions,
+    });
+    setManualOrderIds(mixed.map((item) => item.id));
   };
 
   const copyText = async (text: string, id: string) => {
@@ -160,15 +181,27 @@ export default function QuizQuestionBankPanel({
           <div className="w-9 h-9 rounded-xl bg-brand-tint flex items-center justify-center shrink-0">
             <BookOpen className="w-4 h-4 text-brand-orange" />
           </div>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <p className="font-semibold text-brand-text text-sm leading-snug">Banka otázok</p>
             <p className="text-brand-muted text-xs mt-0.5 leading-relaxed">
               {visibleQuestions.length} k dispozícii
-              {prioritizeImageQuestions
-                ? ` · foto otázky navrchu (ot. ${defaultTargetQuestion?.questionNumber} čaká na fotku)`
-                : " · zoradené podľa najmenej použitých tagov"}
+              {manualOrderIds
+                ? " · premiešané podľa tagov"
+                : prioritizeImageQuestions
+                  ? ` · foto otázky navrchu (ot. ${defaultTargetQuestion?.questionNumber} čaká na fotku)`
+                  : " · zoradené podľa najmenej použitých tagov"}
             </p>
           </div>
+          <button
+            type="button"
+            onClick={shuffleQuestions}
+            disabled={filteredQuestions.length < 2}
+            className="btn-outline text-xs py-2 px-2.5 inline-flex items-center gap-1.5 shrink-0 disabled:opacity-40"
+            title="Premieša poradie — menej použité tagy navrchu, rovnaké tagy nie hneď za sebou"
+          >
+            <Shuffle className="w-3.5 h-3.5" />
+            Premiešať
+          </button>
         </div>
 
         {prioritizeImageQuestions && (

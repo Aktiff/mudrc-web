@@ -87,6 +87,92 @@ export function sortBankQuestionsByTagBalance(
   return [...sortGroup(imageItems), ...sortGroup(textItems)];
 }
 
+function tagOverlapCount(a: QuizBankQuestion, b: QuizBankQuestion): number {
+  const bTags = new Set(b.tags ?? []);
+  return (a.tags ?? []).filter((tag) => bTags.has(tag)).length;
+}
+
+function recentTagOverlapScore(item: QuizBankQuestion, recent: QuizBankQuestion[]): number {
+  let score = 0;
+  for (let index = 0; index < recent.length; index += 1) {
+    const distance = recent.length - index;
+    const overlap = tagOverlapCount(item, recent[index]!);
+    if (overlap > 0) score += overlap * (1000 / distance);
+  }
+  return score;
+}
+
+/** Premieša otázky — preferuje menej použité tagy, ale vyhýba sa opakovaným tagom za sebou. */
+export function shuffleBankQuestionsByTagBalance(
+  items: QuizBankQuestion[],
+  tagCounts: Record<string, number>,
+  options?: { prioritizeImageQuestions?: boolean; separationWindow?: number }
+): QuizBankQuestion[] {
+  const separationWindow = options?.separationWindow ?? 3;
+
+  const mixGroup = (group: QuizBankQuestion[]): QuizBankQuestion[] => {
+    const pool = sortBankQuestionsByTagBalance(group, tagCounts);
+    const result: QuizBankQuestion[] = [];
+    const remaining = [...pool];
+
+    while (remaining.length > 0) {
+      const recent = result.slice(-separationWindow);
+      let bestIndex = 0;
+      let bestScore = Number.POSITIVE_INFINITY;
+
+      for (let index = 0; index < remaining.length; index += 1) {
+        const item = remaining[index]!;
+        let score =
+          bankQuestionTagUsageSum(item, tagCounts) * 100 +
+          bankQuestionTagScore(item, tagCounts) * 10 +
+          bankQuestionUsedTagCount(item, tagCounts) +
+          recentTagOverlapScore(item, recent);
+
+        score += Math.random();
+
+        if (score < bestScore) {
+          bestScore = score;
+          bestIndex = index;
+        }
+      }
+
+      result.push(remaining.splice(bestIndex, 1)[0]!);
+    }
+
+    return result;
+  };
+
+  if (!options?.prioritizeImageQuestions) {
+    return mixGroup(items);
+  }
+
+  const imageItems = items.filter((item) => item.isImageQuestion);
+  const textItems = items.filter((item) => !item.isImageQuestion);
+  return [...mixGroup(imageItems), ...mixGroup(textItems)];
+}
+
+export function applyBankQuestionOrder(
+  items: QuizBankQuestion[],
+  orderIds: string[]
+): QuizBankQuestion[] {
+  const byId = new Map(items.map((item) => [item.id, item]));
+  const seen = new Set<string>();
+  const ordered: QuizBankQuestion[] = [];
+
+  for (const id of orderIds) {
+    const item = byId.get(id);
+    if (!item) continue;
+    ordered.push(item);
+    seen.add(id);
+  }
+
+  for (const item of items) {
+    if (!seen.has(item.id)) ordered.push(item);
+  }
+
+  return ordered;
+}
+
 export function filterBankQuestionsByTags(
   items: QuizBankQuestion[],
   excludedTags: string[]
