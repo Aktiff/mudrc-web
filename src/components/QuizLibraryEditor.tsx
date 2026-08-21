@@ -1,13 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, Fragment } from "react";
 import { ChevronDown, ChevronUp, GripVertical, MonitorPlay, Plus, RotateCcw, Save, X } from "lucide-react";
 import type { QuizEvent } from "@/lib/data";
 import type { QuizLibraryItem, QuizQuestionItem, QuizQuestionKind } from "@/lib/quiz-library";
 import { collectUsedBankQuestionIdsFromQuiz } from "@/lib/quiz-library";
 import { findBankQuestionById } from "@/lib/quiz-question-bank";
-import { buildStandardMudrcQuestions, describeQuizContent, roundLabels } from "@/lib/quiz-template";
+import { buildStandardMudrcQuestions, describeQuizContent, insertQuestionAfter, roundLabels } from "@/lib/quiz-template";
 import { buildPresentationSlides } from "@/lib/quiz-presentation";
 import QuizQuestionBankPanel from "@/components/QuizQuestionBankPanel";
 import QuizTagStats from "@/components/QuizTagStats";
@@ -329,6 +329,21 @@ export default function QuizLibraryEditor({ quizId }: Props) {
 
   const roundQuestions = useMemo(() => questionsInRound(questions, openRound), [questions, openRound]);
 
+  const insertEmptyQuestion = (afterQuestionNumber: number, kind: QuizQuestionKind) => {
+    setQuiz((prev) =>
+      prev
+        ? {
+            ...prev,
+            questions: insertQuestionAfter(prev.questions, openRound, kind, afterQuestionNumber),
+          }
+        : prev
+    );
+    setMsg({
+      text: `Prázdna otázka vložená za č. ${afterQuestionNumber} — doplni ju z banky alebo ručne.`,
+      ok: true,
+    });
+  };
+
   const regenerateTemplate = () => {
     if (!window.confirm("Vymazať obsah a vytvoriť prázdnu štruktúru 55 otázok (4 kolá)?")) return;
     setQuiz((prev) => (prev ? { ...prev, questions: buildStandardMudrcQuestions() } : prev));
@@ -451,7 +466,7 @@ export default function QuizLibraryEditor({ quizId }: Props) {
             Kolo {openRound} — {roundLabels[openRound]}
           </h3>
 
-          <div className="space-y-4">
+          <div className="space-y-1">
         {roundQuestions.map((question) => {
           const group = questionsInRoundKind(questions, openRound, question.kind);
           const groupIndex = group.findIndex((q) => q.id === question.id);
@@ -459,8 +474,8 @@ export default function QuizLibraryEditor({ quizId }: Props) {
           const canMoveDown = groupIndex >= 0 && groupIndex < group.length - 1;
 
           return (
+          <Fragment key={question.id}>
           <div
-            key={question.id}
             onDragOver={(e) => {
               e.preventDefault();
               e.currentTarget.classList.add("ring-2", "ring-brand-orange/40");
@@ -714,6 +729,18 @@ export default function QuizLibraryEditor({ quizId }: Props) {
               </div>
             )}
           </div>
+
+          <div className="flex items-center justify-center py-2">
+            <button
+              type="button"
+              onClick={() => insertEmptyQuestion(question.questionNumber, question.kind)}
+              className="text-xs font-semibold text-brand-muted hover:text-brand-orange-readable inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-dashed border-brand-border hover:border-brand-orange bg-brand-card/50 hover:bg-brand-tint/40 transition-colors"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Vložiť otázku
+            </button>
+          </div>
+          </Fragment>
           );
         })}
           </div>

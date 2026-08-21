@@ -51,6 +51,32 @@ export function buildStandardMudrcQuestions(): QuizQuestionItem[] {
   return questions;
 }
 
+/** Vloží prázdnu otázku za dané číslo v kole (0 = na začiatok skupiny). */
+export function insertQuestionAfter(
+  questions: QuizQuestionItem[],
+  roundNumber: number,
+  kind: QuizQuestionKind,
+  afterQuestionNumber: number
+): QuizQuestionItem[] {
+  const group = questions
+    .filter((q) => q.roundNumber === roundNumber && q.kind === kind)
+    .sort((a, b) => a.questionNumber - b.questionNumber);
+
+  const newNumber = afterQuestionNumber + 1;
+  const bumped = group.map((q) =>
+    q.questionNumber >= newNumber ? { ...q, questionNumber: q.questionNumber + 1 } : q
+  );
+  bumped.splice(afterQuestionNumber, 0, createEmptyQuestion(roundNumber, newNumber, kind));
+
+  const rest = questions.filter((q) => q.roundNumber !== roundNumber || q.kind !== kind);
+  return [...rest, ...bumped].sort(
+    (a, b) =>
+      a.roundNumber - b.roundNumber ||
+      a.questionNumber - b.questionNumber ||
+      (a.kind === "music" ? 1 : 0) - (b.kind === "music" ? 1 : 0)
+  );
+}
+
 /** Import starého formátu (samostatné slidy otázka + odpoveď). */
 export function migrateSlidesToQuestions(slides: QuizSlide[]): QuizQuestionItem[] {
   const map = new Map<string, QuizQuestionItem>();
