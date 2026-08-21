@@ -83,7 +83,15 @@ export function questionPhaseTitle(question: QuizQuestionItem): string {
 }
 
 export function shouldShowImageInQuestionPhase(question: QuizQuestionItem): boolean {
-  return Boolean(question.imageUrl?.trim() && question.imageDuringQuestion);
+  return Boolean(
+    question.imageUrl?.trim() &&
+      (question.imageDuringQuestion || question.imageOnNextSlide)
+  );
+}
+
+/** Menší náhľad pri otázke, keď fullscreen ide na ďalší slide bez explicitného „pri otázke“. */
+export function shouldUseCompactQuestionImage(question: QuizQuestionItem): boolean {
+  return Boolean(question.imageOnNextSlide && !question.imageDuringQuestion);
 }
 
 export function shouldShowImageInAnswerPhase(question: QuizQuestionItem): boolean {

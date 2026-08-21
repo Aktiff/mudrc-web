@@ -9,6 +9,7 @@ import {
   buildPresentationSlides,
   shouldShowImageInAnswerPhase,
   shouldShowImageInQuestionPhase,
+  shouldUseCompactQuestionImage,
   type PresentationSlide,
 } from "@/lib/quiz-presentation";
 import { findCorrectOptionIndex, getQuestionBodyText, getQuestionOptions, optionLetter } from "@/lib/quiz-question-options";
@@ -118,6 +119,7 @@ function QuestionContent({
 }) {
   const showImage =
     phase === "question" ? shouldShowImageInQuestionPhase(question) : shouldShowImageInAnswerPhase(question);
+  const compactQuestionImage = phase === "question" && shouldUseCompactQuestionImage(question);
   const questionText = getQuestionBodyText(question) || "Otázka";
   const options = getQuestionOptions(question);
   const correctOptionIndex =
@@ -135,20 +137,22 @@ function QuestionContent({
         />
       )}
 
-      {showImage && question.imageUrl && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={question.imageUrl}
-          alt=""
-          className="max-h-[30vh] max-w-full rounded-2xl object-contain shadow-[0_24px_80px_rgba(0,0,0,0.6)] ring-1 ring-white/10"
-        />
-      )}
-
       <p
         className={`${questionTextScale(questionText)} font-display text-white text-center leading-[1.08] tracking-wide whitespace-pre-wrap drop-shadow-lg px-2`}
       >
         {questionText}
       </p>
+
+      {showImage && question.imageUrl && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={question.imageUrl}
+          alt=""
+          className={`max-w-full rounded-2xl object-contain shadow-[0_24px_80px_rgba(0,0,0,0.6)] ring-1 ring-white/10 ${
+            compactQuestionImage ? "max-h-[24vh]" : "max-h-[32vh]"
+          }`}
+        />
+      )}
 
       {options.length > 0 && (
         <OptionsGrid options={options} highlightCorrectIndex={correctOptionIndex} />

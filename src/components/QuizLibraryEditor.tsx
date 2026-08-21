@@ -516,7 +516,7 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
                     onChange={(e) => updateQuestion(question.id, { imageDuringQuestion: e.target.checked })}
                     className="rounded border-brand-border"
                   />
-                  Zobraziť obrázok v sekcii otázok (inak len pri správnych odpovediach)
+                  Zobraziť obrázok pri otázke (väčší náhľad na slide s otázkou)
                 </label>
                 <label className="flex items-center gap-2 text-sm text-brand-text cursor-pointer">
                   <input
@@ -525,8 +525,13 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
                     onChange={(e) => updateQuestion(question.id, { imageOnNextSlide: e.target.checked })}
                     className="rounded border-brand-border"
                   />
-                  Pridať na ďalší slide (fullscreen po otázke, neorezané)
+                  Pridať ďalší slide s obrázkom na celú obrazovku (neorezané)
                 </label>
+                {question.imageOnNextSlide && !question.imageDuringQuestion && (
+                  <p className="text-brand-muted text-xs">
+                    Pri otázke sa zobrazí menší náhľad, na ďalšom slide fullscreen.
+                  </p>
+                )}
               </div>
             )}
           </div>
