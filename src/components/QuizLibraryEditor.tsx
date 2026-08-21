@@ -150,7 +150,7 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
             questions: prev.questions.map((q) =>
               q.id === targetQuestionId ? { ...q, body, answer } : q
             ),
-            usedBankQuestionIds: [...new Set([...(prev.usedBankQuestionIds ?? []), bankId])],
+            usedBankQuestionIds: Array.from(new Set([...(prev.usedBankQuestionIds ?? []), bankId])),
           }
         : prev
     );

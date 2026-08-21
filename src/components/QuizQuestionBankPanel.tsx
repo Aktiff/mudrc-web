@@ -61,7 +61,7 @@ export default function QuizQuestionBankPanel({ roundQuestions, usedBankQuestion
 
   const dismissQuestion = (bankId: string) => {
     if (!window.confirm("Odstrániť túto otázku z banky? (Zmizne aj v iných kvízoch.)")) return;
-    const next = [...new Set([...hiddenIds, bankId])];
+    const next = Array.from(new Set([...hiddenIds, bankId]));
     setHiddenIds(next);
     writeHiddenBankQuestionIds(next);
   };
