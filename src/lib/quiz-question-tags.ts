@@ -41,12 +41,21 @@ export function countTagUsageInQuestions(questions: QuizQuestionItem[]): Record<
   return counts;
 }
 
+/** Najvyšší počet použití medzi tagmi otázky — čím nižší, tým vhodnejšia pre kvíz. */
 export function bankQuestionTagScore(
   item: QuizBankQuestion,
   tagCounts: Record<string, number>
 ): number {
   if (!item.tags?.length) return Number.MAX_SAFE_INTEGER;
-  return Math.min(...item.tags.map((tag) => tagCounts[tag] ?? 0));
+  return Math.max(...item.tags.map((tag) => tagCounts[tag] ?? 0));
+}
+
+function bankQuestionUsedTagCount(item: QuizBankQuestion, tagCounts: Record<string, number>): number {
+  return item.tags.filter((tag) => (tagCounts[tag] ?? 0) > 0).length;
+}
+
+function bankQuestionTagUsageSum(item: QuizBankQuestion, tagCounts: Record<string, number>): number {
+  return item.tags.reduce((sum, tag) => sum + (tagCounts[tag] ?? 0), 0);
 }
 
 export function sortBankQuestionsByTagBalance(
@@ -56,6 +65,14 @@ export function sortBankQuestionsByTagBalance(
   return [...items].sort((a, b) => {
     const scoreDiff = bankQuestionTagScore(a, tagCounts) - bankQuestionTagScore(b, tagCounts);
     if (scoreDiff !== 0) return scoreDiff;
+
+    const overlapDiff =
+      bankQuestionUsedTagCount(a, tagCounts) - bankQuestionUsedTagCount(b, tagCounts);
+    if (overlapDiff !== 0) return overlapDiff;
+
+    const sumDiff = bankQuestionTagUsageSum(a, tagCounts) - bankQuestionTagUsageSum(b, tagCounts);
+    if (sumDiff !== 0) return sumDiff;
+
     return a.body.localeCompare(b.body, "sk");
   });
 }

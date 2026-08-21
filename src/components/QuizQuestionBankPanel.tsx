@@ -196,7 +196,7 @@ export default function QuizQuestionBankPanel({
                       {item.difficulty}/10
                     </span>
                     <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-green-50 text-green-800 border border-green-200 dark:bg-green-950/30 dark:text-green-200 dark:border-green-800">
-                      tag skóre {tagScore}
+                      {tagScore === 0 ? "žiadny tag zatiaľ nepoužitý" : `najpoužívanejší tag ×${tagScore}`}
                     </span>
                   </div>
                   <p className="text-sm font-semibold text-brand-text leading-snug break-words">{item.body}</p>
