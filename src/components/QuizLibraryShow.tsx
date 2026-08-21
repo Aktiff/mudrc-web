@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Maximize2, X } from "lucide-react";
 import type { QuizEvent } from "@/lib/data";
 import type { QuizLibraryItem, QuizQuestionItem } from "@/lib/quiz-library";
@@ -57,23 +57,29 @@ function RulesSlide({ rules, venueName }: { rules: string[]; venueName: string }
   );
 }
 
-function questionTextScale(text: string, compact = false): string {
-  if (compact) {
-    if (text.length > 80) return "text-[clamp(1.5rem,3vmin,2.75rem)]";
-    return "text-[clamp(1.75rem,3.5vmin,3.25rem)]";
+function questionTextStyle(text: string, withImage = false): CSSProperties {
+  const len = text.length;
+
+  if (withImage) {
+    if (len > 100) return { fontSize: "clamp(2.75rem, 6vmin, 5.5rem)" };
+    if (len > 60) return { fontSize: "clamp(3.25rem, 7vmin, 6.5rem)" };
+    if (len > 30) return { fontSize: "clamp(3.75rem, 8vmin, 7.5rem)" };
+    return { fontSize: "clamp(4rem, 8.5vmin, 8.5rem)" };
   }
 
-  const len = text.length;
-  if (len > 140) return "text-[clamp(2.25rem,4.8vmin,5.5rem)]";
-  if (len > 100) return "text-[clamp(2.5rem,5.2vmin,6rem)]";
-  if (len > 70) return "text-[clamp(2.75rem,5.8vmin,6.75rem)]";
-  if (len > 45) return "text-[clamp(3rem,6.2vmin,7.5rem)]";
-  return "text-[clamp(3.25rem,6.8vmin,8.5rem)]";
+  if (len > 140) return { fontSize: "clamp(3rem, 6.5vmin, 7rem)" };
+  if (len > 100) return { fontSize: "clamp(3.25rem, 7vmin, 7.75rem)" };
+  if (len > 70) return { fontSize: "clamp(3.5rem, 7.5vmin, 8.5rem)" };
+  if (len > 45) return { fontSize: "clamp(3.75rem, 8vmin, 9.25rem)" };
+  return { fontSize: "clamp(4rem, 8.5vmin, 10rem)" };
 }
 
-const OPTION_LETTER_STYLE = { fontSize: "clamp(2.75rem, 5.5vmin, 6.5rem)" } as const;
-const OPTION_TEXT_STYLE = { fontSize: "clamp(2.25rem, 4.8vmin, 5.25rem)" } as const;
-const ANSWER_TEXT_STYLE = { fontSize: "clamp(2.5rem, 5.5vmin, 6.5rem)" } as const;
+const OPTION_LETTER_STYLE = { fontSize: "clamp(3.5rem, 7.5vmin, 8.5rem)" } as const;
+const OPTION_TEXT_STYLE = { fontSize: "clamp(3rem, 6.5vmin, 7.5rem)" } as const;
+const ANSWER_TEXT_STYLE = { fontSize: "clamp(3.25rem, 7vmin, 8.5rem)" } as const;
+
+const QUESTION_TEXT_CLASS =
+  "font-display text-white text-center leading-[1.06] tracking-wide whitespace-pre-wrap drop-shadow-[0_4px_24px_rgba(0,0,0,0.85)] w-full max-w-[96vw] px-2";
 
 function PresentationImage({
   src,
@@ -87,8 +93,8 @@ function PresentationImage({
     variant === "full-slide"
       ? "max-w-[98vw] max-h-[90vh] w-auto h-auto object-contain rounded-2xl shadow-[0_24px_80px_rgba(0,0,0,0.6)] ring-1 ring-white/10"
       : variant === "hero"
-        ? "max-w-[98vw] max-h-[min(82vh,calc(100dvh-10rem))] w-auto h-auto object-contain rounded-2xl shadow-[0_24px_80px_rgba(0,0,0,0.6)] ring-1 ring-white/10"
-        : "max-w-[98vw] max-h-[min(48vh,calc(100dvh-28rem))] w-auto h-auto object-contain rounded-2xl shadow-[0_24px_80px_rgba(0,0,0,0.6)] ring-1 ring-white/10";
+        ? "max-w-[98vw] max-h-[min(70vh,calc(100dvh-16rem))] w-auto h-auto object-contain rounded-2xl shadow-[0_24px_80px_rgba(0,0,0,0.6)] ring-1 ring-white/10"
+        : "max-w-[98vw] max-h-[min(44vh,calc(100dvh-32rem))] w-auto h-auto object-contain rounded-2xl shadow-[0_24px_80px_rgba(0,0,0,0.6)] ring-1 ring-white/10";
 
   return (
     // eslint-disable-next-line @next/next/no-img-element
@@ -106,21 +112,21 @@ function OptionsGrid({
   if (!options.length) return null;
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 sm:gap-8 w-full max-w-[98vw]">
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-7 sm:gap-9 w-full max-w-[98vw]">
       {options.map((option, index) => {
         const isCorrect = index === highlightCorrectIndex;
 
         return (
           <div
             key={`${index}-${option}`}
-            className={`flex items-center gap-5 sm:gap-7 w-full px-7 sm:px-10 py-5 sm:py-7 rounded-2xl border-2 shadow-[0_12px_48px_rgba(0,0,0,0.45)] ${
+            className={`flex items-center gap-6 sm:gap-8 w-full px-8 sm:px-11 py-6 sm:py-8 rounded-2xl border-[3px] shadow-[0_12px_48px_rgba(0,0,0,0.45)] ${
               isCorrect
                 ? "border-[#f0c800] bg-gradient-to-br from-[#f0c800] to-[#e6b800] text-black ring-4 ring-[#f0c800]/35"
                 : "border-white/20 bg-white/[0.06] backdrop-blur-sm text-white"
             }`}
           >
             <span
-              className={`font-display leading-none shrink-0 w-[4.5rem] sm:w-24 text-left ${
+              className={`font-display leading-none shrink-0 w-[5rem] sm:w-28 text-left ${
                 isCorrect ? "text-black/70" : "text-[#f0c800]"
               }`}
               style={OPTION_LETTER_STYLE}
@@ -161,7 +167,7 @@ function QuestionContent({
   return (
     <div
       className={`w-full flex flex-col items-center ${
-        imageHero ? "h-full max-h-[88vh] justify-center gap-4 sm:gap-6" : "max-w-[98vw] gap-6 sm:gap-8"
+        imageHero ? "h-full max-h-[88vh] justify-start gap-5 sm:gap-6 pt-2" : "max-w-[98vw] gap-7 sm:gap-9"
       }`}
     >
       {phase === "question" && question.kind === "music" && question.audioUrl?.trim() && (
@@ -174,21 +180,12 @@ function QuestionContent({
         />
       )}
 
-      {!imageHero && (
-        <p
-          className={`${questionTextScale(questionText, imageWithOptions)} font-display text-white text-center leading-[1.08] tracking-wide whitespace-pre-wrap drop-shadow-lg px-2`}
-        >
-          {questionText}
-        </p>
-      )}
-
-      {imageHero && (
-        <p
-          className={`${questionTextScale(questionText, true)} font-display text-white text-center leading-[1.08] tracking-wide whitespace-pre-wrap drop-shadow-lg px-2 shrink-0`}
-        >
-          {questionText}
-        </p>
-      )}
+      <p
+        className={`${QUESTION_TEXT_CLASS} shrink-0`}
+        style={questionTextStyle(questionText, imageHero || imageWithOptions)}
+      >
+        {questionText}
+      </p>
 
       {showImage && question.imageUrl && (
         <PresentationImage
@@ -532,7 +529,7 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
         </div>
       )}
 
-      <div className="relative flex-1 flex items-center justify-center min-h-0 w-full px-[5vw] py-[2vh]">
+      <div className="relative flex-1 flex items-center justify-center min-h-0 w-full px-[2vw] py-[1.5vh]">
         {slide && <PresentationView slide={slide} eventRules={eventRules} venueName={venueName} />}
       </div>
 
