@@ -14,6 +14,7 @@ import {
 import {
   filterVisibleBankQuestions,
   formatBankQuestionBody,
+  isImageQuestionSlot,
   readHiddenBankQuestionIds,
   writeHiddenBankQuestionIds,
   type QuizBankQuestion,
@@ -29,7 +30,8 @@ type Props = {
     body: string,
     answer: string,
     options: string[],
-    tags: string[]
+    tags: string[],
+    isImageQuestion?: boolean
   ) => void;
 };
 
@@ -73,11 +75,6 @@ export default function QuizQuestionBankPanel({
 
   const bankTags = useMemo(() => collectTagsFromBank(availableQuestions), [availableQuestions]);
 
-  const visibleQuestions = useMemo(() => {
-    const filtered = filterBankQuestionsByTags(availableQuestions, selectedTags);
-    return sortBankQuestionsByTagBalance(filtered, tagCounts);
-  }, [availableQuestions, selectedTags, tagCounts]);
-
   const normalQuestions = useMemo(
     () =>
       roundQuestions
@@ -90,6 +87,24 @@ export default function QuizQuestionBankPanel({
     () => findFirstEmptyQuestionSlot(normalQuestions)?.id ?? normalQuestions[0]?.id ?? "",
     [normalQuestions]
   );
+
+  const defaultTargetQuestion = useMemo(
+    () => normalQuestions.find((question) => question.id === defaultTargetId),
+    [normalQuestions, defaultTargetId]
+  );
+
+  const prioritizeImageQuestions = useMemo(() => {
+    if (!defaultTargetQuestion) return false;
+    return (
+      isQuestionSlotEmpty(defaultTargetQuestion) &&
+      isImageQuestionSlot(defaultTargetQuestion.questionNumber)
+    );
+  }, [defaultTargetQuestion]);
+
+  const visibleQuestions = useMemo(() => {
+    const filtered = filterBankQuestionsByTags(availableQuestions, selectedTags);
+    return sortBankQuestionsByTagBalance(filtered, tagCounts, { prioritizeImageQuestions });
+  }, [availableQuestions, selectedTags, tagCounts, prioritizeImageQuestions]);
 
   const toggleTagFilter = (tag: string) => {
     setSelectedTags((prev) =>
@@ -116,7 +131,7 @@ export default function QuizQuestionBankPanel({
   const handleInsert = (item: QuizBankQuestion) => {
     const targetId = getTargetId(item.id);
     if (!targetId) return;
-    onInsert(item.id, targetId, item.body, item.answer, [...item.options], [...item.tags]);
+    onInsert(item.id, targetId, item.body, item.answer, [...item.options], [...item.tags], item.isImageQuestion);
     setTargetByBankId((prev) => {
       const next = { ...prev };
       delete next[item.id];
@@ -141,10 +156,20 @@ export default function QuizQuestionBankPanel({
           <div className="min-w-0">
             <p className="font-semibold text-brand-text text-sm leading-snug">Banka otázok</p>
             <p className="text-brand-muted text-xs mt-0.5 leading-relaxed">
-              {visibleQuestions.length} k dispozícii · zoradené podľa najmenej použitých tagov
+              {visibleQuestions.length} k dispozícii
+              {prioritizeImageQuestions
+                ? ` · foto otázky navrchu (ot. ${defaultTargetQuestion?.questionNumber} čaká na fotku)`
+                : " · zoradené podľa najmenej použitých tagov"}
             </p>
           </div>
         </div>
+
+        {prioritizeImageQuestions && (
+          <p className="text-xs font-semibold text-brand-orange-readable bg-brand-tint border border-brand-orange/30 rounded-lg px-3 py-2 leading-relaxed">
+            Práve plníš otázku č. {defaultTargetQuestion?.questionNumber} — každá piatka je s fotkou. Vyber
+            otázku z banky a doplni URL obrázka v editore.
+          </p>
+        )}
 
         {bankTags.length > 0 && (
           <div>
@@ -192,6 +217,11 @@ export default function QuizQuestionBankPanel({
               <div key={item.id} className="rounded-xl border border-brand-border bg-brand-surface/50 p-3 space-y-2.5">
                 <div>
                   <div className="flex flex-wrap items-center gap-1.5 mb-1">
+                    {item.isImageQuestion && (
+                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-violet-50 text-violet-800 border border-violet-200 dark:bg-violet-950/30 dark:text-violet-200 dark:border-violet-800">
+                        foto otázka
+                      </span>
+                    )}
                     <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-brand-card border border-brand-border text-brand-muted">
                       {item.difficulty}/10
                     </span>
@@ -228,6 +258,12 @@ export default function QuizQuestionBankPanel({
                 <p className="text-xs text-brand-muted leading-relaxed bg-brand-warm border border-brand-border rounded-lg px-2.5 py-2">
                   <span className="font-semibold text-brand-text">Info: </span>
                   {item.note}
+                  {item.imageHint && (
+                    <>
+                      {" "}
+                      <span className="text-brand-text">Fotka:</span> {item.imageHint}
+                    </>
+                  )}
                 </p>
 
                 <div className="flex flex-col gap-2">

@@ -206,7 +206,8 @@ export default function QuizLibraryEditor({ quizId }: Props) {
     body: string,
     answer: string,
     options: string[],
-    tags: string[]
+    tags: string[],
+    isImageQuestion?: boolean
   ) => {
     const target = questions.find((q) => q.id === targetQuestionId);
     const displacedBankId = target?.bankQuestionId;
@@ -231,6 +232,13 @@ export default function QuizLibraryEditor({ quizId }: Props) {
                 options: options.length ? options : undefined,
                 bankQuestionId: bankId,
                 tags: tags.length ? tags : undefined,
+                ...(isImageQuestion
+                  ? {
+                      imageUrl: "",
+                      imageDuringQuestion: true,
+                      imageOnNextSlide: false,
+                    }
+                  : {}),
               }
             : q
         ),
@@ -241,8 +249,12 @@ export default function QuizLibraryEditor({ quizId }: Props) {
     setMsg({
       text:
         displacedBankId && displacedBankId !== bankId
-          ? "Otázka vložená. Predchádzajúca otázka z banky je znova dostupná v banke — nezabudni uložiť."
-          : "Otázka vložená a odstránená z banky pre tento kvíz — nezabudni uložiť.",
+          ? isImageQuestion
+            ? "Foto otázka vložená — doplni URL obrázka. Predchádzajúca otázka z banky je znova dostupná — nezabudni uložiť."
+            : "Otázka vložená. Predchádzajúca otázka z banky je znova dostupná v banke — nezabudni uložiť."
+          : isImageQuestion
+            ? "Foto otázka vložená — doplni URL obrázka v editore. Nezabudni uložiť."
+            : "Otázka vložená a odstránená z banky pre tento kvíz — nezabudni uložiť.",
       ok: true,
     });
   };
@@ -266,6 +278,9 @@ export default function QuizLibraryEditor({ quizId }: Props) {
                     options: undefined,
                     bankQuestionId: undefined,
                     tags: undefined,
+                    imageUrl: undefined,
+                    imageDuringQuestion: false,
+                    imageOnNextSlide: undefined,
                   }
                 : q
             ),

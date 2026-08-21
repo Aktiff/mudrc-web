@@ -60,21 +60,31 @@ function bankQuestionTagUsageSum(item: QuizBankQuestion, tagCounts: Record<strin
 
 export function sortBankQuestionsByTagBalance(
   items: QuizBankQuestion[],
-  tagCounts: Record<string, number>
+  tagCounts: Record<string, number>,
+  options?: { prioritizeImageQuestions?: boolean }
 ): QuizBankQuestion[] {
-  return [...items].sort((a, b) => {
-    const scoreDiff = bankQuestionTagScore(a, tagCounts) - bankQuestionTagScore(b, tagCounts);
-    if (scoreDiff !== 0) return scoreDiff;
+  const sortGroup = (group: QuizBankQuestion[]) =>
+    [...group].sort((a, b) => {
+      const scoreDiff = bankQuestionTagScore(a, tagCounts) - bankQuestionTagScore(b, tagCounts);
+      if (scoreDiff !== 0) return scoreDiff;
 
-    const overlapDiff =
-      bankQuestionUsedTagCount(a, tagCounts) - bankQuestionUsedTagCount(b, tagCounts);
-    if (overlapDiff !== 0) return overlapDiff;
+      const overlapDiff =
+        bankQuestionUsedTagCount(a, tagCounts) - bankQuestionUsedTagCount(b, tagCounts);
+      if (overlapDiff !== 0) return overlapDiff;
 
-    const sumDiff = bankQuestionTagUsageSum(a, tagCounts) - bankQuestionTagUsageSum(b, tagCounts);
-    if (sumDiff !== 0) return sumDiff;
+      const sumDiff = bankQuestionTagUsageSum(a, tagCounts) - bankQuestionTagUsageSum(b, tagCounts);
+      if (sumDiff !== 0) return sumDiff;
 
-    return a.body.localeCompare(b.body, "sk");
-  });
+      return a.body.localeCompare(b.body, "sk");
+    });
+
+  if (!options?.prioritizeImageQuestions) {
+    return sortGroup(items);
+  }
+
+  const imageItems = items.filter((item) => item.isImageQuestion);
+  const textItems = items.filter((item) => !item.isImageQuestion);
+  return [...sortGroup(imageItems), ...sortGroup(textItems)];
 }
 
 export function filterBankQuestionsByTags(

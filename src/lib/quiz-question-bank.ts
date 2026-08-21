@@ -1,3 +1,5 @@
+import { IMAGE_QUIZ_BANK } from "@/lib/quiz-image-question-bank";
+
 export type QuizBankQuestion = {
   id: string;
   body: string;
@@ -10,6 +12,10 @@ export type QuizBankQuestion = {
   note: string;
   /** Tématické tagy (história, geografia, …) */
   tags: string[];
+  /** Otázka určená pre slot s fotkou (5, 10, 15…) */
+  isImageQuestion?: boolean;
+  /** Nápoveda akú fotku hľadať */
+  imageHint?: string;
 };
 
 /** Všeobecný pub kvíz — overené fakty, vhodné pre tím ~5 hráčov. */
@@ -133,6 +139,14 @@ export const PUB_QUIZ_BANK: QuizBankQuestion[] = [
   },
 ];
 
+/** Všetky otázky v banke — foto otázky + textové. */
+export const QUIZ_QUESTION_BANK: QuizBankQuestion[] = [...IMAGE_QUIZ_BANK, ...PUB_QUIZ_BANK];
+
+/** Sloty 5, 10, 15… v kole — určené pre otázku s fotkou. */
+export function isImageQuestionSlot(questionNumber: number): boolean {
+  return questionNumber > 0 && questionNumber % 5 === 0;
+}
+
 export function formatBankQuestionBody(item: QuizBankQuestion): string {
   const letters = ["A", "B", "C", "D", "E", "F"] as const;
   const optionsBlock = item.options
@@ -175,5 +189,5 @@ export function writeHiddenBankQuestionIds(ids: string[]): void {
 
 export function filterVisibleBankQuestions(usedIds: string[], hiddenIds: string[]): QuizBankQuestion[] {
   const skip = new Set([...usedIds, ...hiddenIds]);
-  return PUB_QUIZ_BANK.filter((item) => !skip.has(item.id));
+  return QUIZ_QUESTION_BANK.filter((item) => !skip.has(item.id));
 }
