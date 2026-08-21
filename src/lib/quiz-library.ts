@@ -18,10 +18,14 @@ export type QuizQuestionItem = {
   bankQuestionId?: string;
   imageUrl?: string;
   audioUrl?: string;
-  /** true = obrázok aj pri otázke; false = len pri správnych odpovediach */
+  /** true = obrázok aj pri otázke */
   imageDuringQuestion: boolean;
+  /** true = fullscreen slide s fotkou pred otázkou */
+  imageBeforeQuestion?: boolean;
   /** true = obrázok na samostatnom fullscreen slide hneď po otázke */
   imageOnNextSlide?: boolean;
+  /** true = obrázok pri slide so správnou odpoveďou */
+  imageOnAnswerSlide?: boolean;
   /** Tématické tagy pre vyváženie kvízu (napr. história, geografia) */
   tags?: string[];
   /** Poznámka pre kvízmistra — len admin, nie na projektore */
@@ -92,7 +96,17 @@ function normalizeQuestion(input: Partial<QuizQuestionItem>): QuizQuestionItem |
     imageUrl: input.imageUrl?.trim() || undefined,
     audioUrl: input.audioUrl?.trim() || undefined,
     imageDuringQuestion: Boolean(input.imageDuringQuestion),
+    imageBeforeQuestion: Boolean(input.imageBeforeQuestion),
     imageOnNextSlide: Boolean(input.imageOnNextSlide),
+    imageOnAnswerSlide:
+      input.imageOnAnswerSlide !== undefined
+        ? Boolean(input.imageOnAnswerSlide)
+        : Boolean(
+            input.imageUrl?.trim() &&
+              !input.imageDuringQuestion &&
+              !input.imageOnNextSlide &&
+              !input.imageBeforeQuestion
+          ),
     tags: normalizeTags(input.tags),
     hostNote: input.hostNote?.trim() || undefined,
   };

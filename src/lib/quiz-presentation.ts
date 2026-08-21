@@ -1,9 +1,5 @@
 import type { QuizQuestionItem } from "@/lib/quiz-library";
-import {
-  MUDRC_ROUND4_MUSIC,
-  MUDRC_ROUND4_NORMAL,
-  roundLabels,
-} from "@/lib/quiz-template";
+import { roundLabels } from "@/lib/quiz-template";
 
 export type PresentationSlide =
   | { type: "rules" }
@@ -43,6 +39,9 @@ export function buildPresentationSlides(questions: QuizQuestionItem[]): Presenta
     });
 
     for (const question of roundQuestions) {
+      if (shouldShowImageBeforeQuestion(question)) {
+        slides.push({ type: "image_slide", question });
+      }
       slides.push({ type: "question_phase", question });
       if (shouldShowImageOnNextSlide(question)) {
         slides.push({ type: "image_slide", question });
@@ -82,20 +81,16 @@ export function questionPhaseTitle(question: QuizQuestionItem): string {
   return `K${question.roundNumber} · Otázka ${question.questionNumber}`;
 }
 
+export function shouldShowImageBeforeQuestion(question: QuizQuestionItem): boolean {
+  return Boolean(question.imageUrl?.trim() && question.imageBeforeQuestion);
+}
+
 export function shouldShowImageInQuestionPhase(question: QuizQuestionItem): boolean {
-  return Boolean(
-    question.imageUrl?.trim() &&
-      question.imageDuringQuestion &&
-      !question.imageOnNextSlide
-  );
+  return Boolean(question.imageUrl?.trim() && question.imageDuringQuestion);
 }
 
 export function shouldShowImageInAnswerPhase(question: QuizQuestionItem): boolean {
-  return Boolean(
-    question.imageUrl?.trim() &&
-      !question.imageDuringQuestion &&
-      !question.imageOnNextSlide
-  );
+  return Boolean(question.imageUrl?.trim() && question.imageOnAnswerSlide);
 }
 
 export function shouldShowImageOnNextSlide(question: QuizQuestionItem): boolean {

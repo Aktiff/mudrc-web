@@ -238,8 +238,10 @@ export default function QuizLibraryEditor({ quizId }: Props) {
                 ...(isImageQuestion
                   ? {
                       imageUrl: "",
+                      imageBeforeQuestion: false,
                       imageDuringQuestion: true,
                       imageOnNextSlide: false,
+                      imageOnAnswerSlide: false,
                     }
                   : {}),
               }
@@ -283,8 +285,10 @@ export default function QuizLibraryEditor({ quizId }: Props) {
                     tags: undefined,
                     hostNote: undefined,
                     imageUrl: undefined,
+                    imageBeforeQuestion: undefined,
                     imageDuringQuestion: false,
                     imageOnNextSlide: undefined,
+                    imageOnAnswerSlide: undefined,
                   }
                 : q
             ),
@@ -633,15 +637,28 @@ export default function QuizLibraryEditor({ quizId }: Props) {
             </div>
             {question.imageUrl?.trim() && (
               <div className="space-y-2">
+                <p className="text-xs font-semibold text-brand-muted uppercase tracking-wider">Kde zobraziť obrázok</p>
+                <label className="flex items-center gap-2 text-sm text-brand-text cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(question.imageBeforeQuestion)}
+                    onChange={(e) =>
+                      updateQuestion(question.id, { imageBeforeQuestion: e.target.checked })
+                    }
+                    className="rounded border-brand-border"
+                  />
+                  Slide pred otázkou (fullscreen fotka)
+                </label>
                 <label className="flex items-center gap-2 text-sm text-brand-text cursor-pointer">
                   <input
                     type="checkbox"
                     checked={question.imageDuringQuestion}
-                    disabled={Boolean(question.imageOnNextSlide)}
-                    onChange={(e) => updateQuestion(question.id, { imageDuringQuestion: e.target.checked })}
-                    className="rounded border-brand-border disabled:opacity-50"
+                    onChange={(e) =>
+                      updateQuestion(question.id, { imageDuringQuestion: e.target.checked })
+                    }
+                    className="rounded border-brand-border"
                   />
-                  Zobraziť obrázok pri otázke (na tom istom slide)
+                  Na slide s otázkou (spolu s textom)
                 </label>
                 <label className="flex items-center gap-2 text-sm text-brand-text cursor-pointer">
                   <input
@@ -650,13 +667,19 @@ export default function QuizLibraryEditor({ quizId }: Props) {
                     onChange={(e) => updateQuestion(question.id, { imageOnNextSlide: e.target.checked })}
                     className="rounded border-brand-border"
                   />
-                  Ďalší slide — obrázok fullscreen po otázke (otázka bez obrázku)
+                  Slide po otázke (fullscreen fotka)
                 </label>
-                {question.imageOnNextSlide && (
-                  <p className="text-brand-muted text-xs">
-                    Otázka bude bez obrázku, fullscreen fotka až na nasledujúcom slide.
-                  </p>
-                )}
+                <label className="flex items-center gap-2 text-sm text-brand-text cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(question.imageOnAnswerSlide)}
+                    onChange={(e) =>
+                      updateQuestion(question.id, { imageOnAnswerSlide: e.target.checked })
+                    }
+                    className="rounded border-brand-border"
+                  />
+                  Pri správnej odpovedi (slide s odpoveďou)
+                </label>
               </div>
             )}
             {(question.body.trim() || question.answer.trim() || question.hostNote || question.bankQuestionId) && (
