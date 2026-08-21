@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import type { QuizDeck, QuizSlide, QuizSlideType } from "@/lib/quiz-deck";
 import { createEmptySlide, createSlideId, slideTypeLabel } from "@/lib/quiz-deck";
+import ImageUrlField from "@/components/admin/ImageUrlField";
 
 const SLIDE_TYPES: QuizSlideType[] = ["title", "round", "question", "text", "scores"];
 
@@ -208,15 +209,13 @@ export default function QuizDeckEditor({ eventSlug }: Props) {
                   <label className="label">Správna odpoveď (odhalí sa klikom v projekcii)</label>
                   <input className="input" value={slide.answer ?? ""} onChange={(e) => updateSlide(slide.id, { answer: e.target.value })} />
                 </div>
-                <div>
-                  <label className="label">Obrázok (URL, voliteľné)</label>
-                  <input
-                    className="input"
-                    value={slide.imageUrl ?? ""}
-                    onChange={(e) => updateSlide(slide.id, { imageUrl: e.target.value })}
-                    placeholder="https://…"
-                  />
-                </div>
+                <ImageUrlField
+                  label="Obrázok (voliteľné)"
+                  value={slide.imageUrl ?? ""}
+                  onChange={(url) => updateSlide(slide.id, { imageUrl: url })}
+                  onUploadError={(text) => setMsg({ text, ok: false })}
+                  onUploadSuccess={(text) => setMsg({ text, ok: true })}
+                />
               </>
             )}
           </div>

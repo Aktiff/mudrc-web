@@ -11,6 +11,7 @@ import { buildStandardMudrcQuestions, describeQuizContent, insertQuestionAfter, 
 import { buildPresentationSlides } from "@/lib/quiz-presentation";
 import QuizQuestionBankPanel from "@/components/QuizQuestionBankPanel";
 import QuizTagStats from "@/components/QuizTagStats";
+import ImageUrlField from "@/components/admin/ImageUrlField";
 import { optionLetter } from "@/lib/quiz-question-options";
 import { formatTagsInput, parseTagsInput } from "@/lib/quiz-question-tags";
 import {
@@ -629,15 +630,12 @@ export default function QuizLibraryEditor({ quizId }: Props) {
               </div>
             )}
             <div className="grid gap-3 grid-cols-1">
-              <div>
-                <label className="label">Obrázok (URL)</label>
-                <input
-                  className="input"
-                  value={question.imageUrl ?? ""}
-                  onChange={(e) => updateQuestion(question.id, { imageUrl: e.target.value })}
-                  placeholder="https://…"
-                />
-              </div>
+              <ImageUrlField
+                value={question.imageUrl ?? ""}
+                onChange={(url) => updateQuestion(question.id, { imageUrl: url })}
+                onUploadError={(text) => setMsg({ text, ok: false })}
+                onUploadSuccess={(text) => setMsg({ text, ok: true })}
+              />
               {question.kind === "music" && (
                 <div>
                   <label className="label">Audio ukážka (URL)</label>
