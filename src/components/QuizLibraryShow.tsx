@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Maximize2, Minimize2, X } from "lucide-react";
+import { Maximize2, X } from "lucide-react";
 import type { QuizEvent } from "@/lib/data";
 import type { QuizLibraryItem, QuizQuestionItem } from "@/lib/quiz-library";
 import {
@@ -166,8 +166,6 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
   const [index, setIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [showControls, setShowControls] = useState(true);
-  const hideControlsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     Promise.all([
@@ -245,26 +243,6 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
   const goPrev = useCallback(() => {
     setIndex((i) => Math.max(0, i - 1));
   }, []);
-
-  const revealControls = useCallback(() => {
-    setShowControls(true);
-    if (hideControlsTimer.current) clearTimeout(hideControlsTimer.current);
-    if (isFullscreen) {
-      hideControlsTimer.current = setTimeout(() => setShowControls(false), 2500);
-    }
-  }, [isFullscreen]);
-
-  useEffect(() => {
-    if (!isFullscreen) {
-      setShowControls(true);
-      if (hideControlsTimer.current) clearTimeout(hideControlsTimer.current);
-      return;
-    }
-    setShowControls(false);
-    return () => {
-      if (hideControlsTimer.current) clearTimeout(hideControlsTimer.current);
-    };
-  }, [isFullscreen]);
 
   const toggleFullscreen = useCallback(async () => {
     if (!rootRef.current) return;
@@ -372,50 +350,39 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
         e.preventDefault();
         goPrev();
       }}
-      onMouseMove={revealControls}
       role="presentation"
     >
       <SlideBackdrop />
 
-      <div
-        className={`absolute top-0 inset-x-0 flex items-center justify-between p-4 sm:p-5 z-20 transition-opacity duration-300 ${
-          isFullscreen && !showControls ? "opacity-0 pointer-events-none" : "opacity-100"
-        }`}
-      >
-        <div className="pointer-events-none flex items-center gap-3">
-          <span className="text-white/50 text-sm font-mono tabular-nums">
-            {index + 1} / {slides.length}
-          </span>
-          {quiz?.title && (
-            <span className="hidden sm:inline text-white/30 text-sm truncate max-w-[200px]">{quiz.title}</span>
-          )}
+      {!isFullscreen && (
+        <div className="absolute top-0 inset-x-0 flex items-center justify-end p-4 sm:p-5 z-20">
+          <div className="flex items-center gap-2 pointer-events-auto">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleFullscreen();
+              }}
+              className="p-2.5 rounded-full bg-black/40 border border-white/15 hover:bg-white/15 backdrop-blur-sm transition-colors"
+              title="Celá obrazovka"
+            >
+              <Maximize2 className="w-5 h-5" />
+            </button>
+            <Link
+              href={`/admin/hotove-kvizy/${quizId}`}
+              className="p-2.5 rounded-full bg-black/40 border border-white/15 hover:bg-white/15 backdrop-blur-sm transition-colors"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <X className="w-5 h-5" />
+            </Link>
+          </div>
         </div>
-        <div className="flex items-center gap-2 pointer-events-auto">
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              toggleFullscreen();
-            }}
-            className="p-2.5 rounded-full bg-black/40 border border-white/15 hover:bg-white/15 backdrop-blur-sm transition-colors"
-            title={isFullscreen ? "Ukončiť celú obrazovku (Esc)" : "Celá obrazovka"}
-          >
-            {isFullscreen ? <Minimize2 className="w-5 h-5" /> : <Maximize2 className="w-5 h-5" />}
-          </button>
-          <Link
-            href={`/admin/hotove-kvizy/${quizId}`}
-            className="p-2.5 rounded-full bg-black/40 border border-white/15 hover:bg-white/15 backdrop-blur-sm transition-colors"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <X className="w-5 h-5" />
-          </Link>
-        </div>
-      </div>
+      )}
 
       {showQuestionBadge && activeQuestion && (
-        <div className="absolute top-14 sm:top-16 left-4 sm:left-6 z-10 pointer-events-none">
-          <div className="flex items-center justify-center min-w-[5.5rem] sm:min-w-[7rem] px-4 sm:px-6 py-3 sm:py-4 rounded-2xl bg-[#f0c800] shadow-[0_10px_50px_rgba(240,200,0,0.55)] ring-4 ring-[#f0c800]/30">
-            <span className="font-display text-6xl sm:text-8xl md:text-9xl text-black leading-none tabular-nums">
+        <div className="absolute top-4 sm:top-5 left-4 sm:left-5 z-10 pointer-events-none">
+          <div className="size-[4.75rem] sm:size-24 md:size-28 rounded-2xl bg-[#f0c800] shadow-[0_10px_40px_rgba(240,200,0,0.45)] ring-2 ring-[#f0c800]/40 flex items-center justify-center">
+            <span className="font-display text-[3.25rem] sm:text-6xl md:text-7xl text-black tabular-nums leading-none [font-variant-numeric:tabular-nums]">
               {activeQuestion.questionNumber}
             </span>
           </div>
@@ -423,12 +390,11 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
       )}
 
       {isQuestionPhase && (
-        <div className="absolute top-14 sm:top-16 right-4 sm:right-6 z-10 pointer-events-none">
-          <div className="px-5 sm:px-7 py-3 sm:py-4 rounded-2xl bg-black/75 border-2 border-white/30 backdrop-blur-sm shadow-[0_10px_40px_rgba(0,0,0,0.6)]">
-            <span className="font-mono text-5xl sm:text-7xl md:text-8xl font-bold text-white tabular-nums leading-none">
+        <div className="absolute top-4 sm:top-5 right-4 sm:right-5 z-10 pointer-events-none">
+          <div className="min-w-[4.75rem] sm:min-w-24 md:min-w-28 h-[4.75rem] sm:h-24 md:h-28 px-3 sm:px-4 rounded-2xl bg-black/80 border-2 border-white/30 backdrop-blur-sm shadow-[0_10px_40px_rgba(0,0,0,0.6)] flex items-center justify-center">
+            <span className="font-mono text-[3.25rem] sm:text-6xl md:text-7xl font-bold text-white tabular-nums leading-none">
               {questionElapsed}
             </span>
-            <span className="block text-right text-white/60 text-base sm:text-lg font-semibold mt-1">s</span>
           </div>
         </div>
       )}
@@ -437,18 +403,16 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
         {slide && <PresentationView slide={slide} eventRules={eventRules} venueName={venueName} />}
       </div>
 
-      <div
-        className={`absolute bottom-0 inset-x-0 z-20 transition-opacity duration-300 ${
-          isFullscreen && !showControls ? "opacity-0" : "opacity-100"
-        }`}
-      >
-        <div className="h-1 bg-white/10 mx-4 sm:mx-8 mb-4 sm:mb-5 rounded-full overflow-hidden pointer-events-none">
-          <div
-            className="h-full bg-gradient-to-r from-[#f0c800] to-[#ffd54f] transition-all duration-300 ease-out rounded-full"
-            style={{ width: `${progress}%` }}
-          />
+      {!isFullscreen && (
+        <div className="absolute bottom-0 inset-x-0 z-20">
+          <div className="h-1 bg-white/10 mx-4 sm:mx-8 mb-4 sm:mb-5 rounded-full overflow-hidden pointer-events-none">
+            <div
+              className="h-full bg-gradient-to-r from-[#f0c800] to-[#ffd54f] transition-all duration-300 ease-out rounded-full"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

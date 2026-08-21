@@ -146,8 +146,8 @@ export default function QuizResultsEntryForm({
         </div>
       </div>
 
-      <div>
-        <div className="grid gap-3 mb-2 pr-9" style={{ gridTemplateColumns: `1fr repeat(${rounds}, 5rem) 4.5rem` }}>
+      <div className="overflow-x-auto -mx-2 px-2 pb-1">
+        <div className="grid gap-3 mb-2 pr-9 min-w-[640px]" style={{ gridTemplateColumns: `minmax(10rem, 1fr) repeat(${rounds}, 4.5rem) 4rem` }}>
           <span className="text-xs text-brand-muted uppercase tracking-wider font-medium">Tím</span>
           {Array.from({ length: rounds }, (_, index) => (
             <span key={index} className="text-xs text-brand-muted uppercase tracking-wider font-medium text-center">
@@ -156,12 +156,12 @@ export default function QuizResultsEntryForm({
           ))}
           <span className="text-xs text-brand-orange uppercase tracking-wider font-semibold text-center">Body</span>
         </div>
-        <div className="space-y-2">
+        <div className="space-y-2 min-w-[640px]">
           {quizTeams.map((team, index) => (
             <div
               key={index}
               className="grid gap-3 items-center"
-              style={{ gridTemplateColumns: `1fr repeat(${rounds}, 5rem) 4.5rem 2rem` }}
+              style={{ gridTemplateColumns: `minmax(10rem, 1fr) repeat(${rounds}, 4.5rem) 4rem 2rem` }}
             >
               <TeamAutocomplete
                 className="input py-2.5"
