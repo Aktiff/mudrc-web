@@ -513,25 +513,19 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
                   <input
                     type="checkbox"
                     checked={question.imageDuringQuestion}
-                    disabled={Boolean(question.imageOnNextSlide)}
                     onChange={(e) => updateQuestion(question.id, { imageDuringQuestion: e.target.checked })}
                     className="rounded border-brand-border"
                   />
-                  Zobraziť obrázok aj počas otázky (inak len pri správnych odpovediach)
+                  Zobraziť obrázok v sekcii otázok (inak len pri správnych odpovediach)
                 </label>
                 <label className="flex items-center gap-2 text-sm text-brand-text cursor-pointer">
                   <input
                     type="checkbox"
                     checked={Boolean(question.imageOnNextSlide)}
-                    onChange={(e) =>
-                      updateQuestion(question.id, {
-                        imageOnNextSlide: e.target.checked,
-                        imageDuringQuestion: e.target.checked ? false : question.imageDuringQuestion,
-                      })
-                    }
+                    onChange={(e) => updateQuestion(question.id, { imageOnNextSlide: e.target.checked })}
                     className="rounded border-brand-border"
                   />
-                  Pridať na ďalší slide (fullscreen po otázke)
+                  Pridať na ďalší slide (fullscreen po otázke, neorezané)
                 </label>
               </div>
             )}

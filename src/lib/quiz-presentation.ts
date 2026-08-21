@@ -83,13 +83,15 @@ export function questionPhaseTitle(question: QuizQuestionItem): string {
 }
 
 export function shouldShowImageInQuestionPhase(question: QuizQuestionItem): boolean {
-  return Boolean(
-    question.imageUrl?.trim() && question.imageDuringQuestion && !question.imageOnNextSlide
-  );
+  return Boolean(question.imageUrl?.trim() && question.imageDuringQuestion);
 }
 
 export function shouldShowImageInAnswerPhase(question: QuizQuestionItem): boolean {
-  return Boolean(question.imageUrl?.trim() && !question.imageOnNextSlide);
+  return Boolean(
+    question.imageUrl?.trim() &&
+      !question.imageDuringQuestion &&
+      !question.imageOnNextSlide
+  );
 }
 
 export function shouldShowImageOnNextSlide(question: QuizQuestionItem): boolean {
