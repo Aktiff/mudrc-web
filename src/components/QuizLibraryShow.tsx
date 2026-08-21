@@ -7,7 +7,6 @@ import type { QuizEvent } from "@/lib/data";
 import type { QuizLibraryItem, QuizQuestionItem } from "@/lib/quiz-library";
 import {
   buildPresentationSlides,
-  questionPhaseTitle,
   shouldShowImageInAnswerPhase,
   shouldShowImageInQuestionPhase,
   type PresentationSlide,
@@ -68,21 +67,14 @@ function QuestionContent({
 
   return (
     <div className="w-full max-w-6xl px-6 sm:px-10 flex flex-col items-center gap-6 sm:gap-8">
-      <div className="flex flex-wrap items-center justify-center gap-3">
-        <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-[#f0c800]/30 bg-[#f0c800]/10">
-          <span className="text-[#f0c800] text-sm sm:text-base font-bold uppercase tracking-widest">
-            {questionPhaseTitle(question)}
-          </span>
-        </span>
-        {question.kind === "music" && (
-          <span className="text-xs font-bold uppercase tracking-wider bg-purple-500/25 text-purple-200 px-3 py-1.5 rounded-full border border-purple-400/30">
-            Hudobná ukážka
-          </span>
-        )}
-      </div>
-
       {phase === "question" && question.kind === "music" && question.audioUrl?.trim() && (
-        <audio controls src={question.audioUrl} className="w-full max-w-xl" onClick={(e) => e.stopPropagation()} />
+        <audio
+          controls
+          src={question.audioUrl}
+          className="w-full max-w-xl"
+          onClick={(e) => e.stopPropagation()}
+          onContextMenu={(e) => e.stopPropagation()}
+        />
       )}
 
       {showImage && question.imageUrl && (
@@ -232,6 +224,10 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
     setIndex((i) => Math.min(slides.length - 1, i + 1));
   }, [slides.length]);
 
+  const goPrev = useCallback(() => {
+    setIndex((i) => Math.max(0, i - 1));
+  }, []);
+
   const revealControls = useCallback(() => {
     setShowControls(true);
     if (hideControlsTimer.current) clearTimeout(hideControlsTimer.current);
@@ -268,9 +264,13 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
   useEffect(() => {
     if (!started) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === " " || e.key === "Enter") {
+      if (e.key === "ArrowRight" || e.key === " " || e.key === "Enter") {
         e.preventDefault();
         goNext();
+      }
+      if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        goPrev();
       }
       if (e.key === "f" || e.key === "F") {
         e.preventDefault();
@@ -279,7 +279,7 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [goNext, started, toggleFullscreen]);
+  }, [goNext, goPrev, started, toggleFullscreen]);
 
   if (loading) {
     return (
@@ -341,11 +341,18 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
     );
   }
 
+  const activeQuestion =
+    slide?.type === "question_phase" || slide?.type === "answer_phase" ? slide.question : null;
+
   return (
     <div
       ref={rootRef}
       className="fixed inset-0 z-[9999] text-white flex flex-col select-none cursor-pointer overflow-hidden"
       onClick={goNext}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        goPrev();
+      }}
       onMouseMove={revealControls}
       role="presentation"
     >
@@ -385,6 +392,18 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
           </Link>
         </div>
       </div>
+
+      {activeQuestion && (
+        <div
+          className={`absolute top-16 sm:top-20 left-5 sm:left-8 z-10 pointer-events-none transition-opacity duration-300 ${
+            isFullscreen && !showControls ? "opacity-40" : "opacity-100"
+          }`}
+        >
+          <span className="font-display text-7xl sm:text-9xl text-[#f0c800]/20 leading-none tabular-nums">
+            {activeQuestion.questionNumber}
+          </span>
+        </div>
+      )}
 
       <div className="relative flex-1 flex items-center justify-center min-h-0 py-12 sm:py-16">
         {slide && <PresentationView slide={slide} eventRules={eventRules} venueName={venueName} />}
