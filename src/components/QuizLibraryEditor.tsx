@@ -15,6 +15,44 @@ type Props = {
   initialQuiz?: QuizLibraryItem | null;
 };
 
+const draftStorageKey = (id: string) => `mudrc-quiz-draft-${id}`;
+
+function parseQuizPayload(data: unknown): QuizLibraryItem {
+  if (!data || typeof data !== "object") {
+    throw new Error("Neplatná odpoveď servera.");
+  }
+  const quiz = { ...(data as QuizLibraryItem & Record<string, unknown>) };
+  delete quiz.usages;
+  delete quiz.usageCount;
+  delete quiz.playedTeamNames;
+  return quiz as QuizLibraryItem;
+}
+
+function readQuizDraft(quizId: string): QuizLibraryItem | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.sessionStorage.getItem(draftStorageKey(quizId));
+    if (!raw) return null;
+    return parseQuizPayload(JSON.parse(raw));
+  } catch {
+    return null;
+  }
+}
+
+function writeQuizDraft(quiz: QuizLibraryItem): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.setItem(draftStorageKey(quiz.id), JSON.stringify(quiz));
+  } catch {
+    /* sessionStorage plné alebo nedostupné */
+  }
+}
+
+function clearQuizDraft(quizId: string): void {
+  if (typeof window === "undefined") return;
+  window.sessionStorage.removeItem(draftStorageKey(quizId));
+}
+
 function questionsInRound(questions: QuizQuestionItem[], round: number) {
   return questions
     .filter((q) => q.roundNumber === round)
@@ -81,9 +119,10 @@ function reorderQuestionInGroup(
   return sortAllQuestions([...rest, ...renumbered]);
 }
 
-export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props) {
+export default function QuizLibraryEditor({ quizId }: Props) {
   const [quiz, setQuiz] = useState<QuizLibraryItem | null>(null);
   const [loading, setLoading] = useState(true);
+  const [draftRestored, setDraftRestored] = useState(false);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
   const [events, setEvents] = useState<QuizEvent[]>([]);
@@ -93,8 +132,26 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
 
   const load = useCallback(async () => {
     setLoading(true);
+    const draft = readQuizDraft(quizId);
     const res = await fetch(`/api/admin/quiz-library/${quizId}?_=${Date.now()}`, { cache: "no-store" });
-    if (res.ok) setQuiz(await res.json());
+
+    if (res.ok) {
+      const serverQuiz = parseQuizPayload(await res.json());
+      if (draft) {
+        setQuiz(draft);
+        setDraftRestored(true);
+      } else {
+        setQuiz(serverQuiz);
+        setDraftRestored(false);
+      }
+    } else if (draft) {
+      setQuiz(draft);
+      setDraftRestored(true);
+    } else {
+      setQuiz(null);
+      setDraftRestored(false);
+    }
+
     setLoading(false);
   }, [quizId]);
 
@@ -106,10 +163,17 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
   }, [load]);
 
   useEffect(() => {
-    const refresh = () => load();
-    window.addEventListener("focus", refresh);
-    return () => window.removeEventListener("focus", refresh);
-  }, [load]);
+    if (!quiz || loading) return;
+    writeQuizDraft(quiz);
+  }, [quiz, loading]);
+
+  useEffect(() => {
+    if (!draftRestored) return;
+    setMsg({
+      text: "Obnovený neuložený koncept — zmeny zostávajú, kým neuložíš alebo neobnovíš stránku po uložení.",
+      ok: true,
+    });
+  }, [draftRestored]);
 
   const questions = useMemo(() => quiz?.questions ?? [], [quiz?.questions]);
   const presentationCount = useMemo(
@@ -269,7 +333,10 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
         body: JSON.stringify(quiz),
       });
       if (res.ok) {
-        setQuiz(await res.json());
+        const saved = parseQuizPayload(await res.json());
+        clearQuizDraft(quizId);
+        setQuiz(saved);
+        setDraftRestored(false);
         setMsg({ text: "Kvíz uložený.", ok: true });
       } else {
         const err = await res.json().catch(() => ({}));
