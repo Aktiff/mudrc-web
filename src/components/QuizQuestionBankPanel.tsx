@@ -21,6 +21,7 @@ import {
   writeHiddenBankQuestionIds,
   type QuizBankQuestion,
 } from "@/lib/quiz-question-bank";
+import { shuffleQuestionOptionsRandom } from "@/lib/quiz-question-options";
 
 type Props = {
   roundQuestions: QuizQuestionItem[];
@@ -159,7 +160,17 @@ export default function QuizQuestionBankPanel({
   const handleInsert = (item: QuizBankQuestion) => {
     const targetId = getTargetId(item.id);
     if (!targetId) return;
-    onInsert(item.id, targetId, item.body, item.answer, [...item.options], [...item.tags], item.isImageQuestion, item.note);
+    const mixed = shuffleQuestionOptionsRandom(item);
+    onInsert(
+      mixed.id,
+      targetId,
+      mixed.body,
+      mixed.answer,
+      [...mixed.options],
+      [...mixed.tags],
+      mixed.isImageQuestion,
+      mixed.note
+    );
     setTargetByBankId((prev) => {
       const next = { ...prev };
       delete next[item.id];

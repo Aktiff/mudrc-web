@@ -2,6 +2,7 @@ import { IMAGE_QUIZ_BANK } from "@/lib/quiz-image-question-bank";
 import { PUB_QUIZ_BANK_EXTRA } from "@/lib/quiz-pub-question-bank-extra";
 import { PUB_QUIZ_BANK_EXTRA_2 } from "@/lib/quiz-pub-question-bank-extra-2";
 import { PUB_QUIZ_BANK_EXTRA_3 } from "@/lib/quiz-pub-question-bank-extra-3";
+import { shuffleQuestionOptionsDeterministic } from "@/lib/quiz-question-options";
 
 export type QuizBankQuestion = {
   id: string;
@@ -18,6 +19,8 @@ export type QuizBankQuestion = {
   /** Otázka určená pre slot s fotkou (5, 10, 15…) */
   isImageQuestion?: boolean;
 };
+
+/** Pri generovaní nových otázok netreba riešiť correctIndex — banka ich pri načítaní premieša podľa id. */
 
 /** Všeobecný pub kvíz — overené fakty, vhodné pre tím ~5 hráčov. */
 export const PUB_QUIZ_BANK: QuizBankQuestion[] = [
@@ -143,8 +146,10 @@ export const PUB_QUIZ_BANK: QuizBankQuestion[] = [
   ...PUB_QUIZ_BANK_EXTRA_3,
 ];
 
-/** Všetky otázky v banke — foto otázky + textové. */
-export const QUIZ_QUESTION_BANK: QuizBankQuestion[] = [...IMAGE_QUIZ_BANK, ...PUB_QUIZ_BANK];
+/** Všetky otázky v banke — foto otázky + textové (možnosti premiešané podľa id, nie vždy A). */
+export const QUIZ_QUESTION_BANK: QuizBankQuestion[] = [...IMAGE_QUIZ_BANK, ...PUB_QUIZ_BANK].map(
+  (item) => shuffleQuestionOptionsDeterministic(item, item.id)
+);
 
 /** Sloty 5, 10, 15… v kole — určené pre otázku s fotkou. */
 export function isImageQuestionSlot(questionNumber: number): boolean {

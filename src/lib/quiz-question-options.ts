@@ -68,3 +68,70 @@ export function findCorrectOptionIndex(options: string[], answer: string): numbe
   if (!normalizedAnswer) return -1;
   return options.findIndex((option) => option.trim().toLowerCase() === normalizedAnswer);
 }
+
+function hashSeed(input: string): number {
+  let hash = 2166136261;
+  for (let i = 0; i < input.length; i += 1) {
+    hash ^= input.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+function seededUnit(seed: string, round: number): number {
+  let state = (hashSeed(seed) + Math.imul(round, 2654435761)) >>> 0;
+  state = Math.imul(state ^ (state >>> 16), 2246822519);
+  state = Math.imul(state ^ (state >>> 13), 3266489917);
+  return ((state ^ (state >>> 16)) >>> 0) / 4294967296;
+}
+
+/** Fisher-Yates s deterministickým seedom — rovnaké id = rovnaké poradie, ale vyvážené A–F v banke. */
+export function shuffleQuestionOptionsDeterministic<T extends { options: string[]; correctIndex: number; answer: string }>(
+  item: T,
+  seed: string
+): T {
+  if (item.options.length < 2) return item;
+
+  const indices = item.options.map((_, index) => index);
+  for (let i = indices.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(seededUnit(seed, i) * (i + 1));
+    [indices[i], indices[j]] = [indices[j], indices[i]];
+  }
+
+  const shuffledOptions = indices.map((index) => item.options[index]!);
+  const correctSourceIndex = Math.min(Math.max(item.correctIndex, 0), item.options.length - 1);
+  const newCorrectIndex = indices.indexOf(correctSourceIndex);
+  const answer = item.options[correctSourceIndex] ?? item.answer;
+
+  return {
+    ...item,
+    options: shuffledOptions as T["options"],
+    correctIndex: newCorrectIndex >= 0 ? newCorrectIndex : item.correctIndex,
+    answer,
+  };
+}
+
+/** Náhodné premiešanie pri vložení — tá istá banková otázka môže mať inú pozíciu správnej odpovede. */
+export function shuffleQuestionOptionsRandom<T extends { options: string[]; correctIndex: number; answer: string }>(
+  item: T
+): T {
+  if (item.options.length < 2) return item;
+
+  const indices = item.options.map((_, index) => index);
+  for (let i = indices.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [indices[i], indices[j]] = [indices[j], indices[i]];
+  }
+
+  const shuffledOptions = indices.map((index) => item.options[index]!);
+  const correctSourceIndex = Math.min(Math.max(item.correctIndex, 0), item.options.length - 1);
+  const newCorrectIndex = indices.indexOf(correctSourceIndex);
+  const answer = item.options[correctSourceIndex] ?? item.answer;
+
+  return {
+    ...item,
+    options: shuffledOptions as T["options"],
+    correctIndex: newCorrectIndex >= 0 ? newCorrectIndex : item.correctIndex,
+    answer,
+  };
+}
