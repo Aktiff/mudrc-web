@@ -1,6 +1,7 @@
 import { IMAGE_QUIZ_BANK } from "@/lib/quiz-image-question-bank";
 import { PUB_QUIZ_BANK_EXTRA } from "@/lib/quiz-pub-question-bank-extra";
 import { PUB_QUIZ_BANK_EXTRA_2 } from "@/lib/quiz-pub-question-bank-extra-2";
+import { PUB_QUIZ_BANK_EXTRA_3 } from "@/lib/quiz-pub-question-bank-extra-3";
 
 export type QuizBankQuestion = {
   id: string;
@@ -139,6 +140,7 @@ export const PUB_QUIZ_BANK: QuizBankQuestion[] = [
   },
   ...PUB_QUIZ_BANK_EXTRA,
   ...PUB_QUIZ_BANK_EXTRA_2,
+  ...PUB_QUIZ_BANK_EXTRA_3,
 ];
 
 /** Všetky otázky v banke — foto otázky + textové. */
