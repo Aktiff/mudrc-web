@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ChevronDown, ChevronUp, GripVertical, MonitorPlay, Save } from "lucide-react";
+import { ChevronDown, ChevronUp, GripVertical, MonitorPlay, Plus, Save, X } from "lucide-react";
 import type { QuizEvent } from "@/lib/data";
 import type { QuizLibraryItem, QuizQuestionItem, QuizQuestionKind } from "@/lib/quiz-library";
 import { buildStandardMudrcQuestions, describeQuizContent, roundLabels } from "@/lib/quiz-template";
 import { buildPresentationSlides } from "@/lib/quiz-presentation";
 import QuizQuestionBankPanel from "@/components/QuizQuestionBankPanel";
+import { optionLetter } from "@/lib/quiz-question-options";
 
 type Props = {
   quizId: string;
@@ -142,19 +143,55 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
     setDragQuestionId(null);
   };
 
-  const insertFromBank = (bankId: string, targetQuestionId: string, body: string, answer: string) => {
+  const insertFromBank = (
+    bankId: string,
+    targetQuestionId: string,
+    body: string,
+    answer: string,
+    options: string[]
+  ) => {
     setQuiz((prev) =>
       prev
         ? {
             ...prev,
             questions: prev.questions.map((q) =>
-              q.id === targetQuestionId ? { ...q, body, answer } : q
+              q.id === targetQuestionId
+                ? { ...q, body, answer, options: options.length ? options : undefined }
+                : q
             ),
             usedBankQuestionIds: Array.from(new Set([...(prev.usedBankQuestionIds ?? []), bankId])),
           }
         : prev
     );
     setMsg({ text: "Otázka vložená a odstránená z banky pre tento kvíz — nezabudni uložiť.", ok: true });
+  };
+
+  const updateQuestionOptions = (id: string, options: string[]) => {
+    const cleaned = options.map((option) => option.trim()).filter(Boolean).slice(0, 6);
+    updateQuestion(id, { options: cleaned.length ? cleaned : undefined });
+  };
+
+  const addQuestionOption = (id: string) => {
+    const question = questions.find((q) => q.id === id);
+    if (!question) return;
+    const current = question.options ?? [];
+    if (current.length >= 6) return;
+    updateQuestion(id, { options: [...current, ""] });
+  };
+
+  const removeQuestionOption = (id: string, index: number) => {
+    const question = questions.find((q) => q.id === id);
+    if (!question) return;
+    const next = (question.options ?? []).filter((_, i) => i !== index);
+    updateQuestion(id, { options: next.length ? next : undefined });
+  };
+
+  const setQuestionOption = (id: string, index: number, value: string) => {
+    const question = questions.find((q) => q.id === id);
+    if (!question) return;
+    const next = [...(question.options ?? [])];
+    next[index] = value;
+    updateQuestion(id, { options: next });
   };
 
   const roundQuestions = useMemo(() => questionsInRound(questions, openRound), [questions, openRound]);
@@ -358,6 +395,51 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
                 placeholder="Správna odpoveď"
               />
             </div>
+            {question.kind === "normal" && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <label className="label mb-0">Možnosti (voliteľné)</label>
+                  {(question.options?.length ?? 0) < 6 && (
+                    <button
+                      type="button"
+                      onClick={() => addQuestionOption(question.id)}
+                      className="text-xs font-semibold text-brand-orange-readable hover:underline inline-flex items-center gap-1"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      Pridať možnosť
+                    </button>
+                  )}
+                </div>
+                {(question.options ?? []).length === 0 ? (
+                  <p className="text-brand-muted text-xs">Bez možností — otázka sa zobrazí len ako text.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {(question.options ?? []).map((option, optionIndex) => (
+                      <div key={optionIndex} className="flex items-center gap-2">
+                        <span className="text-xs font-mono font-bold text-brand-muted w-6 shrink-0">
+                          {optionLetter(optionIndex)})
+                        </span>
+                        <input
+                          className="input flex-1 min-w-0"
+                          value={option}
+                          onChange={(e) => setQuestionOption(question.id, optionIndex, e.target.value)}
+                          placeholder={`Možnosť ${optionLetter(optionIndex)}`}
+                          onBlur={() => updateQuestionOptions(question.id, question.options ?? [])}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeQuestionOption(question.id, optionIndex)}
+                          className="p-2 rounded-lg border border-brand-border text-brand-muted hover:text-red-600 hover:border-red-300 transition-colors shrink-0"
+                          title="Odstrániť možnosť"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
             <div className="grid gap-3 grid-cols-1">
               <div>
                 <label className="label">Obrázok (URL)</label>

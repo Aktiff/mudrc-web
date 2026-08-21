@@ -14,7 +14,13 @@ import {
 type Props = {
   roundQuestions: QuizQuestionItem[];
   usedBankQuestionIds: string[];
-  onInsert: (bankId: string, targetQuestionId: string, body: string, answer: string) => void;
+  onInsert: (
+    bankId: string,
+    targetQuestionId: string,
+    body: string,
+    answer: string,
+    options: string[]
+  ) => void;
 };
 
 const OPTION_LETTERS = ["A", "B", "C", "D", "E", "F"] as const;
@@ -55,7 +61,7 @@ export default function QuizQuestionBankPanel({ roundQuestions, usedBankQuestion
   const handleInsert = (item: QuizBankQuestion) => {
     const targetId = getTargetId(item.id);
     if (!targetId) return;
-    onInsert(item.id, targetId, formatBankQuestionBody(item), item.answer);
+    onInsert(item.id, targetId, item.body, item.answer, [...item.options]);
   };
 
   const dismissQuestion = (bankId: string) => {

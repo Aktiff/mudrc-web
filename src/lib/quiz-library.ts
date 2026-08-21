@@ -1,4 +1,5 @@
 import { buildStandardMudrcQuestions, migrateSlidesToQuestions } from "@/lib/quiz-template";
+import { normalizeQuestionOptions, parseEmbeddedOptions } from "@/lib/quiz-question-options";
 import { teamKey } from "@/lib/poll";
 
 export type QuizQuestionKind = "normal" | "music";
@@ -10,6 +11,8 @@ export type QuizQuestionItem = {
   kind: QuizQuestionKind;
   body: string;
   answer: string;
+  /** Voliteľné možnosti A–F (zobrazené v dvoch stĺpcoch pri projekcii) */
+  options?: string[];
   imageUrl?: string;
   audioUrl?: string;
   /** true = obrázok aj pri otázke; false = len pri správnych odpovediach */
@@ -56,13 +59,26 @@ export function defaultLibraryQuiz(title = "Nový kvíz"): QuizLibraryItem {
 
 function normalizeQuestion(input: Partial<QuizQuestionItem>): QuizQuestionItem | null {
   if (!input.id || !input.roundNumber || !input.questionNumber) return null;
+
+  let body = input.body?.trim() ?? "";
+  let options = normalizeQuestionOptions(input.options);
+
+  if (!options?.length && body) {
+    const parsed = parseEmbeddedOptions(body);
+    if (parsed.options.length) {
+      body = parsed.questionText;
+      options = parsed.options;
+    }
+  }
+
   return {
     id: String(input.id),
     roundNumber: Number(input.roundNumber),
     questionNumber: Number(input.questionNumber),
     kind: input.kind === "music" ? "music" : "normal",
-    body: input.body?.trim() ?? "",
+    body,
     answer: input.answer?.trim() ?? "",
+    options,
     imageUrl: input.imageUrl?.trim() || undefined,
     audioUrl: input.audioUrl?.trim() || undefined,
     imageDuringQuestion: Boolean(input.imageDuringQuestion),
