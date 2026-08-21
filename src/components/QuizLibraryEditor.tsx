@@ -142,9 +142,19 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
     setDragQuestionId(null);
   };
 
-  const insertFromBank = (targetQuestionId: string, body: string, answer: string) => {
-    updateQuestion(targetQuestionId, { body, answer });
-    setMsg({ text: "Otázka z banky vložená — nezabudni uložiť kvíz.", ok: true });
+  const insertFromBank = (bankId: string, targetQuestionId: string, body: string, answer: string) => {
+    setQuiz((prev) =>
+      prev
+        ? {
+            ...prev,
+            questions: prev.questions.map((q) =>
+              q.id === targetQuestionId ? { ...q, body, answer } : q
+            ),
+            usedBankQuestionIds: [...new Set([...(prev.usedBankQuestionIds ?? []), bankId])],
+          }
+        : prev
+    );
+    setMsg({ text: "Otázka vložená a odstránená z banky pre tento kvíz — nezabudni uložiť.", ok: true });
   };
 
   const roundQuestions = useMemo(() => questionsInRound(questions, openRound), [questions, openRound]);
@@ -244,32 +254,32 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
 
       <p className="text-brand-muted text-sm bg-brand-warm border border-brand-border rounded-xl px-4 py-3">
         Každá otázka má text a odpoveď na jednom mieste. Obrázok môžeš zobraziť pri otázke (zaškrtnuté) alebo len pri
-        správnych odpovediach. Poradie otázok v kole meníš šípkami alebo pretiahnutím — čísla sa prepočítajú automaticky.
+        správnych odpovediach. Poradie otázok v kole meníš šípkami alebo pretiahnutím — banka otázok je vpravo.
       </p>
 
-      <QuizQuestionBankPanel roundQuestions={roundQuestions} onInsert={insertFromBank} />
+      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_min(22rem,32%)] gap-6 items-start">
+        <div className="space-y-4 min-w-0">
+          <div className="flex gap-2 flex-wrap">
+            {[1, 2, 3, 4].map((round) => (
+              <button
+                key={round}
+                type="button"
+                onClick={() => setOpenRound(round)}
+                className={`px-4 py-2 rounded-xl text-sm font-semibold border transition-colors ${
+                  openRound === round
+                    ? "bg-brand-orange text-brand-btn-fg border-brand-orange"
+                    : "border-brand-border text-brand-muted hover:border-brand-orange"
+                }`}
+              >
+                Kolo {round}
+              </button>
+            ))}
+          </div>
 
-      <div className="flex gap-2 flex-wrap">
-        {[1, 2, 3, 4].map((round) => (
-          <button
-            key={round}
-            type="button"
-            onClick={() => setOpenRound(round)}
-            className={`px-4 py-2 rounded-xl text-sm font-semibold border transition-colors ${
-              openRound === round
-                ? "bg-brand-orange text-brand-btn-fg border-brand-orange"
-                : "border-brand-border text-brand-muted hover:border-brand-orange"
-            }`}
-          >
-            Kolo {round}
-          </button>
-        ))}
-      </div>
-
-      <div className="space-y-4">
-        <h3 className="font-display text-xl text-brand-text">
-          Kolo {openRound} — {roundLabels[openRound]}
-        </h3>
+          <div className="space-y-4">
+            <h3 className="font-display text-xl text-brand-text">
+              Kolo {openRound} — {roundLabels[openRound]}
+            </h3>
         {roundQuestions.map((question) => {
           const group = questionsInRoundKind(questions, openRound, question.kind);
           const groupIndex = group.findIndex((q) => q.id === question.id);
@@ -388,6 +398,14 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
           </div>
           );
         })}
+          </div>
+        </div>
+
+        <QuizQuestionBankPanel
+          roundQuestions={roundQuestions}
+          usedBankQuestionIds={quiz.usedBankQuestionIds ?? []}
+          onInsert={insertFromBank}
+        />
       </div>
     </div>
   );

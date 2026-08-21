@@ -21,6 +21,8 @@ export type QuizLibraryItem = {
   title: string;
   questions: QuizQuestionItem[];
   notes?: string;
+  /** ID otázok z banky už vložených do tohto kvízu */
+  usedBankQuestionIds?: string[];
   createdAt: string;
   updatedAt: string;
   formatVersion: number;
@@ -91,6 +93,9 @@ export function normalizeLibraryQuiz(
     title,
     notes: input.notes?.trim() || undefined,
     questions,
+    usedBankQuestionIds: Array.isArray(input.usedBankQuestionIds)
+      ? [...new Set(input.usedBankQuestionIds.filter((id): id is string => typeof id === "string" && id.length > 0))]
+      : undefined,
     formatVersion: 2,
     createdAt: input.createdAt || now,
     updatedAt: now,
