@@ -56,6 +56,15 @@ function RulesSlide({ rules, venueName }: { rules: string[]; venueName: string }
   );
 }
 
+function questionTextScale(text: string): string {
+  const len = text.length;
+  if (len > 140) return "text-[clamp(1.75rem,3.6vmin,3.25rem)]";
+  if (len > 100) return "text-[clamp(2rem,4.2vmin,4rem)]";
+  if (len > 70) return "text-[clamp(2.25rem,5.2vmin,5.25rem)]";
+  if (len > 45) return "text-[clamp(2.5rem,6.2vmin,6.5rem)]";
+  return "text-[clamp(2.75rem,7.8vmin,9rem)]";
+}
+
 function OptionsGrid({
   options,
   highlightCorrectIndex = -1,
@@ -65,29 +74,34 @@ function OptionsGrid({
 }) {
   if (!options.length) return null;
 
+  const rowCount = Math.ceil(options.length / 2);
+
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 w-full max-w-[96vw] xl:max-w-[88rem]">
+    <div
+      className="grid grid-cols-2 w-full flex-1 min-h-0 gap-[1.4vmin] auto-rows-fr"
+      style={{ minHeight: `${Math.min(rowCount * 17, 58)}vmin` }}
+    >
       {options.map((option, index) => {
         const isCorrect = index === highlightCorrectIndex;
 
         return (
           <div
             key={`${index}-${option}`}
-            className={`flex items-center gap-5 sm:gap-6 min-h-[5.5rem] sm:min-h-[7rem] md:min-h-[8.5rem] px-6 sm:px-8 md:px-10 py-5 sm:py-6 md:py-7 rounded-2xl border-2 shadow-[0_12px_48px_rgba(0,0,0,0.45)] ${
+            className={`flex items-center gap-[2vmin] min-h-[14vmin] px-[2.5vmin] py-[2vmin] rounded-2xl border-[0.25vmin] shadow-[0_12px_48px_rgba(0,0,0,0.45)] ${
               isCorrect
-                ? "border-[#f0c800] bg-gradient-to-br from-[#f0c800] to-[#e6b800] text-black ring-4 ring-[#f0c800]/35"
+                ? "border-[#f0c800] bg-gradient-to-br from-[#f0c800] to-[#e6b800] text-black ring-[0.5vmin] ring-[#f0c800]/35"
                 : "border-white/20 bg-white/[0.06] backdrop-blur-sm text-white"
             }`}
           >
             <span
-              className={`font-display text-4xl sm:text-5xl md:text-6xl lg:text-7xl leading-none shrink-0 w-14 sm:w-16 md:w-20 text-left ${
+              className={`font-display text-[clamp(2.25rem,6vmin,7.5rem)] leading-none shrink-0 w-[1.35em] text-left self-center ${
                 isCorrect ? "text-black/70" : "text-[#f0c800]"
               }`}
             >
               {optionLetter(index)})
             </span>
             <p
-              className={`flex-1 font-display text-2xl sm:text-3xl md:text-4xl lg:text-5xl tracking-wide leading-snug text-left ${
+              className={`flex-1 min-w-0 font-display text-[clamp(1.75rem,4.8vmin,6rem)] tracking-wide leading-[1.1] text-left self-center ${
                 isCorrect ? "font-bold" : ""
               }`}
             >
@@ -115,12 +129,12 @@ function QuestionContent({
     phase === "answer" ? findCorrectOptionIndex(options, question.answer) : -1;
 
   return (
-    <div className="w-full max-w-[96vw] xl:max-w-[88rem] px-4 sm:px-8 flex flex-col items-center gap-8 sm:gap-10 md:gap-12">
+    <div className="w-[90vw] h-[90vh] max-w-[90vw] max-h-[90vh] flex flex-col items-stretch justify-center gap-[2vh] min-h-0">
       {phase === "question" && question.kind === "music" && question.audioUrl?.trim() && (
         <audio
           controls
           src={question.audioUrl}
-          className="w-full max-w-xl"
+          className="w-full max-w-xl shrink-0"
           onClick={(e) => e.stopPropagation()}
           onContextMenu={(e) => e.stopPropagation()}
         />
@@ -131,27 +145,31 @@ function QuestionContent({
         <img
           src={question.imageUrl}
           alt=""
-          className="max-h-[30vh] max-w-full rounded-2xl object-contain shadow-[0_24px_80px_rgba(0,0,0,0.6)] ring-1 ring-white/10"
+          className="max-h-[22vh] max-w-full rounded-2xl object-contain shadow-[0_24px_80px_rgba(0,0,0,0.6)] ring-1 ring-white/10 shrink-0 mx-auto"
         />
       )}
 
-      <p className="font-display text-4xl sm:text-6xl md:text-7xl lg:text-8xl xl:text-[6.5rem] text-white text-center leading-[1.05] tracking-wide whitespace-pre-wrap drop-shadow-lg px-2">
+      <p
+        className={`${questionTextScale(questionText)} font-display text-white text-center leading-[1.08] tracking-wide whitespace-pre-wrap drop-shadow-lg shrink-0 px-[1vw]`}
+      >
         {questionText}
       </p>
 
       {options.length > 0 && (
-        <OptionsGrid options={options} highlightCorrectIndex={correctOptionIndex} />
+        <div className="flex-1 min-h-0 flex flex-col justify-center w-full">
+          <OptionsGrid options={options} highlightCorrectIndex={correctOptionIndex} />
+        </div>
       )}
 
       {phase === "answer" && options.length > 0 && correctOptionIndex < 0 && question.answer.trim() && (
-        <div className="px-10 sm:px-14 py-8 sm:py-10 rounded-2xl bg-gradient-to-br from-[#f0c800] to-[#e6b800] text-black text-center max-w-5xl w-full shadow-[0_20px_60px_rgba(240,200,0,0.25)]">
-          <p className="text-3xl sm:text-5xl md:text-6xl lg:text-7xl font-display tracking-wide">{question.answer}</p>
+        <div className="px-[3vmin] py-[2.5vmin] rounded-2xl bg-gradient-to-br from-[#f0c800] to-[#e6b800] text-black text-center w-full shrink-0 shadow-[0_20px_60px_rgba(240,200,0,0.25)]">
+          <p className="text-[clamp(2rem,6vmin,7rem)] font-display tracking-wide">{question.answer}</p>
         </div>
       )}
 
       {phase === "answer" && options.length === 0 && (
-        <div className="px-10 sm:px-14 py-8 sm:py-10 rounded-2xl bg-gradient-to-br from-[#f0c800] to-[#e6b800] text-black text-center max-w-5xl w-full shadow-[0_20px_60px_rgba(240,200,0,0.25)]">
-          <p className="text-3xl sm:text-5xl md:text-6xl lg:text-7xl font-display tracking-wide">{question.answer || "—"}</p>
+        <div className="px-[3vmin] py-[2.5vmin] rounded-2xl bg-gradient-to-br from-[#f0c800] to-[#e6b800] text-black text-center w-full shrink-0 shadow-[0_20px_60px_rgba(240,200,0,0.25)]">
+          <p className="text-[clamp(2rem,6vmin,7rem)] font-display tracking-wide">{question.answer || "—"}</p>
         </div>
       )}
     </div>
@@ -453,7 +471,7 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
         </div>
       )}
 
-      <div className="relative flex-1 flex items-center justify-center min-h-0 py-12 sm:py-16">
+      <div className="relative flex-1 flex items-center justify-center min-h-0 w-full px-[5vw] py-[2vh]">
         {slide && <PresentationView slide={slide} eventRules={eventRules} venueName={venueName} />}
       </div>
 
