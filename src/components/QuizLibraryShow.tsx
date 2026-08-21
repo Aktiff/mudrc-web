@@ -218,6 +218,25 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
   const venueName = selectedEvent ? `${selectedEvent.venue} · ${selectedEvent.city}` : "";
   const slide = slides[index];
   const progress = slides.length ? ((index + 1) / slides.length) * 100 : 0;
+  const isQuestionPhase = slide?.type === "question_phase";
+  const questionTimerKey = isQuestionPhase ? slide.question.id : null;
+
+  const [questionElapsed, setQuestionElapsed] = useState(0);
+
+  useEffect(() => {
+    if (!started || !questionTimerKey) {
+      setQuestionElapsed(0);
+      return;
+    }
+
+    setQuestionElapsed(0);
+    const startedAt = Date.now();
+    const interval = window.setInterval(() => {
+      setQuestionElapsed(Math.floor((Date.now() - startedAt) / 1000));
+    }, 1000);
+
+    return () => window.clearInterval(interval);
+  }, [questionTimerKey, started]);
 
   const goNext = useCallback(() => {
     setIndex((i) => Math.min(slides.length - 1, i + 1));
@@ -342,6 +361,7 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
 
   const activeQuestion =
     slide?.type === "question_phase" || slide?.type === "answer_phase" ? slide.question : null;
+  const showQuestionBadge = slide?.type === "question_phase";
 
   return (
     <div
@@ -392,15 +412,24 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
         </div>
       </div>
 
-      {activeQuestion && (
-        <div
-          className={`absolute top-16 sm:top-20 left-5 sm:left-8 z-10 pointer-events-none transition-opacity duration-300 ${
-            isFullscreen && !showControls ? "opacity-40" : "opacity-100"
-          }`}
-        >
-          <span className="font-display text-7xl sm:text-9xl text-[#f0c800]/20 leading-none tabular-nums">
-            {activeQuestion.questionNumber}
-          </span>
+      {showQuestionBadge && activeQuestion && (
+        <div className="absolute top-14 sm:top-16 left-4 sm:left-6 z-10 pointer-events-none">
+          <div className="flex items-center justify-center min-w-[5.5rem] sm:min-w-[7rem] px-4 sm:px-6 py-3 sm:py-4 rounded-2xl bg-[#f0c800] shadow-[0_10px_50px_rgba(240,200,0,0.55)] ring-4 ring-[#f0c800]/30">
+            <span className="font-display text-6xl sm:text-8xl md:text-9xl text-black leading-none tabular-nums">
+              {activeQuestion.questionNumber}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {isQuestionPhase && (
+        <div className="absolute top-14 sm:top-16 right-4 sm:right-6 z-10 pointer-events-none">
+          <div className="px-5 sm:px-7 py-3 sm:py-4 rounded-2xl bg-black/75 border-2 border-white/30 backdrop-blur-sm shadow-[0_10px_40px_rgba(0,0,0,0.6)]">
+            <span className="font-mono text-5xl sm:text-7xl md:text-8xl font-bold text-white tabular-nums leading-none">
+              {questionElapsed}
+            </span>
+            <span className="block text-right text-white/60 text-base sm:text-lg font-semibold mt-1">s</span>
+          </div>
         </div>
       )}
 
