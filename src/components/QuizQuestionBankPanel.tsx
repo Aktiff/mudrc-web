@@ -67,7 +67,7 @@ export default function QuizQuestionBankPanel({ roundQuestions, usedBankQuestion
   };
 
   return (
-    <div className="bg-brand-card border border-brand-border rounded-2xl flex flex-col max-h-[calc(100vh-8rem)] xl:sticky xl:top-24">
+    <div className="bg-brand-card border border-brand-border rounded-2xl flex flex-col max-h-[calc(100vh-6.5rem)] shadow-sm">
       <div className="px-4 py-4 border-b border-brand-border shrink-0">
         <div className="flex items-start gap-3">
           <div className="w-9 h-9 rounded-xl bg-brand-tint flex items-center justify-center shrink-0">

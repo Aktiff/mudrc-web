@@ -194,6 +194,7 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
 
   return (
     <div className="space-y-6">
+      <div className="max-w-3xl space-y-6">
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
           <label className="label">Názov kvízu</label>
@@ -253,12 +254,13 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
       </div>
 
       <p className="text-brand-muted text-sm bg-brand-warm border border-brand-border rounded-xl px-4 py-3">
-        Každá otázka má text a odpoveď na jednom mieste. Obrázok môžeš zobraziť pri otázke (zaškrtnuté) alebo len pri
-        správnych odpovediach. Poradie otázok v kole meníš šípkami alebo pretiahnutím — banka otázok je vpravo.
+        Každá otázka má text a odpoveď na jednom mieste. Banka otázok je vpravo v samostatnom paneli — vložené otázky
+        zmiznú z banky pre tento kvíz.
       </p>
+      </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_min(22rem,32%)] gap-6 items-start">
-        <div className="space-y-4 min-w-0">
+      <div className="relative">
+        <div className="max-w-3xl space-y-4">
           <div className="flex gap-2 flex-wrap">
             {[1, 2, 3, 4].map((round) => (
               <button
@@ -401,11 +403,13 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
           </div>
         </div>
 
-        <QuizQuestionBankPanel
-          roundQuestions={roundQuestions}
-          usedBankQuestionIds={quiz.usedBankQuestionIds ?? []}
-          onInsert={insertFromBank}
-        />
+        <aside className="mt-6 xl:mt-0 xl:fixed xl:top-[5.25rem] xl:right-6 2xl:right-10 xl:w-[22rem] 2xl:w-[26rem] xl:z-30">
+          <QuizQuestionBankPanel
+            roundQuestions={roundQuestions}
+            usedBankQuestionIds={quiz.usedBankQuestionIds ?? []}
+            onInsert={insertFromBank}
+          />
+        </aside>
       </div>
     </div>
   );

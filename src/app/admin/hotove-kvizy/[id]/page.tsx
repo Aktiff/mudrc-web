@@ -24,6 +24,7 @@ export default async function HotovyKvizDetailPage({ params }: PageProps) {
 
   return (
     <div className="w-full">
+      <div className="max-w-4xl">
       <Link
         href="/admin/hotove-kvizy"
         className="inline-flex items-center gap-1 text-sm text-brand-muted hover:text-brand-orange-readable mb-6"
@@ -75,10 +76,11 @@ export default async function HotovyKvizDetailPage({ params }: PageProps) {
       </div>
 
       <h2 className="font-display text-2xl text-brand-text tracking-wide mb-4">Slidy a otázky</h2>
-      <p className="text-brand-muted text-sm mb-4 max-w-3xl">
+      <p className="text-brand-muted text-sm mb-4">
         Každá otázka má text a odpoveď na jednom mieste. Obrázok môžeš zobraziť pri otázke alebo len pri správnych
         odpovediach — flow na projektore sa vygeneruje automaticky.
       </p>
+      </div>
       <QuizLibraryEditor quizId={params.id} initialQuiz={quiz} />
     </div>
   );
