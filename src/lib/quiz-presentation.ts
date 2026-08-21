@@ -90,7 +90,10 @@ export function shouldShowImageInQuestionPhase(question: QuizQuestionItem): bool
 }
 
 export function shouldShowImageInAnswerPhase(question: QuizQuestionItem): boolean {
-  return Boolean(question.imageUrl?.trim() && question.imageOnAnswerSlide);
+  return Boolean(
+    question.imageUrl?.trim() &&
+      (question.imageDuringQuestion || question.imageOnAnswerSlide)
+  );
 }
 
 export function shouldShowImageOnNextSlide(question: QuizQuestionItem): boolean {

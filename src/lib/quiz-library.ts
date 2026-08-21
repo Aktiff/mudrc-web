@@ -103,9 +103,8 @@ function normalizeQuestion(input: Partial<QuizQuestionItem>): QuizQuestionItem |
         ? Boolean(input.imageOnAnswerSlide)
         : Boolean(
             input.imageUrl?.trim() &&
-              !input.imageDuringQuestion &&
-              !input.imageOnNextSlide &&
-              !input.imageBeforeQuestion
+              (input.imageDuringQuestion ||
+                (!input.imageOnNextSlide && !input.imageBeforeQuestion))
           ),
     tags: normalizeTags(input.tags),
     hostNote: input.hostNote?.trim() || undefined,

@@ -242,7 +242,7 @@ export default function QuizLibraryEditor({ quizId }: Props) {
                       imageBeforeQuestion: false,
                       imageDuringQuestion: true,
                       imageOnNextSlide: false,
-                      imageOnAnswerSlide: false,
+                      imageOnAnswerSlide: true,
                     }
                   : {}),
               }
@@ -655,12 +655,16 @@ export default function QuizLibraryEditor({ quizId }: Props) {
                   <input
                     type="checkbox"
                     checked={question.imageDuringQuestion}
-                    onChange={(e) =>
-                      updateQuestion(question.id, { imageDuringQuestion: e.target.checked })
-                    }
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      updateQuestion(question.id, {
+                        imageDuringQuestion: checked,
+                        ...(checked ? { imageOnAnswerSlide: true } : {}),
+                      });
+                    }}
                     className="rounded border-brand-border"
                   />
-                  Na slide s otázkou (spolu s textom)
+                  Na slide s otázkou a odpoveďou (spolu s textom)
                 </label>
                 <label className="flex items-center gap-2 text-sm text-brand-text cursor-pointer">
                   <input
@@ -671,16 +675,21 @@ export default function QuizLibraryEditor({ quizId }: Props) {
                   />
                   Slide po otázke (fullscreen fotka)
                 </label>
-                <label className="flex items-center gap-2 text-sm text-brand-text cursor-pointer">
+                <label
+                  className={`flex items-center gap-2 text-sm cursor-pointer ${
+                    question.imageDuringQuestion ? "text-brand-muted" : "text-brand-text"
+                  }`}
+                >
                   <input
                     type="checkbox"
-                    checked={Boolean(question.imageOnAnswerSlide)}
+                    checked={Boolean(question.imageOnAnswerSlide || question.imageDuringQuestion)}
+                    disabled={question.imageDuringQuestion}
                     onChange={(e) =>
                       updateQuestion(question.id, { imageOnAnswerSlide: e.target.checked })
                     }
-                    className="rounded border-brand-border"
+                    className="rounded border-brand-border disabled:opacity-60"
                   />
-                  Pri správnej odpovedi (slide s odpoveďou)
+                  Pri správnej odpovedi (automaticky zapnuté ak je fotka pri otázke)
                 </label>
               </div>
             )}
