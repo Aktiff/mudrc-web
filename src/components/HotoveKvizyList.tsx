@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { AlertTriangle, Layers, MonitorPlay, Pencil, Play, Plus, Trash2 } from "lucide-react";
 import type { QuizEvent } from "@/lib/data";
 import type { QuizLibraryItem, QuizUsage } from "@/lib/quiz-library";
+import { clearQuizDraft } from "@/lib/quiz-editor-draft";
 import QuizResultsEntryForm, {
   parseTeamNamesInput,
   teamsFromNames,
@@ -250,8 +251,18 @@ export default function HotoveKvizyList() {
         setListMessage({ text: data.error ?? "Vymazanie zlyhalo.", ok: false });
         return;
       }
+      clearQuizDraft(quiz.id);
       if (libraryQuizId === quiz.id) setLibraryQuizId("");
-      setListMessage({ text: `Kvíz „${quiz.title}" bol vymazaný.`, ok: true });
+      const releasedCount = Array.isArray(data.releasedBankQuestionIds)
+        ? data.releasedBankQuestionIds.length
+        : 0;
+      setListMessage({
+        text:
+          releasedCount > 0
+            ? `Kvíz „${quiz.title}" bol vymazaný. ${releasedCount} otázok z banky je opäť k dispozícii.`
+            : `Kvíz „${quiz.title}" bol vymazaný.`,
+        ok: true,
+      });
       await loadQuizzes(filterTeams);
     } catch {
       setListMessage({ text: "Sieťová chyba pri mazaní.", ok: false });

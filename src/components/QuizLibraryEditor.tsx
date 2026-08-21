@@ -5,53 +5,22 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronDown, ChevronUp, GripVertical, MonitorPlay, Plus, RotateCcw, Save, X } from "lucide-react";
 import type { QuizEvent } from "@/lib/data";
 import type { QuizLibraryItem, QuizQuestionItem, QuizQuestionKind } from "@/lib/quiz-library";
+import { collectUsedBankQuestionIdsFromQuiz } from "@/lib/quiz-library";
 import { buildStandardMudrcQuestions, describeQuizContent, roundLabels } from "@/lib/quiz-template";
 import { buildPresentationSlides } from "@/lib/quiz-presentation";
 import QuizQuestionBankPanel from "@/components/QuizQuestionBankPanel";
 import { optionLetter } from "@/lib/quiz-question-options";
+import {
+  clearQuizDraft,
+  parseQuizPayload,
+  readQuizDraft,
+  writeQuizDraft,
+} from "@/lib/quiz-editor-draft";
 
 type Props = {
   quizId: string;
   initialQuiz?: QuizLibraryItem | null;
 };
-
-const draftStorageKey = (id: string) => `mudrc-quiz-draft-${id}`;
-
-function parseQuizPayload(data: unknown): QuizLibraryItem {
-  if (!data || typeof data !== "object") {
-    throw new Error("Neplatná odpoveď servera.");
-  }
-  const quiz = { ...(data as QuizLibraryItem & Record<string, unknown>) };
-  delete quiz.usages;
-  delete quiz.usageCount;
-  delete quiz.playedTeamNames;
-  return quiz as QuizLibraryItem;
-}
-
-function readQuizDraft(quizId: string): QuizLibraryItem | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = window.sessionStorage.getItem(draftStorageKey(quizId));
-    if (!raw) return null;
-    return parseQuizPayload(JSON.parse(raw));
-  } catch {
-    return null;
-  }
-}
-
-function writeQuizDraft(quiz: QuizLibraryItem): void {
-  if (typeof window === "undefined") return;
-  try {
-    window.sessionStorage.setItem(draftStorageKey(quiz.id), JSON.stringify(quiz));
-  } catch {
-    /* sessionStorage plné alebo nedostupné */
-  }
-}
-
-function clearQuizDraft(quizId: string): void {
-  if (typeof window === "undefined") return;
-  window.sessionStorage.removeItem(draftStorageKey(quizId));
-}
 
 function questionsInRound(questions: QuizQuestionItem[], round: number) {
   return questions
@@ -129,6 +98,14 @@ export default function QuizLibraryEditor({ quizId }: Props) {
   const [playEventSlug, setPlayEventSlug] = useState("");
   const [openRound, setOpenRound] = useState<number>(1);
   const [dragQuestionId, setDragQuestionId] = useState<string | null>(null);
+  const [libraryQuizzes, setLibraryQuizzes] = useState<QuizLibraryItem[]>([]);
+
+  const refreshLibraryQuizzes = useCallback(async () => {
+    const res = await fetch(`/api/admin/quiz-library?_=${Date.now()}`, { cache: "no-store" });
+    if (!res.ok) return;
+    const data = await res.json();
+    setLibraryQuizzes((data.quizzes ?? []).map((entry: unknown) => parseQuizPayload(entry)));
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -157,10 +134,11 @@ export default function QuizLibraryEditor({ quizId }: Props) {
 
   useEffect(() => {
     load();
+    refreshLibraryQuizzes();
     fetch(`/api/admin/events?_=${Date.now()}`, { cache: "no-store" })
       .then((r) => r.json())
       .then((d) => setEvents(d.events ?? []));
-  }, [load]);
+  }, [load, refreshLibraryQuizzes]);
 
   useEffect(() => {
     if (!quiz || loading) return;
@@ -176,6 +154,13 @@ export default function QuizLibraryEditor({ quizId }: Props) {
   }, [draftRestored]);
 
   const questions = useMemo(() => quiz?.questions ?? [], [quiz?.questions]);
+  const globalUsedBankQuestionIds = useMemo(() => {
+    const fromOthers = libraryQuizzes
+      .filter((entry) => entry.id !== quizId)
+      .flatMap(collectUsedBankQuestionIdsFromQuiz);
+    const fromCurrent = quiz ? collectUsedBankQuestionIdsFromQuiz(quiz) : [];
+    return Array.from(new Set([...fromOthers, ...fromCurrent]));
+  }, [libraryQuizzes, quiz, quizId]);
   const presentationCount = useMemo(
     () => (questions.length ? buildPresentationSlides(questions).length : 0),
     [questions]
@@ -337,6 +322,7 @@ export default function QuizLibraryEditor({ quizId }: Props) {
         clearQuizDraft(quizId);
         setQuiz(saved);
         setDraftRestored(false);
+        await refreshLibraryQuizzes();
         setMsg({ text: "Kvíz uložený.", ok: true });
       } else {
         const err = await res.json().catch(() => ({}));
@@ -633,7 +619,7 @@ export default function QuizLibraryEditor({ quizId }: Props) {
         <div className="min-w-0 max-w-full overflow-x-hidden lg:sticky lg:top-24 lg:self-start">
           <QuizQuestionBankPanel
             roundQuestions={roundQuestions}
-            usedBankQuestionIds={quiz.usedBankQuestionIds ?? []}
+            usedBankQuestionIds={globalUsedBankQuestionIds}
             onInsert={insertFromBank}
           />
         </div>

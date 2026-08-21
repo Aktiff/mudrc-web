@@ -110,14 +110,20 @@ export function normalizeLibraryQuiz(
     questions = buildStandardMudrcQuestions();
   }
 
+  const bankIdsFromQuestions = questions
+    .map((q) => q.bankQuestionId?.trim())
+    .filter((id): id is string => Boolean(id));
+  const usedBankQuestionIdsInput = Array.isArray(input.usedBankQuestionIds)
+    ? input.usedBankQuestionIds.filter((id): id is string => typeof id === "string" && id.length > 0)
+    : [];
+  const usedBankQuestionIds = Array.from(new Set([...usedBankQuestionIdsInput, ...bankIdsFromQuestions]));
+
   return {
     id: input.id?.trim() || createLibraryQuizId(),
     title,
     notes: input.notes?.trim() || undefined,
     questions,
-    usedBankQuestionIds: Array.isArray(input.usedBankQuestionIds)
-      ? Array.from(new Set(input.usedBankQuestionIds.filter((id): id is string => typeof id === "string" && id.length > 0)))
-      : undefined,
+    usedBankQuestionIds: usedBankQuestionIds.length ? usedBankQuestionIds : undefined,
     formatVersion: 2,
     createdAt: input.createdAt || now,
     updatedAt: now,
@@ -166,4 +172,25 @@ export function findFirstEmptyQuestionSlot(questions: QuizQuestionItem[]): QuizQ
     .filter((q) => q.kind === "normal")
     .sort((a, b) => a.questionNumber - b.questionNumber)
     .find(isQuestionSlotEmpty);
+}
+
+export function collectUsedBankQuestionIdsFromQuiz(quiz: QuizLibraryItem): string[] {
+  const ids = new Set<string>();
+  for (const id of quiz.usedBankQuestionIds ?? []) {
+    if (id) ids.add(id);
+  }
+  for (const question of quiz.questions ?? []) {
+    if (question.bankQuestionId) ids.add(question.bankQuestionId);
+  }
+  return Array.from(ids);
+}
+
+export function collectGlobalUsedBankQuestionIds(quizzes: QuizLibraryItem[]): string[] {
+  const ids = new Set<string>();
+  for (const quiz of quizzes) {
+    for (const id of collectUsedBankQuestionIdsFromQuiz(quiz)) {
+      ids.add(id);
+    }
+  }
+  return Array.from(ids);
 }
