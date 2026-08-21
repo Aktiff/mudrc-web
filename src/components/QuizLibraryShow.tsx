@@ -13,6 +13,7 @@ import {
   type PresentationSlide,
 } from "@/lib/quiz-presentation";
 import { findCorrectOptionIndex, getQuestionBodyText, getQuestionOptions, optionLetter } from "@/lib/quiz-question-options";
+import { fixSlovakLineBreaks } from "@/lib/slovak-typography";
 
 type Props = {
   quizId: string;
@@ -49,7 +50,7 @@ function RulesSlide({ rules, venueName }: { rules: string[]; venueName: string }
         {rules.map((rule, index) => (
           <li key={index} className="flex gap-5 text-lg sm:text-2xl text-white/95 leading-snug">
             <span className="text-[#f0c800] font-display text-3xl sm:text-4xl shrink-0 w-8 text-right">{index + 1}</span>
-            <span>{rule}</span>
+            <span>{fixSlovakLineBreaks(rule)}</span>
           </li>
         ))}
       </ul>
@@ -79,7 +80,7 @@ const OPTION_TEXT_STYLE = { fontSize: "clamp(3rem, 6.5vmin, 7.5rem)" } as const;
 const ANSWER_TEXT_STYLE = { fontSize: "clamp(3.25rem, 7vmin, 8.5rem)" } as const;
 
 const QUESTION_TEXT_CLASS =
-  "font-display text-white text-center leading-[1.06] tracking-wide whitespace-pre-wrap drop-shadow-[0_4px_24px_rgba(0,0,0,0.85)] w-full max-w-[96vw] px-2";
+  "font-display text-white text-center leading-[1.06] tracking-wide whitespace-pre-wrap [text-wrap:pretty] drop-shadow-[0_4px_24px_rgba(0,0,0,0.85)] w-full max-w-[96vw] px-2";
 
 function PresentationImage({
   src,
@@ -139,7 +140,7 @@ function OptionsGrid({
               }`}
               style={OPTION_TEXT_STYLE}
             >
-              {option}
+              {fixSlovakLineBreaks(option)}
             </p>
           </div>
         );
@@ -157,7 +158,7 @@ function QuestionContent({
 }) {
   const showImage =
     phase === "question" ? shouldShowImageInQuestionPhase(question) : shouldShowImageInAnswerPhase(question);
-  const questionText = getQuestionBodyText(question) || "Otázka";
+  const questionText = fixSlovakLineBreaks(getQuestionBodyText(question) || "Otázka");
   const options = getQuestionOptions(question);
   const correctOptionIndex =
     phase === "answer" ? findCorrectOptionIndex(options, question.answer) : -1;
@@ -201,7 +202,7 @@ function QuestionContent({
       {phase === "answer" && options.length > 0 && correctOptionIndex < 0 && question.answer.trim() && (
         <div className="px-10 sm:px-14 py-6 sm:py-8 rounded-2xl bg-gradient-to-br from-[#f0c800] to-[#e6b800] text-black text-center max-w-[98vw] w-full shadow-[0_20px_60px_rgba(240,200,0,0.25)]">
           <p className="font-display tracking-wide" style={ANSWER_TEXT_STYLE}>
-            {question.answer}
+            {fixSlovakLineBreaks(question.answer)}
           </p>
         </div>
       )}
@@ -209,7 +210,7 @@ function QuestionContent({
       {phase === "answer" && options.length === 0 && (
         <div className="px-10 sm:px-14 py-6 sm:py-8 rounded-2xl bg-gradient-to-br from-[#f0c800] to-[#e6b800] text-black text-center max-w-[98vw] w-full shadow-[0_20px_60px_rgba(240,200,0,0.25)]">
           <p className="font-display tracking-wide" style={ANSWER_TEXT_STYLE}>
-            {question.answer || "—"}
+            {fixSlovakLineBreaks(question.answer) || "—"}
           </p>
         </div>
       )}
