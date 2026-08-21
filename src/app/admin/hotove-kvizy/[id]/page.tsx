@@ -23,23 +23,24 @@ export default async function HotovyKvizDetailPage({ params }: PageProps) {
   const usages = getQuizUsages(params.id, storedQuizzes, events);
 
   return (
-    <div className="w-full">
-      <div className="max-w-4xl">
+    <div className="w-full space-y-8">
       <Link
         href="/admin/hotove-kvizy"
-        className="inline-flex items-center gap-1 text-sm text-brand-muted hover:text-brand-orange-readable mb-6"
+        className="inline-flex items-center gap-1 text-sm text-brand-muted hover:text-brand-orange-readable"
       >
         <ChevronLeft className="w-4 h-4" />
         Späť na zoznam
       </Link>
 
-      <h1 className="font-display text-4xl text-brand-text tracking-wide mb-1">{quiz.title}</h1>
-      <p className="text-brand-muted text-sm mb-8">
-        {describeQuizContent(quiz.questions)} · {buildPresentationSlides(quiz.questions).length} slidov na projektore
-        {usages.length === 0 ? " · ešte nepoužitý" : ` · ${usages.length}× hraný`}
-      </p>
+      <div>
+        <h1 className="font-display text-4xl text-brand-text tracking-wide mb-1">{quiz.title}</h1>
+        <p className="text-brand-muted text-sm">
+          {describeQuizContent(quiz.questions)} · {buildPresentationSlides(quiz.questions).length} slidov na projektore
+          {usages.length === 0 ? " · ešte nepoužitý" : ` · ${usages.length}× hraný`}
+        </p>
+      </div>
 
-      <div className="bg-brand-card rounded-2xl border border-brand-border p-6 mb-8">
+      <div className="bg-brand-card rounded-2xl border border-brand-border p-6">
         <h2 className="font-display text-2xl text-brand-text tracking-wide mb-4">Kde bol kvíz použitý</h2>
         {usages.length === 0 ? (
           <p className="text-brand-muted text-sm">Tento kvíz ešte nebol priradený k žiadnym výsledkom.</p>
@@ -75,13 +76,13 @@ export default async function HotovyKvizDetailPage({ params }: PageProps) {
         )}
       </div>
 
-      <h2 className="font-display text-2xl text-brand-text tracking-wide mb-4">Slidy a otázky</h2>
-      <p className="text-brand-muted text-sm mb-4">
-        Každá otázka má text a odpoveď na jednom mieste. Obrázok môžeš zobraziť pri otázke alebo len pri správnych
-        odpovediach — flow na projektore sa vygeneruje automaticky.
-      </p>
+      <div>
+        <h2 className="font-display text-2xl text-brand-text tracking-wide mb-1">Slidy a otázky</h2>
+        <p className="text-brand-muted text-sm mb-4">
+          Vľavo editor kvízu, vpravo banka hotových otázok — obe polovice obrazovky.
+        </p>
+        <QuizLibraryEditor quizId={params.id} initialQuiz={quiz} />
       </div>
-      <QuizLibraryEditor quizId={params.id} initialQuiz={quiz} />
     </div>
   );
 }

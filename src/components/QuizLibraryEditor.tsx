@@ -193,8 +193,7 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
   if (!quiz) return <p className="text-red-500 text-sm">Kvíz sa nepodarilo načítať.</p>;
 
   return (
-    <div className="space-y-6">
-      <div className="max-w-3xl space-y-6">
+    <div className="w-full space-y-6">
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
           <label className="label">Názov kvízu</label>
@@ -253,14 +252,8 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
         </div>
       </div>
 
-      <p className="text-brand-muted text-sm bg-brand-warm border border-brand-border rounded-xl px-4 py-3">
-        Každá otázka má text a odpoveď na jednom mieste. Banka otázok je vpravo v samostatnom paneli — vložené otázky
-        zmiznú z banky pre tento kvíz.
-      </p>
-      </div>
-
-      <div className="relative">
-        <div className="max-w-3xl space-y-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+        <div className="min-w-0 space-y-4">
           <div className="flex gap-2 flex-wrap">
             {[1, 2, 3, 4].map((round) => (
               <button
@@ -278,10 +271,11 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
             ))}
           </div>
 
+          <h3 className="font-display text-xl text-brand-text">
+            Kolo {openRound} — {roundLabels[openRound]}
+          </h3>
+
           <div className="space-y-4">
-            <h3 className="font-display text-xl text-brand-text">
-              Kolo {openRound} — {roundLabels[openRound]}
-            </h3>
         {roundQuestions.map((question) => {
           const group = questionsInRoundKind(questions, openRound, question.kind);
           const groupIndex = group.findIndex((q) => q.id === question.id);
@@ -403,13 +397,13 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
           </div>
         </div>
 
-        <aside className="mt-6 xl:mt-0 xl:fixed xl:top-[5.25rem] xl:right-6 2xl:right-10 xl:w-[22rem] 2xl:w-[26rem] xl:z-30">
+        <div className="min-w-0 lg:sticky lg:top-24 lg:self-start">
           <QuizQuestionBankPanel
             roundQuestions={roundQuestions}
             usedBankQuestionIds={quiz.usedBankQuestionIds ?? []}
             onInsert={insertFromBank}
           />
-        </aside>
+        </div>
       </div>
     </div>
   );
