@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { deleteLibraryQuiz, readLibraryQuiz, saveLibraryQuiz } from "@/lib/quiz-library-storage";
 import { getQuizUsages } from "@/lib/quiz-library-usage";
-import { collectPlayedTeamNames } from "@/lib/quiz-library";
+import { collectPlayedTeamNames, normalizeLibraryQuiz } from "@/lib/quiz-library";
 import { readAllEventsRaw, readAllStoredQuizzes } from "@/lib/storage";
 
 export const runtime = "nodejs";
@@ -19,8 +19,9 @@ export async function GET(_req: NextRequest, { params }: RouteContext) {
     if (!quiz) return NextResponse.json({ error: "Kvíz nenájdený" }, { status: 404 });
 
     const usages = getQuizUsages(params.id, storedQuizzes, events);
+    const normalized = normalizeLibraryQuiz(quiz);
     return NextResponse.json({
-      ...quiz,
+      ...normalized,
       usages,
       playedTeamNames: collectPlayedTeamNames(usages),
       usageCount: usages.length,

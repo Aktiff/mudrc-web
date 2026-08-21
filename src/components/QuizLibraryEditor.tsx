@@ -82,8 +82,8 @@ function reorderQuestionInGroup(
 }
 
 export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props) {
-  const [quiz, setQuiz] = useState<QuizLibraryItem | null>(initialQuiz);
-  const [loading, setLoading] = useState(!initialQuiz);
+  const [quiz, setQuiz] = useState<QuizLibraryItem | null>(null);
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
   const [events, setEvents] = useState<QuizEvent[]>([]);
@@ -99,11 +99,17 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
   }, [quizId]);
 
   useEffect(() => {
-    if (!initialQuiz) load();
+    load();
     fetch(`/api/admin/events?_=${Date.now()}`, { cache: "no-store" })
       .then((r) => r.json())
       .then((d) => setEvents(d.events ?? []));
-  }, [initialQuiz, load]);
+  }, [load]);
+
+  useEffect(() => {
+    const refresh = () => load();
+    window.addEventListener("focus", refresh);
+    return () => window.removeEventListener("focus", refresh);
+  }, [load]);
 
   const questions = useMemo(() => quiz?.questions ?? [], [quiz?.questions]);
   const presentationCount = useMemo(
@@ -513,10 +519,11 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
                   <input
                     type="checkbox"
                     checked={question.imageDuringQuestion}
+                    disabled={Boolean(question.imageOnNextSlide)}
                     onChange={(e) => updateQuestion(question.id, { imageDuringQuestion: e.target.checked })}
-                    className="rounded border-brand-border"
+                    className="rounded border-brand-border disabled:opacity-50"
                   />
-                  Zobraziť obrázok pri otázke (väčší náhľad na slide s otázkou)
+                  Zobraziť obrázok pri otázke (na tom istom slide)
                 </label>
                 <label className="flex items-center gap-2 text-sm text-brand-text cursor-pointer">
                   <input
@@ -525,11 +532,11 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
                     onChange={(e) => updateQuestion(question.id, { imageOnNextSlide: e.target.checked })}
                     className="rounded border-brand-border"
                   />
-                  Pridať ďalší slide s obrázkom na celú obrazovku (neorezané)
+                  Ďalší slide — obrázok fullscreen po otázke (otázka bez obrázku)
                 </label>
-                {question.imageOnNextSlide && !question.imageDuringQuestion && (
+                {question.imageOnNextSlide && (
                   <p className="text-brand-muted text-xs">
-                    Pri otázke sa zobrazí menší náhľad, na ďalšom slide fullscreen.
+                    Otázka bude bez obrázku, fullscreen fotka až na nasledujúcom slide.
                   </p>
                 )}
               </div>

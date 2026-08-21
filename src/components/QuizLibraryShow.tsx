@@ -9,7 +9,6 @@ import {
   buildPresentationSlides,
   shouldShowImageInAnswerPhase,
   shouldShowImageInQuestionPhase,
-  shouldUseCompactQuestionImage,
   type PresentationSlide,
 } from "@/lib/quiz-presentation";
 import { findCorrectOptionIndex, getQuestionBodyText, getQuestionOptions, optionLetter } from "@/lib/quiz-question-options";
@@ -119,7 +118,6 @@ function QuestionContent({
 }) {
   const showImage =
     phase === "question" ? shouldShowImageInQuestionPhase(question) : shouldShowImageInAnswerPhase(question);
-  const compactQuestionImage = phase === "question" && shouldUseCompactQuestionImage(question);
   const questionText = getQuestionBodyText(question) || "Otázka";
   const options = getQuestionOptions(question);
   const correctOptionIndex =
@@ -148,9 +146,7 @@ function QuestionContent({
         <img
           src={question.imageUrl}
           alt=""
-          className={`max-w-full rounded-2xl object-contain shadow-[0_24px_80px_rgba(0,0,0,0.6)] ring-1 ring-white/10 ${
-            compactQuestionImage ? "max-h-[24vh]" : "max-h-[32vh]"
-          }`}
+          className="max-h-[32vh] max-w-full rounded-2xl object-contain shadow-[0_24px_80px_rgba(0,0,0,0.6)] ring-1 ring-white/10"
         />
       )}
 

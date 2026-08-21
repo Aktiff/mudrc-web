@@ -187,12 +187,18 @@ export async function createLibraryQuiz(title?: string): Promise<QuizLibraryItem
 
 export async function saveLibraryQuiz(input: Partial<QuizLibraryItem>): Promise<QuizLibraryItem> {
   const existing = input.id ? await readQuizById(input.id) : null;
-  const normalized = normalizeLibraryQuiz({
+  const merged: Partial<QuizLibraryItem> = {
     ...existing,
     ...input,
     id: input.id || existing?.id,
     createdAt: existing?.createdAt,
-  });
+  };
+
+  if (input.usedBankQuestionIds === undefined && existing?.usedBankQuestionIds?.length) {
+    merged.usedBankQuestionIds = existing.usedBankQuestionIds;
+  }
+
+  const normalized = normalizeLibraryQuiz(merged);
   await persistQuiz(normalized);
   return normalized;
 }
