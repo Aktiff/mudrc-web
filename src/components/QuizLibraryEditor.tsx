@@ -19,7 +19,6 @@ import {
   readQuizDraft,
   writeQuizDraft,
 } from "@/lib/quiz-editor-draft";
-import { useFixedPanelLayout } from "@/hooks/useFixedPanelLayout";
 
 type Props = {
   quizId: string;
@@ -329,7 +328,6 @@ export default function QuizLibraryEditor({ quizId }: Props) {
   };
 
   const roundQuestions = useMemo(() => questionsInRound(questions, openRound), [questions, openRound]);
-  const { slotRef: bankSlotRef, layout: bankFixedLayout } = useFixedPanelLayout(true);
 
   const regenerateTemplate = () => {
     if (!window.confirm("Vymazať obsah a vytvoriť prázdnu štruktúru 55 otázok (4 kolá)?")) return;
@@ -721,7 +719,14 @@ export default function QuizLibraryEditor({ quizId }: Props) {
           </div>
         </div>
 
-        <div ref={bankSlotRef} className="min-w-0 max-w-full hidden lg:block lg:min-h-[calc(100vh-7rem)]" aria-hidden />
+        <div className="min-w-0 max-w-full hidden lg:block lg:sticky lg:top-24 lg:self-start lg:z-20 lg:h-[calc(100vh-7rem)]">
+          <QuizQuestionBankPanel
+            roundQuestions={roundQuestions}
+            allQuizQuestions={questions}
+            usedBankQuestionIds={globalUsedBankQuestionIds}
+            onInsert={insertFromBank}
+          />
+        </div>
 
         <div className="min-w-0 max-w-full lg:hidden">
           <QuizQuestionBankPanel
@@ -732,25 +737,6 @@ export default function QuizLibraryEditor({ quizId }: Props) {
           />
         </div>
       </div>
-
-      {bankFixedLayout && (
-        <div
-          className="hidden lg:block fixed z-30"
-          style={{
-            top: "6rem",
-            left: bankFixedLayout.left,
-            width: bankFixedLayout.width,
-            height: "calc(100vh - 7rem)",
-          }}
-        >
-          <QuizQuestionBankPanel
-            roundQuestions={roundQuestions}
-            allQuizQuestions={questions}
-            usedBankQuestionIds={globalUsedBankQuestionIds}
-            onInsert={insertFromBank}
-          />
-        </div>
-      )}
     </div>
   );
 }
