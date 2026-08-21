@@ -156,3 +156,14 @@ export function collectPlayedTeamNames(usages: QuizUsage[]): string[] {
   }
   return names;
 }
+
+export function isQuestionSlotEmpty(question: QuizQuestionItem): boolean {
+  return !question.body.trim() && !question.answer.trim();
+}
+
+export function findFirstEmptyQuestionSlot(questions: QuizQuestionItem[]): QuizQuestionItem | undefined {
+  return questions
+    .filter((q) => q.kind === "normal")
+    .sort((a, b) => a.questionNumber - b.questionNumber)
+    .find(isQuestionSlotEmpty);
+}

@@ -156,26 +156,42 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
     answer: string,
     options: string[]
   ) => {
-    setQuiz((prev) =>
-      prev
-        ? {
-            ...prev,
-            questions: prev.questions.map((q) =>
-              q.id === targetQuestionId
-                ? {
-                    ...q,
-                    body,
-                    answer,
-                    options: options.length ? options : undefined,
-                    bankQuestionId: bankId,
-                  }
-                : q
-            ),
-            usedBankQuestionIds: Array.from(new Set([...(prev.usedBankQuestionIds ?? []), bankId])),
-          }
-        : prev
-    );
-    setMsg({ text: "Otázka vložená a odstránená z banky pre tento kvíz — nezabudni uložiť.", ok: true });
+    const target = questions.find((q) => q.id === targetQuestionId);
+    const displacedBankId = target?.bankQuestionId;
+
+    setQuiz((prev) => {
+      if (!prev) return prev;
+
+      let usedIds = [...(prev.usedBankQuestionIds ?? [])];
+      if (displacedBankId && displacedBankId !== bankId) {
+        usedIds = usedIds.filter((id) => id !== displacedBankId);
+      }
+      usedIds = Array.from(new Set([...usedIds, bankId]));
+
+      return {
+        ...prev,
+        questions: prev.questions.map((q) =>
+          q.id === targetQuestionId
+            ? {
+                ...q,
+                body,
+                answer,
+                options: options.length ? options : undefined,
+                bankQuestionId: bankId,
+              }
+            : q
+        ),
+        usedBankQuestionIds: usedIds,
+      };
+    });
+
+    setMsg({
+      text:
+        displacedBankId && displacedBankId !== bankId
+          ? "Otázka vložená. Predchádzajúca otázka z banky je znova dostupná v banke — nezabudni uložiť."
+          : "Otázka vložená a odstránená z banky pre tento kvíz — nezabudni uložiť.",
+      ok: true,
+    });
   };
 
   const returnQuestionToBank = (questionId: string) => {

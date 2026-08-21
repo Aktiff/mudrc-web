@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { BookOpen, Check, ClipboardCopy, Trash2 } from "lucide-react";
 import type { QuizQuestionItem } from "@/lib/quiz-library";
+import { findFirstEmptyQuestionSlot, isQuestionSlotEmpty } from "@/lib/quiz-library";
 import {
   filterVisibleBankQuestions,
   formatBankQuestionBody,
@@ -40,11 +41,17 @@ export default function QuizQuestionBankPanel({ roundQuestions, usedBankQuestion
   );
 
   const normalQuestions = useMemo(
-    () => roundQuestions.filter((q) => q.kind === "normal"),
+    () =>
+      roundQuestions
+        .filter((q) => q.kind === "normal")
+        .sort((a, b) => a.questionNumber - b.questionNumber),
     [roundQuestions]
   );
 
-  const defaultTargetId = normalQuestions[0]?.id ?? "";
+  const defaultTargetId = useMemo(
+    () => findFirstEmptyQuestionSlot(normalQuestions)?.id ?? normalQuestions[0]?.id ?? "",
+    [normalQuestions]
+  );
 
   const copyText = async (text: string, id: string) => {
     try {
@@ -56,12 +63,21 @@ export default function QuizQuestionBankPanel({ roundQuestions, usedBankQuestion
     }
   };
 
-  const getTargetId = (bankId: string) => targetByBankId[bankId] || defaultTargetId;
+  const getTargetId = (bankId: string) => {
+    const manual = targetByBankId[bankId];
+    if (manual) return manual;
+    return defaultTargetId;
+  };
 
   const handleInsert = (item: QuizBankQuestion) => {
     const targetId = getTargetId(item.id);
     if (!targetId) return;
     onInsert(item.id, targetId, item.body, item.answer, [...item.options]);
+    setTargetByBankId((prev) => {
+      const next = { ...prev };
+      delete next[item.id];
+      return next;
+    });
   };
 
   const dismissQuestion = (bankId: string) => {
@@ -81,7 +97,7 @@ export default function QuizQuestionBankPanel({ roundQuestions, usedBankQuestion
           <div className="min-w-0">
             <p className="font-semibold text-brand-text text-sm leading-snug">Banka otázok</p>
             <p className="text-brand-muted text-xs mt-0.5 leading-relaxed">
-              {visibleQuestions.length} k dispozícii · vložené miznú z banky pre tento kvíz
+              {visibleQuestions.length} k dispozícii · Vložiť ide do prvej prázdnej otázky
             </p>
           </div>
         </div>
@@ -144,7 +160,7 @@ export default function QuizQuestionBankPanel({ roundQuestions, usedBankQuestion
                         {normalQuestions.map((q) => (
                           <option key={q.id} value={q.id}>
                             Ot. {q.questionNumber}
-                            {q.body.trim() ? " · obsadená" : " · prázdna"}
+                            {isQuestionSlotEmpty(q) ? " · prázdna" : " · obsadená"}
                           </option>
                         ))}
                       </select>
