@@ -7,6 +7,7 @@ import type { QuizEvent } from "@/lib/data";
 import type { QuizLibraryItem, QuizQuestionItem, QuizQuestionKind } from "@/lib/quiz-library";
 import { buildStandardMudrcQuestions, describeQuizContent, roundLabels } from "@/lib/quiz-template";
 import { buildPresentationSlides } from "@/lib/quiz-presentation";
+import QuizQuestionBankPanel from "@/components/QuizQuestionBankPanel";
 
 type Props = {
   quizId: string;
@@ -141,6 +142,11 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
     setDragQuestionId(null);
   };
 
+  const insertFromBank = (targetQuestionId: string, body: string, answer: string) => {
+    updateQuestion(targetQuestionId, { body, answer });
+    setMsg({ text: "Otázka z banky vložená — nezabudni uložiť kvíz.", ok: true });
+  };
+
   const roundQuestions = useMemo(() => questionsInRound(questions, openRound), [questions, openRound]);
 
   const regenerateTemplate = () => {
@@ -240,6 +246,8 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
         Každá otázka má text a odpoveď na jednom mieste. Obrázok môžeš zobraziť pri otázke (zaškrtnuté) alebo len pri
         správnych odpovediach. Poradie otázok v kole meníš šípkami alebo pretiahnutím — čísla sa prepočítajú automaticky.
       </p>
+
+      <QuizQuestionBankPanel roundQuestions={roundQuestions} onInsert={insertFromBank} />
 
       <div className="flex gap-2 flex-wrap">
         {[1, 2, 3, 4].map((round) => (
