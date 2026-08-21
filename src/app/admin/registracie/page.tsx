@@ -72,7 +72,7 @@ export default function RegistraciaPage() {
   };
 
   return (
-    <div className="max-w-4xl">
+    <div className="w-full">
       <h1 className="font-display text-4xl text-brand-text tracking-wide mb-1">Registrácie</h1>
       <p className="text-brand-muted text-sm mb-6">Zoznam všetkých prihlásených tímov</p>
       <div className="flex flex-wrap items-center gap-3 mb-6">

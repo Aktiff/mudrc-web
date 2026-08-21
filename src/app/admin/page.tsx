@@ -9,7 +9,7 @@ export default async function AdminDashboard() {
   const { events } = await readEvents();
 
   return (
-    <div className="max-w-4xl">
+    <div className="w-full">
       <h1 className="font-display text-4xl text-brand-text tracking-wide mb-1">Prehľad</h1>
       <p className="text-brand-muted text-sm mb-8">Vitaj v admin rozhraní Mudrc kvíz</p>
 

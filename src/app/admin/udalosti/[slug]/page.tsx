@@ -788,7 +788,7 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
     }`;
 
   return (
-    <div className="max-w-3xl">
+    <div className="w-full">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
           <Link href="/admin/udalosti" className="text-brand-muted-light hover:text-brand-text transition-colors">
