@@ -19,6 +19,7 @@ import {
   readQuizDraft,
   writeQuizDraft,
 } from "@/lib/quiz-editor-draft";
+import { useFixedPanelLayout } from "@/hooks/useFixedPanelLayout";
 
 type Props = {
   quizId: string;
@@ -328,6 +329,7 @@ export default function QuizLibraryEditor({ quizId }: Props) {
   };
 
   const roundQuestions = useMemo(() => questionsInRound(questions, openRound), [questions, openRound]);
+  const { slotRef: bankSlotRef, layout: bankFixedLayout } = useFixedPanelLayout(true);
 
   const regenerateTemplate = () => {
     if (!window.confirm("Vymazať obsah a vytvoriť prázdnu štruktúru 55 otázok (4 kolá)?")) return;
@@ -367,7 +369,7 @@ export default function QuizLibraryEditor({ quizId }: Props) {
   if (!quiz) return <p className="text-red-500 text-sm">Kvíz sa nepodarilo načítať.</p>;
 
   return (
-    <div className="min-w-0 max-w-full overflow-x-hidden space-y-6">
+    <div className="min-w-0 max-w-full space-y-6">
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
           <label className="label">Názov kvízu</label>
@@ -429,7 +431,7 @@ export default function QuizLibraryEditor({ quizId }: Props) {
       <QuizTagStats questions={questions} />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 min-w-0 max-w-full">
-        <div className="min-w-0 max-w-full overflow-x-hidden space-y-4">
+        <div className="min-w-0 max-w-full space-y-4">
           <div className="flex gap-2 flex-wrap">
             {[1, 2, 3, 4].map((round) => (
               <button
@@ -710,7 +712,9 @@ export default function QuizLibraryEditor({ quizId }: Props) {
           </div>
         </div>
 
-        <div className="min-w-0 lg:sticky lg:top-24 lg:self-start lg:z-10 lg:h-[calc(100vh-7rem)] lg:max-h-[calc(100vh-7rem)]">
+        <div ref={bankSlotRef} className="min-w-0 max-w-full hidden lg:block lg:min-h-[calc(100vh-7rem)]" aria-hidden />
+
+        <div className="min-w-0 max-w-full lg:hidden">
           <QuizQuestionBankPanel
             roundQuestions={roundQuestions}
             allQuizQuestions={questions}
@@ -719,6 +723,25 @@ export default function QuizLibraryEditor({ quizId }: Props) {
           />
         </div>
       </div>
+
+      {bankFixedLayout && (
+        <div
+          className="hidden lg:block fixed z-30"
+          style={{
+            top: "6rem",
+            left: bankFixedLayout.left,
+            width: bankFixedLayout.width,
+            height: "calc(100vh - 7rem)",
+          }}
+        >
+          <QuizQuestionBankPanel
+            roundQuestions={roundQuestions}
+            allQuizQuestions={questions}
+            usedBankQuestionIds={globalUsedBankQuestionIds}
+            onInsert={insertFromBank}
+          />
+        </div>
+      )}
     </div>
   );
 }

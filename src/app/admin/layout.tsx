@@ -46,7 +46,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     }`;
 
   return (
-    <div className="min-h-screen bg-brand-bg overflow-x-hidden">
+    <div className="min-h-screen bg-brand-bg overflow-x-clip">
       <aside className="hidden lg:flex w-56 bg-brand-card border-r border-brand-border flex-col fixed top-16 bottom-0 left-0 z-40">
         <div className="p-5 border-b border-brand-border">
           <Link href="/" className="font-display text-xl text-brand-text tracking-wider">
