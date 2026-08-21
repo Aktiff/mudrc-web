@@ -1,4 +1,5 @@
 import { IMAGE_QUIZ_BANK } from "@/lib/quiz-image-question-bank";
+import { PUB_QUIZ_BANK_EXTRA } from "@/lib/quiz-pub-question-bank-extra";
 
 export type QuizBankQuestion = {
   id: string;
@@ -14,8 +15,6 @@ export type QuizBankQuestion = {
   tags: string[];
   /** Otázka určená pre slot s fotkou (5, 10, 15…) */
   isImageQuestion?: boolean;
-  /** Nápoveda akú fotku hľadať */
-  imageHint?: string;
 };
 
 /** Všeobecný pub kvíz — overené fakty, vhodné pre tím ~5 hráčov. */
@@ -137,6 +136,7 @@ export const PUB_QUIZ_BANK: QuizBankQuestion[] = [
     note: "Horná Volta sa v auguste 1984 premenovala na Burkina Faso („krajina spravodlivých ľudí“). Typická otázka, kde väčšina tipuje susedný štát.",
     tags: ["história", "geografia", "afrika"],
   },
+  ...PUB_QUIZ_BANK_EXTRA,
 ];
 
 /** Všetky otázky v banke — foto otázky + textové. */

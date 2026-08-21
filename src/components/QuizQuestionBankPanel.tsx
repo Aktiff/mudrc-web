@@ -258,12 +258,6 @@ export default function QuizQuestionBankPanel({
                 <p className="text-xs text-brand-muted leading-relaxed bg-brand-warm border border-brand-border rounded-lg px-2.5 py-2">
                   <span className="font-semibold text-brand-text">Info: </span>
                   {item.note}
-                  {item.imageHint && (
-                    <>
-                      {" "}
-                      <span className="text-brand-text">Fotka:</span> {item.imageHint}
-                    </>
-                  )}
                 </p>
 
                 <div className="flex flex-col gap-2">
