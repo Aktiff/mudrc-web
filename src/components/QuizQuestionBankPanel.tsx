@@ -6,7 +6,6 @@ import type { QuizQuestionItem } from "@/lib/quiz-library";
 import {
   filterVisibleBankQuestions,
   formatBankQuestionBody,
-  formatBankQuestionClipboard,
   readHiddenBankQuestionIds,
   writeHiddenBankQuestionIds,
   type QuizBankQuestion,
@@ -67,7 +66,7 @@ export default function QuizQuestionBankPanel({ roundQuestions, usedBankQuestion
   };
 
   return (
-    <div className="bg-brand-card border border-brand-border rounded-2xl flex flex-col h-full max-h-[calc(100vh-10rem)]">
+    <div className="bg-brand-card border border-brand-border rounded-2xl flex flex-col min-w-0 max-w-full h-full max-h-[calc(100vh-10rem)] overflow-hidden">
       <div className="px-4 py-4 border-b border-brand-border shrink-0">
         <div className="flex items-start gap-3">
           <div className="w-9 h-9 rounded-xl bg-brand-tint flex items-center justify-center shrink-0">
@@ -102,14 +101,14 @@ export default function QuizQuestionBankPanel({ roundQuestions, usedBankQuestion
                       {item.difficulty}/10
                     </span>
                   </div>
-                  <p className="text-sm font-semibold text-brand-text leading-snug">{item.body}</p>
+                  <p className="text-sm font-semibold text-brand-text leading-snug break-words">{item.body}</p>
                 </div>
 
                 <ul className="space-y-1">
                   {item.options.map((option, optionIndex) => (
                     <li
                       key={optionIndex}
-                      className={`text-xs px-2 py-1.5 rounded-md border leading-snug ${
+                      className={`text-xs px-2 py-1.5 rounded-md border leading-snug break-words ${
                         optionIndex === item.correctIndex
                           ? "border-green-500/50 bg-green-50 text-green-800 dark:bg-green-950/40 dark:text-green-200 font-semibold"
                           : "border-brand-border text-brand-text bg-brand-card"

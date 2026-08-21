@@ -46,7 +46,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     }`;
 
   return (
-    <div className="min-h-screen bg-brand-bg">
+    <div className="min-h-screen bg-brand-bg overflow-x-hidden">
       <aside className="hidden lg:flex w-56 bg-brand-card border-r border-brand-border flex-col fixed top-16 bottom-0 left-0 z-40">
         <div className="p-5 border-b border-brand-border">
           <Link href="/" className="font-display text-xl text-brand-text tracking-wider">
@@ -107,7 +107,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </div>
       </nav>
 
-      <main className="w-full min-w-0 lg:ml-56 mt-16 pt-14 lg:pt-0 px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
+      <main className="box-border min-w-0 max-w-full overflow-x-hidden mt-16 pt-14 lg:pt-0 py-6 lg:py-8 px-4 sm:px-6 lg:px-8 lg:ml-56 lg:w-[calc(100%-14rem)]">
         {children}
       </main>
     </div>

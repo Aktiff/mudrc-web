@@ -23,7 +23,7 @@ export default async function HotovyKvizDetailPage({ params }: PageProps) {
   const usages = getQuizUsages(params.id, storedQuizzes, events);
 
   return (
-    <div className="w-full space-y-8">
+    <div className="min-w-0 max-w-full overflow-x-hidden space-y-8">
       <Link
         href="/admin/hotove-kvizy"
         className="inline-flex items-center gap-1 text-sm text-brand-muted hover:text-brand-orange-readable"

@@ -193,7 +193,7 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
   if (!quiz) return <p className="text-red-500 text-sm">Kvíz sa nepodarilo načítať.</p>;
 
   return (
-    <div className="w-full space-y-6">
+    <div className="min-w-0 max-w-full overflow-x-hidden space-y-6">
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
           <label className="label">Názov kvízu</label>
@@ -252,8 +252,8 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-        <div className="min-w-0 space-y-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 min-w-0 max-w-full">
+        <div className="min-w-0 max-w-full overflow-x-hidden space-y-4">
           <div className="flex gap-2 flex-wrap">
             {[1, 2, 3, 4].map((round) => (
               <button
@@ -297,7 +297,7 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
               e.currentTarget.classList.remove("ring-2", "ring-brand-orange/40");
               handleQuestionDrop(question.id);
             }}
-            className={`bg-brand-card border border-brand-border rounded-2xl p-5 space-y-3 transition-shadow ${
+            className={`bg-brand-card border border-brand-border rounded-2xl p-4 sm:p-5 space-y-3 transition-shadow min-w-0 max-w-full overflow-hidden ${
               dragQuestionId === question.id ? "opacity-60" : ""
             }`}
           >
@@ -358,7 +358,7 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
                 placeholder="Správna odpoveď"
               />
             </div>
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-3 grid-cols-1">
               <div>
                 <label className="label">Obrázok (URL)</label>
                 <input
@@ -397,7 +397,7 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
           </div>
         </div>
 
-        <div className="min-w-0 lg:sticky lg:top-24 lg:self-start">
+        <div className="min-w-0 max-w-full overflow-x-hidden lg:sticky lg:top-24 lg:self-start">
           <QuizQuestionBankPanel
             roundQuestions={roundQuestions}
             usedBankQuestionIds={quiz.usedBankQuestionIds ?? []}
