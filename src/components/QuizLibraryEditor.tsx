@@ -6,6 +6,7 @@ import { ChevronDown, ChevronUp, GripVertical, MonitorPlay, Plus, RotateCcw, Sav
 import type { QuizEvent } from "@/lib/data";
 import type { QuizLibraryItem, QuizQuestionItem, QuizQuestionKind } from "@/lib/quiz-library";
 import { collectUsedBankQuestionIdsFromQuiz } from "@/lib/quiz-library";
+import { findBankQuestionById } from "@/lib/quiz-question-bank";
 import { buildStandardMudrcQuestions, describeQuizContent, roundLabels } from "@/lib/quiz-template";
 import { buildPresentationSlides } from "@/lib/quiz-presentation";
 import QuizQuestionBankPanel from "@/components/QuizQuestionBankPanel";
@@ -207,7 +208,8 @@ export default function QuizLibraryEditor({ quizId }: Props) {
     answer: string,
     options: string[],
     tags: string[],
-    isImageQuestion?: boolean
+    isImageQuestion?: boolean,
+    hostNote?: string
   ) => {
     const target = questions.find((q) => q.id === targetQuestionId);
     const displacedBankId = target?.bankQuestionId;
@@ -232,6 +234,7 @@ export default function QuizLibraryEditor({ quizId }: Props) {
                 options: options.length ? options : undefined,
                 bankQuestionId: bankId,
                 tags: tags.length ? tags : undefined,
+                hostNote: hostNote?.trim() || undefined,
                 ...(isImageQuestion
                   ? {
                       imageUrl: "",
@@ -278,6 +281,7 @@ export default function QuizLibraryEditor({ quizId }: Props) {
                     options: undefined,
                     bankQuestionId: undefined,
                     tags: undefined,
+                    hostNote: undefined,
                     imageUrl: undefined,
                     imageDuringQuestion: false,
                     imageOnNextSlide: undefined,
@@ -653,6 +657,28 @@ export default function QuizLibraryEditor({ quizId }: Props) {
                     Otázka bude bez obrázku, fullscreen fotka až na nasledujúcom slide.
                   </p>
                 )}
+              </div>
+            )}
+            {(question.body.trim() || question.answer.trim() || question.hostNote || question.bankQuestionId) && (
+              <div>
+                <label className="label">Info pre teba (len admin)</label>
+                <p className="text-brand-muted text-xs mb-1.5 leading-relaxed">
+                  Neprehráva sa na projektore — pasce, fakty a zaujímavosti pri vedení kvízu.
+                </p>
+                <textarea
+                  className="input min-h-[72px] resize-y text-sm bg-brand-warm border-brand-border"
+                  value={
+                    question.hostNote ??
+                    (question.bankQuestionId
+                      ? findBankQuestionById(question.bankQuestionId)?.note
+                      : "") ??
+                    ""
+                  }
+                  onChange={(e) =>
+                    updateQuestion(question.id, { hostNote: e.target.value.trim() || undefined })
+                  }
+                  placeholder="Poznámka z banky alebo vlastné info…"
+                />
               </div>
             )}
           </div>

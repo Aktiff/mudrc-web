@@ -191,3 +191,7 @@ export function filterVisibleBankQuestions(usedIds: string[], hiddenIds: string[
   const skip = new Set([...usedIds, ...hiddenIds]);
   return QUIZ_QUESTION_BANK.filter((item) => !skip.has(item.id));
 }
+
+export function findBankQuestionById(id: string): QuizBankQuestion | undefined {
+  return QUIZ_QUESTION_BANK.find((item) => item.id === id);
+}

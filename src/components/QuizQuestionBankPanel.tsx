@@ -31,7 +31,8 @@ type Props = {
     answer: string,
     options: string[],
     tags: string[],
-    isImageQuestion?: boolean
+    isImageQuestion?: boolean,
+    hostNote?: string
   ) => void;
 };
 
@@ -131,7 +132,7 @@ export default function QuizQuestionBankPanel({
   const handleInsert = (item: QuizBankQuestion) => {
     const targetId = getTargetId(item.id);
     if (!targetId) return;
-    onInsert(item.id, targetId, item.body, item.answer, [...item.options], [...item.tags], item.isImageQuestion);
+    onInsert(item.id, targetId, item.body, item.answer, [...item.options], [...item.tags], item.isImageQuestion, item.note);
     setTargetByBankId((prev) => {
       const next = { ...prev };
       delete next[item.id];

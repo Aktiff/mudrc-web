@@ -24,6 +24,8 @@ export type QuizQuestionItem = {
   imageOnNextSlide?: boolean;
   /** Tématické tagy pre vyváženie kvízu (napr. história, geografia) */
   tags?: string[];
+  /** Poznámka pre kvízmistra — len admin, nie na projektore */
+  hostNote?: string;
 };
 
 export type QuizLibraryItem = {
@@ -92,6 +94,7 @@ function normalizeQuestion(input: Partial<QuizQuestionItem>): QuizQuestionItem |
     imageDuringQuestion: Boolean(input.imageDuringQuestion),
     imageOnNextSlide: Boolean(input.imageOnNextSlide),
     tags: normalizeTags(input.tags),
+    hostNote: input.hostNote?.trim() || undefined,
   };
 }
 
