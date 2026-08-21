@@ -162,7 +162,7 @@ export function isQuestionSlotEmpty(question: QuizQuestionItem): boolean {
 }
 
 export function findFirstEmptyQuestionSlot(questions: QuizQuestionItem[]): QuizQuestionItem | undefined {
-  return questions
+  return [...questions]
     .filter((q) => q.kind === "normal")
     .sort((a, b) => a.questionNumber - b.questionNumber)
     .find(isQuestionSlotEmpty);
