@@ -1,5 +1,6 @@
 import type { QuizEvent } from "@/lib/data";
 import type { QuizUsage } from "@/lib/quiz-library";
+import { isAssignedLibraryQuiz } from "@/lib/quiz-result-library";
 import type { StoredQuiz } from "@/lib/storage";
 
 function parseUsageDate(date: string): number {
@@ -14,7 +15,8 @@ export function buildQuizUsageMap(storedQuizzes: StoredQuiz[], events: QuizEvent
   const byLibrary = new Map<string, QuizUsage[]>();
 
   for (const stored of storedQuizzes) {
-    if (!stored.libraryQuizId) continue;
+    const libraryQuizId = stored.libraryQuizId?.trim();
+    if (!libraryQuizId || !isAssignedLibraryQuiz(libraryQuizId)) continue;
     const event = eventMap.get(stored.eventSlug);
     const usage: QuizUsage = {
       eventSlug: stored.eventSlug,
@@ -25,9 +27,9 @@ export function buildQuizUsageMap(storedQuizzes: StoredQuiz[], events: QuizEvent
       winnerTeam: stored.winnerTeam,
       teamNames: stored.teams.map((team) => team.teamName),
     };
-    const list = byLibrary.get(stored.libraryQuizId) ?? [];
+    const list = byLibrary.get(libraryQuizId) ?? [];
     list.push(usage);
-    byLibrary.set(stored.libraryQuizId, list);
+    byLibrary.set(libraryQuizId, list);
   }
 
   for (const id of Array.from(byLibrary.keys())) {

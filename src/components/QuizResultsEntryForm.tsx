@@ -4,6 +4,7 @@ import { Plus, Save, Trash2, Users } from "lucide-react";
 import type { QuizEvent } from "@/lib/data";
 import { AdminDatePicker } from "@/components/AdminDatePicker";
 import { TeamAutocomplete } from "@/components/TeamAutocomplete";
+import { CANVAS_LIBRARY_QUIZ_ID, isCanvasLibraryQuiz } from "@/lib/quiz-result-library";
 
 export type QuizTeamRow = { name: string; scores: number[] };
 
@@ -91,7 +92,7 @@ export default function QuizResultsEntryForm({
       <div>
         <h2 className="font-display text-2xl text-brand-text tracking-wide mb-1">Zapísať výsledok kvízu</h2>
         <p className="text-brand-muted text-sm">
-          Vyber podnik a hotový kvíz, načítaj tímy do tabuľky a ulož body — priradí sa k podniku, dátumu a kvízu v knižnici.
+          Vyber podnik, dátum a tímy. Hotový kvíz z knižnice je voliteľný — ak si kvíz robil v Canve, vyber tú možnosť.
         </p>
       </div>
 
@@ -108,9 +109,10 @@ export default function QuizResultsEntryForm({
           </select>
         </div>
         <div>
-          <label className="label">Hotový kvíz</label>
+          <label className="label">Kvíz na večer</label>
           <select className="input" value={libraryQuizId} onChange={(e) => onLibraryQuizIdChange(e.target.value)}>
-            <option value="">— Vyber kvíz —</option>
+            <option value="">— Vyber —</option>
+            <option value={CANVAS_LIBRARY_QUIZ_ID}>Kvíz v Canve (bez knižnice)</option>
             {quizzes.map((quiz) => (
               <option key={quiz.id} value={quiz.id}>
                 {quiz.title}
@@ -119,6 +121,11 @@ export default function QuizResultsEntryForm({
               </option>
             ))}
           </select>
+          {isCanvasLibraryQuiz(libraryQuizId) && (
+            <p className="text-xs mt-1.5 text-brand-muted">
+              Výsledok sa uloží bez priradenia ku knižnici — hotové kvízy zostanú voľné.
+            </p>
+          )}
           {selectedQuiz && activeTeamNames.length > 0 && (
             <p className={`text-xs mt-1.5 ${selectedQuiz.isSafe ? "text-green-600" : "text-amber-700"}`}>
               {selectedQuiz.isSafe

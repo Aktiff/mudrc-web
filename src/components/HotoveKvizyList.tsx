@@ -6,6 +6,7 @@ import { AlertTriangle, Layers, MonitorPlay, Pencil, Play, Plus, Trash2 } from "
 import type { QuizEvent } from "@/lib/data";
 import type { QuizLibraryItem, QuizUsage } from "@/lib/quiz-library";
 import { clearQuizDraft } from "@/lib/quiz-editor-draft";
+import { CANVAS_LIBRARY_QUIZ_ID, isCanvasLibraryQuiz } from "@/lib/quiz-result-library";
 import QuizResultsEntryForm, {
   parseTeamNamesInput,
   teamsFromNames,
@@ -36,7 +37,7 @@ export default function HotoveKvizyList() {
   const [teamNamesText, setTeamNamesText] = useState("");
   const [filterTeams, setFilterTeams] = useState<string[]>([]);
   const [selectedEventSlug, setSelectedEventSlug] = useState("");
-  const [libraryQuizId, setLibraryQuizId] = useState("");
+  const [libraryQuizId, setLibraryQuizId] = useState(CANVAS_LIBRARY_QUIZ_ID);
   const [quizDate, setQuizDate] = useState(todaySkDate);
   const [quizTeams, setQuizTeams] = useState<QuizTeamRow[]>(() => teamsFromNames([], 4));
   const [submitting, setSubmitting] = useState(false);
@@ -152,7 +153,7 @@ export default function HotoveKvizyList() {
       return;
     }
     if (!libraryQuizId) {
-      setMessage({ text: "Vyber hotový kvíz.", ok: false });
+      setMessage({ text: "Vyber hotový kvíz alebo „Kvíz v Canve“.", ok: false });
       return;
     }
     if (!quizDate || validTeams.length < 2) {
@@ -176,7 +177,12 @@ export default function HotoveKvizyList() {
         return;
       }
       setResultSummary(data);
-      setMessage({ text: "Výsledok uložený a priradený ku kvízu.", ok: true });
+      setMessage({
+        text: isCanvasLibraryQuiz(libraryQuizId)
+          ? "Výsledok uložený (kvíz v Canve, bez priradenia ku knižnici)."
+          : "Výsledok uložený a priradený ku kvízu.",
+        ok: true,
+      });
       setQuizTeams(teamsFromNames([], rounds));
       setTeamNamesText("");
       setFilterTeams([]);
@@ -252,7 +258,7 @@ export default function HotoveKvizyList() {
         return;
       }
       clearQuizDraft(quiz.id);
-      if (libraryQuizId === quiz.id) setLibraryQuizId("");
+      if (libraryQuizId === quiz.id) setLibraryQuizId(CANVAS_LIBRARY_QUIZ_ID);
       const releasedCount = Array.isArray(data.releasedBankQuestionIds)
         ? data.releasedBankQuestionIds.length
         : 0;

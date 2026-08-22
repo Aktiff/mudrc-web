@@ -13,6 +13,7 @@ import { AdminDatePicker, AdminTimePicker } from "@/components/AdminDatePicker";
 import { PollAdminMultiDatePicker } from "@/components/PollAdminMultiDatePicker";
 import { TeamAutocomplete } from "@/components/TeamAutocomplete";
 import LibraryQuizPicker from "@/components/LibraryQuizPicker";
+import { CANVAS_LIBRARY_QUIZ_ID, isCanvasLibraryQuiz, libraryQuizAssignmentLabel } from "@/lib/quiz-result-library";
 
 type Tab = "info" | "liga" | "vysledky" | "pravidla" | "pridat" | "registracie" | "anketa";
 
@@ -96,7 +97,7 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
   const [quizResult, setQuizResult] = useState<{ winnerTeam: string; ligaPoints: {name:string;total:number;liga:number}[] } | null>(null);
   const [quizSubmitting, setQuizSubmitting] = useState(false);
   const [quizMsg, setQuizMsg] = useState<{ text: string; ok: boolean } | null>(null);
-  const [libraryQuizId, setLibraryQuizId] = useState("");
+  const [libraryQuizId, setLibraryQuizId] = useState(CANVAS_LIBRARY_QUIZ_ID);
   type EventRegistration = { id: string; eventSlug: string; venue: string; teamName: string; players: string; phone: string; createdAt: string };
   const [registrations, setRegistrations] = useState<EventRegistration[]>([]);
   const [regsLoading, setRegsLoading] = useState(false);
@@ -153,7 +154,7 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
   const submitQuiz = async () => {
     const validTeams = quizTeams.filter((t) => t.name.trim());
     if (!libraryQuizId) {
-      setQuizMsg({ text: "Vyber hotový kvíz z knižnice.", ok: false });
+      setQuizMsg({ text: "Vyber hotový kvíz alebo „Kvíz v Canve“.", ok: false });
       return;
     }
     if (!quizDate || validTeams.length < 2) {
@@ -197,7 +198,13 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
       setForm(normalizeEvent(savedEvent));
       setQuizResult(data);
       setQuizTeams(Array.from({ length: 10 }, emptyRow));
-      setMsg({ text: "Kvíz uložený do ligy", ok: true });
+      setLibraryQuizId(CANVAS_LIBRARY_QUIZ_ID);
+      setMsg({
+        text: isCanvasLibraryQuiz(libraryQuizId)
+          ? "Kvíz uložený do ligy (Canva, bez knižnice)."
+          : "Kvíz uložený do ligy.",
+        ok: true,
+      });
       setTab("vysledky");
     } catch {
       setQuizMsg({ text: "Sieťová chyba. Skús znova.", ok: false });
@@ -1451,6 +1458,9 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
                         <span className="font-semibold text-brand-text text-sm">{r.date}</span>
                         <span className="text-brand-muted text-sm">víťaz</span>
                         <span className="font-semibold text-brand-orange text-sm">{r.winnerTeam}</span>
+                        <span className="text-brand-muted text-xs">
+                          {libraryQuizAssignmentLabel(r.libraryQuizId)}
+                        </span>
                         <span className="ml-auto text-brand-muted text-sm">{r.points} bodov</span>
                         <ChevronLeft className="w-4 h-4 text-brand-muted-light group-hover:text-brand-orange rotate-180 transition-all" />
                       </Link>

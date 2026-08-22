@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, CheckCircle2 } from "lucide-react";
 import Link from "next/link";
+import { CANVAS_LIBRARY_QUIZ_ID } from "@/lib/quiz-result-library";
 
 type QuizOption = {
   id: string;
@@ -56,13 +57,10 @@ export default function LibraryQuizPicker({ value, onChange, teamNames }: Props)
     <div className="mb-6 bg-brand-warm border border-brand-border rounded-2xl p-5 space-y-3">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <label className="label mb-1">Hotový kvíz (otázky na večer)</label>
+          <label className="label mb-1">Hotový kvíz (voliteľné)</label>
           <p className="text-brand-muted text-xs max-w-xl">
-            Vyber ktorý kvíz z knižnice si použil. Po uložení sa priradí k tomuto podniku a dátumu — uvidíš ho v{" "}
-            <Link href="/admin/hotove-kvizy" className="text-brand-orange-readable underline">
-              Hotových kvízoch
-            </Link>
-            .
+            Ak si kvíz robil v Canve, vyber „Kvíz v Canve“ — výsledky sa uložia bez priradenia ku knižnici a kvíz
+            v knižnici zostane voľný. Inak vyber, ktorý hotový kvíz si použil.
           </p>
         </div>
         <Link href="/admin/hotove-kvizy" className="text-xs font-semibold text-brand-orange-readable hover:underline">
@@ -76,7 +74,8 @@ export default function LibraryQuizPicker({ value, onChange, teamNames }: Props)
         onChange={(e) => onChange(e.target.value)}
         disabled={loading}
       >
-        <option value="">{loading ? "Načítavam kvízy…" : "— Vyber hotový kvíz —"}</option>
+        <option value="">{loading ? "Načítavam kvízy…" : "— Vyber —"}</option>
+        <option value={CANVAS_LIBRARY_QUIZ_ID}>Kvíz v Canve (bez knižnice)</option>
         {options.map((option) => (
           <option key={option.id} value={option.id}>
             {option.title}
@@ -86,7 +85,7 @@ export default function LibraryQuizPicker({ value, onChange, teamNames }: Props)
         ))}
       </select>
 
-      {selected && activeTeams.length > 0 && (
+      {selected && selected.id !== CANVAS_LIBRARY_QUIZ_ID && activeTeams.length > 0 && (
         <div
           className={`text-sm rounded-xl px-4 py-3 flex items-start gap-2 ${
             selected.isSafe
@@ -103,11 +102,17 @@ export default function LibraryQuizPicker({ value, onChange, teamNames }: Props)
         </div>
       )}
 
+      {value === CANVAS_LIBRARY_QUIZ_ID && (
+        <p className="text-sm rounded-xl px-4 py-3 bg-brand-surface border border-brand-border text-brand-muted">
+          Výsledky sa uložia bez priradenia hotového kvízu — v knižnici nič neoznačíš ako použité.
+        </p>
+      )}
+
       {!loading && options.length === 0 && (
         <p className="text-sm text-brand-muted">
-          Knižnica je prázdna.{" "}
+          Knižnica je prázdna. Môžeš použiť „Kvíz v Canve“ alebo{" "}
           <Link href="/admin/hotove-kvizy" className="text-brand-orange-readable underline">
-            Vytvor hotový kvíz
+            vytvoriť hotový kvíz
           </Link>
           .
         </p>

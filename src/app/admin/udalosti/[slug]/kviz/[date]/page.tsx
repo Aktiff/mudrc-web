@@ -5,12 +5,20 @@ import { ChevronLeft, Trash2, Pencil, X, Plus, Save } from "lucide-react";
 import type { QuizEvent, PastResultTeam } from "@/lib/data";
 import { TeamAutocomplete } from "@/components/TeamAutocomplete";
 import { AdminDatePicker } from "@/components/AdminDatePicker";
+import LibraryQuizPicker from "@/components/LibraryQuizPicker";
+import {
+  CANVAS_LIBRARY_QUIZ_ID,
+  isAssignedLibraryQuiz,
+  isCanvasLibraryQuiz,
+  libraryQuizAssignmentLabel,
+} from "@/lib/quiz-result-library";
 
 type ResultDetail = {
   date: string;
   winnerTeam: string;
   points: number;
   teams: PastResultTeam[];
+  libraryQuizId?: string;
 };
 
 type EditRow = { name: string; scores: number[] };
@@ -37,6 +45,9 @@ export default function AdminQuizDetailPage({ params }: { params: { slug: string
 
   const [editDate, setEditDate] = useState("");
   const [editTeams, setEditTeams] = useState<EditRow[]>([]);
+  const [assignmentLibraryQuizId, setAssignmentLibraryQuizId] = useState(CANVAS_LIBRARY_QUIZ_ID);
+  const [savingAssignment, setSavingAssignment] = useState(false);
+  const [assignmentMsg, setAssignmentMsg] = useState<{ text: string; ok: boolean } | null>(null);
 
   const loadData = async () => {
     setLoadError("");
@@ -49,6 +60,7 @@ export default function AdminQuizDetailPage({ params }: { params: { slug: string
     setKnownTeams(data.event.leagueTable.map((e) => e.teamName));
     setRounds(data.event.rounds || 4);
     setResult(data.result as ResultDetail);
+    setAssignmentLibraryQuizId(data.result.libraryQuizId ?? CANVAS_LIBRARY_QUIZ_ID);
     setLoading(false);
   };
 
@@ -98,6 +110,38 @@ export default function AdminQuizDetailPage({ params }: { params: { slug: string
       await loadData();
     }
     setSaving(false);
+  };
+
+  const saveAssignment = async () => {
+    if (!assignmentLibraryQuizId) {
+      setAssignmentMsg({ text: "Vyber hotový kvíz alebo „Kvíz v Canve“.", ok: false });
+      return;
+    }
+    setSavingAssignment(true);
+    setAssignmentMsg(null);
+    const res = await fetch(`/api/admin/events/${params.slug}/kviz/${encodeURIComponent(quizKey)}`, {
+      method: "PATCH",
+      cache: "no-store",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ libraryQuizId: assignmentLibraryQuizId }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      setAssignmentMsg({ text: data.error ?? "Chyba pri ukladaní.", ok: false });
+      setSavingAssignment(false);
+      return;
+    }
+    const released = data.releasedLibraryQuizId as string | undefined;
+    setAssignmentMsg({
+      text: released
+        ? "Priradenie uložené. Hotový kvíz z knižnice je znova voľný."
+        : isCanvasLibraryQuiz(assignmentLibraryQuizId)
+          ? "Uložené — kvíz v Canve (bez knižnice)."
+          : "Priradenie hotového kvízu uložené.",
+      ok: true,
+    });
+    await loadData();
+    setSavingAssignment(false);
   };
 
   const deleteQuiz = async () => {
@@ -231,6 +275,40 @@ export default function AdminQuizDetailPage({ params }: { params: { slug: string
           </div>
         </div>
       )}
+
+      <div className="bg-brand-card rounded-2xl border border-brand-border p-6 mb-5">
+        <h2 className="font-semibold text-brand-text mb-1">Hotový kvíz</h2>
+        <p className="text-brand-muted text-sm mb-4">
+          Aktuálne:{" "}
+          <span className="font-medium text-brand-text">
+            {libraryQuizAssignmentLabel(result.libraryQuizId)}
+          </span>
+          {isAssignedLibraryQuiz(result.libraryQuizId) && (
+            <span className="text-brand-muted">
+              {" "}
+              — ak si kvíz robil v Canve, prepni na „Kvíz v Canve“ a hotový kvíz sa uvoľní.
+            </span>
+          )}
+        </p>
+        <LibraryQuizPicker
+          value={assignmentLibraryQuizId}
+          onChange={setAssignmentLibraryQuizId}
+          teamNames={result.teams.map((team) => team.teamName)}
+        />
+        {assignmentMsg && (
+          <p className={`text-sm mb-3 ${assignmentMsg.ok ? "text-green-600 dark:text-green-400" : "text-red-500"}`}>
+            {assignmentMsg.text}
+          </p>
+        )}
+        <button
+          onClick={saveAssignment}
+          disabled={savingAssignment || assignmentLibraryQuizId === (result.libraryQuizId ?? CANVAS_LIBRARY_QUIZ_ID)}
+          className="btn-primary text-sm py-2 px-5"
+        >
+          <Save className="w-4 h-4" />
+          {savingAssignment ? "Ukladám..." : "Uložiť priradenie"}
+        </button>
+      </div>
 
       <div className="bg-brand-card rounded-2xl border border-brand-border overflow-hidden">
         <div className="px-6 py-4 border-b border-brand-border bg-brand-surface">

@@ -8,6 +8,8 @@ import { findQuizResultIndex, normalizeDateKey } from "@/lib/quiz-result-key";
 
 import { buildQuizTeamsDetail } from "@/lib/quiz-save";
 
+import { isAssignedLibraryQuiz, normalizeResultLibraryQuizId } from "@/lib/quiz-result-library";
+
 import { revalidatePublicEventPaths } from "@/lib/revalidate-public";
 
 import { deleteStoredQuiz, readQuizResult, rebuildLeagueTableForEvent, updateEvents, upsertStoredQuiz } from "@/lib/storage";
@@ -216,6 +218,144 @@ export async function PUT(req: NextRequest, { params }: { params: { slug: string
     return NextResponse.json({ error: "Chyba pri ukladani kvizu" }, { status: 500 });
 
   }
+
+}
+
+
+
+export async function PATCH(req: NextRequest, { params }: { params: { slug: string; date: string } }) {
+
+  const { libraryQuizId }: { libraryQuizId?: string } = await req.json();
+
+  const normalizedLibraryQuizId = normalizeResultLibraryQuizId(libraryQuizId);
+
+  if (!normalizedLibraryQuizId) {
+
+    return NextResponse.json({ error: "Vyber hotový kvíz alebo „Kvíz v Canve“." }, { status: 400 });
+
+  }
+
+
+
+  const existing = await readQuizResult(params.slug, params.date);
+
+  if (!existing?.result?.teams?.length) {
+
+    return NextResponse.json({ error: "Result not found" }, { status: 404 });
+
+  }
+
+
+
+  const quizId = existing.result.id ?? normalizeDateKey(existing.result.date);
+
+  const previousLibraryQuizId = existing.result.libraryQuizId;
+
+
+
+  try {
+
+    await upsertStoredQuiz({
+
+      id: quizId,
+
+      eventSlug: params.slug,
+
+      date: existing.result.date,
+
+      winnerTeam: existing.result.winnerTeam,
+
+      points: existing.result.points,
+
+      teams: existing.result.teams ?? [],
+
+      libraryQuizId: normalizedLibraryQuizId,
+
+    });
+
+  } catch (error) {
+
+    console.error("upsertStoredQuiz PATCH libraryQuizId error:", error);
+
+    return NextResponse.json({ error: "Chyba pri ukladaní priradenia kvízu" }, { status: 500 });
+
+  }
+
+
+
+  try {
+
+    await updateEvents((events) => {
+
+      const idx = events.findIndex((e) => e.slug === params.slug);
+
+      if (idx === -1) throw new Error("NOT_FOUND");
+
+
+
+      const event = events[idx];
+
+      const resultIdx = findQuizResultIndex(event.pastResults, params.date);
+
+      if (resultIdx === -1) throw new Error("RESULT_NOT_FOUND");
+
+
+
+      const pastResults = [...event.pastResults];
+
+      pastResults[resultIdx] = {
+
+        ...pastResults[resultIdx],
+
+        libraryQuizId: normalizedLibraryQuizId,
+
+      };
+
+      events[idx] = { ...event, pastResults };
+
+      return events;
+
+    });
+
+  } catch (error) {
+
+    if (error instanceof Error && error.message === "NOT_FOUND") {
+
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+    }
+
+    if (error instanceof Error && error.message === "RESULT_NOT_FOUND") {
+
+      return NextResponse.json({ error: "Result not found" }, { status: 404 });
+
+    }
+
+    return NextResponse.json({ error: "Chyba pri ukladaní priradenia kvízu" }, { status: 500 });
+
+  }
+
+
+
+  await revalidatePublicEventPaths(params.slug);
+
+  revalidatePath("/liga");
+
+
+
+  const releasedLibraryQuizId =
+
+    isAssignedLibraryQuiz(previousLibraryQuizId) &&
+
+    !isAssignedLibraryQuiz(normalizedLibraryQuizId)
+
+      ? previousLibraryQuizId
+
+      : undefined;
+
+
+
+  return NextResponse.json({ ok: true, libraryQuizId: normalizedLibraryQuizId, releasedLibraryQuizId });
 
 }
 

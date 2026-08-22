@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { sortLeagueTable } from "@/lib/data";
-import { normalizeDateKey } from "@/lib/quiz-result-key";import { buildQuizTeamsDetail } from "@/lib/quiz-save";
+import { normalizeDateKey } from "@/lib/quiz-result-key";
+import { buildQuizTeamsDetail } from "@/lib/quiz-save";
+import { isCanvasLibraryQuiz, normalizeResultLibraryQuizId } from "@/lib/quiz-result-library";
 import { revalidatePublicEventPaths } from "@/lib/revalidate-public";
 import { hasQuizForDate, readStoredQuiz, readEvents, updateEvents, upsertStoredQuiz } from "@/lib/storage";
 
@@ -16,8 +18,12 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   if (!date || !teams?.length) {
     return NextResponse.json({ error: "Chýba dátum alebo tímy" }, { status: 400 });
   }
-  if (!libraryQuizId?.trim()) {
-    return NextResponse.json({ error: "Vyber hotový kvíz z knižnice." }, { status: 400 });
+  const normalizedLibraryQuizId = normalizeResultLibraryQuizId(libraryQuizId);
+  if (!normalizedLibraryQuizId) {
+    return NextResponse.json(
+      { error: "Vyber hotový kvíz z knižnice alebo „Kvíz v Canve“." },
+      { status: 400 }
+    );
   }
 
   const { sorted, teamsDetail, winnerTeam, winnerTotal, responseLigaPoints } = buildQuizTeamsDetail(teams);
@@ -38,7 +44,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
       winnerTeam,
       points: winnerTotal,
       teams: teamsDetail,
-      libraryQuizId: libraryQuizId.trim(),
+      libraryQuizId: normalizedLibraryQuizId,
     });
   } catch (error) {
     console.error("upsertStoredQuiz error:", error);
@@ -68,7 +74,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
       const sortedTable = sortLeagueTable(table);
       const pastResults = [
         ...(event.pastResults ?? []).filter((r) => normalizeDateKey(r.date) !== resultId && r.id !== resultId),
-        { id: resultId, date, winnerTeam, points: winnerTotal, teams: teamsDetail, leagueSynced: true, libraryQuizId: libraryQuizId.trim() },
+        { id: resultId, date, winnerTeam, points: winnerTotal, teams: teamsDetail, leagueSynced: true, libraryQuizId: normalizedLibraryQuizId },
       ];
 
       events[idx] = { ...event, leagueTable: sortedTable, pastResults, leagueActive: true };
@@ -101,5 +107,6 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
     winnerTeam,
     event: saved,
     ligaPoints: responseLigaPoints,
+    canvasQuiz: isCanvasLibraryQuiz(normalizedLibraryQuizId),
   });
 }
