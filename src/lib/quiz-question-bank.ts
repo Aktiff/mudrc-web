@@ -16,8 +16,10 @@ export type QuizBankQuestion = {
   note: string;
   /** Tématické tagy (história, geografia, …) */
   tags: string[];
-  /** Otázka určená pre slot s fotkou (5, 10, 15…) */
+  /** Otázka určená pre slot s fotkou (5, 10 v kole — nie 15) */
   isImageQuestion?: boolean;
+  /** Otvorená odpoveď bez možností A–F */
+  isOpenQuestion?: boolean;
 };
 
 /** Pri generovaní nových otázok netreba riešiť correctIndex — banka ich pri načítaní premieša podľa id. */
@@ -151,9 +153,9 @@ export const QUIZ_QUESTION_BANK: QuizBankQuestion[] = [...IMAGE_QUIZ_BANK, ...PU
   (item) => shuffleQuestionOptionsDeterministic(item, item.id)
 );
 
-/** Sloty 5, 10, 15… v kole — určené pre otázku s fotkou. */
+/** Sloty 5 a 10 v kole — otázka s fotkou (15. nie). */
 export function isImageQuestionSlot(questionNumber: number): boolean {
-  return questionNumber > 0 && questionNumber % 5 === 0;
+  return questionNumber > 0 && questionNumber % 5 === 0 && questionNumber !== 15;
 }
 
 export function formatBankQuestionBody(item: QuizBankQuestion): string {

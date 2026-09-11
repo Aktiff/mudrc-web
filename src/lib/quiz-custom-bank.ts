@@ -1,4 +1,5 @@
 import type { QuizBankQuestion } from "@/lib/quiz-question-bank";
+import { resolveCustomQuestionTags } from "@/lib/quiz-bank-tag-inference";
 
 export const CUSTOM_BANK_STORAGE_KEY = "mudrc-custom-bank-questions";
 
@@ -49,19 +50,22 @@ function normalizeStoredCustomQuestion(raw: unknown): CustomBankQuestion | null 
   const row = raw as Record<string, unknown>;
   if (typeof row.id !== "string" || !isCustomBankQuestionId(row.id)) return null;
   if (typeof row.body !== "string" || !row.body.trim()) return null;
+  const isOpenQuestion = Boolean(row.isOpenQuestion);
   if (!Array.isArray(row.options) || row.options.length !== 6) return null;
   const options = row.options.map((o) => (typeof o === "string" ? o : "")) as QuizBankQuestion["options"];
   const correctIndex = typeof row.correctIndex === "number" ? row.correctIndex : 0;
   const answer =
     typeof row.answer === "string" && row.answer.trim()
       ? row.answer.trim()
-      : options[correctIndex]?.trim() ?? "";
+      : isOpenQuestion
+        ? ""
+        : options[correctIndex]?.trim() ?? "";
   if (!answer) return null;
 
   const tagsRaw = row.tags;
   const tags = Array.isArray(tagsRaw)
     ? tagsRaw.filter((t): t is string => typeof t === "string").map((t) => t.trim().toLowerCase()).filter(Boolean)
-    : ["vlastné"];
+    : resolveCustomQuestionTags(undefined, row.body as string, answer);
 
   return {
     id: row.id,
@@ -73,6 +77,7 @@ function normalizeStoredCustomQuestion(raw: unknown): CustomBankQuestion | null 
     note: typeof row.note === "string" ? row.note.trim() : "",
     tags: tags.length ? Array.from(new Set(tags)).slice(0, 8) : ["vlastné"],
     isImageQuestion: Boolean(row.isImageQuestion),
+    isOpenQuestion: Boolean(row.isOpenQuestion),
     suggestedImageUrl:
       typeof row.suggestedImageUrl === "string" && row.suggestedImageUrl.trim()
         ? row.suggestedImageUrl.trim()
@@ -85,21 +90,55 @@ export type NewCustomBankQuestionInput = {
   body: string;
   options: string[];
   correctIndex: number;
+  answer?: string;
   note?: string;
   tags?: string[];
   difficulty?: number;
   isImageQuestion?: boolean;
+  isOpenQuestion?: boolean;
   suggestedImageUrl?: string;
 };
 
+/** Len vyplnené možnosti — pre vloženie a premiešanie. */
+export function compactChoiceBankQuestion(item: QuizBankQuestion): QuizBankQuestion {
+  const filled = item.options
+    .map((opt, index) => ({ opt: opt.trim(), index }))
+    .filter((entry) => entry.opt);
+  if (filled.length < 2) return item;
+
+  const options = filled.map((entry) => entry.opt);
+  const correctSource = Math.min(Math.max(item.correctIndex, 0), item.options.length - 1);
+  let correctIndex = filled.findIndex((entry) => entry.index === correctSource);
+  if (correctIndex < 0) correctIndex = 0;
+  const answer = options[correctIndex] ?? item.answer;
+
+  const padded = [...options] as QuizBankQuestion["options"];
+  while (padded.length < 6) padded.push("");
+
+  return {
+    ...item,
+    options: padded,
+    correctIndex,
+    answer,
+  };
+}
+
 export function createCustomBankQuestion(input: NewCustomBankQuestionInput): CustomBankQuestion {
+  const isOpenQuestion = Boolean(input.isOpenQuestion);
   const options = [...input.options].slice(0, 6) as QuizBankQuestion["options"];
   while (options.length < 6) options.push("");
-  const correctIndex = Math.min(Math.max(0, input.correctIndex), 5);
-  const answer = options[correctIndex]?.trim() ?? "";
-  const tags = input.tags?.length
-    ? Array.from(new Set([...input.tags.map((t) => t.trim().toLowerCase()).filter(Boolean), "vlastné"]))
-    : ["vlastné"];
+
+  let correctIndex = 0;
+  let answer = "";
+
+  if (isOpenQuestion) {
+    answer = input.answer?.trim() ?? "";
+  } else {
+    correctIndex = Math.min(Math.max(0, input.correctIndex), 5);
+    answer = options[correctIndex]?.trim() ?? input.answer?.trim() ?? "";
+  }
+
+  const tags = resolveCustomQuestionTags(input.tags, input.body.trim(), answer, input.note);
 
   return {
     id: `${CUSTOM_BANK_ID_PREFIX}${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -111,6 +150,7 @@ export function createCustomBankQuestion(input: NewCustomBankQuestionInput): Cus
     note: input.note?.trim() ?? "",
     tags: tags.slice(0, 8),
     isImageQuestion: Boolean(input.isImageQuestion),
+    isOpenQuestion,
     suggestedImageUrl: input.suggestedImageUrl?.trim() || undefined,
     createdAt: Date.now(),
   };

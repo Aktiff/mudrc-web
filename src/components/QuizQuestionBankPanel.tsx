@@ -226,7 +226,45 @@ export default function QuizQuestionBankPanel({
   const handleInsert = (item: QuizBankQuestion) => {
     const targetId = getTargetId(item.id);
     if (!targetId) return;
-    const mixed = shuffleQuestionOptionsRandom(item);
+
+    if (item.isOpenQuestion) {
+      const suggestedImageUrl =
+        "suggestedImageUrl" in item && typeof item.suggestedImageUrl === "string"
+          ? item.suggestedImageUrl
+          : undefined;
+      onInsert(
+        item.id,
+        targetId,
+        item.body,
+        item.answer,
+        [],
+        [...item.tags],
+        item.isImageQuestion,
+        item.note,
+        suggestedImageUrl
+      );
+      setTargetByBankId((prev) => {
+        const next = { ...prev };
+        delete next[item.id];
+        return next;
+      });
+      return;
+    }
+
+    const activeOptions = item.options.map((option) => option.trim()).filter(Boolean);
+    const activeSourceIndices = item.options
+      .map((option, index) => (option.trim() ? index : -1))
+      .filter((index) => index >= 0);
+    let correctIndex = activeSourceIndices.indexOf(item.correctIndex);
+    if (correctIndex < 0) correctIndex = 0;
+
+    const mixed = shuffleQuestionOptionsRandom({
+      ...item,
+      options: activeOptions as QuizBankQuestion["options"],
+      correctIndex,
+      answer: activeOptions[correctIndex] ?? item.answer,
+    });
+    const optionList = mixed.options.map((option) => option.trim()).filter(Boolean);
     const suggestedImageUrl =
       "suggestedImageUrl" in item && typeof item.suggestedImageUrl === "string"
         ? item.suggestedImageUrl
@@ -236,7 +274,7 @@ export default function QuizQuestionBankPanel({
       targetId,
       mixed.body,
       mixed.answer,
-      [...mixed.options],
+      optionList,
       [...mixed.tags],
       mixed.isImageQuestion,
       mixed.note,
@@ -320,8 +358,8 @@ export default function QuizQuestionBankPanel({
 
         {prioritizeImageQuestions && (
           <p className="text-xs font-semibold text-brand-orange-readable bg-brand-tint border border-brand-orange/30 rounded-lg px-3 py-2 leading-relaxed">
-            Práve plníš otázku č. {defaultTargetQuestion?.questionNumber} — každá piatka je s fotkou. Vyber
-            otázku z banky a doplni URL obrázka v editore.
+            Práve plníš otázku č. {defaultTargetQuestion?.questionNumber} — vo formáte Mudrc sú s fotkou
+            otázky 5 a 10. Vyber otázku z banky a doplni URL obrázka v editore.
           </p>
         )}
 
@@ -377,6 +415,11 @@ export default function QuizQuestionBankPanel({
                         moja otázka
                       </span>
                     )}
+                    {item.isOpenQuestion && (
+                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-sky-50 text-sky-800 border border-sky-200 dark:bg-sky-950/30 dark:text-sky-200 dark:border-sky-800">
+                        otvorená
+                      </span>
+                    )}
                     {item.isImageQuestion && (
                       <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-violet-50 text-violet-800 border border-violet-200 dark:bg-violet-950/30 dark:text-violet-200 dark:border-violet-800">
                         foto otázka
@@ -399,8 +442,15 @@ export default function QuizQuestionBankPanel({
                   )}
                 </div>
 
+                {item.isOpenQuestion ? (
+                  <p className="text-xs px-2 py-1.5 rounded-md border border-green-500/50 bg-green-50 text-green-800 dark:bg-green-950/40 dark:text-green-200 font-semibold">
+                    Správna odpoveď: {item.answer}
+                  </p>
+                ) : (
                 <ul className="space-y-1">
-                  {item.options.map((option, optionIndex) => (
+                  {item.options.map((option, optionIndex) => {
+                    if (!option.trim()) return null;
+                    return (
                     <li
                       key={optionIndex}
                       className={`text-xs px-2 py-1.5 rounded-md border leading-snug break-words ${
@@ -412,8 +462,10 @@ export default function QuizQuestionBankPanel({
                       <span className="font-mono opacity-60 mr-1">{OPTION_LETTERS[optionIndex]})</span>
                       {option}
                     </li>
-                  ))}
+                    );
+                  })}
                 </ul>
+                )}
 
                 <p className="text-xs text-brand-muted leading-relaxed bg-brand-warm border border-brand-border rounded-lg px-2.5 py-2">
                   <span className="font-semibold text-brand-text">Info: </span>

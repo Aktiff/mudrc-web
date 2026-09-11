@@ -8,14 +8,18 @@ import { parseTagsInput } from "@/lib/quiz-question-tags";
 
 const OPTION_LETTERS = ["A", "B", "C", "D", "E", "F"] as const;
 
+type QuestionMode = "choice" | "open";
+
 type Props = {
   onAdded?: () => void;
 };
 
 export default function CustomBankQuestionForm({ onAdded }: Props) {
   const [open, setOpen] = useState(true);
+  const [questionMode, setQuestionMode] = useState<QuestionMode>("choice");
   const [body, setBody] = useState("");
   const [options, setOptions] = useState(["", "", "", "", "", ""]);
+  const [openAnswer, setOpenAnswer] = useState("");
   const [correctIndex, setCorrectIndex] = useState(0);
   const [note, setNote] = useState("");
   const [tagsText, setTagsText] = useState("");
@@ -28,6 +32,7 @@ export default function CustomBankQuestionForm({ onAdded }: Props) {
   const resetForm = () => {
     setBody("");
     setOptions(["", "", "", "", "", ""]);
+    setOpenAnswer("");
     setCorrectIndex(0);
     setNote("");
     setTagsText("");
@@ -44,10 +49,37 @@ export default function CustomBankQuestionForm({ onAdded }: Props) {
       setError("Zadaj text otázky.");
       return;
     }
+
+    if (questionMode === "open") {
+      const answer = openAnswer.trim();
+      if (!answer) {
+        setError("Zadaj správnu odpoveď.");
+        return;
+      }
+      const created = addCustomBankQuestion({
+        body: trimmedBody,
+        options: ["", "", "", "", "", ""],
+        correctIndex: 0,
+        answer,
+        note: note.trim() || undefined,
+        tags: parseTagsInput(tagsText),
+        difficulty,
+        isImageQuestion,
+        isOpenQuestion: true,
+        suggestedImageUrl: suggestedImageUrl.trim() || undefined,
+      });
+      resetForm();
+      setSuccess(
+        `Otázka pridaná do banky. Tagy: ${created.tags.join(", ")}${tagsText.trim() ? "" : " (doplnené automaticky)"}.`
+      );
+      onAdded?.();
+      window.setTimeout(() => setSuccess(""), 5000);
+      return;
+    }
+
     const filledOptions = options.map((o) => o.trim());
-    const nonEmptyCount = filledOptions.filter(Boolean).length;
-    if (nonEmptyCount < 4) {
-      setError("Vyplň aspoň 4 možnosti (A–D).");
+    if (!filledOptions[0] || !filledOptions[1]) {
+      setError("Možnosti A a B sú povinné.");
       return;
     }
     if (!filledOptions[correctIndex]) {
@@ -55,7 +87,7 @@ export default function CustomBankQuestionForm({ onAdded }: Props) {
       return;
     }
 
-    addCustomBankQuestion({
+    const created = addCustomBankQuestion({
       body: trimmedBody,
       options: filledOptions,
       correctIndex,
@@ -63,13 +95,16 @@ export default function CustomBankQuestionForm({ onAdded }: Props) {
       tags: parseTagsInput(tagsText),
       difficulty,
       isImageQuestion,
+      isOpenQuestion: false,
       suggestedImageUrl: suggestedImageUrl.trim() || undefined,
     });
 
     resetForm();
-    setSuccess("Otázka pridaná do banky — zobrazí sa navrchu medzi tvojimi otázkami.");
+    setSuccess(
+      `Otázka pridaná do banky. Tagy: ${created.tags.join(", ")}${tagsText.trim() ? "" : " (doplnené automaticky)"}.`
+    );
     onAdded?.();
-    window.setTimeout(() => setSuccess(""), 4000);
+    window.setTimeout(() => setSuccess(""), 5000);
   };
 
   return (
@@ -91,6 +126,34 @@ export default function CustomBankQuestionForm({ onAdded }: Props) {
       {open && (
         <div className="px-5 pb-5 pt-0 space-y-4 border-t border-brand-border">
           <div>
+            <p className="label mb-2">Typ otázky</p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setQuestionMode("choice")}
+                className={`text-sm font-semibold px-4 py-2 rounded-xl border transition-colors ${
+                  questionMode === "choice"
+                    ? "bg-brand-orange text-brand-btn-fg border-brand-orange"
+                    : "border-brand-border text-brand-muted hover:border-brand-orange"
+                }`}
+              >
+                S možnosťami (A–F)
+              </button>
+              <button
+                type="button"
+                onClick={() => setQuestionMode("open")}
+                className={`text-sm font-semibold px-4 py-2 rounded-xl border transition-colors ${
+                  questionMode === "open"
+                    ? "bg-brand-orange text-brand-btn-fg border-brand-orange"
+                    : "border-brand-border text-brand-muted hover:border-brand-orange"
+                }`}
+              >
+                Bez možností (otvorená)
+              </button>
+            </div>
+          </div>
+
+          <div>
             <label className="label">Otázka</label>
             <textarea
               className="input min-h-[72px] resize-y text-sm"
@@ -100,38 +163,52 @@ export default function CustomBankQuestionForm({ onAdded }: Props) {
             />
           </div>
 
-          <div>
-            <label className="label">Možnosti A–F</label>
-            <div className="space-y-2">
-              {OPTION_LETTERS.map((letter, index) => (
-                <div key={letter} className="flex items-center gap-2">
-                  <label className="flex items-center gap-2 shrink-0 w-24 cursor-pointer text-sm">
+          {questionMode === "choice" ? (
+            <div>
+              <label className="label">Možnosti A–F</label>
+              <div className="space-y-2">
+                {OPTION_LETTERS.map((letter, index) => (
+                  <div key={letter} className="flex items-center gap-2">
+                    <label className="flex items-center gap-2 shrink-0 w-24 cursor-pointer text-sm">
+                      <input
+                        type="radio"
+                        name="custom-bank-correct"
+                        checked={correctIndex === index}
+                        onChange={() => setCorrectIndex(index)}
+                        className="rounded-full border-brand-border"
+                      />
+                      <span className="font-mono font-semibold text-brand-muted">{letter})</span>
+                    </label>
                     <input
-                      type="radio"
-                      name="custom-bank-correct"
-                      checked={correctIndex === index}
-                      onChange={() => setCorrectIndex(index)}
-                      className="rounded-full border-brand-border"
+                      className="input text-sm py-2 flex-1"
+                      value={options[index]}
+                      onChange={(e) =>
+                        setOptions((prev) => {
+                          const next = [...prev];
+                          next[index] = e.target.value;
+                          return next;
+                        })
+                      }
+                      placeholder={index < 2 ? "Povinné" : "Voliteľné"}
                     />
-                    <span className="font-mono font-semibold text-brand-muted">{letter})</span>
-                  </label>
-                  <input
-                    className="input text-sm py-2 flex-1"
-                    value={options[index]}
-                    onChange={(e) =>
-                      setOptions((prev) => {
-                        const next = [...prev];
-                        next[index] = e.target.value;
-                        return next;
-                      })
-                    }
-                    placeholder={index < 4 ? "Povinné" : "Voliteľné"}
-                  />
-                </div>
-              ))}
+                  </div>
+                ))}
+              </div>
+              <p className="text-brand-muted text-xs mt-1.5">
+                Povinné sú A a B, C–F voliteľné. Označ kolieskom správnu možnosť.
+              </p>
             </div>
-            <p className="text-brand-muted text-xs mt-1.5">Označ kolieskom správnu možnosť.</p>
-          </div>
+          ) : (
+            <div>
+              <label className="label">Správna odpoveď</label>
+              <input
+                className="input text-sm py-2"
+                value={openAnswer}
+                onChange={(e) => setOpenAnswer(e.target.value)}
+                placeholder="Očakávaná odpoveď tímu…"
+              />
+            </div>
+          )}
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
@@ -151,7 +228,7 @@ export default function CustomBankQuestionForm({ onAdded }: Props) {
                 className="input text-sm py-2"
                 value={tagsText}
                 onChange={(e) => setTagsText(e.target.value)}
-                placeholder="film, história…"
+                placeholder="Ak necháš prázdne, doplníme ich za teba"
               />
             </div>
           </div>
@@ -173,7 +250,7 @@ export default function CustomBankQuestionForm({ onAdded }: Props) {
               onChange={(e) => setIsImageQuestion(e.target.checked)}
               className="rounded border-brand-border"
             />
-            Foto otázka (pre sloty 5, 10, 15…)
+            Foto otázka (pre sloty 5 a 10 v kole)
           </label>
 
           {isImageQuestion && (
