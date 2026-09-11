@@ -1,23 +1,59 @@
 import { NextRequest, NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
+import { put } from "@vercel/blob";
+import {
+  formatSupabaseAudioUploadError,
+  guessAudioContentType,
+  isAllowedAudioFile,
+  MAX_AUDIO_BYTES,
+  MAX_AUDIO_SERVER_BYTES,
+} from "@/lib/audio-upload";
 import { hasSupabaseStorage, supabaseUploadPublicFile, supabaseUploadPublicImage } from "@/lib/supabase-storage";
+import { hasBlobStorage } from "@/lib/storage";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
-const MAX_AUDIO_BYTES = 12 * 1024 * 1024;
 
-const AUDIO_TYPES = new Set([
-  "audio/mpeg",
-  "audio/mp3",
-  "audio/wav",
-  "audio/ogg",
-  "audio/mp4",
-  "audio/x-m4a",
-  "audio/aac",
-]);
+async function uploadAudioBuffer(
+  buffer: Buffer,
+  fileName: string,
+  contentType: string
+): Promise<string> {
+  const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, "-") || "clip.mp3";
+
+  if (hasBlobStorage()) {
+    const { url } = await put(`mudrc/audio/${Date.now()}-${safeName}`, buffer, {
+      access: "public",
+      contentType,
+    });
+    return url;
+  }
+
+  if (hasSupabaseStorage()) {
+    const ext = safeName.split(".").pop()?.toLowerCase() ?? "mp3";
+    try {
+      return await supabaseUploadPublicFile("audio", `${Date.now()}.${ext}`, buffer, contentType);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Upload failed";
+      throw new Error(formatSupabaseAudioUploadError(message));
+    }
+  }
+
+  if (process.env.VERCEL) {
+    throw new Error(
+      "Upload audio na produkcii vyžaduje Vercel Blob alebo Supabase s povoleným audio v buckete uploads."
+    );
+  }
+
+  const uploadDir = path.join(process.cwd(), "public/uploads/audio");
+  fs.mkdirSync(uploadDir, { recursive: true });
+  const filename = `${Date.now()}.${safeName.split(".").pop() ?? "mp3"}`;
+  fs.writeFileSync(path.join(uploadDir, filename), buffer);
+  return `/uploads/audio/${filename}`;
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -28,37 +64,40 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Nebol vybraný súbor." }, { status: 400 });
     }
 
-    const isAudio = kind === "audio" || AUDIO_TYPES.has(file.type) || /\.(mp3|m4a|wav|ogg|aac)$/i.test(file.name);
+    const isAudio =
+      kind === "audio" || isAllowedAudioFile(file.name, file.type || "");
+
     if (isAudio) {
-      if (!file.type.startsWith("audio/") && !/\.(mp3|m4a|wav|ogg|aac)$/i.test(file.name)) {
-        return NextResponse.json({ error: "Povolené sú audio súbory (MP3, M4A, WAV, OGG)." }, { status: 400 });
+      if (!isAllowedAudioFile(file.name, file.type || "")) {
+        return NextResponse.json(
+          { error: "Povolené sú audio súbory (MP3, M4A, WAV, OGG)." },
+          { status: 400 }
+        );
       }
       if (file.size > MAX_AUDIO_BYTES) {
         return NextResponse.json({ error: "Maximálna veľkosť audio je 12 MB." }, { status: 400 });
       }
-      const ext = file.name.split(".").pop()?.toLowerCase() ?? "mp3";
-      const buffer = Buffer.from(await file.arrayBuffer());
-      const contentType = file.type || "audio/mpeg";
-
-      if (hasSupabaseStorage()) {
-        const url = await supabaseUploadPublicFile("audio", `${Date.now()}.${ext}`, buffer, contentType);
-        return NextResponse.json({ url });
-      }
-      if (process.env.VERCEL) {
+      if (process.env.VERCEL && file.size > MAX_AUDIO_SERVER_BYTES && !hasBlobStorage()) {
         return NextResponse.json(
-          { error: "Upload audio na produkcii vyžaduje Supabase (bucket uploads)." },
-          { status: 500 }
+          {
+            error:
+              "Súbor je príliš veľký na upload cez server (max ~3,5 MB). Skráť ukážku na ~30 s, zapni Vercel Blob, alebo vlož URL.",
+          },
+          { status: 413 }
         );
       }
-      const uploadDir = path.join(process.cwd(), "public/uploads/audio");
-      fs.mkdirSync(uploadDir, { recursive: true });
-      const filename = `${Date.now()}.${ext}`;
-      fs.writeFileSync(path.join(uploadDir, filename), buffer);
-      return NextResponse.json({ url: `/uploads/audio/${filename}` });
+
+      const contentType = guessAudioContentType(file.name, file.type || "");
+      const buffer = Buffer.from(await file.arrayBuffer());
+      const url = await uploadAudioBuffer(buffer, file.name, contentType);
+      return NextResponse.json({ url });
     }
 
     if (!file.type.startsWith("image/")) {
-      return NextResponse.json({ error: "Povolené sú len obrázky (JPG, PNG, WEBP) alebo audio (MP3…)." }, { status: 400 });
+      return NextResponse.json(
+        { error: "Povolené sú len obrázky (JPG, PNG, WEBP) alebo audio (MP3…)." },
+        { status: 400 }
+      );
     }
     if (file.size > MAX_IMAGE_BYTES) {
       return NextResponse.json({ error: "Maximálna veľkosť súboru je 5 MB." }, { status: 400 });
@@ -89,7 +128,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ url: `/uploads/${filename}` });
   } catch (error) {
     console.error("upload error:", error);
-    const message = error instanceof Error ? error.message : "Nepodarilo sa nahrať fotku.";
+    const message = error instanceof Error ? error.message : "Nepodarilo sa nahrať súbor.";
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
