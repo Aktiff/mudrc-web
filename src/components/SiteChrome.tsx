@@ -10,7 +10,7 @@ export default function SiteChrome({ children }: { children: React.ReactNode }) 
   return (
     <>
       {hide ? null : <Navbar />}
-      <main>{children}</main>
+      <main className={hide ? "min-h-[100dvh]" : undefined}>{children}</main>
       {hide ? null : <Footer />}
     </>
   );

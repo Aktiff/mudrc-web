@@ -97,9 +97,24 @@ export default function SeatPlanEditor({ planId }: { planId: string }) {
       setSaveState("error");
     } finally {
       savingRef.current = false;
-      if (pendingRef.current) void flushSave();
+      if (pendingRef.current) await flushSave();
     }
   }, []);
+
+  const ensureSaved = useCallback(async (current?: SeatPlan | null) => {
+    if (timerRef.current) {
+      window.clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+    if (current) pendingRef.current = current;
+    for (let i = 0; i < 40 && savingRef.current; i += 1) {
+      await new Promise((resolve) => window.setTimeout(resolve, 50));
+    }
+    await flushSave();
+    for (let i = 0; i < 40 && savingRef.current; i += 1) {
+      await new Promise((resolve) => window.setTimeout(resolve, 50));
+    }
+  }, [flushSave]);
 
   const queueSave = useCallback(
     (next: SeatPlan) => {
@@ -473,6 +488,7 @@ export default function SeatPlanEditor({ planId }: { planId: string }) {
 
   async function copyWaiterLink() {
     if (!waiterUrl) return;
+    await ensureSaved(plan);
     try {
       await navigator.clipboard.writeText(waiterUrl);
       setCopyMsg("Odkaz skopírovaný");
@@ -482,8 +498,15 @@ export default function SeatPlanEditor({ planId }: { planId: string }) {
     window.setTimeout(() => setCopyMsg(""), 2500);
   }
 
+  async function openWaiterView() {
+    if (!waiterUrl) return;
+    await ensureSaved(plan);
+    window.open(waiterUrl, "_blank", "noopener,noreferrer");
+  }
+
   async function shareWaiterLink() {
     if (!plan) return;
+    await ensureSaved(plan);
     const url = waiterUrl;
     const title = `${plan.venue || "Kvíz"} — zasadací poriadok`;
     if (navigator.share) {
@@ -491,10 +514,10 @@ export default function SeatPlanEditor({ planId }: { planId: string }) {
         await navigator.share({ title, url, text: title });
         return;
       } catch {
-        /* user cancelled or share failed — fall through to copy */
+        /* user cancelled or share failed — fall through to open */
       }
     }
-    await copyWaiterLink();
+    window.open(url, "_blank", "noopener,noreferrer");
   }
 
   if (loading) {
@@ -542,9 +565,9 @@ export default function SeatPlanEditor({ planId }: { planId: string }) {
           <button type="button" onClick={() => void shareWaiterLink()} className="btn-outline py-1.5 px-3 text-xs">
             <ExternalLink className="h-3.5 w-3.5" /> Čašník
           </button>
-          <Link href={waiterSharePath(plan.shareToken)} target="_blank" className="btn-primary py-1.5 px-3 text-xs">
+          <button type="button" onClick={() => void openWaiterView()} className="btn-primary py-1.5 px-3 text-xs">
             <Printer className="h-3.5 w-3.5" /> Tlač
-          </Link>
+          </button>
         </div>
       </div>
       {copyMsg && <p className="text-xs text-green-700 dark:text-green-300">{copyMsg}</p>}

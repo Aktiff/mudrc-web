@@ -108,6 +108,15 @@
   }
   .waiter-plan {
     max-width: none;
+    height: auto !important;
+    min-height: 0 !important;
     padding: 0;
+  }
+  .waiter-canvas {
+    height: 72vh !important;
+    flex: none !important;
+  }
+  .waiter-table-list {
+    display: block !important;
   }
 }
