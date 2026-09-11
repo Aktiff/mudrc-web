@@ -1,6 +1,9 @@
 "use client";
-import { useEffect, useState } from "react";
-import { Phone, Users, MapPin, Clock, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Phone, MapPin, Clock, Trash2 } from "lucide-react";
+import type { QuizEvent } from "@/lib/data";
+import { parsePlayerCount } from "@/lib/seat-plan";
+import RegistrationPlayersStepper from "@/components/admin/RegistrationPlayersStepper";
 
 type Registration = {
   id: string;
@@ -14,22 +17,39 @@ type Registration = {
 
 export default function RegistraciaPage() {
   const [regs, setRegs] = useState<Registration[]>([]);
+  const [events, setEvents] = useState<QuizEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [updatingPlayersId, setUpdatingPlayersId] = useState<string | null>(null);
+  const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
 
   const load = () => {
     setLoading(true);
-    fetch(`/api/register?_=${Date.now()}`, { cache: "no-store" })
-      .then((r) => r.json())
-      .then((d) => setRegs(d.registrations ?? []))
+    Promise.all([
+      fetch(`/api/register?_=${Date.now()}`, { cache: "no-store" }).then((r) => r.json()),
+      fetch(`/api/admin/events?_=${Date.now()}`, { cache: "no-store" }).then((r) => r.json()),
+    ])
+      .then(([regData, eventData]) => {
+        setRegs(regData.registrations ?? []);
+        setEvents(eventData.events ?? []);
+      })
       .finally(() => setLoading(false));
   };
 
   useEffect(() => {
     load();
   }, []);
+
+  const eventBySlug = useMemo(() => new Map(events.map((event) => [event.slug, event])), [events]);
+
+  const limitsFor = (reg: Registration) => {
+    const event = eventBySlug.get(reg.eventSlug);
+    const min = Math.max(1, event?.minPlayers ?? 2);
+    const max = Math.max(min, event?.maxPlayers ?? 8, 20);
+    return { min, max };
+  };
 
   const filtered = regs
     .slice()
@@ -40,6 +60,32 @@ export default function RegistraciaPage() {
         r.venue.toLowerCase().includes(filter.toLowerCase()) ||
         r.teamName.toLowerCase().includes(filter.toLowerCase())
     );
+
+  const adjustPlayers = async (reg: Registration, delta: number) => {
+    const { min, max } = limitsFor(reg);
+    const current = parsePlayerCount(reg.players) || min;
+    const next = Math.min(max, Math.max(min, current + delta));
+    if (next === current) return;
+
+    setUpdatingPlayersId(reg.id);
+    setMsg(null);
+    try {
+      const res = await fetch("/api/admin/registrations", {
+        method: "PATCH",
+        cache: "no-store",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: reg.id, players: next }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setMsg({ text: data.error ?? "Nepodarilo sa upraviť počet hráčov.", ok: false });
+        return;
+      }
+      setRegs((prev) => prev.map((entry) => (entry.id === reg.id ? { ...entry, players: String(next) } : entry)));
+    } finally {
+      setUpdatingPlayersId(null);
+    }
+  };
 
   const deleteOne = async (id: string, teamName: string) => {
     if (!confirm(`Naozaj zmazať registráciu tímu „${teamName}"?`)) return;
@@ -54,11 +100,11 @@ export default function RegistraciaPage() {
 
   const deleteFiltered = async () => {
     if (filtered.length === 0) return;
-    const msg =
+    const msgConfirm =
       filter.trim().length > 0
         ? `Naozaj zmazať ${filtered.length} zobrazených registrácií?`
         : `Naozaj zmazať všetkých ${filtered.length} registrácií? Toto sa nedá vrátiť.`;
-    if (!confirm(msg)) return;
+    if (!confirm(msgConfirm)) return;
     setBulkDeleting(true);
     try {
       const res = await fetch(
@@ -74,7 +120,14 @@ export default function RegistraciaPage() {
   return (
     <div className="w-full">
       <h1 className="font-display text-4xl text-brand-text tracking-wide mb-1">Registrácie</h1>
-      <p className="text-brand-muted text-sm mb-6">Zoznam všetkých prihlásených tímov</p>
+      <p className="text-brand-muted text-sm mb-2">Zoznam všetkých prihlásených tímov</p>
+      <p className="text-brand-muted text-xs mb-6">
+        Pri každom tíme môžeš tlačidlami <strong className="text-brand-text">− / +</strong> upraviť počet hráčov (uloží sa
+        hneď).
+      </p>
+      {msg && (
+        <p className={`text-sm mb-4 ${msg.ok ? "text-green-600" : "text-red-500"}`}>{msg.text}</p>
+      )}
       <div className="flex flex-wrap items-center gap-3 mb-6">
         <input
           className="input text-sm max-w-xs"
@@ -101,21 +154,19 @@ export default function RegistraciaPage() {
         </div>
       )}
       <div className="space-y-3">
-        {filtered.map((r) => (
+        {filtered.map((r) => {
+          const { min, max } = limitsFor(r);
+          return (
           <div
             key={r.id}
-            className="bg-brand-card rounded-2xl border border-brand-border p-5 flex items-start justify-between gap-4"
+            className="bg-brand-card rounded-2xl border border-brand-border p-5 flex flex-col sm:flex-row sm:items-start justify-between gap-4"
           >
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1 space-y-3">
               <div className="font-display text-2xl text-brand-text">{r.teamName}</div>
-              <div className="flex flex-wrap items-center gap-4 mt-2 text-sm text-brand-muted">
+              <div className="flex flex-wrap items-center gap-4 text-sm text-brand-muted">
                 <span className="flex items-center gap-1.5">
                   <MapPin className="w-3.5 h-3.5 text-brand-orange" />
                   {r.venue}
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <Users className="w-3.5 h-3.5" />
-                  {r.players} hráčov
                 </span>
                 <span className="flex items-center gap-1.5">
                   <Phone className="w-3.5 h-3.5" />
@@ -126,6 +177,13 @@ export default function RegistraciaPage() {
                   {r.createdAt}
                 </span>
               </div>
+              <RegistrationPlayersStepper
+                players={r.players}
+                minPlayers={min}
+                maxPlayers={max}
+                busy={updatingPlayersId === r.id}
+                onAdjust={(delta) => adjustPlayers(r, delta)}
+              />
             </div>
             <button
               onClick={() => deleteOne(r.id, r.teamName)}
@@ -137,7 +195,8 @@ export default function RegistraciaPage() {
               {deletingId === r.id ? "..." : "Zmazať"}
             </button>
           </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

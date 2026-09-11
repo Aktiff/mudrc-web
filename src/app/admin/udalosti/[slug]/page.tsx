@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Trash2, ChevronLeft, Save, PauseCircle, PlayCircle, Upload, ImageIcon, Phone, Users, Clock, RefreshCw, Vote, ExternalLink, UserPlus, UserX, Armchair, Minus } from "lucide-react";
+import { Plus, Trash2, ChevronLeft, Save, PauseCircle, PlayCircle, Upload, ImageIcon, Phone, Users, Clock, RefreshCw, Vote, ExternalLink, UserPlus, UserX, Armchair } from "lucide-react";
 import Link from "next/link";
 import type { QuizEvent, LeagueEntry, PastResult } from "@/lib/data";
 import { sortLeagueTable } from "@/lib/data";
@@ -14,6 +14,7 @@ import { AdminDatePicker, AdminTimePicker } from "@/components/AdminDatePicker";
 import { PollAdminMultiDatePicker } from "@/components/PollAdminMultiDatePicker";
 import { TeamAutocomplete } from "@/components/TeamAutocomplete";
 import LibraryQuizPicker from "@/components/LibraryQuizPicker";
+import RegistrationPlayersStepper from "@/components/admin/RegistrationPlayersStepper";
 import { CANVAS_LIBRARY_QUIZ_ID, isCanvasLibraryQuiz, libraryQuizAssignmentLabel } from "@/lib/quiz-result-library";
 
 type Tab = "info" | "liga" | "vysledky" | "pravidla" | "pridat" | "registracie" | "anketa";
@@ -416,7 +417,7 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
     if (!reg) return;
 
     const minPlayers = Math.max(1, form.minPlayers ?? 2);
-    const maxPlayers = Math.max(minPlayers, form.maxPlayers ?? 8);
+    const maxPlayers = Math.max(minPlayers, form.maxPlayers ?? 8, 20);
     const current = parsePlayerCount(reg.players) || minPlayers;
     const next = Math.min(maxPlayers, Math.max(minPlayers, current + delta));
     if (next === current) return;
@@ -1231,49 +1232,33 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
           {!regsLoading && registrations.length === 0 && (
             <p className="text-brand-muted text-sm py-8 text-center">Zatiaľ žiadne registrácie pre tento podnik.</p>
           )}
+          {!regsLoading && registrations.length > 0 && (
+            <p className="text-brand-muted text-xs mb-4">
+              Počet hráčov upravíš pri každom tíme tlačidlami <strong className="text-brand-text">− / +</strong> (oranžový
+              box) — uloží sa hneď, netreba „Uložiť zmeny“ dole.
+            </p>
+          )}
           <div className="space-y-3">
             {registrations.map((r) => {
               const minPlayers = Math.max(1, form.minPlayers ?? 2);
-              const maxPlayers = Math.max(minPlayers, form.maxPlayers ?? 8);
-              const playerCount = parsePlayerCount(r.players) || minPlayers;
+              const maxPlayers = Math.max(minPlayers, form.maxPlayers ?? 8, 20);
               const playersBusy = updatingPlayersRegId === r.id;
 
               return (
               <div
                 key={r.id}
-                className="rounded-xl border border-brand-border p-4 flex items-start justify-between gap-4"
+                className="rounded-xl border border-brand-border p-4 flex flex-col sm:flex-row sm:items-start justify-between gap-4"
               >
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1 space-y-3">
                   <div className="font-display text-xl text-brand-text">{r.teamName}</div>
-                  <div className="flex flex-wrap items-center gap-4 mt-2 text-sm text-brand-muted">
-                    <span className="flex items-center gap-1.5">
-                      <Users className="w-3.5 h-3.5 shrink-0" />
-                      <span className="inline-flex items-center gap-1 rounded-xl border border-brand-border bg-brand-surface overflow-hidden">
-                        <button
-                          type="button"
-                          onClick={() => adjustRegistrationPlayers(r.id, -1)}
-                          disabled={playersBusy || playerCount <= minPlayers}
-                          className="p-1.5 hover:bg-brand-warm disabled:opacity-40 transition-colors"
-                          title={`Menej hráčov (min. ${minPlayers})`}
-                          aria-label="Odobrať hráča"
-                        >
-                          <Minus className="w-3.5 h-3.5" />
-                        </button>
-                        <span className="min-w-[4.5rem] text-center font-semibold text-brand-text tabular-nums px-1">
-                          {playersBusy ? "…" : `${playerCount} hráčov`}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => adjustRegistrationPlayers(r.id, 1)}
-                          disabled={playersBusy || playerCount >= maxPlayers}
-                          className="p-1.5 hover:bg-brand-warm disabled:opacity-40 transition-colors"
-                          title={`Viac hráčov (max. ${maxPlayers})`}
-                          aria-label="Pridať hráča"
-                        >
-                          <Plus className="w-3.5 h-3.5" />
-                        </button>
-                      </span>
-                    </span>
+                  <RegistrationPlayersStepper
+                    players={r.players}
+                    minPlayers={minPlayers}
+                    maxPlayers={maxPlayers}
+                    busy={playersBusy}
+                    onAdjust={(delta) => adjustRegistrationPlayers(r.id, delta)}
+                  />
+                  <div className="flex flex-wrap items-center gap-4 text-sm text-brand-muted">
                     <span className="flex items-center gap-1.5">
                       <Phone className="w-3.5 h-3.5" />
                       {r.phone}
