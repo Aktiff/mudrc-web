@@ -21,12 +21,23 @@ import {
   writeHiddenBankQuestionIds,
   type QuizBankQuestion,
 } from "@/lib/quiz-question-bank";
+import {
+  isCustomBankQuestionId,
+  isGeneratedBankQuestion,
+  readCustomBankQuestions,
+  removeCustomBankQuestion,
+  type CustomBankQuestion,
+} from "@/lib/quiz-custom-bank";
 import { shuffleQuestionOptionsRandom } from "@/lib/quiz-question-options";
+
+type BankSourceFilter = "all" | "custom" | "generated";
 
 type Props = {
   roundQuestions: QuizQuestionItem[];
   allQuizQuestions: QuizQuestionItem[];
   usedBankQuestionIds: string[];
+  customBankQuestions?: QuizBankQuestion[];
+  onCustomBankChange?: () => void;
   onInsert: (
     bankId: string,
     targetQuestionId: string,
@@ -35,7 +46,8 @@ type Props = {
     options: string[],
     tags: string[],
     isImageQuestion?: boolean,
-    hostNote?: string
+    hostNote?: string,
+    suggestedImageUrl?: string
   ) => void;
 };
 
@@ -65,6 +77,8 @@ export default function QuizQuestionBankPanel({
   roundQuestions,
   allQuizQuestions,
   usedBankQuestionIds,
+  customBankQuestions: customBankQuestionsProp,
+  onCustomBankChange,
   onInsert,
 }: Props) {
   const [hiddenIds, setHiddenIds] = useState<string[]>([]);
@@ -72,6 +86,18 @@ export default function QuizQuestionBankPanel({
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [excludedTags, setExcludedTags] = useState<string[]>([]);
   const [manualOrderIds, setManualOrderIds] = useState<string[] | null>(null);
+  const [sourceFilter, setSourceFilter] = useState<BankSourceFilter>("all");
+  const [localCustom, setLocalCustom] = useState<CustomBankQuestion[]>([]);
+
+  const customBankQuestions = customBankQuestionsProp ?? localCustom;
+
+  useEffect(() => {
+    if (customBankQuestionsProp) return;
+    const sync = () => setLocalCustom(readCustomBankQuestions());
+    sync();
+    window.addEventListener("mudrc-custom-bank-updated", sync);
+    return () => window.removeEventListener("mudrc-custom-bank-updated", sync);
+  }, [customBankQuestionsProp]);
 
   useEffect(() => {
     setHiddenIds(readHiddenBankQuestionIds());
@@ -80,9 +106,15 @@ export default function QuizQuestionBankPanel({
   const tagCounts = useMemo(() => countTagUsageInQuestions(allQuizQuestions), [allQuizQuestions]);
 
   const availableQuestions = useMemo(
-    () => filterVisibleBankQuestions(usedBankQuestionIds, hiddenIds),
-    [usedBankQuestionIds, hiddenIds]
+    () => filterVisibleBankQuestions(usedBankQuestionIds, hiddenIds, customBankQuestions),
+    [usedBankQuestionIds, hiddenIds, customBankQuestions]
   );
+
+  const sourceCounts = useMemo(() => {
+    const custom = availableQuestions.filter((q) => isCustomBankQuestionId(q.id)).length;
+    const generated = availableQuestions.filter((q) => isGeneratedBankQuestion(q)).length;
+    return { all: availableQuestions.length, custom, generated };
+  }, [availableQuestions]);
 
   const bankTags = useMemo(() => collectTagsFromBank(availableQuestions), [availableQuestions]);
 
@@ -114,19 +146,40 @@ export default function QuizQuestionBankPanel({
 
   useEffect(() => {
     setManualOrderIds(null);
-  }, [excludedTags, usedBankQuestionIds, hiddenIds]);
+  }, [excludedTags, usedBankQuestionIds, hiddenIds, sourceFilter, customBankQuestions]);
 
-  const filteredQuestions = useMemo(
-    () => filterBankQuestionsByTags(availableQuestions, excludedTags),
-    [availableQuestions, excludedTags]
-  );
+  const filteredQuestions = useMemo(() => {
+    let list = filterBankQuestionsByTags(availableQuestions, excludedTags);
+    if (sourceFilter === "custom") {
+      list = list.filter((item) => isCustomBankQuestionId(item.id));
+    } else if (sourceFilter === "generated") {
+      list = list.filter((item) => isGeneratedBankQuestion(item));
+    }
+    return list;
+  }, [availableQuestions, excludedTags, sourceFilter]);
+
+  const sortWithCustomPriority = (items: QuizBankQuestion[]) => {
+    const custom = items.filter((item) => isCustomBankQuestionId(item.id));
+    const generated = items.filter((item) => isGeneratedBankQuestion(item));
+    const customSorted = [...custom].sort((a, b) => {
+      const aTime = "createdAt" in a && typeof a.createdAt === "number" ? a.createdAt : 0;
+      const bTime = "createdAt" in b && typeof b.createdAt === "number" ? b.createdAt : 0;
+      return bTime - aTime;
+    });
+    const generatedSorted = sortBankQuestionsByTagBalance(generated, tagCounts, { prioritizeImageQuestions });
+    return [...customSorted, ...generatedSorted];
+  };
 
   const visibleQuestions = useMemo(() => {
     if (manualOrderIds) {
-      return applyBankQuestionOrder(filteredQuestions, manualOrderIds);
+      const ordered = applyBankQuestionOrder(filteredQuestions, manualOrderIds);
+      if (sourceFilter === "generated") {
+        return sortBankQuestionsByTagBalance(ordered, tagCounts, { prioritizeImageQuestions });
+      }
+      return sortWithCustomPriority(ordered);
     }
-    return sortBankQuestionsByTagBalance(filteredQuestions, tagCounts, { prioritizeImageQuestions });
-  }, [filteredQuestions, manualOrderIds, tagCounts, prioritizeImageQuestions]);
+    return sortWithCustomPriority(filteredQuestions);
+  }, [filteredQuestions, manualOrderIds, tagCounts, prioritizeImageQuestions, sourceFilter]);
 
   const toggleTagExclusion = (tag: string) => {
     setExcludedTags((prev) =>
@@ -135,9 +188,22 @@ export default function QuizQuestionBankPanel({
   };
 
   const shuffleQuestions = () => {
-    const mixed = shuffleBankQuestionsByTagBalance(filteredQuestions, tagCounts, {
+    const custom = filteredQuestions.filter((item) => isCustomBankQuestionId(item.id));
+    const generated = filteredQuestions.filter((item) => isGeneratedBankQuestion(item));
+    const mixedGenerated = shuffleBankQuestionsByTagBalance(generated, tagCounts, {
       prioritizeImageQuestions,
     });
+    const customSorted = [...custom].sort((a, b) => {
+      const aTime = "createdAt" in a && typeof a.createdAt === "number" ? a.createdAt : 0;
+      const bTime = "createdAt" in b && typeof b.createdAt === "number" ? b.createdAt : 0;
+      return bTime - aTime;
+    });
+    const mixed =
+      sourceFilter === "generated"
+        ? mixedGenerated
+        : sourceFilter === "custom"
+          ? customSorted
+          : [...customSorted, ...mixedGenerated];
     setManualOrderIds(mixed.map((item) => item.id));
   };
 
@@ -161,6 +227,10 @@ export default function QuizQuestionBankPanel({
     const targetId = getTargetId(item.id);
     if (!targetId) return;
     const mixed = shuffleQuestionOptionsRandom(item);
+    const suggestedImageUrl =
+      "suggestedImageUrl" in item && typeof item.suggestedImageUrl === "string"
+        ? item.suggestedImageUrl
+        : undefined;
     onInsert(
       mixed.id,
       targetId,
@@ -169,7 +239,8 @@ export default function QuizQuestionBankPanel({
       [...mixed.options],
       [...mixed.tags],
       mixed.isImageQuestion,
-      mixed.note
+      mixed.note,
+      suggestedImageUrl
     );
     setTargetByBankId((prev) => {
       const next = { ...prev };
@@ -179,6 +250,12 @@ export default function QuizQuestionBankPanel({
   };
 
   const dismissQuestion = (bankId: string) => {
+    if (isCustomBankQuestionId(bankId)) {
+      if (!window.confirm("Odstrániť túto vlastnú otázku z banky?")) return;
+      removeCustomBankQuestion(bankId);
+      onCustomBankChange?.();
+      return;
+    }
     if (!window.confirm("Odstrániť túto otázku z banky? (Zmizne aj v iných kvízoch.)")) return;
     const next = Array.from(new Set([...hiddenIds, bankId]));
     setHiddenIds(next);
@@ -196,11 +273,14 @@ export default function QuizQuestionBankPanel({
             <p className="font-semibold text-brand-text text-sm leading-snug">Banka otázok</p>
             <p className="text-brand-muted text-xs mt-0.5 leading-relaxed">
               {visibleQuestions.length} k dispozícii
+              {sourceFilter !== "all" ? ` · filter: ${sourceFilter === "custom" ? "moje" : "vygenerované"}` : ""}
               {manualOrderIds
                 ? " · premiešané podľa tagov"
                 : prioritizeImageQuestions
                   ? ` · foto otázky navrchu (ot. ${defaultTargetQuestion?.questionNumber} čaká na fotku)`
-                  : " · zoradené podľa najmenej použitých tagov"}
+                  : customBankQuestions.some((q) => !usedBankQuestionIds.includes(q.id))
+                    ? " · tvoje otázky navrchu"
+                    : " · zoradené podľa najmenej použitých tagov"}
             </p>
           </div>
           <button
@@ -213,6 +293,29 @@ export default function QuizQuestionBankPanel({
             <Shuffle className="w-3.5 h-3.5" />
             Premiešať
           </button>
+        </div>
+
+        <div className="flex flex-wrap gap-1.5">
+          {(
+            [
+              ["all", "Všetky", sourceCounts.all],
+              ["custom", "Moje otázky", sourceCounts.custom],
+              ["generated", "Vygenerované", sourceCounts.generated],
+            ] as const
+          ).map(([key, label, count]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setSourceFilter(key)}
+              className={`text-xs font-semibold px-2.5 py-1.5 rounded-lg border transition-colors ${
+                sourceFilter === key
+                  ? "bg-brand-orange text-brand-btn-fg border-brand-orange"
+                  : "border-brand-border text-brand-muted hover:border-brand-orange"
+              }`}
+            >
+              {label} ({count})
+            </button>
+          ))}
         </div>
 
         {prioritizeImageQuestions && (
@@ -269,6 +372,11 @@ export default function QuizQuestionBankPanel({
               <div key={item.id} className="rounded-xl border border-brand-border bg-brand-surface/50 p-3 space-y-2.5">
                 <div>
                   <div className="flex flex-wrap items-center gap-1.5 mb-1">
+                    {isCustomBankQuestionId(item.id) && (
+                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-brand-orange/15 text-brand-orange-readable border border-brand-orange/40">
+                        moja otázka
+                      </span>
+                    )}
                     {item.isImageQuestion && (
                       <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-violet-50 text-violet-800 border border-violet-200 dark:bg-violet-950/30 dark:text-violet-200 dark:border-violet-800">
                         foto otázka

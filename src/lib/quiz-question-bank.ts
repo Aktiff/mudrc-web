@@ -196,11 +196,20 @@ export function writeHiddenBankQuestionIds(ids: string[]): void {
   window.localStorage.setItem(HIDDEN_BANK_STORAGE_KEY, JSON.stringify(ids));
 }
 
-export function filterVisibleBankQuestions(usedIds: string[], hiddenIds: string[]): QuizBankQuestion[] {
+export function filterVisibleBankQuestions(
+  usedIds: string[],
+  hiddenIds: string[],
+  extraQuestions: QuizBankQuestion[] = []
+): QuizBankQuestion[] {
   const skip = new Set([...usedIds, ...hiddenIds]);
-  return QUIZ_QUESTION_BANK.filter((item) => !skip.has(item.id));
+  const generated = QUIZ_QUESTION_BANK.filter((item) => !skip.has(item.id));
+  const custom = extraQuestions.filter((item) => !skip.has(item.id));
+  return [...custom, ...generated];
 }
 
-export function findBankQuestionById(id: string): QuizBankQuestion | undefined {
-  return QUIZ_QUESTION_BANK.find((item) => item.id === id);
+export function findBankQuestionById(
+  id: string,
+  extraQuestions: QuizBankQuestion[] = []
+): QuizBankQuestion | undefined {
+  return extraQuestions.find((item) => item.id === id) ?? QUIZ_QUESTION_BANK.find((item) => item.id === id);
 }

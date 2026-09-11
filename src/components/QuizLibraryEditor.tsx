@@ -7,9 +7,11 @@ import type { QuizEvent } from "@/lib/data";
 import type { QuizLibraryItem, QuizQuestionItem, QuizQuestionKind } from "@/lib/quiz-library";
 import { collectUsedBankQuestionIdsFromQuiz } from "@/lib/quiz-library";
 import { findBankQuestionById } from "@/lib/quiz-question-bank";
+import { readCustomBankQuestions, type CustomBankQuestion } from "@/lib/quiz-custom-bank";
 import { buildStandardMudrcQuestions, describeQuizContent, insertQuestionAfter, removeQuestion, roundLabels } from "@/lib/quiz-template";
 import { buildPresentationSlides } from "@/lib/quiz-presentation";
 import QuizQuestionBankPanel from "@/components/QuizQuestionBankPanel";
+import CustomBankQuestionForm from "@/components/CustomBankQuestionForm";
 import QuizTagStats from "@/components/QuizTagStats";
 import ImageUrlField from "@/components/admin/ImageUrlField";
 import { optionLetter } from "@/lib/quiz-question-options";
@@ -103,6 +105,17 @@ export default function QuizLibraryEditor({ quizId }: Props) {
   const [openRound, setOpenRound] = useState<number>(1);
   const [dragQuestionId, setDragQuestionId] = useState<string | null>(null);
   const [libraryQuizzes, setLibraryQuizzes] = useState<QuizLibraryItem[]>([]);
+  const [customBankQuestions, setCustomBankQuestions] = useState<CustomBankQuestion[]>([]);
+
+  const refreshCustomBank = useCallback(() => {
+    setCustomBankQuestions(readCustomBankQuestions());
+  }, []);
+
+  useEffect(() => {
+    refreshCustomBank();
+    window.addEventListener("mudrc-custom-bank-updated", refreshCustomBank);
+    return () => window.removeEventListener("mudrc-custom-bank-updated", refreshCustomBank);
+  }, [refreshCustomBank]);
 
   const refreshLibraryQuizzes = useCallback(async () => {
     const res = await fetch(`/api/admin/quiz-library?_=${Date.now()}`, { cache: "no-store" });
@@ -210,7 +223,8 @@ export default function QuizLibraryEditor({ quizId }: Props) {
     options: string[],
     tags: string[],
     isImageQuestion?: boolean,
-    hostNote?: string
+    hostNote?: string,
+    suggestedImageUrl?: string
   ) => {
     const target = questions.find((q) => q.id === targetQuestionId);
     const displacedBankId = target?.bankQuestionId;
@@ -238,7 +252,7 @@ export default function QuizLibraryEditor({ quizId }: Props) {
                 hostNote: hostNote?.trim() || undefined,
                 ...(isImageQuestion
                   ? {
-                      imageUrl: "",
+                      imageUrl: suggestedImageUrl?.trim() ?? "",
                       imageBeforeQuestion: false,
                       imageDuringQuestion: true,
                       imageOnNextSlide: false,
@@ -430,6 +444,8 @@ export default function QuizLibraryEditor({ quizId }: Props) {
           />
         </div>
       </div>
+
+      <CustomBankQuestionForm onAdded={refreshCustomBank} />
 
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
@@ -749,7 +765,7 @@ export default function QuizLibraryEditor({ quizId }: Props) {
                   value={
                     question.hostNote ??
                     (question.bankQuestionId
-                      ? findBankQuestionById(question.bankQuestionId)?.note
+                      ? findBankQuestionById(question.bankQuestionId, customBankQuestions)?.note
                       : "") ??
                     ""
                   }
@@ -783,6 +799,8 @@ export default function QuizLibraryEditor({ quizId }: Props) {
             roundQuestions={roundQuestions}
             allQuizQuestions={questions}
             usedBankQuestionIds={globalUsedBankQuestionIds}
+            customBankQuestions={customBankQuestions}
+            onCustomBankChange={refreshCustomBank}
             onInsert={insertFromBank}
           />
         </div>
@@ -792,6 +810,8 @@ export default function QuizLibraryEditor({ quizId }: Props) {
             roundQuestions={roundQuestions}
             allQuizQuestions={questions}
             usedBankQuestionIds={globalUsedBankQuestionIds}
+            customBankQuestions={customBankQuestions}
+            onCustomBankChange={refreshCustomBank}
             onInsert={insertFromBank}
           />
         </div>
