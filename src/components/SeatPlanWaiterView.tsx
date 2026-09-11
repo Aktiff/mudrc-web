@@ -65,7 +65,9 @@ export default function SeatPlanWaiterView({ plan }: { plan: SeatPlan }) {
         </p>
       )}
 
-      <SeatPlanCanvas plan={plan} variant="waiter" />
+      <div className="flex justify-center" style={{ ["--seat-room-max-h" as string]: "58vh" }}>
+        <SeatPlanCanvas plan={plan} variant="waiter" />
+      </div>
 
       <div className="mt-6 overflow-x-auto rounded-2xl border border-brand-border bg-brand-card">
         <table className="w-full min-w-[20rem] text-left text-sm">

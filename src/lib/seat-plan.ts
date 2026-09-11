@@ -34,6 +34,8 @@ export type SeatPlan = {
   eventSlug: string;
   date: string;
   notes: string;
+  roomW: number;
+  roomH: number;
   tables: SeatPlanTable[];
   fixtures: SeatPlanFixture[];
   createdAt: string;
@@ -74,6 +76,11 @@ export const MIN_TABLE_SEATS = 1;
 export const MAX_TABLE_SEATS = 10;
 export const MIN_TABLE_SIZE = 6;
 export const MAX_TABLE_SIZE = 48;
+export const DEFAULT_ROOM_W = 16;
+export const DEFAULT_ROOM_H = 12;
+export const MIN_ROOM = 8;
+export const MAX_ROOM_W = 28;
+export const MAX_ROOM_H = 22;
 
 export function parsePlayerCount(value: string | number | null | undefined): number {
   const n = parseInt(String(value ?? "").replace(/[^\d]/g, ""), 10);
@@ -137,6 +144,16 @@ export function clampPercent(value: number, min = 4, max = 96): number {
   return Math.min(max, Math.max(min, value));
 }
 
+export function clampRoomW(value: number): number {
+  if (!Number.isFinite(value)) return DEFAULT_ROOM_W;
+  return Math.min(MAX_ROOM_W, Math.max(MIN_ROOM, Math.round(value)));
+}
+
+export function clampRoomH(value: number): number {
+  if (!Number.isFinite(value)) return DEFAULT_ROOM_H;
+  return Math.min(MAX_ROOM_H, Math.max(MIN_ROOM, Math.round(value)));
+}
+
 export function defaultFixtures(): SeatPlanFixture[] {
   return [
     { id: newId(), kind: "stage", x: 50, y: 9, w: 28, h: 10, rotation: 0, label: "Moderátor" },
@@ -155,6 +172,8 @@ export function emptySeatPlan(partial?: Partial<SeatPlan>): SeatPlan {
     eventSlug: partial?.eventSlug?.trim() || "",
     date: partial?.date?.trim() || "",
     notes: partial?.notes?.trim() || "",
+    roomW: clampRoomW(partial?.roomW ?? DEFAULT_ROOM_W),
+    roomH: clampRoomH(partial?.roomH ?? DEFAULT_ROOM_H),
     tables: partial?.tables ?? [],
     fixtures: partial?.fixtures ?? defaultFixtures(),
     createdAt: partial?.createdAt || now,
@@ -247,6 +266,8 @@ export function normalizeSeatPlan(raw: unknown): SeatPlan | null {
     eventSlug: asString(plan.eventSlug).trim(),
     date: asString(plan.date).trim(),
     notes: asString(plan.notes).trim(),
+    roomW: clampRoomW(asNumber(plan.roomW, DEFAULT_ROOM_W)),
+    roomH: clampRoomH(asNumber(plan.roomH, DEFAULT_ROOM_H)),
     tables,
     fixtures,
     createdAt: asString(plan.createdAt) || new Date().toISOString(),

@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
-  Armchair,
   ChevronLeft,
   Copy,
   ExternalLink,
@@ -19,13 +18,18 @@ import SeatPlanCanvas from "@/components/SeatPlanCanvas";
 import {
   assignedReservationKeys,
   clampPercent,
+  clampRoomH,
+  clampRoomW,
   clampSeatCount,
   createFixture,
   createTable,
   flipTableOrientation,
   isTableVertical,
   layoutTablesFromTeams,
+  MAX_ROOM_H,
+  MAX_ROOM_W,
   MAX_TABLE_SEATS,
+  MIN_ROOM,
   MIN_TABLE_SEATS,
   nextTableNumber,
   parsePlayerCount,
@@ -452,149 +456,172 @@ export default function SeatPlanEditor({ planId }: { planId: string }) {
             : " ";
 
   return (
-    <div className="w-full">
-      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="mb-2 flex items-center gap-2">
-            <Link href="/admin/zasadacie" className="text-brand-muted-light hover:text-brand-text">
-              <ChevronLeft className="h-5 w-5" />
-            </Link>
-            <Armchair className="h-5 w-5 text-brand-orange" />
-            <h1 className="font-display text-3xl tracking-wide text-brand-text">Zasadací poriadok</h1>
-          </div>
-          <p className="text-sm text-brand-muted">
+    <div className="flex w-full min-h-0 flex-col gap-2 lg:h-[calc(100vh-6.5rem)]">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <Link href="/admin/zasadacie" className="text-brand-muted-light hover:text-brand-text">
+            <ChevronLeft className="h-5 w-5" />
+          </Link>
+          <h1 className="font-display text-2xl tracking-wide text-brand-text">Zasadací poriadok</h1>
+          <span className="text-xs text-brand-muted">
             {plan.tables.length} stolov · {peopleCount} ľudí · {saveLabel}
-          </p>
+          </span>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button type="button" onClick={() => void copyWaiterLink()} className="btn-outline py-2 px-4 text-sm">
-            <Copy className="h-4 w-4" /> Kopírovať odkaz
+          <button type="button" onClick={() => void copyWaiterLink()} className="btn-outline py-1.5 px-3 text-xs">
+            <Copy className="h-3.5 w-3.5" /> Odkaz
           </button>
-          <button type="button" onClick={() => void shareWaiterLink()} className="btn-outline py-2 px-4 text-sm">
-            <ExternalLink className="h-4 w-4" /> Poslať čašníkovi
+          <button type="button" onClick={() => void shareWaiterLink()} className="btn-outline py-1.5 px-3 text-xs">
+            <ExternalLink className="h-3.5 w-3.5" /> Čašník
           </button>
-          <Link href={waiterSharePath(plan.shareToken)} target="_blank" className="btn-primary py-2 px-4 text-sm">
-            <Printer className="h-4 w-4" /> Náhľad / tlač
+          <Link href={waiterSharePath(plan.shareToken)} target="_blank" className="btn-primary py-1.5 px-3 text-xs">
+            <Printer className="h-3.5 w-3.5" /> Tlač
           </Link>
         </div>
       </div>
-      {copyMsg && <p className="mb-3 text-sm text-green-700 dark:text-green-300">{copyMsg}</p>}
+      {copyMsg && <p className="text-xs text-green-700 dark:text-green-300">{copyMsg}</p>}
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_20rem]">
-        <div className="min-w-0 space-y-4">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div>
-              <label className="label">Názov</label>
-              <input className="input" value={plan.title} onChange={(e) => updatePlan((c) => ({ ...c, title: e.target.value }))} />
-            </div>
-            <div>
-              <label className="label">Podnik</label>
-              <input className="input" value={plan.venue} onChange={(e) => updatePlan((c) => ({ ...c, venue: e.target.value }))} />
-            </div>
-            <div>
-              <label className="label">Dátum</label>
-              <input className="input" value={plan.date} onChange={(e) => updatePlan((c) => ({ ...c, date: e.target.value }))} placeholder="11.4.2026" />
-            </div>
-            <div>
-              <label className="label">Prepojiť s udalosťou</label>
-              <select
-                className="input"
-                value={plan.eventSlug}
-                onChange={(e) => {
-                  const slug = e.target.value;
-                  const event = events.find((item) => item.slug === slug);
-                  updatePlan((c) => ({
-                    ...c,
-                    eventSlug: slug,
-                    venue: event?.venue || c.venue,
-                    date: event?.date || c.date,
-                    title: event ? `Zasadací — ${event.venue}` : c.title,
-                  }));
-                }}
+      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+        <input className="input py-2 text-sm" value={plan.title} onChange={(e) => updatePlan((c) => ({ ...c, title: e.target.value }))} placeholder="Názov" />
+        <input className="input py-2 text-sm" value={plan.venue} onChange={(e) => updatePlan((c) => ({ ...c, venue: e.target.value }))} placeholder="Podnik" />
+        <input className="input py-2 text-sm" value={plan.date} onChange={(e) => updatePlan((c) => ({ ...c, date: e.target.value }))} placeholder="Dátum" />
+        <select
+          className="input py-2 text-sm"
+          value={plan.eventSlug}
+          onChange={(e) => {
+            const slug = e.target.value;
+            const event = events.find((item) => item.slug === slug);
+            updatePlan((c) => ({
+              ...c,
+              eventSlug: slug,
+              venue: event?.venue || c.venue,
+              date: event?.date || c.date,
+              title: event ? `Zasadací — ${event.venue}` : c.title,
+            }));
+          }}
+        >
+          <option value="">— bez udalosti —</option>
+          {events.map((event) => (
+            <option key={event.slug} value={event.slug}>
+              {event.venue} ({event.date})
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="grid min-h-0 flex-1 gap-3 xl:grid-cols-[minmax(0,1fr)_17rem]">
+        <div className="flex min-h-0 min-w-0 flex-col gap-2">
+          <div className="flex flex-wrap items-center gap-2 rounded-xl border border-brand-border bg-brand-card px-3 py-2">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-brand-muted">Stôl</span>
+            {SEAT_COUNTS.map((count) => (
+              <button
+                key={count}
+                type="button"
+                onClick={() => setAddSeats(count)}
+                className={`h-7 w-7 rounded-md text-[11px] font-bold ${
+                  addSeats === count
+                    ? "bg-brand-orange text-brand-btn-fg"
+                    : "border border-brand-border text-brand-text hover:border-brand-orange"
+                }`}
               >
-                <option value="">— bez udalosti —</option>
-                {events.map((event) => (
-                  <option key={event.slug} value={event.slug}>
-                    {event.venue} ({event.date})
-                  </option>
-                ))}
-              </select>
-            </div>
+                {count}
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => setAddShape("round")}
+              className={`rounded-lg px-2 py-1 text-[11px] font-semibold ${
+                addShape === "round" ? "bg-brand-orange text-brand-btn-fg" : "border border-brand-border text-brand-muted"
+              }`}
+            >
+              Okrúhly
+            </button>
+            <button
+              type="button"
+              onClick={() => setAddShape("rect")}
+              className={`rounded-lg px-2 py-1 text-[11px] font-semibold ${
+                addShape === "rect" ? "bg-brand-orange text-brand-btn-fg" : "border border-brand-border text-brand-muted"
+              }`}
+            >
+              Hranatý
+            </button>
+            {addShape === "rect" && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setAddVertical(false)}
+                  className={`rounded-lg px-2 py-1 text-[11px] font-semibold ${
+                    !addVertical ? "border border-brand-orange bg-brand-tint" : "border border-brand-border text-brand-muted"
+                  }`}
+                >
+                  Vodorovný
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAddVertical(true)}
+                  className={`rounded-lg px-2 py-1 text-[11px] font-semibold ${
+                    addVertical ? "border border-brand-orange bg-brand-tint" : "border border-brand-border text-brand-muted"
+                  }`}
+                >
+                  Zvislý
+                </button>
+              </>
+            )}
+            <button type="button" onClick={() => addTable()} className="btn-primary py-1 px-2.5 text-[11px]">
+              <Plus className="h-3.5 w-3.5" /> Pridať
+            </button>
+            {FIXTURE_PRESETS.map((preset) => (
+              <button
+                key={preset.kind}
+                type="button"
+                onClick={() => addFixture(preset.kind)}
+                className="rounded-lg border border-dashed border-brand-border px-2 py-1 text-[11px] font-semibold text-brand-muted hover:border-brand-orange"
+              >
+                {preset.label}
+              </button>
+            ))}
           </div>
 
-          <div className="space-y-2 rounded-2xl border border-brand-border bg-brand-card p-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs font-semibold uppercase tracking-wider text-brand-muted">Pridať stôl</span>
-              <div className="flex flex-wrap gap-1">
-                {SEAT_COUNTS.map((count) => (
-                  <button
-                    key={count}
-                    type="button"
-                    onClick={() => setAddSeats(count)}
-                    className={`h-8 w-8 rounded-lg text-xs font-bold ${
-                      addSeats === count
-                        ? "bg-brand-orange text-brand-btn-fg"
-                        : "border border-brand-border text-brand-text hover:border-brand-orange"
-                    }`}
-                  >
-                    {count}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setAddShape("round")}
-                className={`rounded-xl px-3 py-1.5 text-xs font-semibold ${
-                  addShape === "round" ? "bg-brand-orange text-brand-btn-fg" : "border border-brand-border text-brand-muted"
-                }`}
-              >
-                Okrúhly
-              </button>
-              <button
-                type="button"
-                onClick={() => setAddShape("rect")}
-                className={`rounded-xl px-3 py-1.5 text-xs font-semibold ${
-                  addShape === "rect" ? "bg-brand-orange text-brand-btn-fg" : "border border-brand-border text-brand-muted"
-                }`}
-              >
-                Hranatý
-              </button>
-              {addShape === "rect" && (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => setAddVertical(false)}
-                    className={`rounded-xl px-3 py-1.5 text-xs font-semibold ${
-                      !addVertical ? "bg-brand-tint text-brand-text border border-brand-orange" : "border border-brand-border text-brand-muted"
-                    }`}
-                  >
-                    Vodorovný
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setAddVertical(true)}
-                    className={`rounded-xl px-3 py-1.5 text-xs font-semibold ${
-                      addVertical ? "bg-brand-tint text-brand-text border border-brand-orange" : "border border-brand-border text-brand-muted"
-                    }`}
-                  >
-                    Zvislý
-                  </button>
-                </>
-              )}
-              <button type="button" onClick={() => addTable()} className="btn-primary py-1.5 px-3 text-xs">
-                <Plus className="h-3.5 w-3.5" />
-                {addShape === "round" ? "Okrúhly" : addVertical ? "Zvislý" : "Vodorovný"} {addSeats}
-              </button>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {FIXTURE_PRESETS.map((preset) => (
+          <div className="flex flex-wrap items-center gap-3 rounded-xl border border-brand-border bg-brand-card px-3 py-2">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-brand-muted">Miestnosť</span>
+            <label className="flex items-center gap-2 text-xs text-brand-muted">
+              Šírka
+              <input
+                type="range"
+                min={MIN_ROOM}
+                max={MAX_ROOM_W}
+                value={plan.roomW}
+                onChange={(e) => updatePlan((c) => ({ ...c, roomW: clampRoomW(Number(e.target.value)) }))}
+              />
+              <span className="w-6 font-semibold text-brand-text">{plan.roomW}</span>
+            </label>
+            <label className="flex items-center gap-2 text-xs text-brand-muted">
+              Hĺbka
+              <input
+                type="range"
+                min={MIN_ROOM}
+                max={MAX_ROOM_H}
+                value={plan.roomH}
+                onChange={(e) => updatePlan((c) => ({ ...c, roomH: clampRoomH(Number(e.target.value)) }))}
+              />
+              <span className="w-6 font-semibold text-brand-text">{plan.roomH}</span>
+            </label>
+            <div className="flex gap-1">
+              {[
+                { label: "Úzka", w: 10, h: 16 },
+                { label: "Štvorcová", w: 12, h: 12 },
+                { label: "Bežná", w: 16, h: 12 },
+                { label: "Široká", w: 22, h: 10 },
+              ].map((preset) => (
                 <button
-                  key={preset.kind}
+                  key={preset.label}
                   type="button"
-                  onClick={() => addFixture(preset.kind)}
-                  className="rounded-xl border border-dashed border-brand-border px-3 py-2 text-xs font-semibold text-brand-muted hover:border-brand-orange hover:text-brand-text"
+                  onClick={() => updatePlan((c) => ({ ...c, roomW: preset.w, roomH: preset.h }))}
+                  className={`rounded-lg px-2 py-1 text-[11px] font-semibold ${
+                    plan.roomW === preset.w && plan.roomH === preset.h
+                      ? "bg-brand-orange text-brand-btn-fg"
+                      : "border border-brand-border text-brand-muted hover:border-brand-orange"
+                  }`}
                 >
                   {preset.label}
                 </button>
@@ -602,7 +629,11 @@ export default function SeatPlanEditor({ planId }: { planId: string }) {
             </div>
           </div>
 
-          <SeatPlanCanvas
+          <div
+            className="flex min-h-0 flex-1 items-center justify-center overflow-auto rounded-xl bg-brand-surface/60 p-2"
+            style={{ ["--seat-room-max-h" as string]: "42vh" }}
+          >
+            <SeatPlanCanvas
             plan={plan}
             selectedId={selectedId}
             interactive
@@ -643,13 +674,14 @@ export default function SeatPlanEditor({ planId }: { planId: string }) {
               }));
             }}
           />
-          <p className="text-xs text-brand-muted">
-            Ťahaj stôl na presun. Žlté rohy zväčšia alebo zmenšia. Hranatý stôl vieš dať vodorovne alebo zvisle.
+          </div>
+          <p className="text-[11px] text-brand-muted">
+            Ťahaj stôl. Žlté rohy menia veľkosť. Miestnosť hore: šírka a hĺbka podniku.
           </p>
         </div>
 
-        <aside className="space-y-4">
-          <div className="rounded-2xl border border-brand-border bg-brand-card p-4">
+        <aside className="min-h-0 space-y-2 overflow-auto">
+          <div className="rounded-xl border border-brand-border bg-brand-card p-3">
             <h2 className="font-display text-xl tracking-wide text-brand-text">Výber</h2>
             {!selectedTable && !selectedFixture && (
               <p className="mt-2 text-sm text-brand-muted">Klikni na stôl alebo značku v miestnosti.</p>
@@ -811,7 +843,7 @@ export default function SeatPlanEditor({ planId }: { planId: string }) {
             )}
           </div>
 
-          <div className="rounded-2xl border border-brand-border bg-brand-card p-4">
+          <div className="rounded-xl border border-brand-border bg-brand-card p-3">
             <h2 className="font-display text-xl tracking-wide text-brand-text">Nová rezervácia</h2>
             <p className="mt-1 text-xs text-brand-muted">Meno hostí alebo názov tímu — pridá sa ako nový stôl.</p>
             <div className="mt-3 space-y-2">
@@ -823,7 +855,7 @@ export default function SeatPlanEditor({ planId }: { planId: string }) {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-brand-border bg-brand-card p-4">
+          <div className="rounded-xl border border-brand-border bg-brand-card p-3">
             <div className="flex items-center justify-between gap-2">
               <h2 className="font-display text-xl tracking-wide text-brand-text">Registrácie</h2>
               <Users className="h-4 w-4 text-brand-muted" />
@@ -842,7 +874,7 @@ export default function SeatPlanEditor({ planId }: { planId: string }) {
                     </button>
                   )}
                 </div>
-                <div className="mt-3 max-h-72 space-y-2 overflow-auto">
+                <div className="mt-2 max-h-40 space-y-1.5 overflow-auto">
                   {registrations.map((reg) => {
                     const taken = assigned.has(reg.teamName.trim().toLocaleLowerCase("sk"));
                     return (
@@ -868,10 +900,10 @@ export default function SeatPlanEditor({ planId }: { planId: string }) {
             )}
           </div>
 
-          <div className="rounded-2xl border border-brand-border bg-brand-card p-4">
+          <div className="rounded-xl border border-brand-border bg-brand-card p-3">
             <label className="label">Poznámka pre čašníka</label>
             <textarea
-              className="input min-h-[5rem]"
+              className="input min-h-[3.5rem] text-sm"
               value={plan.notes}
               onChange={(e) => updatePlan((c) => ({ ...c, notes: e.target.value }))}
               placeholder="napr. veľké tímy k oknu, bar vľavo od vchodu"

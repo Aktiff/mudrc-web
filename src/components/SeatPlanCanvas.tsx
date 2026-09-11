@@ -203,10 +203,12 @@ export default function SeatPlanCanvas({
   return (
     <div
       ref={roomRef}
-      className={`relative aspect-[4/3] w-full overflow-hidden rounded-2xl border-4 border-neutral-700 ${
+      className={`relative max-w-full overflow-hidden rounded-xl border-[3px] border-neutral-700 ${
         interactive ? "touch-none" : ""
       }`}
       style={{
+        aspectRatio: `${plan.roomW / (plan.roomH || 1)}`,
+        width: `min(100%, calc(var(--seat-room-max-h, 46vh) * ${plan.roomW} / ${plan.roomH || 1}))`,
         backgroundColor: "#d9c7a3",
         backgroundImage:
           "linear-gradient(rgba(80,60,30,0.07) 1px, transparent 1px), linear-gradient(90deg, rgba(80,60,30,0.07) 1px, transparent 1px)",
