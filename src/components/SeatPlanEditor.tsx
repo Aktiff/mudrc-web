@@ -7,6 +7,7 @@ import {
   ChevronLeft,
   Copy,
   ExternalLink,
+  Minus,
   Plus,
   Printer,
   RotateCcw,
@@ -18,11 +19,17 @@ import SeatPlanCanvas from "@/components/SeatPlanCanvas";
 import {
   assignedReservationKeys,
   clampPercent,
+  clampSeatCount,
   createFixture,
   createTable,
+  flipTableOrientation,
+  isTableVertical,
   layoutTablesFromTeams,
+  MAX_TABLE_SEATS,
+  MIN_TABLE_SEATS,
   nextTableNumber,
   parsePlayerCount,
+  scaleTableSize,
   seatsForPeople,
   tableSizeForSeats,
   waiterSharePath,
@@ -37,14 +44,7 @@ type Registration = { id: string; eventSlug: string; venue: string; teamName: st
 
 type SaveState = "idle" | "pending" | "saving" | "saved" | "error";
 
-const TABLE_PRESETS: { label: string; seats: number; shape: SeatTableShape }[] = [
-  { label: "Okrúhly 4", seats: 4, shape: "round" },
-  { label: "Okrúhly 6", seats: 6, shape: "round" },
-  { label: "Okrúhly 8", seats: 8, shape: "round" },
-  { label: "Hranatý 6", seats: 6, shape: "rect" },
-  { label: "Hranatý 8", seats: 8, shape: "rect" },
-  { label: "Hranatý 10", seats: 10, shape: "rect" },
-];
+const SEAT_COUNTS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] as const;
 
 const FIXTURE_PRESETS: { label: string; kind: SeatFixtureKind }[] = [
   { label: "Bar", kind: "bar" },
@@ -63,6 +63,9 @@ export default function SeatPlanEditor({ planId }: { planId: string }) {
   const [registrations, setRegistrations] = useState<Registration[]>([]);
   const [manualName, setManualName] = useState("");
   const [manualPeople, setManualPeople] = useState("4");
+  const [addSeats, setAddSeats] = useState(4);
+  const [addShape, setAddShape] = useState<SeatTableShape>("round");
+  const [addVertical, setAddVertical] = useState(false);
   const [copyMsg, setCopyMsg] = useState("");
   const pendingRef = useRef<SeatPlan | null>(null);
   const savingRef = useRef(false);
@@ -207,7 +210,7 @@ export default function SeatPlanEditor({ planId }: { planId: string }) {
 
   const waiterUrl = plan ? `${typeof window !== "undefined" ? window.location.origin : ""}${waiterSharePath(plan.shareToken)}` : "";
 
-  function addTable(seats: number, shape: SeatTableShape) {
+  function addTable(seats = addSeats, shape = addShape, vertical = addVertical) {
     if (!plan) return;
     const offset = plan.tables.length;
     updatePlan((current) => ({
@@ -217,6 +220,7 @@ export default function SeatPlanEditor({ planId }: { planId: string }) {
         createTable({
           seats,
           shape,
+          vertical: shape === "rect" && vertical,
           number: nextTableNumber(current.tables),
           x: 40 + (offset % 4) * 6,
           y: 40 + Math.floor(offset / 4) * 6,
@@ -317,15 +321,33 @@ export default function SeatPlanEditor({ planId }: { planId: string }) {
       ...current,
       tables: current.tables.map((table) => {
         if (table.id !== id) return table;
-        const next = { ...table, ...patch };
-        if (patch.seats != null || patch.shape != null) {
-          const size = tableSizeForSeats(next.seats, next.shape);
+        const next: SeatPlanTable = { ...table, ...patch };
+        if (patch.seats != null) next.seats = clampSeatCount(patch.seats);
+        if (patch.shape === "round") {
+          next.h = next.w;
+        } else if (patch.shape === "rect" && table.shape !== "rect") {
+          const size = tableSizeForSeats(next.seats, "rect", false);
           next.w = size.w;
           next.h = size.h;
         }
         return next;
       }),
     }));
+  }
+
+  function flipSelectedTable() {
+    if (!selectedTable) return;
+    patchTable(selectedTable.id, flipTableOrientation(selectedTable));
+  }
+
+  function scaleSelectedTable(factor: number) {
+    if (!selectedTable) return;
+    patchTable(selectedTable.id, scaleTableSize(selectedTable, factor));
+  }
+
+  function resetSelectedTableSize() {
+    if (!selectedTable) return;
+    patchTable(selectedTable.id, tableSizeForSeats(selectedTable.seats, selectedTable.shape, isTableVertical(selectedTable)));
   }
 
   function deleteSelected() {
@@ -500,28 +522,84 @@ export default function SeatPlanEditor({ planId }: { planId: string }) {
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-2">
-            {TABLE_PRESETS.map((preset) => (
+          <div className="space-y-2 rounded-2xl border border-brand-border bg-brand-card p-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-semibold uppercase tracking-wider text-brand-muted">Pridať stôl</span>
+              <div className="flex flex-wrap gap-1">
+                {SEAT_COUNTS.map((count) => (
+                  <button
+                    key={count}
+                    type="button"
+                    onClick={() => setAddSeats(count)}
+                    className={`h-8 w-8 rounded-lg text-xs font-bold ${
+                      addSeats === count
+                        ? "bg-brand-orange text-brand-btn-fg"
+                        : "border border-brand-border text-brand-text hover:border-brand-orange"
+                    }`}
+                  >
+                    {count}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
               <button
-                key={preset.label}
                 type="button"
-                onClick={() => addTable(preset.seats, preset.shape)}
-                className="rounded-xl border border-brand-border bg-brand-card px-3 py-2 text-xs font-semibold text-brand-text hover:border-brand-orange"
+                onClick={() => setAddShape("round")}
+                className={`rounded-xl px-3 py-1.5 text-xs font-semibold ${
+                  addShape === "round" ? "bg-brand-orange text-brand-btn-fg" : "border border-brand-border text-brand-muted"
+                }`}
               >
-                <Plus className="mr-1 inline h-3.5 w-3.5" />
-                {preset.label}
+                Okrúhly
               </button>
-            ))}
-            {FIXTURE_PRESETS.map((preset) => (
               <button
-                key={preset.kind}
                 type="button"
-                onClick={() => addFixture(preset.kind)}
-                className="rounded-xl border border-dashed border-brand-border px-3 py-2 text-xs font-semibold text-brand-muted hover:border-brand-orange hover:text-brand-text"
+                onClick={() => setAddShape("rect")}
+                className={`rounded-xl px-3 py-1.5 text-xs font-semibold ${
+                  addShape === "rect" ? "bg-brand-orange text-brand-btn-fg" : "border border-brand-border text-brand-muted"
+                }`}
               >
-                {preset.label}
+                Hranatý
               </button>
-            ))}
+              {addShape === "rect" && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setAddVertical(false)}
+                    className={`rounded-xl px-3 py-1.5 text-xs font-semibold ${
+                      !addVertical ? "bg-brand-tint text-brand-text border border-brand-orange" : "border border-brand-border text-brand-muted"
+                    }`}
+                  >
+                    Vodorovný
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAddVertical(true)}
+                    className={`rounded-xl px-3 py-1.5 text-xs font-semibold ${
+                      addVertical ? "bg-brand-tint text-brand-text border border-brand-orange" : "border border-brand-border text-brand-muted"
+                    }`}
+                  >
+                    Zvislý
+                  </button>
+                </>
+              )}
+              <button type="button" onClick={() => addTable()} className="btn-primary py-1.5 px-3 text-xs">
+                <Plus className="h-3.5 w-3.5" />
+                {addShape === "round" ? "Okrúhly" : addVertical ? "Zvislý" : "Vodorovný"} {addSeats}
+              </button>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {FIXTURE_PRESETS.map((preset) => (
+                <button
+                  key={preset.kind}
+                  type="button"
+                  onClick={() => addFixture(preset.kind)}
+                  className="rounded-xl border border-dashed border-brand-border px-3 py-2 text-xs font-semibold text-brand-muted hover:border-brand-orange hover:text-brand-text"
+                >
+                  {preset.label}
+                </button>
+              ))}
+            </div>
           </div>
 
           <SeatPlanCanvas
@@ -549,8 +627,25 @@ export default function SeatPlanEditor({ planId }: { planId: string }) {
                     : current.fixtures,
               }));
             }}
+            onResize={(id, kind, w, h) => {
+              updatePlan((current) => ({
+                ...current,
+                tables:
+                  kind === "table"
+                    ? current.tables.map((table) =>
+                        table.id === id ? { ...table, w, h: table.shape === "round" ? w : h } : table
+                      )
+                    : current.tables,
+                fixtures:
+                  kind === "fixture"
+                    ? current.fixtures.map((fixture) => (fixture.id === id ? { ...fixture, w, h } : fixture))
+                    : current.fixtures,
+              }));
+            }}
           />
-          <p className="text-xs text-brand-muted">Ťahaj stoly myšou. Šípky posunú výber, Delete zmaže. Odkaz pre čašníka funguje aj bez prihlásenia.</p>
+          <p className="text-xs text-brand-muted">
+            Ťahaj stôl na presun. Žlté rohy zväčšia alebo zmenšia. Hranatý stôl vieš dať vodorovne alebo zvisle.
+          </p>
         </div>
 
         <aside className="space-y-4">
@@ -586,15 +681,32 @@ export default function SeatPlanEditor({ planId }: { planId: string }) {
                     />
                   </div>
                   <div>
-                    <label className="label">Stoličky</label>
+                    <label className="label">Stoličky (1–10)</label>
                     <input
                       className="input"
                       type="number"
-                      min={2}
+                      min={MIN_TABLE_SEATS}
+                      max={MAX_TABLE_SEATS}
                       value={selectedTable.seats}
-                      onChange={(e) => patchTable(selectedTable.id, { seats: Math.max(2, Number(e.target.value) || 2) })}
+                      onChange={(e) => patchTable(selectedTable.id, { seats: clampSeatCount(Number(e.target.value) || 1) })}
                     />
                   </div>
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  {SEAT_COUNTS.map((count) => (
+                    <button
+                      key={count}
+                      type="button"
+                      onClick={() => patchTable(selectedTable.id, { seats: count })}
+                      className={`h-7 w-7 rounded-md text-[11px] font-bold ${
+                        selectedTable.seats === count
+                          ? "bg-brand-orange text-brand-btn-fg"
+                          : "border border-brand-border text-brand-muted hover:border-brand-orange"
+                      }`}
+                    >
+                      {count}
+                    </button>
+                  ))}
                 </div>
                 <div>
                   <label className="label">Tvar</label>
@@ -606,6 +718,53 @@ export default function SeatPlanEditor({ planId }: { planId: string }) {
                     <option value="round">Okrúhly</option>
                     <option value="rect">Hranatý</option>
                   </select>
+                </div>
+                {selectedTable.shape === "rect" && (
+                  <div>
+                    <label className="label">Smer</label>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        className={`flex-1 rounded-xl px-3 py-2 text-xs font-semibold ${
+                          !isTableVertical(selectedTable)
+                            ? "bg-brand-orange text-brand-btn-fg"
+                            : "border border-brand-border text-brand-muted"
+                        }`}
+                        onClick={() => {
+                          if (isTableVertical(selectedTable)) flipSelectedTable();
+                        }}
+                      >
+                        Vodorovný
+                      </button>
+                      <button
+                        type="button"
+                        className={`flex-1 rounded-xl px-3 py-2 text-xs font-semibold ${
+                          isTableVertical(selectedTable)
+                            ? "bg-brand-orange text-brand-btn-fg"
+                            : "border border-brand-border text-brand-muted"
+                        }`}
+                        onClick={() => {
+                          if (!isTableVertical(selectedTable)) flipSelectedTable();
+                        }}
+                      >
+                        Zvislý
+                      </button>
+                    </div>
+                  </div>
+                )}
+                <div>
+                  <label className="label">Veľkosť</label>
+                  <div className="flex gap-2">
+                    <button type="button" className="btn-outline flex-1 py-2 text-sm" onClick={() => scaleSelectedTable(0.88)}>
+                      <Minus className="h-4 w-4" /> Menší
+                    </button>
+                    <button type="button" className="btn-outline flex-1 py-2 text-sm" onClick={() => scaleSelectedTable(1.14)}>
+                      <Plus className="h-4 w-4" /> Väčší
+                    </button>
+                  </div>
+                  <button type="button" className="mt-2 w-full text-xs font-semibold text-brand-muted hover:text-brand-text" onClick={resetSelectedTableSize}>
+                    Obnoviť predvolenú veľkosť
+                  </button>
                 </div>
                 <div className="flex gap-2">
                   <button type="button" className="btn-outline flex-1 py-2 text-sm" onClick={() => rotateSelected(-15)}>
@@ -657,7 +816,7 @@ export default function SeatPlanEditor({ planId }: { planId: string }) {
             <p className="mt-1 text-xs text-brand-muted">Meno hostí alebo názov tímu — pridá sa ako nový stôl.</p>
             <div className="mt-3 space-y-2">
               <input className="input" placeholder="napr. Kvízáci / Novák" value={manualName} onChange={(e) => setManualName(e.target.value)} />
-              <input className="input" type="number" min={1} value={manualPeople} onChange={(e) => setManualPeople(e.target.value)} />
+              <input className="input" type="number" min={1} max={10} value={manualPeople} onChange={(e) => setManualPeople(e.target.value)} />
               <button type="button" className="btn-primary w-full justify-center py-2 text-sm" onClick={addManualReservation}>
                 <Plus className="h-4 w-4" /> Pridať stôl
               </button>

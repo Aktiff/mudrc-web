@@ -1,9 +1,17 @@
 "use client";
 
 import { useRef } from "react";
-import type { SeatFixtureKind, SeatPlan, SeatPlanFixture, SeatPlanTable } from "@/lib/seat-plan";
+import {
+  clampTableSize,
+  isTableVertical,
+  type SeatFixtureKind,
+  type SeatPlan,
+  type SeatPlanFixture,
+  type SeatPlanTable,
+} from "@/lib/seat-plan";
 
 type SelectedKind = "table" | "fixture";
+type ResizeHandle = "nw" | "ne" | "sw" | "se";
 
 type Props = {
   plan: SeatPlan;
@@ -12,6 +20,7 @@ type Props = {
   variant?: "edit" | "waiter";
   onSelect?: (id: string | null, kind: SelectedKind | null) => void;
   onMove?: (id: string, kind: SelectedKind, x: number, y: number) => void;
+  onResize?: (id: string, kind: SelectedKind, w: number, h: number) => void;
 };
 
 function chairsForRound(seats: number) {
@@ -26,17 +35,26 @@ function chairsForRound(seats: number) {
   });
 }
 
-function chairsForRect(seats: number) {
-  const topCount = Math.ceil(seats / 2);
-  const bottomCount = seats - topCount;
+function chairsForRect(seats: number, vertical: boolean) {
+  const longCount = Math.ceil(seats / 2);
+  const shortCount = seats - longCount;
   const chairs: { left: string; top: string; rotate: string }[] = [];
-  for (let i = 0; i < topCount; i++) {
-    const t = topCount === 1 ? 0.5 : (i + 1) / (topCount + 1);
-    chairs.push({ left: `${10 + t * 80}%`, top: "3%", rotate: "0deg" });
-  }
-  for (let i = 0; i < bottomCount; i++) {
-    const t = bottomCount === 1 ? 0.5 : (i + 1) / (bottomCount + 1);
-    chairs.push({ left: `${10 + t * 80}%`, top: "97%", rotate: "180deg" });
+  const place = (count: number, along: "h" | "v", edge: number, rotate: string) => {
+    for (let i = 0; i < count; i++) {
+      const t = count === 1 ? 0.5 : (i + 1) / (count + 1);
+      if (along === "h") {
+        chairs.push({ left: `${10 + t * 80}%`, top: `${edge}%`, rotate });
+      } else {
+        chairs.push({ left: `${edge}%`, top: `${10 + t * 80}%`, rotate });
+      }
+    }
+  };
+  if (vertical) {
+    place(longCount, "v", 3, "270deg");
+    place(shortCount, "v", 97, "90deg");
+  } else {
+    place(longCount, "h", 3, "0deg");
+    place(shortCount, "h", 97, "180deg");
   }
   return chairs;
 }
@@ -53,7 +71,8 @@ function fixtureClass(kind: SeatFixtureKind, selected: boolean) {
 function TableBody({ table, selected, waiter }: { table: SeatPlanTable; selected: boolean; waiter: boolean }) {
   const assigned = Boolean(table.reservation);
   const overflow = table.people > table.seats;
-  const chairs = table.shape === "round" ? chairsForRound(table.seats) : chairsForRect(table.seats);
+  const chairs =
+    table.shape === "round" ? chairsForRound(table.seats) : chairsForRect(table.seats, isTableVertical(table));
 
   return (
     <div className="relative h-full w-full">
@@ -95,6 +114,13 @@ function TableBody({ table, selected, waiter }: { table: SeatPlanTable; selected
   );
 }
 
+const HANDLE_POS: Record<ResizeHandle, string> = {
+  nw: "left-0 top-0 -translate-x-1/2 -translate-y-1/2 cursor-nwse-resize",
+  ne: "right-0 top-0 translate-x-1/2 -translate-y-1/2 cursor-nesw-resize",
+  sw: "left-0 bottom-0 -translate-x-1/2 translate-y-1/2 cursor-nesw-resize",
+  se: "right-0 bottom-0 translate-x-1/2 translate-y-1/2 cursor-nwse-resize",
+};
+
 export default function SeatPlanCanvas({
   plan,
   selectedId = null,
@@ -102,9 +128,17 @@ export default function SeatPlanCanvas({
   variant = "edit",
   onSelect,
   onMove,
+  onResize,
 }: Props) {
   const roomRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ id: string; kind: SelectedKind; dx: number; dy: number } | null>(null);
+  const resizeRef = useRef<{
+    id: string;
+    kind: SelectedKind;
+    round: boolean;
+    cx: number;
+    cy: number;
+  } | null>(null);
   const waiter = variant === "waiter";
 
   const toPercent = (clientX: number, clientY: number) => {
@@ -120,7 +154,7 @@ export default function SeatPlanCanvas({
   };
 
   const startDrag = (event: React.PointerEvent, id: string, kind: SelectedKind, x: number, y: number) => {
-    if (!interactive) return;
+    if (!interactive || resizeRef.current) return;
     event.preventDefault();
     event.stopPropagation();
     const point = toPercent(event.clientX, event.clientY);
@@ -129,14 +163,41 @@ export default function SeatPlanCanvas({
     (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
   };
 
-  const moveDrag = (event: React.PointerEvent) => {
-    if (!interactive || !dragRef.current) return;
+  const startResize = (
+    event: React.PointerEvent,
+    id: string,
+    kind: SelectedKind,
+    round: boolean,
+    cx: number,
+    cy: number
+  ) => {
+    if (!interactive) return;
+    event.preventDefault();
+    event.stopPropagation();
+    resizeRef.current = { id, kind, round, cx, cy };
+    dragRef.current = null;
+    onSelect?.(id, kind);
+    (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+  };
+
+  const movePointer = (event: React.PointerEvent) => {
+    if (!interactive) return;
     const point = toPercent(event.clientX, event.clientY);
+    if (resizeRef.current && onResize) {
+      const dx = Math.abs(point.x - resizeRef.current.cx);
+      const dy = Math.abs(point.y - resizeRef.current.cy);
+      const w = clampTableSize(dx * 2);
+      const h = resizeRef.current.round ? w : clampTableSize(dy * 2);
+      onResize(resizeRef.current.id, resizeRef.current.kind, w, h);
+      return;
+    }
+    if (!dragRef.current) return;
     onMove?.(dragRef.current.id, dragRef.current.kind, point.x - dragRef.current.dx, point.y - dragRef.current.dy);
   };
 
-  const endDrag = () => {
+  const endPointer = () => {
     dragRef.current = null;
+    resizeRef.current = null;
   };
 
   return (
@@ -169,11 +230,22 @@ export default function SeatPlanCanvas({
             transform: `translate(-50%, -50%) rotate(${fixture.rotation}deg)`,
           }}
           onPointerDown={(event) => startDrag(event, fixture.id, "fixture", fixture.x, fixture.y)}
-          onPointerMove={moveDrag}
-          onPointerUp={endDrag}
-          onPointerCancel={endDrag}
+          onPointerMove={movePointer}
+          onPointerUp={endPointer}
+          onPointerCancel={endPointer}
         >
           <span className={`leading-tight ${waiter ? "text-[11px] sm:text-sm" : "text-[10px]"}`}>{fixture.label}</span>
+          {interactive && selectedId === fixture.id &&
+            (["nw", "ne", "sw", "se"] as ResizeHandle[]).map((handle) => (
+              <span
+                key={handle}
+                className={`absolute z-30 h-3 w-3 rounded-sm border border-white bg-brand-orange shadow ${HANDLE_POS[handle]}`}
+                onPointerDown={(event) => startResize(event, fixture.id, "fixture", false, fixture.x, fixture.y)}
+                onPointerMove={movePointer}
+                onPointerUp={endPointer}
+                onPointerCancel={endPointer}
+              />
+            ))}
         </div>
       ))}
 
@@ -190,11 +262,22 @@ export default function SeatPlanCanvas({
             transform: `translate(-50%, -50%) rotate(${table.rotation}deg)`,
           }}
           onPointerDown={(event) => startDrag(event, table.id, "table", table.x, table.y)}
-          onPointerMove={moveDrag}
-          onPointerUp={endDrag}
-          onPointerCancel={endDrag}
+          onPointerMove={movePointer}
+          onPointerUp={endPointer}
+          onPointerCancel={endPointer}
         >
           <TableBody table={table} selected={selectedId === table.id} waiter={waiter} />
+          {interactive && selectedId === table.id &&
+            (["nw", "ne", "sw", "se"] as ResizeHandle[]).map((handle) => (
+              <span
+                key={handle}
+                className={`absolute z-30 h-3.5 w-3.5 rounded-sm border border-white bg-brand-orange shadow ${HANDLE_POS[handle]}`}
+                onPointerDown={(event) => startResize(event, table.id, "table", table.shape === "round", table.x, table.y)}
+                onPointerMove={movePointer}
+                onPointerUp={endPointer}
+                onPointerCancel={endPointer}
+              />
+            ))}
         </div>
       ))}
     </div>

@@ -58,35 +58,64 @@ export type SeatTeamInput = {
 };
 
 const TABLE_WIDTH_BY_SEATS: Record<number, number> = {
+  1: 8,
   2: 10,
+  3: 11,
   4: 12,
+  5: 13,
   6: 14,
+  7: 15,
   8: 16,
+  9: 17,
   10: 18,
-  12: 20,
 };
+
+export const MIN_TABLE_SEATS = 1;
+export const MAX_TABLE_SEATS = 10;
+export const MIN_TABLE_SIZE = 6;
+export const MAX_TABLE_SIZE = 48;
 
 export function parsePlayerCount(value: string | number | null | undefined): number {
   const n = parseInt(String(value ?? "").replace(/[^\d]/g, ""), 10);
   return Number.isFinite(n) && n > 0 ? n : 0;
 }
 
-export function seatsForPeople(people: number): number {
-  const n = Math.max(1, people);
-  if (n <= 2) return 2;
-  if (n <= 4) return 4;
-  if (n <= 6) return 6;
-  if (n <= 8) return 8;
-  if (n <= 10) return 10;
-  return Math.max(12, Math.ceil(n / 2) * 2);
+export function clampSeatCount(value: number): number {
+  if (!Number.isFinite(value)) return 4;
+  return Math.min(MAX_TABLE_SEATS, Math.max(MIN_TABLE_SEATS, Math.round(value)));
 }
 
-export function tableSizeForSeats(seats: number, shape: SeatTableShape): { w: number; h: number } {
-  const clamped = Math.min(12, Math.max(2, seats));
-  const w = TABLE_WIDTH_BY_SEATS[clamped] ?? Math.min(22, 8 + clamped);
+export function seatsForPeople(people: number): number {
+  return clampSeatCount(Math.max(1, people));
+}
+
+export function clampTableSize(value: number): number {
+  return clampPercent(value, MIN_TABLE_SIZE, MAX_TABLE_SIZE);
+}
+
+export function tableSizeForSeats(seats: number, shape: SeatTableShape, vertical = false): { w: number; h: number } {
+  const clamped = clampSeatCount(seats);
+  const w = TABLE_WIDTH_BY_SEATS[clamped] ?? Math.min(22, 7 + clamped);
   if (shape === "round") return { w, h: w };
-  const h = clamped >= 10 ? 11 : clamped >= 8 ? 10 : 9;
-  return { w: shape === "rect" && clamped >= 8 ? w + 4 : w + 1, h };
+  const h = clamped >= 9 ? 11 : clamped >= 6 ? 10 : clamped >= 3 ? 9 : 8;
+  const rect = { w: clamped >= 6 ? w + 4 : w + 1, h };
+  if (vertical) return { w: rect.h, h: rect.w };
+  return rect;
+}
+
+export function isTableVertical(table: Pick<SeatPlanTable, "shape" | "w" | "h">): boolean {
+  return table.shape === "rect" && table.h > table.w + 0.4;
+}
+
+export function flipTableOrientation(table: SeatPlanTable): { w: number; h: number } {
+  if (table.shape === "round") return { w: table.w, h: table.w };
+  return { w: table.h, h: table.w };
+}
+
+export function scaleTableSize(table: SeatPlanTable, factor: number): { w: number; h: number } {
+  const w = clampTableSize(table.w * factor);
+  if (table.shape === "round") return { w, h: w };
+  return { w, h: clampTableSize(table.h * factor) };
 }
 
 export function suggestedShape(seats: number): SeatTableShape {
@@ -145,15 +174,15 @@ function asString(value: unknown, fallback = ""): string {
 export function normalizeTable(raw: unknown, index: number): SeatPlanTable | null {
   if (!raw || typeof raw !== "object") return null;
   const table = raw as Partial<SeatPlanTable>;
-  const seats = Math.max(1, Math.round(asNumber(table.seats, 4)));
+  const seats = clampSeatCount(asNumber(table.seats, 4));
   const shape: SeatTableShape = table.shape === "rect" ? "rect" : "round";
   const size = tableSizeForSeats(seats, shape);
   return {
     id: asString(table.id) || newId(),
     x: clampPercent(asNumber(table.x, 50)),
     y: clampPercent(asNumber(table.y, 50)),
-    w: clampPercent(asNumber(table.w, size.w), 6, 40),
-    h: clampPercent(asNumber(table.h, size.h), 6, 40),
+    w: clampTableSize(asNumber(table.w, size.w)),
+    h: clampTableSize(asNumber(table.h, size.h)),
     rotation: asNumber(table.rotation, 0),
     seats,
     people: Math.max(0, Math.round(asNumber(table.people, 0))),
@@ -246,16 +275,18 @@ export function nextTableNumber(tables: SeatPlanTable[]): string {
   return String(n);
 }
 
-export function createTable(partial: Partial<SeatPlanTable> & { seats?: number }): SeatPlanTable {
-  const seats = Math.max(2, partial.seats ?? 4);
+export function createTable(partial: Partial<SeatPlanTable> & { seats?: number; vertical?: boolean }): SeatPlanTable {
+  const seats = clampSeatCount(partial.seats ?? 4);
   const shape = partial.shape ?? suggestedShape(seats);
-  const size = tableSizeForSeats(seats, shape);
+  const size = tableSizeForSeats(seats, shape, Boolean(partial.vertical));
+  const w = clampTableSize(partial.w ?? size.w);
+  const h = clampTableSize(partial.h ?? (shape === "round" ? w : size.h));
   return {
     id: newId(),
     x: clampPercent(partial.x ?? 50),
     y: clampPercent(partial.y ?? 48),
-    w: size.w,
-    h: size.h,
+    w,
+    h: shape === "round" ? w : h,
     rotation: partial.rotation ?? 0,
     seats,
     people: Math.max(0, partial.people ?? 0),
