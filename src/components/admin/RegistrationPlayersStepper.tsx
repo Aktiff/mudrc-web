@@ -1,7 +1,7 @@
 "use client";
 
 import { Minus, Plus, Users } from "lucide-react";
-import { parsePlayerCount } from "@/lib/seat-plan";
+import { parseRegistrationPlayerCount } from "@/lib/registration-utils";
 
 type Props = {
   players: string;
@@ -20,7 +20,7 @@ export default function RegistrationPlayersStepper({
 }: Props) {
   const min = Math.max(1, minPlayers);
   const max = Math.max(min, maxPlayers);
-  const count = parsePlayerCount(players) || min;
+  const count = parseRegistrationPlayerCount(players) || min;
 
   return (
     <div className="flex flex-col sm:flex-row sm:items-center gap-2">

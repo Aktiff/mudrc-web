@@ -9,7 +9,7 @@ import { hasSeedLeagueBackup } from "@/lib/league-seed";
 import { formatPollOptionLabel, pollOptionsMatch } from "@/lib/poll";
 import { findQuizResult, mergePastResults, normalizeDateKey, quizResultKey } from "@/lib/quiz-result-key";
 import { REGION_OPTIONS } from "@/lib/regions";
-import { parsePlayerCount } from "@/lib/seat-plan";
+import { parseRegistrationPlayerCount } from "@/lib/registration-utils";
 import { AdminDatePicker, AdminTimePicker } from "@/components/AdminDatePicker";
 import { PollAdminMultiDatePicker } from "@/components/PollAdminMultiDatePicker";
 import { TeamAutocomplete } from "@/components/TeamAutocomplete";
@@ -418,7 +418,7 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
 
     const minPlayers = Math.max(1, form.minPlayers ?? 2);
     const maxPlayers = Math.max(minPlayers, form.maxPlayers ?? 8, 20);
-    const current = parsePlayerCount(reg.players) || minPlayers;
+    const current = parseRegistrationPlayerCount(reg.players) || minPlayers;
     const next = Math.min(maxPlayers, Math.max(minPlayers, current + delta));
     if (next === current) return;
 

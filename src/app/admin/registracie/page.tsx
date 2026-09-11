@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Phone, MapPin, Clock, Trash2 } from "lucide-react";
 import type { QuizEvent } from "@/lib/data";
-import { parsePlayerCount } from "@/lib/seat-plan";
+import { parseRegistrationPlayerCount } from "@/lib/registration-utils";
 import RegistrationPlayersStepper from "@/components/admin/RegistrationPlayersStepper";
 
 type Registration = {
@@ -63,7 +63,7 @@ export default function RegistraciaPage() {
 
   const adjustPlayers = async (reg: Registration, delta: number) => {
     const { min, max } = limitsFor(reg);
-    const current = parsePlayerCount(reg.players) || min;
+    const current = parseRegistrationPlayerCount(reg.players) || min;
     const next = Math.min(max, Math.max(min, current + delta));
     if (next === current) return;
 
