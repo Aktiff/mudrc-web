@@ -31,6 +31,7 @@ import {
   MAX_TABLE_SEATS,
   MIN_ROOM,
   MIN_TABLE_SEATS,
+  newId,
   nextTableNumber,
   parsePlayerCount,
   scaleTableSize,
@@ -182,6 +183,10 @@ export default function SeatPlanEditor({ planId }: { planId: string }) {
         event.preventDefault();
         deleteSelected();
       }
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "d") {
+        event.preventDefault();
+        duplicateSelected();
+      }
       if (event.key === "ArrowLeft" || event.key === "ArrowRight" || event.key === "ArrowUp" || event.key === "ArrowDown") {
         event.preventDefault();
         const dx = event.key === "ArrowLeft" ? -1 : event.key === "ArrowRight" ? 1 : 0;
@@ -210,6 +215,16 @@ export default function SeatPlanEditor({ planId }: { planId: string }) {
 
   const assigned = useMemo(() => (plan ? assignedReservationKeys(plan) : new Set<string>()), [plan]);
   const unassigned = registrations.filter((reg) => !assigned.has(reg.teamName.trim().toLocaleLowerCase("sk")));
+  const sortedRegistrations = useMemo(
+    () =>
+      [...registrations].sort((a, b) => {
+        const aTaken = assigned.has(a.teamName.trim().toLocaleLowerCase("sk"));
+        const bTaken = assigned.has(b.teamName.trim().toLocaleLowerCase("sk"));
+        if (aTaken === bTaken) return 0;
+        return aTaken ? 1 : -1;
+      }),
+    [registrations, assigned]
+  );
   const peopleCount = plan?.tables.reduce((sum, table) => sum + (table.people || 0), 0) ?? 0;
 
   const waiterUrl = plan ? `${typeof window !== "undefined" ? window.location.origin : ""}${waiterSharePath(plan.shareToken)}` : "";
@@ -363,6 +378,59 @@ export default function SeatPlanEditor({ planId }: { planId: string }) {
     }));
     setSelectedId(null);
     setSelectedKind(null);
+  }
+
+  function offsetBeside(value: number, delta: number) {
+    const next = value + delta;
+    return clampPercent(next > 90 ? value - delta : next);
+  }
+
+  function duplicateSelected() {
+    if (!plan || !selectedId || !selectedKind) return;
+    if (selectedKind === "table") {
+      const copyId = newId();
+      updatePlan((current) => {
+        const source = current.tables.find((table) => table.id === selectedId);
+        if (!source) return current;
+        return {
+          ...current,
+          tables: [
+            ...current.tables,
+            {
+              ...source,
+              id: copyId,
+              number: nextTableNumber(current.tables),
+              reservation: "",
+              people: 0,
+              x: offsetBeside(source.x, 6),
+              y: offsetBeside(source.y, 5),
+            },
+          ],
+        };
+      });
+      setSelectedId(copyId);
+      setSelectedKind("table");
+      return;
+    }
+    const copyId = newId();
+    updatePlan((current) => {
+      const source = current.fixtures.find((fixture) => fixture.id === selectedId);
+      if (!source) return current;
+      return {
+        ...current,
+        fixtures: [
+          ...current.fixtures,
+          {
+            ...source,
+            id: copyId,
+            x: offsetBeside(source.x, 6),
+            y: offsetBeside(source.y, 5),
+          },
+        ],
+      };
+    });
+    setSelectedId(copyId);
+    setSelectedKind("fixture");
   }
 
   function nudgeSelected(dx: number, dy: number) {
@@ -675,7 +743,7 @@ export default function SeatPlanEditor({ planId }: { planId: string }) {
           />
           </div>
           <p className="text-[11px] text-brand-muted">
-            Ťahaj stôl. Žlté rohy menia veľkosť stola. Šírka a výška hore menia celú miestnosť.
+            Ťahaj stôl. Žlté rohy menia veľkosť. Ctrl+D urobí kópiu vybraného stola vedľa.
           </p>
         </div>
 
@@ -804,10 +872,20 @@ export default function SeatPlanEditor({ planId }: { planId: string }) {
                   <button type="button" className="btn-outline flex-1 py-2 text-sm" onClick={() => rotateSelected(15)}>
                     <RotateCw className="h-4 w-4" />
                   </button>
+                  <button
+                    type="button"
+                    className="btn-outline flex-1 py-2 text-sm"
+                    onClick={duplicateSelected}
+                    title="Ctrl+D"
+                    aria-label="Duplikovať"
+                  >
+                    <Copy className="h-4 w-4" />
+                  </button>
                   <button type="button" className="btn-outline py-2 px-3 text-sm text-red-600" onClick={deleteSelected}>
                     <Trash2 className="h-4 w-4" />
                   </button>
                 </div>
+                <p className="text-[11px] text-brand-muted">Ctrl+D — kópia stola vedľa (rovnaká veľkosť, prázdny)</p>
               </div>
             )}
             {selectedFixture && (
@@ -834,6 +912,15 @@ export default function SeatPlanEditor({ planId }: { planId: string }) {
                   <button type="button" className="btn-outline flex-1 py-2 text-sm" onClick={() => rotateSelected(15)}>
                     <RotateCw className="h-4 w-4" />
                   </button>
+                  <button
+                    type="button"
+                    className="btn-outline flex-1 py-2 text-sm"
+                    onClick={duplicateSelected}
+                    title="Ctrl+D"
+                    aria-label="Duplikovať"
+                  >
+                    <Copy className="h-4 w-4" />
+                  </button>
                   <button type="button" className="btn-outline py-2 px-3 text-sm text-red-600" onClick={deleteSelected}>
                     <Trash2 className="h-4 w-4" />
                   </button>
@@ -854,10 +941,16 @@ export default function SeatPlanEditor({ planId }: { planId: string }) {
             </div>
           </div>
 
-          <div className="rounded-xl border border-brand-border bg-brand-card p-3">
+          <div className={`rounded-xl border p-3 ${unassigned.length > 0 ? "border-amber-400 bg-amber-50/80 dark:bg-amber-950/30" : "border-brand-border bg-brand-card"}`}>
             <div className="flex items-center justify-between gap-2">
               <h2 className="font-display text-xl tracking-wide text-brand-text">Registrácie</h2>
-              <Users className="h-4 w-4 text-brand-muted" />
+              {unassigned.length > 0 ? (
+                <span className="rounded-full bg-amber-500 px-2.5 py-0.5 text-xs font-bold text-white">
+                  {unassigned.length} neusadené
+                </span>
+              ) : (
+                <Users className="h-4 w-4 text-brand-muted" />
+              )}
             </div>
             {registrations.length === 0 ? (
               <p className="mt-2 text-sm text-brand-muted">Vyber udalosť hore a natiahnu sa prihlásené tímy.</p>
@@ -873,8 +966,8 @@ export default function SeatPlanEditor({ planId }: { planId: string }) {
                     </button>
                   )}
                 </div>
-                <div className="mt-2 max-h-40 space-y-1.5 overflow-auto">
-                  {registrations.map((reg) => {
+                <div className="mt-2 max-h-52 space-y-1.5 overflow-auto">
+                  {sortedRegistrations.map((reg) => {
                     const taken = assigned.has(reg.teamName.trim().toLocaleLowerCase("sk"));
                     return (
                       <button
@@ -883,11 +976,18 @@ export default function SeatPlanEditor({ planId }: { planId: string }) {
                         onClick={() => assignTeamToSelected(reg)}
                         className={`w-full rounded-xl border px-3 py-2 text-left text-sm ${
                           taken
-                            ? "border-brand-border text-brand-muted"
-                            : "border-brand-orange/40 bg-brand-tint/40 text-brand-text hover:border-brand-orange"
+                            ? "border-brand-border bg-brand-card/60 text-brand-muted"
+                            : "border-2 border-amber-500 bg-amber-100 text-amber-950 shadow-[0_0_0_2px_rgba(245,158,11,0.35)] ring-2 ring-amber-400/80"
                         }`}
                       >
-                        <div className="font-semibold">{reg.teamName}</div>
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="font-semibold">{reg.teamName}</div>
+                          {!taken && (
+                            <span className="shrink-0 animate-pulse rounded-full bg-amber-500 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
+                              Neusadený
+                            </span>
+                          )}
+                        </div>
                         <div className="text-xs opacity-80">
                           {reg.players} hráčov{taken ? " · už pri stole" : selectedTable ? " · dať na vybraný stôl" : " · nový stôl"}
                         </div>

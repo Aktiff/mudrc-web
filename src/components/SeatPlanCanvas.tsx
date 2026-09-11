@@ -91,7 +91,7 @@ function TableBody({ table, selected, waiter }: { table: SeatPlanTable; selected
         />
       ))}
       <div
-        className={`absolute inset-[14%] flex flex-col items-center justify-center overflow-hidden px-1 text-center shadow-md ${
+        className={`absolute inset-[10%] flex flex-col items-center justify-center overflow-hidden px-1.5 text-center shadow-md [container-type:size] ${
           table.shape === "round" ? "rounded-full" : "rounded-2xl"
         } ${
           overflow
@@ -101,17 +101,27 @@ function TableBody({ table, selected, waiter }: { table: SeatPlanTable; selected
               : "border-2 border-dashed border-neutral-500/70 bg-neutral-100/90 text-neutral-500"
         } ${selected ? "ring-2 ring-brand-orange" : ""}`}
       >
-        <div className={`font-display leading-none tracking-wide ${waiter ? "text-base sm:text-xl" : "text-sm"}`}>
+        <div
+          className={`font-display leading-none tracking-wide ${
+            waiter ? "text-[clamp(1.15rem,24cqmin,2.25rem)]" : "text-[clamp(1.05rem,22cqmin,2rem)]"
+          }`}
+        >
           {table.number}
         </div>
-        <div className={`mt-0.5 line-clamp-2 font-semibold leading-tight ${waiter ? "text-[10px] sm:text-xs" : "text-[10px]"}`}>
+        <div
+          className={`mt-0.5 line-clamp-2 font-bold leading-tight ${
+            waiter ? "text-[clamp(0.8rem,15cqmin,1.25rem)]" : "text-[clamp(0.75rem,14cqmin,1.15rem)]"
+          }`}
+        >
           {table.reservation || (waiter ? "—" : "prázdny")}
         </div>
-        {table.people > 0 && (
-          <div className={`leading-none ${overflow ? "font-bold text-red-700" : "opacity-80"} ${waiter ? "text-[10px]" : "text-[9px]"}`}>
-            {table.people} os.
-          </div>
-        )}
+        <div
+          className={`mt-0.5 leading-none ${
+            overflow ? "font-extrabold text-red-700" : "font-bold opacity-90"
+          } ${waiter ? "text-[clamp(0.8rem,14cqmin,1.15rem)]" : "text-[clamp(0.75rem,13cqmin,1.05rem)]"}`}
+        >
+          {table.people > 0 ? `${table.people}/${table.seats} os.` : `${table.seats} miest`}
+        </div>
       </div>
     </div>
   );
