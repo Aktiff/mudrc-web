@@ -7,7 +7,7 @@ import type { QuizEvent } from "@/lib/data";
 import type { QuizLibraryItem, QuizQuestionItem, QuizQuestionKind } from "@/lib/quiz-library";
 import { collectUsedBankQuestionIdsFromQuiz } from "@/lib/quiz-library";
 import { findBankQuestionById } from "@/lib/quiz-question-bank";
-import { readCustomBankQuestions, type CustomBankQuestion } from "@/lib/quiz-custom-bank";
+import { fetchCustomBankQuestionsFromServer, type CustomBankQuestion } from "@/lib/quiz-custom-bank";
 import { buildStandardMudrcQuestions, describeQuizContent, insertQuestionAfter, removeQuestion, roundLabels } from "@/lib/quiz-template";
 import { buildPresentationSlides } from "@/lib/quiz-presentation";
 import QuizQuestionBankPanel from "@/components/QuizQuestionBankPanel";
@@ -107,8 +107,9 @@ export default function QuizLibraryEditor({ quizId }: Props) {
   const [libraryQuizzes, setLibraryQuizzes] = useState<QuizLibraryItem[]>([]);
   const [customBankQuestions, setCustomBankQuestions] = useState<CustomBankQuestion[]>([]);
 
-  const refreshCustomBank = useCallback(() => {
-    setCustomBankQuestions(readCustomBankQuestions());
+  const refreshCustomBank = useCallback(async () => {
+    const questions = await fetchCustomBankQuestionsFromServer();
+    setCustomBankQuestions(questions);
   }, []);
 
   useEffect(() => {

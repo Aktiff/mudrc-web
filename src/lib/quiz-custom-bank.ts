@@ -37,7 +37,11 @@ export function readCustomBankQuestions(): CustomBankQuestion[] {
 
 export function writeCustomBankQuestions(questions: CustomBankQuestion[]): void {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(CUSTOM_BANK_STORAGE_KEY, JSON.stringify(questions));
+  try {
+    window.localStorage.setItem(CUSTOM_BANK_STORAGE_KEY, JSON.stringify(questions));
+  } catch {
+    /* localStorage nedostupné alebo plné */
+  }
 }
 
 export function notifyCustomBankUpdated(): void {
@@ -45,14 +49,16 @@ export function notifyCustomBankUpdated(): void {
   window.dispatchEvent(new CustomEvent("mudrc-custom-bank-updated"));
 }
 
-function normalizeStoredCustomQuestion(raw: unknown): CustomBankQuestion | null {
+export function normalizeStoredCustomQuestion(raw: unknown): CustomBankQuestion | null {
   if (!raw || typeof raw !== "object") return null;
   const row = raw as Record<string, unknown>;
   if (typeof row.id !== "string" || !isCustomBankQuestionId(row.id)) return null;
   if (typeof row.body !== "string" || !row.body.trim()) return null;
   const isOpenQuestion = Boolean(row.isOpenQuestion);
-  if (!Array.isArray(row.options) || row.options.length !== 6) return null;
-  const options = row.options.map((o) => (typeof o === "string" ? o : "")) as QuizBankQuestion["options"];
+  const optionsRaw = Array.isArray(row.options) ? row.options : [];
+  const optionsPadded = optionsRaw.map((o) => (typeof o === "string" ? o : "")).slice(0, 6);
+  while (optionsPadded.length < 6) optionsPadded.push("");
+  const options = optionsPadded as QuizBankQuestion["options"];
   const correctIndex = typeof row.correctIndex === "number" ? row.correctIndex : 0;
   const answer =
     typeof row.answer === "string" && row.answer.trim()
@@ -84,6 +90,16 @@ function normalizeStoredCustomQuestion(raw: unknown): CustomBankQuestion | null 
         : undefined,
     createdAt: typeof row.createdAt === "number" ? row.createdAt : Date.now(),
   };
+}
+
+export function parseCustomBankQuestionList(raw: unknown): CustomBankQuestion[] {
+  if (!Array.isArray(raw)) return [];
+  const out: CustomBankQuestion[] = [];
+  for (const row of raw) {
+    const item = normalizeStoredCustomQuestion(row);
+    if (item) out.push(item);
+  }
+  return out;
 }
 
 export type NewCustomBankQuestionInput = {
@@ -162,6 +178,100 @@ export function addCustomBankQuestion(input: NewCustomBankQuestionInput): Custom
   writeCustomBankQuestions(next);
   notifyCustomBankUpdated();
   return item;
+}
+
+const CUSTOM_BANK_SYNC_FLAG = "mudrc-custom-bank-synced-v1";
+
+export async function syncLocalCustomBankToServerOnce(): Promise<void> {
+  if (typeof window === "undefined") return;
+  if (window.sessionStorage.getItem(CUSTOM_BANK_SYNC_FLAG)) return;
+
+  const local = readCustomBankQuestions();
+  if (!local.length) {
+    window.sessionStorage.setItem(CUSTOM_BANK_SYNC_FLAG, "1");
+    return;
+  }
+
+  try {
+    const res = await fetch("/api/admin/custom-bank", {
+      method: "POST",
+      cache: "no-store",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ merge: true, questions: local }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data.questions)) {
+        writeCustomBankQuestions(parseCustomBankQuestionList(data.questions));
+      }
+    }
+  } catch {
+    /* sync zlyhal — zostane localStorage */
+  } finally {
+    window.sessionStorage.setItem(CUSTOM_BANK_SYNC_FLAG, "1");
+  }
+}
+
+export async function fetchCustomBankQuestionsFromServer(): Promise<CustomBankQuestion[]> {
+  await syncLocalCustomBankToServerOnce();
+
+  try {
+    const res = await fetch(`/api/admin/custom-bank?_=${Date.now()}`, { cache: "no-store" });
+    if (!res.ok) return readCustomBankQuestions();
+    const data = await res.json();
+    const questions = parseCustomBankQuestionList(data.questions).sort((a, b) => b.createdAt - a.createdAt);
+    writeCustomBankQuestions(questions);
+    notifyCustomBankUpdated();
+    return questions;
+  } catch {
+    return readCustomBankQuestions();
+  }
+}
+
+export async function addCustomBankQuestionAsync(input: NewCustomBankQuestionInput): Promise<CustomBankQuestion> {
+  try {
+    const res = await fetch("/api/admin/custom-bank", {
+      method: "POST",
+      cache: "no-store",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(typeof data.error === "string" ? data.error : "Uloženie zlyhalo");
+    }
+    const created = normalizeStoredCustomQuestion(data.question) ?? createCustomBankQuestion(input);
+    const questions = parseCustomBankQuestionList(
+      Array.isArray(data.questions) ? data.questions : [data.question]
+    );
+    writeCustomBankQuestions(questions);
+    notifyCustomBankUpdated();
+    return created;
+  } catch {
+    return addCustomBankQuestion(input);
+  }
+}
+
+export async function removeCustomBankQuestionAsync(id: string): Promise<void> {
+  if (!isCustomBankQuestionId(id)) return;
+
+  try {
+    const res = await fetch(`/api/admin/custom-bank?id=${encodeURIComponent(id)}`, {
+      method: "DELETE",
+      cache: "no-store",
+    });
+    if (res.ok) {
+      const data = await res.json();
+      const questions = parseCustomBankQuestionList(data.questions);
+      writeCustomBankQuestions(questions);
+      notifyCustomBankUpdated();
+      return;
+    }
+  } catch {
+    /* fallback local */
+  }
+
+  removeCustomBankQuestion(id);
 }
 
 export function removeCustomBankQuestion(id: string): void {

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { ChevronDown, ChevronUp, Plus } from "lucide-react";
 import ImageUrlField from "@/components/admin/ImageUrlField";
-import { addCustomBankQuestion } from "@/lib/quiz-custom-bank";
+import { addCustomBankQuestionAsync } from "@/lib/quiz-custom-bank";
 import { parseTagsInput } from "@/lib/quiz-question-tags";
 
 const OPTION_LETTERS = ["A", "B", "C", "D", "E", "F"] as const;
@@ -28,6 +28,7 @@ export default function CustomBankQuestionForm({ onAdded }: Props) {
   const [suggestedImageUrl, setSuggestedImageUrl] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   const resetForm = () => {
     setBody("");
@@ -41,7 +42,7 @@ export default function CustomBankQuestionForm({ onAdded }: Props) {
     setSuggestedImageUrl("");
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     setError("");
     setSuccess("");
     const trimmedBody = body.trim();
@@ -56,55 +57,60 @@ export default function CustomBankQuestionForm({ onAdded }: Props) {
         setError("Zadaj správnu odpoveď.");
         return;
       }
-      const created = addCustomBankQuestion({
-        body: trimmedBody,
-        options: ["", "", "", "", "", ""],
-        correctIndex: 0,
-        answer,
-        note: note.trim() || undefined,
-        tags: parseTagsInput(tagsText),
-        difficulty,
-        isImageQuestion,
-        isOpenQuestion: true,
-        suggestedImageUrl: suggestedImageUrl.trim() || undefined,
-      });
+    } else {
+      const filledOptions = options.map((o) => o.trim());
+      if (!filledOptions[0] || !filledOptions[1]) {
+        setError("Možnosti A a B sú povinné.");
+        return;
+      }
+      if (!filledOptions[correctIndex]) {
+        setError("Správna odpoveď musí mať vyplnený text v zvolenej možnosti.");
+        return;
+      }
+    }
+
+    setSubmitting(true);
+    try {
+      let created;
+      if (questionMode === "open") {
+        created = await addCustomBankQuestionAsync({
+          body: trimmedBody,
+          options: ["", "", "", "", "", ""],
+          correctIndex: 0,
+          answer: openAnswer.trim(),
+          note: note.trim() || undefined,
+          tags: parseTagsInput(tagsText),
+          difficulty,
+          isImageQuestion,
+          isOpenQuestion: true,
+          suggestedImageUrl: suggestedImageUrl.trim() || undefined,
+        });
+      } else {
+        const filledOptions = options.map((o) => o.trim());
+        created = await addCustomBankQuestionAsync({
+          body: trimmedBody,
+          options: filledOptions,
+          correctIndex,
+          note: note.trim() || undefined,
+          tags: parseTagsInput(tagsText),
+          difficulty,
+          isImageQuestion,
+          isOpenQuestion: false,
+          suggestedImageUrl: suggestedImageUrl.trim() || undefined,
+        });
+      }
+
       resetForm();
       setSuccess(
-        `Otázka pridaná do banky. Tagy: ${created.tags.join(", ")}${tagsText.trim() ? "" : " (doplnené automaticky)"}.`
+        `Otázka uložená do banky (aj na serveri). Tagy: ${created.tags.join(", ")}${tagsText.trim() ? "" : " (doplnené automaticky)"}.`
       );
       onAdded?.();
       window.setTimeout(() => setSuccess(""), 5000);
-      return;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Uloženie zlyhalo.");
+    } finally {
+      setSubmitting(false);
     }
-
-    const filledOptions = options.map((o) => o.trim());
-    if (!filledOptions[0] || !filledOptions[1]) {
-      setError("Možnosti A a B sú povinné.");
-      return;
-    }
-    if (!filledOptions[correctIndex]) {
-      setError("Správna odpoveď musí mať vyplnený text v zvolenej možnosti.");
-      return;
-    }
-
-    const created = addCustomBankQuestion({
-      body: trimmedBody,
-      options: filledOptions,
-      correctIndex,
-      note: note.trim() || undefined,
-      tags: parseTagsInput(tagsText),
-      difficulty,
-      isImageQuestion,
-      isOpenQuestion: false,
-      suggestedImageUrl: suggestedImageUrl.trim() || undefined,
-    });
-
-    resetForm();
-    setSuccess(
-      `Otázka pridaná do banky. Tagy: ${created.tags.join(", ")}${tagsText.trim() ? "" : " (doplnené automaticky)"}.`
-    );
-    onAdded?.();
-    window.setTimeout(() => setSuccess(""), 5000);
   };
 
   return (
@@ -117,7 +123,7 @@ export default function CustomBankQuestionForm({ onAdded }: Props) {
         <div>
           <p className="font-semibold text-brand-text text-sm">Pridať vlastnú otázku do banky</p>
           <p className="text-brand-muted text-xs mt-0.5">
-            Tvoje otázky majú v banke vždy prioritu a zobrazia sa navrchu.
+            Tvoje otázky sa ukladajú na server — zostanú aj po obnovení stránky.
           </p>
         </div>
         {open ? <ChevronUp className="w-5 h-5 text-brand-muted shrink-0" /> : <ChevronDown className="w-5 h-5 text-brand-muted shrink-0" />}
@@ -266,9 +272,14 @@ export default function CustomBankQuestionForm({ onAdded }: Props) {
           {error && <p className="text-sm text-red-500">{error}</p>}
           {success && <p className="text-sm text-green-600 dark:text-green-400">{success}</p>}
 
-          <button type="button" onClick={handleSubmit} className="btn-primary text-sm py-2.5 px-5 inline-flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={submitting}
+            className="btn-primary text-sm py-2.5 px-5 inline-flex items-center gap-2 disabled:opacity-60"
+          >
             <Plus className="w-4 h-4" />
-            Pridať do banky
+            {submitting ? "Ukladám…" : "Pridať do banky"}
           </button>
         </div>
       )}

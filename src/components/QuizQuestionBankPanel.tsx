@@ -22,10 +22,10 @@ import {
   type QuizBankQuestion,
 } from "@/lib/quiz-question-bank";
 import {
+  fetchCustomBankQuestionsFromServer,
   isCustomBankQuestionId,
   isGeneratedBankQuestion,
-  readCustomBankQuestions,
-  removeCustomBankQuestion,
+  removeCustomBankQuestionAsync,
   type CustomBankQuestion,
 } from "@/lib/quiz-custom-bank";
 import { shuffleQuestionOptionsRandom } from "@/lib/quiz-question-options";
@@ -93,7 +93,9 @@ export default function QuizQuestionBankPanel({
 
   useEffect(() => {
     if (customBankQuestionsProp) return;
-    const sync = () => setLocalCustom(readCustomBankQuestions());
+    const sync = () => {
+      void fetchCustomBankQuestionsFromServer().then(setLocalCustom);
+    };
     sync();
     window.addEventListener("mudrc-custom-bank-updated", sync);
     return () => window.removeEventListener("mudrc-custom-bank-updated", sync);
@@ -290,8 +292,7 @@ export default function QuizQuestionBankPanel({
   const dismissQuestion = (bankId: string) => {
     if (isCustomBankQuestionId(bankId)) {
       if (!window.confirm("Odstrániť túto vlastnú otázku z banky?")) return;
-      removeCustomBankQuestion(bankId);
-      onCustomBankChange?.();
+      void removeCustomBankQuestionAsync(bankId).then(() => onCustomBankChange?.());
       return;
     }
     if (!window.confirm("Odstrániť túto otázku z banky? (Zmizne aj v iných kvízoch.)")) return;

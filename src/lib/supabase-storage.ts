@@ -10,6 +10,7 @@ export const quizLibraryItemKey = (id: string) => `quiz-library:${id}`;
 const POLL_CONFIGS_KEY = "poll-configs";
 const POLL_VOTES_KEY = "poll-votes";
 const SEAT_PLANS_KEY = "seat-plans";
+const CUSTOM_BANK_KEY = "custom-bank-questions";
 const eventLeagueKey = (slug: string) => `event-league:${slug}`;
 
 export type EventLeagueData = {
@@ -157,6 +158,14 @@ export async function supabaseFetchSeatPlans(): Promise<SupabaseFetchResult<{ pl
 
 export async function supabaseSetSeatPlans(data: { plans: unknown[] }): Promise<void> {
   await supabaseSet(SEAT_PLANS_KEY, data);
+}
+
+export async function supabaseFetchCustomBank(): Promise<SupabaseFetchResult<{ questions: unknown[] }>> {
+  return supabaseFetch<{ questions: unknown[] }>(CUSTOM_BANK_KEY);
+}
+
+export async function supabaseSetCustomBank(data: { questions: unknown[] }): Promise<void> {
+  await supabaseSet(CUSTOM_BANK_KEY, data);
 }
 
 export async function supabaseFetchEventLeague(slug: string): Promise<SupabaseFetchResult<EventLeagueData>> {

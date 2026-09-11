@@ -205,7 +205,9 @@ export function filterVisibleBankQuestions(
 ): QuizBankQuestion[] {
   const skip = new Set([...usedIds, ...hiddenIds]);
   const generated = QUIZ_QUESTION_BANK.filter((item) => !skip.has(item.id));
-  const custom = extraQuestions.filter((item) => !skip.has(item.id));
+  const custom = extraQuestions.filter(
+    (item) => item.id.startsWith("custom-") || !skip.has(item.id)
+  );
   return [...custom, ...generated];
 }
 
