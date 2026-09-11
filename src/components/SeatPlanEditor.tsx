@@ -631,7 +631,7 @@ export default function SeatPlanEditor({ planId }: { planId: string }) {
             </div>
           </div>
 
-          <div className="flex min-h-0 flex-1 items-start justify-center overflow-auto rounded-xl bg-brand-surface/60 p-2">
+          <div className="min-h-[18rem] flex-1 overflow-hidden rounded-xl bg-brand-surface/60 p-1">
             <SeatPlanCanvas
             plan={plan}
             selectedId={selectedId}

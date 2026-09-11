@@ -81,7 +81,6 @@ export const DEFAULT_ROOM_H = 12;
 export const MIN_ROOM = 8;
 export const MAX_ROOM_W = 28;
 export const MAX_ROOM_H = 28;
-export const ROOM_UNIT_PX = 24;
 
 export function parsePlayerCount(value: string | number | null | undefined): number {
   const n = parseInt(String(value ?? "").replace(/[^\d]/g, ""), 10);

@@ -1,10 +1,11 @@
 "use client";
 
-import { useRef } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import {
   clampTableSize,
   isTableVertical,
-  ROOM_UNIT_PX,
+  MAX_ROOM_H,
+  MAX_ROOM_W,
   type SeatFixtureKind,
   type SeatPlan,
   type SeatPlanFixture,
@@ -131,6 +132,7 @@ export default function SeatPlanCanvas({
   onMove,
   onResize,
 }: Props) {
+  const wrapRef = useRef<HTMLDivElement>(null);
   const roomRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ id: string; kind: SelectedKind; dx: number; dy: number } | null>(null);
   const resizeRef = useRef<{
@@ -141,6 +143,24 @@ export default function SeatPlanCanvas({
     cy: number;
   } | null>(null);
   const waiter = variant === "waiter";
+  const [area, setArea] = useState({ w: 640, h: 400 });
+
+  useLayoutEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const update = () => {
+      const w = el.clientWidth;
+      const h = el.clientHeight;
+      if (w > 8 && h > 8) setArea({ w, h });
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  const roomWidth = Math.max(96, (plan.roomW / MAX_ROOM_W) * area.w);
+  const roomHeight = Math.max(72, (plan.roomH / MAX_ROOM_H) * area.h);
 
   const toPercent = (clientX: number, clientY: number) => {
     const room = roomRef.current;
@@ -202,14 +222,15 @@ export default function SeatPlanCanvas({
   };
 
   return (
+    <div ref={wrapRef} className="flex h-full w-full items-center justify-center">
     <div
       ref={roomRef}
-      className={`relative shrink-0 overflow-hidden rounded-xl border-[3px] border-neutral-700 ${
+      className={`relative overflow-hidden rounded-xl border-[3px] border-neutral-700 ${
         interactive ? "touch-none" : ""
       }`}
       style={{
-        width: Math.max(8, plan.roomW) * (variant === "waiter" ? ROOM_UNIT_PX + 4 : ROOM_UNIT_PX),
-        height: Math.max(8, plan.roomH) * (variant === "waiter" ? ROOM_UNIT_PX + 4 : ROOM_UNIT_PX),
+        width: roomWidth,
+        height: roomHeight,
         backgroundColor: "#d9c7a3",
         backgroundImage:
           "linear-gradient(rgba(80,60,30,0.07) 1px, transparent 1px), linear-gradient(90deg, rgba(80,60,30,0.07) 1px, transparent 1px)",
@@ -283,6 +304,7 @@ export default function SeatPlanCanvas({
             ))}
         </div>
       ))}
+    </div>
     </div>
   );
 }

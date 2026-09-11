@@ -65,7 +65,7 @@ export default function SeatPlanWaiterView({ plan }: { plan: SeatPlan }) {
         </p>
       )}
 
-      <div className="flex justify-center overflow-auto">
+      <div className="h-[min(62vh,36rem)] w-full">
         <SeatPlanCanvas plan={plan} variant="waiter" />
       </div>
 
