@@ -1,4 +1,4 @@
-﻿import type { QuizBankQuestion } from "@/lib/quiz-question-bank";
+import type { QuizBankQuestion } from "@/lib/quiz-question-bank";
 
 /** Otázky s fotkou — pub úroveň. URL doplníš v editore. */
 export const IMAGE_QUIZ_BANK: QuizBankQuestion[] = [

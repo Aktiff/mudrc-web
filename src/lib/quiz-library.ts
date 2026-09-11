@@ -12,6 +12,10 @@ export type QuizQuestionItem = {
   kind: QuizQuestionKind;
   body: string;
   answer: string;
+  /** Hudobná ukážka — interpret (1 bod) */
+  musicArtist?: string;
+  /** Hudobná ukážka — názov skladby (1 bod) */
+  musicTitle?: string;
   /** Voliteľné možnosti A–F (zobrazené v dvoch stĺpcoch pri projekcii) */
   options?: string[];
   /** ID otázky z banky vloženej do tohto slotu */
@@ -91,6 +95,8 @@ function normalizeQuestion(input: Partial<QuizQuestionItem>): QuizQuestionItem |
     kind: input.kind === "music" ? "music" : "normal",
     body,
     answer: input.answer?.trim() ?? "",
+    musicArtist: input.musicArtist?.trim() || undefined,
+    musicTitle: input.musicTitle?.trim() || undefined,
     options,
     bankQuestionId: input.bankQuestionId?.trim() || undefined,
     imageUrl: input.imageUrl?.trim() || undefined,
@@ -185,6 +191,13 @@ export function collectPlayedTeamNames(usages: QuizUsage[]): string[] {
 
 export function isQuestionSlotEmpty(question: QuizQuestionItem): boolean {
   return !question.body.trim() && !question.answer.trim();
+}
+
+export function findFirstEmptyMusicSlot(questions: QuizQuestionItem[]): QuizQuestionItem | undefined {
+  return [...questions]
+    .filter((q) => q.kind === "music")
+    .sort((a, b) => a.questionNumber - b.questionNumber)
+    .find(isQuestionSlotEmpty);
 }
 
 export function findFirstEmptyQuestionSlot(questions: QuizQuestionItem[]): QuizQuestionItem | undefined {

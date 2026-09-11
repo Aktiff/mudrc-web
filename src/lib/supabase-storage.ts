@@ -11,6 +11,7 @@ const POLL_CONFIGS_KEY = "poll-configs";
 const POLL_VOTES_KEY = "poll-votes";
 const SEAT_PLANS_KEY = "seat-plans";
 const CUSTOM_BANK_KEY = "custom-bank-questions";
+const MUSIC_BANK_KEY = "music-bank";
 const eventLeagueKey = (slug: string) => `event-league:${slug}`;
 
 export type EventLeagueData = {
@@ -168,6 +169,14 @@ export async function supabaseSetCustomBank(data: { questions: unknown[] }): Pro
   await supabaseSet(CUSTOM_BANK_KEY, data);
 }
 
+export async function supabaseFetchMusicBank(): Promise<SupabaseFetchResult<{ tracks: unknown[] }>> {
+  return supabaseFetch<{ tracks: unknown[] }>(MUSIC_BANK_KEY);
+}
+
+export async function supabaseSetMusicBank(data: { tracks: unknown[] }): Promise<void> {
+  await supabaseSet(MUSIC_BANK_KEY, data);
+}
+
 export async function supabaseFetchEventLeague(slug: string): Promise<SupabaseFetchResult<EventLeagueData>> {
   return supabaseFetch<EventLeagueData>(eventLeagueKey(slug));
 }
@@ -176,14 +185,15 @@ export async function supabaseSetEventLeague(slug: string, data: EventLeagueData
   await supabaseSet(eventLeagueKey(slug), data);
 }
 
-export async function supabaseUploadPublicImage(
+export async function supabaseUploadPublicFile(
+  folder: "events" | "audio",
   fileName: string,
   data: Buffer,
   contentType: string
 ): Promise<string> {
   const supabase = getSupabase();
   const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, "-");
-  const objectPath = `events/${Date.now()}-${safeName}`;
+  const objectPath = `${folder}/${Date.now()}-${safeName}`;
 
   const { error } = await supabase.storage.from("uploads").upload(objectPath, data, {
     contentType,
@@ -193,6 +203,14 @@ export async function supabaseUploadPublicImage(
 
   const { data: publicUrl } = supabase.storage.from("uploads").getPublicUrl(objectPath);
   return publicUrl.publicUrl;
+}
+
+export async function supabaseUploadPublicImage(
+  fileName: string,
+  data: Buffer,
+  contentType: string
+): Promise<string> {
+  return supabaseUploadPublicFile("events", fileName, data, contentType);
 }
 
 export function getSupabaseStorageDiagnostics() {

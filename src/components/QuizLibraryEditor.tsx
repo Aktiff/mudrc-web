@@ -12,6 +12,13 @@ import { buildStandardMudrcQuestions, describeQuizContent, insertQuestionAfter, 
 import { buildPresentationSlides } from "@/lib/quiz-presentation";
 import QuizQuestionBankPanel from "@/components/QuizQuestionBankPanel";
 import CustomBankQuestionForm from "@/components/CustomBankQuestionForm";
+import MusicBankQuestionForm from "@/components/MusicBankQuestionForm";
+import AudioUrlField from "@/components/admin/AudioUrlField";
+import {
+  DEFAULT_MUSIC_QUESTION_BODY,
+  type MusicBankItem,
+} from "@/lib/music-bank";
+import { fetchMusicBankFromServer } from "@/lib/music-bank-client";
 import QuizTagStats from "@/components/QuizTagStats";
 import ImageUrlField from "@/components/admin/ImageUrlField";
 import { optionLetter } from "@/lib/quiz-question-options";
@@ -106,6 +113,11 @@ export default function QuizLibraryEditor({ quizId }: Props) {
   const [dragQuestionId, setDragQuestionId] = useState<string | null>(null);
   const [libraryQuizzes, setLibraryQuizzes] = useState<QuizLibraryItem[]>([]);
   const [customBankQuestions, setCustomBankQuestions] = useState<CustomBankQuestion[]>([]);
+  const [musicBankTracks, setMusicBankTracks] = useState<MusicBankItem[]>([]);
+
+  const refreshMusicBank = useCallback(async () => {
+    setMusicBankTracks(await fetchMusicBankFromServer());
+  }, []);
 
   const refreshCustomBank = useCallback(async () => {
     const questions = await fetchCustomBankQuestionsFromServer();
@@ -114,9 +126,10 @@ export default function QuizLibraryEditor({ quizId }: Props) {
 
   useEffect(() => {
     refreshCustomBank();
+    refreshMusicBank();
     window.addEventListener("mudrc-custom-bank-updated", refreshCustomBank);
     return () => window.removeEventListener("mudrc-custom-bank-updated", refreshCustomBank);
-  }, [refreshCustomBank]);
+  }, [refreshCustomBank, refreshMusicBank]);
 
   const refreshLibraryQuizzes = useCallback(async () => {
     const res = await fetch(`/api/admin/quiz-library?_=${Date.now()}`, { cache: "no-store" });
@@ -280,6 +293,52 @@ export default function QuizLibraryEditor({ quizId }: Props) {
     });
   };
 
+  const insertFromMusicBank = (
+    bankId: string,
+    targetQuestionId: string,
+    artist: string,
+    title: string,
+    audioUrl: string,
+    hostNote?: string
+  ) => {
+    const target = questions.find((q) => q.id === targetQuestionId);
+    if (!target || target.kind !== "music") return;
+    const displacedBankId = target.bankQuestionId;
+
+    setQuiz((prev) => {
+      if (!prev) return prev;
+
+      let usedIds = [...(prev.usedBankQuestionIds ?? [])];
+      if (displacedBankId && displacedBankId !== bankId) {
+        usedIds = usedIds.filter((id) => id !== displacedBankId);
+      }
+      usedIds = Array.from(new Set([...usedIds, bankId]));
+
+      return {
+        ...prev,
+        questions: prev.questions.map((q) =>
+          q.id === targetQuestionId
+            ? {
+                ...q,
+                body: q.body.trim() || DEFAULT_MUSIC_QUESTION_BODY,
+                musicArtist: artist,
+                musicTitle: title,
+                answer: `${artist} — ${title}`,
+                audioUrl,
+                bankQuestionId: bankId,
+                hostNote: hostNote?.trim() || undefined,
+                options: undefined,
+                tags: ["hudba"],
+              }
+            : q
+        ),
+        usedBankQuestionIds: usedIds,
+      };
+    });
+
+    setMsg({ text: "Hudobná ukážka vložená — nezabudni uložiť kvíz.", ok: true });
+  };
+
   const returnQuestionToBank = (questionId: string) => {
     const question = questions.find((q) => q.id === questionId);
     const bankId = question?.bankQuestionId;
@@ -296,6 +355,9 @@ export default function QuizLibraryEditor({ quizId }: Props) {
                     ...q,
                     body: "",
                     answer: "",
+                    musicArtist: undefined,
+                    musicTitle: undefined,
+                    audioUrl: undefined,
                     options: undefined,
                     bankQuestionId: undefined,
                     tags: undefined,
@@ -447,6 +509,7 @@ export default function QuizLibraryEditor({ quizId }: Props) {
       </div>
 
       <CustomBankQuestionForm onAdded={refreshCustomBank} />
+      <MusicBankQuestionForm onAdded={refreshMusicBank} onMessage={(text, ok) => setMsg({ text, ok })} />
 
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
@@ -600,9 +663,45 @@ export default function QuizLibraryEditor({ quizId }: Props) {
                 className="input min-h-[80px] resize-y"
                 value={question.body}
                 onChange={(e) => updateQuestion(question.id, { body: e.target.value })}
-                placeholder="Sem napíš otázku…"
+                placeholder={question.kind === "music" ? DEFAULT_MUSIC_QUESTION_BODY : "Sem napíš otázku…"}
               />
             </div>
+            {question.kind === "music" ? (
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="label">Interpret (1 bod)</label>
+                  <input
+                    className="input"
+                    value={question.musicArtist ?? ""}
+                    onChange={(e) => {
+                      const musicArtist = e.target.value;
+                      const musicTitle = question.musicTitle ?? "";
+                      updateQuestion(question.id, {
+                        musicArtist,
+                        answer: musicArtist.trim() && musicTitle.trim() ? `${musicArtist.trim()} — ${musicTitle.trim()}` : question.answer,
+                      });
+                    }}
+                    placeholder="Správny interpret"
+                  />
+                </div>
+                <div>
+                  <label className="label">Názov skladby (1 bod)</label>
+                  <input
+                    className="input"
+                    value={question.musicTitle ?? ""}
+                    onChange={(e) => {
+                      const musicTitle = e.target.value;
+                      const musicArtist = question.musicArtist ?? "";
+                      updateQuestion(question.id, {
+                        musicTitle,
+                        answer: musicArtist.trim() && musicTitle.trim() ? `${musicArtist.trim()} — ${musicTitle.trim()}` : question.answer,
+                      });
+                    }}
+                    placeholder="Správny názov"
+                  />
+                </div>
+              </div>
+            ) : (
             <div>
               <label className="label">Správna odpoveď</label>
               <input
@@ -612,6 +711,7 @@ export default function QuizLibraryEditor({ quizId }: Props) {
                 placeholder="Správna odpoveď"
               />
             </div>
+            )}
             {question.kind === "normal" && (
               <div>
                 <label className="label">Tagy (oddelené čiarkou)</label>
@@ -681,25 +781,24 @@ export default function QuizLibraryEditor({ quizId }: Props) {
               </div>
             )}
             <div className="grid gap-3 grid-cols-1">
+              {question.kind === "normal" && (
               <ImageUrlField
                 value={question.imageUrl ?? ""}
                 onChange={(url) => updateQuestion(question.id, { imageUrl: url })}
                 onUploadError={(text) => setMsg({ text, ok: false })}
                 onUploadSuccess={(text) => setMsg({ text, ok: true })}
               />
+              )}
               {question.kind === "music" && (
-                <div>
-                  <label className="label">Audio ukážka (URL)</label>
-                  <input
-                    className="input"
-                    value={question.audioUrl ?? ""}
-                    onChange={(e) => updateQuestion(question.id, { audioUrl: e.target.value })}
-                    placeholder="https://…mp3"
-                  />
-                </div>
+                <AudioUrlField
+                  value={question.audioUrl ?? ""}
+                  onChange={(url) => updateQuestion(question.id, { audioUrl: url })}
+                  onUploadError={(text) => setMsg({ text, ok: false })}
+                  onUploadSuccess={(text) => setMsg({ text, ok: true })}
+                />
               )}
             </div>
-            {question.imageUrl?.trim() && (
+            {question.kind === "normal" && question.imageUrl?.trim() && (
               <div className="space-y-2">
                 <p className="text-xs font-semibold text-brand-muted uppercase tracking-wider">Kde zobraziť obrázok</p>
                 <label className="flex items-center gap-2 text-sm text-brand-text cursor-pointer">
@@ -801,8 +900,12 @@ export default function QuizLibraryEditor({ quizId }: Props) {
             allQuizQuestions={questions}
             usedBankQuestionIds={globalUsedBankQuestionIds}
             customBankQuestions={customBankQuestions}
+            musicBankTracks={musicBankTracks}
+            openRound={openRound}
             onCustomBankChange={refreshCustomBank}
+            onMusicBankChange={refreshMusicBank}
             onInsert={insertFromBank}
+            onInsertMusic={insertFromMusicBank}
           />
         </div>
 
@@ -812,8 +915,12 @@ export default function QuizLibraryEditor({ quizId }: Props) {
             allQuizQuestions={questions}
             usedBankQuestionIds={globalUsedBankQuestionIds}
             customBankQuestions={customBankQuestions}
+            musicBankTracks={musicBankTracks}
+            openRound={openRound}
             onCustomBankChange={refreshCustomBank}
+            onMusicBankChange={refreshMusicBank}
             onInsert={insertFromBank}
+            onInsertMusic={insertFromMusicBank}
           />
         </div>
       </div>
