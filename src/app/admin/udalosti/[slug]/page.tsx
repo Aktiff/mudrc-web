@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Trash2, ChevronLeft, Save, PauseCircle, PlayCircle, Upload, ImageIcon, Phone, Users, Clock, RefreshCw, Vote, ExternalLink, UserPlus, UserX } from "lucide-react";
+import { Plus, Trash2, ChevronLeft, Save, PauseCircle, PlayCircle, Upload, ImageIcon, Phone, Users, Clock, RefreshCw, Vote, ExternalLink, UserPlus, UserX, Armchair, Minus } from "lucide-react";
 import Link from "next/link";
 import type { QuizEvent, LeagueEntry, PastResult } from "@/lib/data";
 import { sortLeagueTable } from "@/lib/data";
@@ -9,6 +9,7 @@ import { hasSeedLeagueBackup } from "@/lib/league-seed";
 import { formatPollOptionLabel, pollOptionsMatch } from "@/lib/poll";
 import { findQuizResult, mergePastResults, normalizeDateKey, quizResultKey } from "@/lib/quiz-result-key";
 import { REGION_OPTIONS } from "@/lib/regions";
+import { parsePlayerCount } from "@/lib/seat-plan";
 import { AdminDatePicker, AdminTimePicker } from "@/components/AdminDatePicker";
 import { PollAdminMultiDatePicker } from "@/components/PollAdminMultiDatePicker";
 import { TeamAutocomplete } from "@/components/TeamAutocomplete";
@@ -102,6 +103,7 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
   const [registrations, setRegistrations] = useState<EventRegistration[]>([]);
   const [regsLoading, setRegsLoading] = useState(false);
   const [deletingRegId, setDeletingRegId] = useState<string | null>(null);
+  const [updatingPlayersRegId, setUpdatingPlayersRegId] = useState<string | null>(null);
   const [clearingRegs, setClearingRegs] = useState(false);
   const [pollAdmin, setPollAdmin] = useState<PollAdminState | null>(null);
   const [pollLoading, setPollLoading] = useState(false);
@@ -406,6 +408,37 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
       }
     } finally {
       setDeletingRegId(null);
+    }
+  };
+
+  const adjustRegistrationPlayers = async (id: string, delta: number) => {
+    const reg = registrations.find((entry) => entry.id === id);
+    if (!reg) return;
+
+    const minPlayers = Math.max(1, form.minPlayers ?? 2);
+    const maxPlayers = Math.max(minPlayers, form.maxPlayers ?? 8);
+    const current = parsePlayerCount(reg.players) || minPlayers;
+    const next = Math.min(maxPlayers, Math.max(minPlayers, current + delta));
+    if (next === current) return;
+
+    setUpdatingPlayersRegId(id);
+    try {
+      const res = await fetch("/api/admin/registrations", {
+        method: "PATCH",
+        cache: "no-store",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, players: next }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setMsg({ text: data.error ?? "Nepodarilo sa upraviť počet hráčov.", ok: false });
+        return;
+      }
+      setRegistrations((prev) =>
+        prev.map((entry) => (entry.id === id ? { ...entry, players: String(next) } : entry))
+      );
+    } finally {
+      setUpdatingPlayersRegId(null);
     }
   };
 
@@ -1158,17 +1191,26 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
                 ? "Registrácie sú otvorené — nové tímy sa môžu prihlásiť cez web."
                 : "Registrácie sú zatvorené — na webe sa zobrazí „Kvíz je plný“."}
             </p>
-            <button
-              onClick={toggleRegistrationOpen}
-              className={`flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded-xl border transition-colors ${
-                form.registrationOpen !== false
-                  ? "border-brand-border text-brand-muted hover:bg-brand-hover"
-                  : "border-teal-500/40 text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/30"
-              }`}
-            >
-              {form.registrationOpen !== false ? <UserX className="w-4 h-4" /> : <UserPlus className="w-4 h-4" />}
-              {form.registrationOpen !== false ? "Vypnúť registrácie" : "Zapnúť registrácie"}
-            </button>
+            <div className="flex flex-wrap gap-2">
+              <Link
+                href={`/admin/zasadacie?event=${params.slug}`}
+                className="flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded-xl border border-brand-border text-brand-text hover:border-brand-orange transition-colors"
+              >
+                <Armchair className="w-4 h-4" />
+                Zasadací poriadok
+              </Link>
+              <button
+                onClick={toggleRegistrationOpen}
+                className={`flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded-xl border transition-colors ${
+                  form.registrationOpen !== false
+                    ? "border-brand-border text-brand-muted hover:bg-brand-hover"
+                    : "border-teal-500/40 text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/30"
+                }`}
+              >
+                {form.registrationOpen !== false ? <UserX className="w-4 h-4" /> : <UserPlus className="w-4 h-4" />}
+                {form.registrationOpen !== false ? "Vypnúť registrácie" : "Zapnúť registrácie"}
+              </button>
+            </div>
           </div>
           {registrations.length > 0 && (
             <div className="flex flex-wrap items-center justify-between gap-3 mb-6 pb-6 border-b border-brand-border">
@@ -1190,7 +1232,13 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
             <p className="text-brand-muted text-sm py-8 text-center">Zatiaľ žiadne registrácie pre tento podnik.</p>
           )}
           <div className="space-y-3">
-            {registrations.map((r) => (
+            {registrations.map((r) => {
+              const minPlayers = Math.max(1, form.minPlayers ?? 2);
+              const maxPlayers = Math.max(minPlayers, form.maxPlayers ?? 8);
+              const playerCount = parsePlayerCount(r.players) || minPlayers;
+              const playersBusy = updatingPlayersRegId === r.id;
+
+              return (
               <div
                 key={r.id}
                 className="rounded-xl border border-brand-border p-4 flex items-start justify-between gap-4"
@@ -1199,8 +1247,32 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
                   <div className="font-display text-xl text-brand-text">{r.teamName}</div>
                   <div className="flex flex-wrap items-center gap-4 mt-2 text-sm text-brand-muted">
                     <span className="flex items-center gap-1.5">
-                      <Users className="w-3.5 h-3.5" />
-                      {r.players} hráčov
+                      <Users className="w-3.5 h-3.5 shrink-0" />
+                      <span className="inline-flex items-center gap-1 rounded-xl border border-brand-border bg-brand-surface overflow-hidden">
+                        <button
+                          type="button"
+                          onClick={() => adjustRegistrationPlayers(r.id, -1)}
+                          disabled={playersBusy || playerCount <= minPlayers}
+                          className="p-1.5 hover:bg-brand-warm disabled:opacity-40 transition-colors"
+                          title={`Menej hráčov (min. ${minPlayers})`}
+                          aria-label="Odobrať hráča"
+                        >
+                          <Minus className="w-3.5 h-3.5" />
+                        </button>
+                        <span className="min-w-[4.5rem] text-center font-semibold text-brand-text tabular-nums px-1">
+                          {playersBusy ? "…" : `${playerCount} hráčov`}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => adjustRegistrationPlayers(r.id, 1)}
+                          disabled={playersBusy || playerCount >= maxPlayers}
+                          className="p-1.5 hover:bg-brand-warm disabled:opacity-40 transition-colors"
+                          title={`Viac hráčov (max. ${maxPlayers})`}
+                          aria-label="Pridať hráča"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                        </button>
+                      </span>
                     </span>
                     <span className="flex items-center gap-1.5">
                       <Phone className="w-3.5 h-3.5" />
@@ -1221,7 +1293,8 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
                   {deletingRegId === r.id ? "..." : "Zmazať"}
                 </button>
               </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}

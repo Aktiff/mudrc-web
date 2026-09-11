@@ -962,6 +962,22 @@ export async function deleteRegistrationById(id: string): Promise<boolean> {
   return removed;
 }
 
+export async function updateRegistrationById(
+  id: string,
+  patch: Partial<Pick<Registration, "players">>
+): Promise<Registration | null> {
+  let updated: Registration | null = null;
+  await updateRegistrations((regs) => {
+    const idx = regs.findIndex((reg) => reg.id === id);
+    if (idx === -1) return regs;
+    const next = [...regs];
+    next[idx] = normalizeRegistration({ ...next[idx], ...patch });
+    updated = next[idx];
+    return next;
+  }, { destructive: true });
+  return updated;
+}
+
 export async function deleteRegistrationsForEvent(slug: string, venue?: string): Promise<number> {
   const venueLower = venue?.trim().toLowerCase();
   let removed = 0;
