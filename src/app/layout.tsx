@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import { Poppins, Bebas_Neue } from "next/font/google";
 import "./globals.css";
-import Navbar from "@/components/Navbar";
-import Footer from "@/components/Footer";
+import SiteChrome from "@/components/SiteChrome";
 import ThemeSync from "@/components/ThemeSync";
 import CookieNotice from "@/components/CookieNotice";
 import GoogleConsentMode from "@/components/GoogleConsentMode";
@@ -29,9 +28,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <GoogleTagManagerNoScript />
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
         <ThemeSync />
-        <Navbar />
-        <main>{children}</main>
-        <Footer />
+        <SiteChrome>{children}</SiteChrome>
         <CookieNotice />
         <VercelAnalyticsWithConsent />
       </body>

@@ -101,3 +101,13 @@
     background-image: linear-gradient(135deg, var(--grad-a) 0%, var(--grad-b) 100%);
   }
 }
+
+@media print {
+  nav, footer, .waiter-toolbar {
+    display: none !important;
+  }
+  .waiter-plan {
+    max-width: none;
+    padding: 0;
+  }
+}

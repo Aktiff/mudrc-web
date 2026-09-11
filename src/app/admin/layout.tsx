@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Calendar, ClipboardList, LayoutDashboard, LogOut, MonitorPlay } from "lucide-react";
+import { Armchair, Calendar, ClipboardList, LayoutDashboard, LogOut, MonitorPlay } from "lucide-react";
 
 const navItems = [
   { href: "/admin", label: "Prehľad", icon: LayoutDashboard, exact: true },
@@ -21,6 +21,13 @@ const navItems = [
     isActive: (pathname: string) => pathname.startsWith("/admin/hotove-kvizy"),
   },
   { href: "/admin/registracie", label: "Registrácie", icon: ClipboardList, exact: false },
+  {
+    href: "/admin/zasadacie",
+    label: "Zasadacie",
+    icon: Armchair,
+    exact: false,
+    isActive: (pathname: string) => pathname.startsWith("/admin/zasadacie"),
+  },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {

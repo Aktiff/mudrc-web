@@ -40,6 +40,7 @@ src/data/events.local.json
 src/data/registrations.local.json
 src/data/poll-votes.local.json
 src/data/poll-configs.local.json
+src/data/seat-plans.local.json
 
 .vercel
 .env*

@@ -9,6 +9,7 @@ const QUIZ_LIBRARY_INDEX_KEY = "quiz-library-index";
 export const quizLibraryItemKey = (id: string) => `quiz-library:${id}`;
 const POLL_CONFIGS_KEY = "poll-configs";
 const POLL_VOTES_KEY = "poll-votes";
+const SEAT_PLANS_KEY = "seat-plans";
 const eventLeagueKey = (slug: string) => `event-league:${slug}`;
 
 export type EventLeagueData = {
@@ -148,6 +149,14 @@ export async function supabaseFetchPollVotes(): Promise<SupabaseFetchResult<{ vo
 
 export async function supabaseSetPollVotes(data: { votes: unknown[] }): Promise<void> {
   await supabaseSet(POLL_VOTES_KEY, data);
+}
+
+export async function supabaseFetchSeatPlans(): Promise<SupabaseFetchResult<{ plans: unknown[] }>> {
+  return supabaseFetch<{ plans: unknown[] }>(SEAT_PLANS_KEY);
+}
+
+export async function supabaseSetSeatPlans(data: { plans: unknown[] }): Promise<void> {
+  await supabaseSet(SEAT_PLANS_KEY, data);
 }
 
 export async function supabaseFetchEventLeague(slug: string): Promise<SupabaseFetchResult<EventLeagueData>> {

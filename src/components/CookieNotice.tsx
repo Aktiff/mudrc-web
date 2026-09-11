@@ -13,7 +13,7 @@ import {
 
 export default function CookieNotice() {
   const pathname = usePathname();
-  const onAdmin = pathname?.startsWith("/admin") ?? false;
+  const onAdmin = pathname?.startsWith("/admin") || pathname?.startsWith("/zasadacie") || false;
   const [visible, setVisible] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [analytics, setAnalytics] = useState(true);
