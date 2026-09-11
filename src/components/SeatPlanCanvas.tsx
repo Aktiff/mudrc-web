@@ -4,6 +4,7 @@ import { useRef } from "react";
 import {
   clampTableSize,
   isTableVertical,
+  ROOM_UNIT_PX,
   type SeatFixtureKind,
   type SeatPlan,
   type SeatPlanFixture,
@@ -203,12 +204,12 @@ export default function SeatPlanCanvas({
   return (
     <div
       ref={roomRef}
-      className={`relative max-w-full overflow-hidden rounded-xl border-[3px] border-neutral-700 ${
+      className={`relative shrink-0 overflow-hidden rounded-xl border-[3px] border-neutral-700 ${
         interactive ? "touch-none" : ""
       }`}
       style={{
-        aspectRatio: `${plan.roomW / (plan.roomH || 1)}`,
-        width: `min(100%, calc(var(--seat-room-max-h, 46vh) * ${plan.roomW} / ${plan.roomH || 1}))`,
+        width: Math.max(8, plan.roomW) * (variant === "waiter" ? ROOM_UNIT_PX + 4 : ROOM_UNIT_PX),
+        height: Math.max(8, plan.roomH) * (variant === "waiter" ? ROOM_UNIT_PX + 4 : ROOM_UNIT_PX),
         backgroundColor: "#d9c7a3",
         backgroundImage:
           "linear-gradient(rgba(80,60,30,0.07) 1px, transparent 1px), linear-gradient(90deg, rgba(80,60,30,0.07) 1px, transparent 1px)",

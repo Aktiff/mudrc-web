@@ -596,7 +596,7 @@ export default function SeatPlanEditor({ planId }: { planId: string }) {
               <span className="w-6 font-semibold text-brand-text">{plan.roomW}</span>
             </label>
             <label className="flex items-center gap-2 text-xs text-brand-muted">
-              Hĺbka
+              Výška
               <input
                 type="range"
                 min={MIN_ROOM}
@@ -609,8 +609,10 @@ export default function SeatPlanEditor({ planId }: { planId: string }) {
             <div className="flex gap-1">
               {[
                 { label: "Úzka", w: 10, h: 16 },
+                { label: "Nízka", w: 16, h: 9 },
                 { label: "Štvorcová", w: 12, h: 12 },
                 { label: "Bežná", w: 16, h: 12 },
+                { label: "Vysoká", w: 14, h: 20 },
                 { label: "Široká", w: 22, h: 10 },
               ].map((preset) => (
                 <button
@@ -629,10 +631,7 @@ export default function SeatPlanEditor({ planId }: { planId: string }) {
             </div>
           </div>
 
-          <div
-            className="flex min-h-0 flex-1 items-center justify-center overflow-auto rounded-xl bg-brand-surface/60 p-2"
-            style={{ ["--seat-room-max-h" as string]: "42vh" }}
-          >
+          <div className="flex min-h-0 flex-1 items-start justify-center overflow-auto rounded-xl bg-brand-surface/60 p-2">
             <SeatPlanCanvas
             plan={plan}
             selectedId={selectedId}
@@ -676,7 +675,7 @@ export default function SeatPlanEditor({ planId }: { planId: string }) {
           />
           </div>
           <p className="text-[11px] text-brand-muted">
-            Ťahaj stôl. Žlté rohy menia veľkosť. Miestnosť hore: šírka a hĺbka podniku.
+            Ťahaj stôl. Žlté rohy menia veľkosť stola. Šírka a výška hore menia celú miestnosť.
           </p>
         </div>
 
