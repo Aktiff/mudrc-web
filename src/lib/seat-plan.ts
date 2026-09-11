@@ -74,8 +74,8 @@ const TABLE_WIDTH_BY_SEATS: Record<number, number> = {
 
 export const MIN_TABLE_SEATS = 1;
 export const MAX_TABLE_SEATS = 10;
-export const MIN_TABLE_SIZE = 6;
-export const MAX_TABLE_SIZE = 48;
+export const MIN_TABLE_SIZE = 2;
+export const MAX_TABLE_SIZE = 100;
 export const DEFAULT_ROOM_W = 16;
 export const DEFAULT_ROOM_H = 12;
 export const MIN_ROOM = 8;
@@ -223,8 +223,8 @@ export function normalizeFixture(raw: unknown): SeatPlanFixture | null {
     kind,
     x: clampPercent(asNumber(fixture.x, 50)),
     y: clampPercent(asNumber(fixture.y, 50)),
-    w: clampPercent(asNumber(fixture.w, 14), 6, 50),
-    h: clampPercent(asNumber(fixture.h, 10), 5, 50),
+    w: clampTableSize(asNumber(fixture.w, 14)),
+    h: clampTableSize(asNumber(fixture.h, 10)),
     rotation: asNumber(fixture.rotation, 0),
     label: asString(fixture.label).trim() || defaultFixtureLabel(kind),
   };

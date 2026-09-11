@@ -13,7 +13,8 @@ import {
 } from "@/lib/seat-plan";
 
 type SelectedKind = "table" | "fixture";
-type ResizeHandle = "nw" | "ne" | "sw" | "se";
+type ResizeHandle = "nw" | "ne" | "sw" | "se" | "n" | "s" | "e" | "w";
+type ResizeLock = "w" | "h" | null;
 
 type Props = {
   plan: SeatPlan;
@@ -121,7 +122,21 @@ const HANDLE_POS: Record<ResizeHandle, string> = {
   ne: "right-0 top-0 translate-x-1/2 -translate-y-1/2 cursor-nesw-resize",
   sw: "left-0 bottom-0 -translate-x-1/2 translate-y-1/2 cursor-nesw-resize",
   se: "right-0 bottom-0 translate-x-1/2 translate-y-1/2 cursor-nwse-resize",
+  n: "left-1/2 top-0 h-3 w-3 -translate-x-1/2 -translate-y-1/2 cursor-ns-resize",
+  s: "left-1/2 bottom-0 h-3 w-3 -translate-x-1/2 translate-y-1/2 cursor-ns-resize",
+  e: "right-0 top-1/2 h-3 w-3 translate-x-1/2 -translate-y-1/2 cursor-ew-resize",
+  w: "left-0 top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 cursor-ew-resize",
 };
+
+function lockForHandle(handle: ResizeHandle): ResizeLock {
+  if (handle === "n" || handle === "s") return "h";
+  if (handle === "e" || handle === "w") return "w";
+  return null;
+}
+
+function handlesFor(round: boolean): ResizeHandle[] {
+  return round ? ["nw", "ne", "sw", "se"] : ["nw", "ne", "sw", "se", "n", "s", "e", "w"];
+}
 
 export default function SeatPlanCanvas({
   plan,
@@ -141,6 +156,9 @@ export default function SeatPlanCanvas({
     round: boolean;
     cx: number;
     cy: number;
+    lock: ResizeLock;
+    startW: number;
+    startH: number;
   } | null>(null);
   const waiter = variant === "waiter";
   const [area, setArea] = useState({ w: 640, h: 400 });
@@ -190,12 +208,15 @@ export default function SeatPlanCanvas({
     kind: SelectedKind,
     round: boolean,
     cx: number,
-    cy: number
+    cy: number,
+    lock: ResizeLock,
+    startW: number,
+    startH: number
   ) => {
     if (!interactive) return;
     event.preventDefault();
     event.stopPropagation();
-    resizeRef.current = { id, kind, round, cx, cy };
+    resizeRef.current = { id, kind, round, cx, cy, lock, startW, startH };
     dragRef.current = null;
     onSelect?.(id, kind);
     (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
@@ -207,8 +228,10 @@ export default function SeatPlanCanvas({
     if (resizeRef.current && onResize) {
       const dx = Math.abs(point.x - resizeRef.current.cx);
       const dy = Math.abs(point.y - resizeRef.current.cy);
-      const w = clampTableSize(dx * 2);
-      const h = resizeRef.current.round ? w : clampTableSize(dy * 2);
+      let w = clampTableSize(dx * 2);
+      let h = resizeRef.current.round ? w : clampTableSize(dy * 2);
+      if (resizeRef.current.lock === "w") h = resizeRef.current.startH;
+      if (resizeRef.current.lock === "h") w = resizeRef.current.startW;
       onResize(resizeRef.current.id, resizeRef.current.kind, w, h);
       return;
     }
@@ -260,11 +283,23 @@ export default function SeatPlanCanvas({
         >
           <span className={`leading-tight ${waiter ? "text-[11px] sm:text-sm" : "text-[10px]"}`}>{fixture.label}</span>
           {interactive && selectedId === fixture.id &&
-            (["nw", "ne", "sw", "se"] as ResizeHandle[]).map((handle) => (
+            handlesFor(false).map((handle) => (
               <span
                 key={handle}
-                className={`absolute z-30 h-3 w-3 rounded-sm border border-white bg-brand-orange shadow ${HANDLE_POS[handle]}`}
-                onPointerDown={(event) => startResize(event, fixture.id, "fixture", false, fixture.x, fixture.y)}
+                className={`absolute z-30 h-3.5 w-3.5 rounded-sm border border-white bg-brand-orange shadow ${HANDLE_POS[handle]}`}
+                onPointerDown={(event) =>
+                  startResize(
+                    event,
+                    fixture.id,
+                    "fixture",
+                    false,
+                    fixture.x,
+                    fixture.y,
+                    lockForHandle(handle),
+                    fixture.w,
+                    fixture.h
+                  )
+                }
                 onPointerMove={movePointer}
                 onPointerUp={endPointer}
                 onPointerCancel={endPointer}
@@ -292,11 +327,23 @@ export default function SeatPlanCanvas({
         >
           <TableBody table={table} selected={selectedId === table.id} waiter={waiter} />
           {interactive && selectedId === table.id &&
-            (["nw", "ne", "sw", "se"] as ResizeHandle[]).map((handle) => (
+            handlesFor(table.shape === "round").map((handle) => (
               <span
                 key={handle}
                 className={`absolute z-30 h-3.5 w-3.5 rounded-sm border border-white bg-brand-orange shadow ${HANDLE_POS[handle]}`}
-                onPointerDown={(event) => startResize(event, table.id, "table", table.shape === "round", table.x, table.y)}
+                onPointerDown={(event) =>
+                  startResize(
+                    event,
+                    table.id,
+                    "table",
+                    table.shape === "round",
+                    table.x,
+                    table.y,
+                    lockForHandle(handle),
+                    table.w,
+                    table.h
+                  )
+                }
                 onPointerMove={movePointer}
                 onPointerUp={endPointer}
                 onPointerCancel={endPointer}
