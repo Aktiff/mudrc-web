@@ -9,6 +9,7 @@ import {
 } from "@/lib/presentation-voice-control";
 
 const COMMAND_COOLDOWN_MS = 1200;
+const MAX_NETWORK_RETRIES = 10;
 
 const RECOGNITION_LANGS = ["sk-SK", "cs-CZ"] as const;
 
@@ -71,6 +72,7 @@ export function usePresentationVoiceControl(
     }
 
     let lastFire = 0;
+    let networkRetries = 0;
     let stopped = false;
 
     const applyLang = (index: number) => {
@@ -103,6 +105,8 @@ export function usePresentationVoiceControl(
 
       if (command === "next") onNextRef.current();
       else onPrevRef.current();
+      networkRetries = 0;
+      setError(null);
     };
 
     recognition.onresult = (event) => {
@@ -117,6 +121,18 @@ export function usePresentationVoiceControl(
 
     recognition.onerror = (event) => {
       if (event.error === "no-speech" || event.error === "aborted") return;
+
+      if (event.error === "network") {
+        networkRetries += 1;
+        if (networkRetries <= MAX_NETWORK_RETRIES) {
+          setError(`Pripájam rozpoznávanie… (${networkRetries}/${MAX_NETWORK_RETRIES})`);
+          setListening(false);
+          return;
+        }
+        setError(voiceControlErrorMessage("network"));
+        setListening(false);
+        return;
+      }
 
       if (event.error === "language-not-supported" && tryNextLang()) {
         window.setTimeout(() => {

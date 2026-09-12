@@ -72,7 +72,7 @@ export function voiceControlErrorMessage(code: string): string | null {
     case "service-not-allowed":
       return "Prehliadač blokuje službu rozpoznávania reči (Google). Vo Vivaldi skús vypnúť blokovanie Google služieb, alebo otestuj v Chrome.";
     case "network":
-      return "Rozpoznávanie reči potrebuje internet (Google). Skontroluj pripojenie alebo firewall.";
+      return "Prehliadač sa nevie pripojiť k Google rozpoznávaniu reči (Vo Vivaldi často blokujú trackery). Vypni blokovanie pre mudrc.sk alebo použij Chrome.";
     case "audio-capture":
       return "Mikrofón sa nepodarilo spustiť — skontroluj, či ho nepoužíva iná aplikácia.";
     default:

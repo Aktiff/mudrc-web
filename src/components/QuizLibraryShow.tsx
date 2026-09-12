@@ -666,7 +666,13 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
             )}
           </button>
           {voiceError ? (
-            <p className="pointer-events-none mt-2 max-w-[16rem] text-xs text-red-300/90 leading-snug">{voiceError}</p>
+            <p
+              className={`pointer-events-none mt-2 max-w-[18rem] text-xs leading-snug ${
+                voiceError.startsWith("Pripájam") ? "text-[#f0c800]/80" : "text-red-300/90"
+              }`}
+            >
+              {voiceError}
+            </p>
           ) : null}
           {voiceEnabled && !voiceError ? (
             <p className="pointer-events-none mt-2 max-w-[16rem] text-[10px] sm:text-xs text-white/45 leading-snug">
