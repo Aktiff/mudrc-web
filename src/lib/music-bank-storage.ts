@@ -2,11 +2,16 @@ import fs from "fs";
 import path from "path";
 import {
   createMusicBankItem,
+  musicIdentityFromQuestionFields,
+  musicTrackKey,
+  MusicTrackDuplicateError,
   normalizeMusicBankItem,
   parseMusicBankList,
   type MusicBankItem,
+  type MusicTrackDuplicateConflict,
   type NewMusicBankItemInput,
 } from "@/lib/music-bank";
+import { readAllLibraryQuizzes } from "@/lib/quiz-library-storage";
 import { hasSupabaseStorage, supabaseFetchMusicBank, supabaseSetMusicBank } from "@/lib/supabase-storage";
 
 const localPath = path.join(process.cwd(), "src/data/music-bank.local.json");
@@ -45,8 +50,43 @@ export async function writeStoredMusicBank(tracks: MusicBankItem[]): Promise<voi
   writeLocalMusicBank(sorted);
 }
 
+export async function findMusicTrackConflict(
+  artist: string,
+  title: string
+): Promise<MusicTrackDuplicateConflict | null> {
+  const key = musicTrackKey(artist, title);
+  const bank = await readStoredMusicBank();
+  if (bank.some((track) => musicTrackKey(track.artist, track.title) === key)) {
+    return { source: "bank", artist: artist.trim(), title: title.trim() };
+  }
+
+  const quizzes = await readAllLibraryQuizzes();
+  for (const quiz of quizzes) {
+    for (const question of quiz.questions ?? []) {
+      const identity = musicIdentityFromQuestionFields(question);
+      if (identity?.key === key) {
+        return {
+          source: "quiz",
+          artist: identity.artist,
+          title: identity.title,
+          quizTitle: quiz.title?.trim() || quiz.id,
+        };
+      }
+    }
+  }
+
+  return null;
+}
+
 export async function addStoredMusicBankItem(input: NewMusicBankItemInput): Promise<MusicBankItem> {
-  const item = createMusicBankItem(input);
+  const artist = input.artist.trim();
+  const title = input.title.trim();
+  const conflict = await findMusicTrackConflict(artist, title);
+  if (conflict) {
+    throw new MusicTrackDuplicateError(conflict);
+  }
+
+  const item = createMusicBankItem({ ...input, artist, title });
   const existing = await readStoredMusicBank();
   await writeStoredMusicBank([item, ...existing.filter((t) => t.id !== item.id)]);
   return item;

@@ -1,9 +1,11 @@
 "use client";
 
 import {
+  formatMusicTrackDuplicateMessage,
   normalizeMusicBankItem,
   parseMusicBankList,
   type MusicBankItem,
+  type MusicTrackDuplicateConflict,
   type NewMusicBankItemInput,
 } from "@/lib/music-bank";
 
@@ -15,6 +17,21 @@ export async function fetchMusicBankFromServer(): Promise<MusicBankItem[]> {
     return parseMusicBankList(data.tracks);
   } catch {
     return [];
+  }
+}
+
+export async function findMusicTrackConflictAsync(
+  artist: string,
+  title: string
+): Promise<MusicTrackDuplicateConflict | null> {
+  try {
+    const params = new URLSearchParams({ artist, title });
+    const res = await fetch(`/api/admin/music-bank?${params.toString()}`, { cache: "no-store" });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { conflict?: MusicTrackDuplicateConflict | null };
+    return data.conflict ?? null;
+  } catch {
+    return null;
   }
 }
 

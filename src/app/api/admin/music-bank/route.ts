@@ -1,16 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   addStoredMusicBankItem,
+  findMusicTrackConflict,
   readStoredMusicBank,
   removeStoredMusicBankItem,
 } from "@/lib/music-bank-storage";
-import type { NewMusicBankItemInput } from "@/lib/music-bank";
+import { formatMusicTrackDuplicateMessage, MusicTrackDuplicateError, type NewMusicBankItemInput } from "@/lib/music-bank";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
+    const artist = req.nextUrl.searchParams.get("artist")?.trim();
+    const title = req.nextUrl.searchParams.get("title")?.trim();
+    if (artist && title) {
+      const conflict = await findMusicTrackConflict(artist, title);
+      return NextResponse.json({ conflict });
+    }
+
     const tracks = await readStoredMusicBank();
     return NextResponse.json({ tracks });
   } catch (error) {
@@ -29,6 +37,12 @@ export async function POST(req: NextRequest) {
     const tracks = await readStoredMusicBank();
     return NextResponse.json({ ok: true, track, tracks });
   } catch (error) {
+    if (error instanceof MusicTrackDuplicateError) {
+      return NextResponse.json(
+        { error: formatMusicTrackDuplicateMessage(error.conflict), conflict: error.conflict },
+        { status: 409 }
+      );
+    }
     const message = error instanceof Error ? error.message : "Chyba pri ukladaní skladby";
     return NextResponse.json({ error: message }, { status: 500 });
   }

@@ -3,8 +3,8 @@
 import { useMemo, useState } from "react";
 import { ChevronDown, ChevronUp, Plus, Upload } from "lucide-react";
 import AudioUrlField from "@/components/admin/AudioUrlField";
-import { addMusicBankItemAsync } from "@/lib/music-bank-client";
-import { parseMusicTrackFromFileName } from "@/lib/music-bank";
+import { addMusicBankItemAsync, findMusicTrackConflictAsync } from "@/lib/music-bank-client";
+import { formatMusicTrackDuplicateMessage, musicTrackKey, parseMusicTrackFromFileName } from "@/lib/music-bank";
 import { uploadAudioFileClient } from "@/lib/upload-audio-client";
 
 type Props = {
@@ -80,9 +80,16 @@ export default function MusicBankQuestionForm({ onAdded, onMessage }: Props) {
 
     const failures: string[] = [];
     let okCount = 0;
+    const seenInBatch = new Set<string>();
 
     for (let i = 0; i < valid.length; i += 1) {
       const row = valid[i];
+      const batchKey = musicTrackKey(row.artist, row.title);
+      if (seenInBatch.has(batchKey)) {
+        failures.push(`${row.file.name}: Rovnaká skladba je vo výbere viackrát.`);
+        continue;
+      }
+      seenInBatch.add(batchKey);
       setBulkProgress({
         done: i,
         total: valid.length,
@@ -90,6 +97,12 @@ export default function MusicBankQuestionForm({ onAdded, onMessage }: Props) {
       });
 
       try {
+        const conflict = await findMusicTrackConflictAsync(row.artist, row.title);
+        if (conflict) {
+          failures.push(`${row.file.name}: ${formatMusicTrackDuplicateMessage(conflict)}`);
+          continue;
+        }
+
         const url = await uploadAudioFileClient(row.file);
         await addMusicBankItemAsync({
           artist: row.artist,

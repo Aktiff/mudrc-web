@@ -17,6 +17,46 @@ export type NewMusicBankItemInput = {
   note?: string;
 };
 
+export type MusicTrackDuplicateSource = "bank" | "quiz";
+
+export type MusicTrackDuplicateConflict = {
+  source: MusicTrackDuplicateSource;
+  artist: string;
+  title: string;
+  quizTitle?: string;
+};
+
+function normalizeMusicTrackPart(value: string): string {
+  return value.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+/** Jednoznačný kľúč skladby pre kontrolu duplicít. */
+export function musicTrackKey(artist: string, title: string): string {
+  return `${normalizeMusicTrackPart(artist)}|${normalizeMusicTrackPart(title)}`;
+}
+
+export function formatMusicTrackLabel(artist: string, title: string): string {
+  return `${artist.trim()} — ${title.trim()}`;
+}
+
+export function formatMusicTrackDuplicateMessage(conflict: MusicTrackDuplicateConflict): string {
+  const label = formatMusicTrackLabel(conflict.artist, conflict.title);
+  if (conflict.source === "bank") {
+    return `Skladba „${label}“ už je v banke hudby.`;
+  }
+  return `Skladba „${label}“ už je v kvíze „${conflict.quizTitle ?? "?"}" — nemôže byť v dvoch kvízoch.`;
+}
+
+export class MusicTrackDuplicateError extends Error {
+  readonly conflict: MusicTrackDuplicateConflict;
+
+  constructor(conflict: MusicTrackDuplicateConflict) {
+    super(formatMusicTrackDuplicateMessage(conflict));
+    this.name = "MusicTrackDuplicateError";
+    this.conflict = conflict;
+  }
+}
+
 export function isMusicBankId(id: string): boolean {
   return id.startsWith(MUSIC_BANK_ID_PREFIX);
 }
@@ -79,6 +119,34 @@ function humanizeMusicNamePart(raw: string): string {
 /**
  * Z názvu súboru „The Beatles - Help!.mp3“ alebo „Kryštof, Tomáš Klus - Cesta.mp3“.
  */
+export function musicIdentityFromQuestionFields(input: {
+  kind?: string;
+  musicArtist?: string;
+  musicTitle?: string;
+  answer?: string;
+  bankQuestionId?: string;
+}): { artist: string; title: string; key: string } | null {
+  if (input.kind !== "music" && !isMusicBankId(input.bankQuestionId ?? "")) {
+    return null;
+  }
+
+  let artist = input.musicArtist?.trim() ?? "";
+  let title = input.musicTitle?.trim() ?? "";
+
+  if (!artist || !title) {
+    const answer = input.answer?.trim() ?? "";
+    const match = answer.match(/^(.+?)\s+[—–-]\s+(.+)$/);
+    if (match) {
+      if (!artist) artist = match[1].trim();
+      if (!title) title = match[2].trim();
+    }
+  }
+
+  if (!artist || !title) return null;
+
+  return { artist, title, key: musicTrackKey(artist, title) };
+}
+
 export function parseMusicTrackFromFileName(fileName: string): { artist: string; title: string } | null {
   const base = fileName.replace(AUDIO_EXT, "").trim();
   if (!base) return null;
