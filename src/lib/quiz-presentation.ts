@@ -6,7 +6,7 @@ export type PresentationSlide =
   | { type: "round"; roundNumber: number; title: string; subtitle: string }
   | { type: "question_phase"; question: QuizQuestionItem }
   | { type: "image_slide"; question: QuizQuestionItem }
-  | { type: "correction"; roundNumber: number; body: string }
+  | { type: "correction"; roundNumber: number }
   | { type: "answers_intro"; roundNumber: number; title: string }
   | { type: "answer_phase"; question: QuizQuestionItem }
   | { type: "scores"; title: string; body: string };
@@ -46,7 +46,6 @@ export function buildPresentationSlides(questions: QuizQuestionItem[]): Presenta
     slides.push({
       type: "correction",
       roundNumber: round,
-      body: `Skontrolujte odpovede — Kolo ${round}`,
     });
 
     slides.push({

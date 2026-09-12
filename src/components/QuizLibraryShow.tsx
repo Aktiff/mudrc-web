@@ -13,6 +13,12 @@ import {
   type PresentationSlide,
 } from "@/lib/quiz-presentation";
 import { findCorrectOptionIndex, getQuestionBodyText, getQuestionOptions, optionLetter } from "@/lib/quiz-question-options";
+import {
+  defaultNextQuizDate,
+  formatNextQuizLine,
+  parseDatetimeLocalValue,
+  toDatetimeLocalValue,
+} from "@/lib/next-quiz-presentation";
 import { fixSlovakLineBreaks } from "@/lib/slovak-typography";
 
 type Props = {
@@ -249,10 +255,12 @@ function PresentationView({
   slide,
   eventRules,
   venueName,
+  nextQuizLine,
 }: {
   slide: PresentationSlide;
   eventRules: string[];
   venueName: string;
+  nextQuizLine: string;
 }) {
   if (slide.type === "rules") {
     const rules = eventRules.length ? eventRules : ["Pravidlá nastav v admin → Udalosť → Pravidlá."];
@@ -271,8 +279,13 @@ function PresentationView({
   if (slide.type === "correction") {
     return (
       <div className="text-center px-8 max-w-4xl">
-        <p className="font-display text-7xl sm:text-9xl text-[#f0c800] tracking-wide mb-8">Opravovanie</p>
-        <p className="text-2xl sm:text-4xl text-white/85 leading-relaxed">{slide.body}</p>
+        <p className="font-display text-7xl sm:text-9xl text-[#f0c800] tracking-wide mb-10 sm:mb-14">Opravovanie</p>
+        {nextQuizLine ? (
+          <div className="space-y-3 sm:space-y-4">
+            <p className="text-xl sm:text-2xl text-white/55 font-medium">Najbližší kvíz:</p>
+            <p className="text-2xl sm:text-4xl text-white/90 leading-snug">{nextQuizLine}</p>
+          </div>
+        ) : null}
       </div>
     );
   }
@@ -306,10 +319,14 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
   const [quiz, setQuiz] = useState<QuizLibraryItem | null>(null);
   const [events, setEvents] = useState<QuizEvent[]>([]);
   const [eventSlug, setEventSlug] = useState(initialEventSlug);
-  const [started, setStarted] = useState(Boolean(initialEventSlug));
+  const [started, setStarted] = useState(false);
   const [index, setIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showNextQuizModal, setShowNextQuizModal] = useState(false);
+  const [nextQuizVenue, setNextQuizVenue] = useState("");
+  const [nextQuizAtLocal, setNextQuizAtLocal] = useState(() => toDatetimeLocalValue(defaultNextQuizDate()));
+  const [nextQuizLine, setNextQuizLine] = useState("");
 
   useEffect(() => {
     Promise.all([
@@ -329,7 +346,6 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
   useEffect(() => {
     if (initialEventSlug) {
       setEventSlug(initialEventSlug);
-      setStarted(true);
     }
   }, [initialEventSlug]);
 
@@ -361,24 +377,44 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
   const slide = slides[index];
   const progress = slides.length ? ((index + 1) / slides.length) * 100 : 0;
   const isQuestionPhase = slide?.type === "question_phase";
-  const questionTimerKey = isQuestionPhase ? slide.question.id : null;
+  const isCorrectionPhase = slide?.type === "correction";
+  const showSlideTimer = isQuestionPhase || isCorrectionPhase;
+  const slideTimerKey = isQuestionPhase
+    ? slide.question.id
+    : isCorrectionPhase
+      ? `correction-${slide.roundNumber}-${index}`
+      : null;
 
-  const [questionElapsed, setQuestionElapsed] = useState(0);
+  const [slideElapsed, setSlideElapsed] = useState(0);
 
   useEffect(() => {
-    if (!started || !questionTimerKey) {
-      setQuestionElapsed(0);
+    if (!started || !slideTimerKey) {
+      setSlideElapsed(0);
       return;
     }
 
-    setQuestionElapsed(0);
+    setSlideElapsed(0);
     const startedAt = Date.now();
     const interval = window.setInterval(() => {
-      setQuestionElapsed(Math.floor((Date.now() - startedAt) / 1000));
+      setSlideElapsed(Math.floor((Date.now() - startedAt) / 1000));
     }, 1000);
 
     return () => window.clearInterval(interval);
-  }, [questionTimerKey, started]);
+  }, [slideTimerKey, started]);
+
+  const openNextQuizModal = useCallback(() => {
+    const ev = events.find((event) => event.slug === eventSlug);
+    setNextQuizVenue(ev?.venue ?? "");
+    setNextQuizAtLocal(toDatetimeLocalValue(defaultNextQuizDate()));
+    setShowNextQuizModal(true);
+  }, [events, eventSlug]);
+
+  const confirmStartPresentation = useCallback(() => {
+    const at = parseDatetimeLocalValue(nextQuizAtLocal) ?? defaultNextQuizDate();
+    setNextQuizLine(formatNextQuizLine(nextQuizVenue, at));
+    setShowNextQuizModal(false);
+    setStarted(true);
+  }, [nextQuizAtLocal, nextQuizVenue]);
 
   const goNext = useCallback(() => {
     setIndex((i) => Math.min(slides.length - 1, i + 1));
@@ -468,7 +504,7 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
           </select>
           <button
             type="button"
-            onClick={() => setStarted(true)}
+            onClick={openNextQuizModal}
             className="w-full rounded-xl bg-[#f0c800] text-black font-bold py-3.5 hover:bg-[#ffd54f] transition-colors"
           >
             Spustiť projekciu
@@ -477,6 +513,61 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
             Späť do editora
           </Link>
         </div>
+
+        {showNextQuizModal && (
+          <div
+            className="absolute inset-0 z-30 flex items-center justify-center p-6 bg-black/70 backdrop-blur-sm"
+            onClick={() => setShowNextQuizModal(false)}
+          >
+            <div
+              className="relative w-full max-w-md rounded-2xl border border-white/15 bg-[#121212] p-6 sm:p-8 shadow-2xl space-y-5"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div>
+                <p className="text-[#f0c800]/80 text-xs uppercase tracking-[0.25em] mb-2">Pred projekciou</p>
+                <h2 className="font-display text-2xl tracking-wide">Najbližší kvíz</h2>
+                <p className="text-white/50 text-sm mt-2">
+                  Zobrazí sa na slidoch „Opravovanie“. Termín je predvyplnený o 2 týždne — môžeš ho upraviť.
+                </p>
+              </div>
+              <label className="block space-y-2">
+                <span className="text-sm text-white/70">Podnik / miesto</span>
+                <input
+                  type="text"
+                  value={nextQuizVenue}
+                  onChange={(e) => setNextQuizVenue(e.target.value)}
+                  placeholder="napr. Alipub"
+                  className="w-full rounded-xl bg-white/10 border border-white/20 px-4 py-3 text-white placeholder:text-white/35"
+                />
+              </label>
+              <label className="block space-y-2">
+                <span className="text-sm text-white/70">Dátum a čas</span>
+                <input
+                  type="datetime-local"
+                  value={nextQuizAtLocal}
+                  onChange={(e) => setNextQuizAtLocal(e.target.value)}
+                  className="w-full rounded-xl bg-white/10 border border-white/20 px-4 py-3 text-white [color-scheme:dark]"
+                />
+              </label>
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowNextQuizModal(false)}
+                  className="flex-1 rounded-xl border border-white/20 py-3 text-white/80 hover:bg-white/10 transition-colors"
+                >
+                  Zrušiť
+                </button>
+                <button
+                  type="button"
+                  onClick={confirmStartPresentation}
+                  className="flex-1 rounded-xl bg-[#f0c800] text-black font-bold py-3 hover:bg-[#ffd54f] transition-colors"
+                >
+                  Spustiť
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -537,18 +628,25 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
         </div>
       )}
 
-      {isQuestionPhase && (
+      {showSlideTimer && (
         <div className="absolute top-4 sm:top-5 right-4 sm:right-5 z-10 pointer-events-none">
           <div className="min-w-[4.75rem] sm:min-w-24 md:min-w-28 h-[4.75rem] sm:h-24 md:h-28 px-3 sm:px-4 rounded-2xl bg-black/80 border-2 border-white/30 backdrop-blur-sm shadow-[0_10px_40px_rgba(0,0,0,0.6)] flex items-center justify-center">
             <span className="font-mono text-[3.25rem] sm:text-6xl md:text-7xl font-bold text-white tabular-nums leading-none">
-              {questionElapsed}
+              {slideElapsed}
             </span>
           </div>
         </div>
       )}
 
       <div className="relative flex-1 flex items-center justify-center min-h-0 w-full px-[2vw] py-[1.5vh]">
-        {slide && <PresentationView slide={slide} eventRules={eventRules} venueName={venueName} />}
+        {slide && (
+          <PresentationView
+            slide={slide}
+            eventRules={eventRules}
+            venueName={venueName}
+            nextQuizLine={nextQuizLine}
+          />
+        )}
       </div>
 
       {!isFullscreen && (
