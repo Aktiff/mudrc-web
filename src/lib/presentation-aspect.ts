@@ -1,6 +1,6 @@
 import type { CSSProperties } from "react";
 
-export type PresentationAspectMode = "viewport" | "16:9" | "16:10" | "4:3";
+export type PresentationAspectMode = "viewport" | "16:9" | "18:9" | "16:10" | "4:3";
 
 export const PRESENTATION_ASPECT_OPTIONS: {
   id: PresentationAspectMode;
@@ -9,12 +9,14 @@ export const PRESENTATION_ASPECT_OPTIONS: {
 }[] = [
   { id: "viewport", label: "Celá obrazovka", hint: "Notebook / PC — využije celú šírku" },
   { id: "16:9", label: "16 : 9", hint: "TV, projektor (Full HD)" },
+  { id: "18:9", label: "18 : 9", hint: "Ultrawide TV, niektoré telefóny" },
   { id: "16:10", label: "16 : 10", hint: "MacBook, niektoré monitory" },
   { id: "4:3", label: "4 : 3", hint: "Užší formát, menej „natiahnuté“ na širokom TV" },
 ];
 
 const RATIO: Record<Exclude<PresentationAspectMode, "viewport">, [number, number]> = {
   "16:9": [16, 9],
+  "18:9": [18, 9],
   "16:10": [16, 10],
   "4:3": [4, 3],
 };
