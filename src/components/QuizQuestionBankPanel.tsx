@@ -175,8 +175,10 @@ export default function QuizQuestionBankPanel({
   );
 
   const visibleMusicTracks = useMemo(() => {
-    return musicBankTracks.filter((track) => isMusicBankId(track.id));
-  }, [musicBankTracks]);
+    return musicBankTracks.filter(
+      (track) => isMusicBankId(track.id) && !usedBankQuestionIds.includes(track.id)
+    );
+  }, [musicBankTracks, usedBankQuestionIds]);
 
   const getMusicTargetId = (bankId: string) => {
     const manual = targetByBankId[bankId];
@@ -196,6 +198,7 @@ export default function QuizQuestionBankPanel({
       track.audioUrl,
       formatMusicBankHostNote(track)
     );
+    void removeMusicBankItemAsync(track.id).then(() => onMusicBankChange?.());
     setTargetByBankId((prev) => {
       const next = { ...prev };
       delete next[track.id];
@@ -498,18 +501,12 @@ export default function QuizQuestionBankPanel({
           ) : (
             visibleMusicTracks.map((track) => {
               const targetId = getMusicTargetId(track.id);
-              const inUse = usedBankQuestionIds.includes(track.id);
               return (
                 <div key={track.id} className="rounded-xl border border-violet-200 dark:border-violet-900 bg-brand-surface/50 p-3 space-y-2.5">
                   <div className="flex flex-wrap items-center gap-1.5 mb-1">
                     <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-900 border border-violet-200 dark:bg-violet-950/40 dark:text-violet-200">
                       hudba
                     </span>
-                    {inUse && (
-                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-brand-card border border-brand-border text-brand-muted">
-                        už v kvíze
-                      </span>
-                    )}
                   </div>
                   <p className="text-sm font-semibold text-brand-text">{track.artist}</p>
                   <p className="text-sm text-brand-muted">{track.title}</p>

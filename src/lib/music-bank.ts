@@ -101,8 +101,7 @@ export function createMusicBankItem(input: NewMusicBankItemInput): MusicBankItem
   };
 }
 
-export const DEFAULT_MUSIC_QUESTION_BODY =
-  "Vypočuj si ukážku (~30 s). Napíš interpreta a názov skladby — každé správne za 1 bod.";
+export const DEFAULT_MUSIC_QUESTION_BODY = "Napíš meno interpreta a názov skladby";
 
 export function formatMusicBankHostNote(item: MusicBankItem): string {
   const parts = [`Interpret: ${item.artist}`, `Skladba: ${item.title}`, "Body: 1 + 1"];

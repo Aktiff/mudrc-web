@@ -21,11 +21,8 @@ import QuizQuestionBankPanel from "@/components/QuizQuestionBankPanel";
 import CustomBankQuestionForm from "@/components/CustomBankQuestionForm";
 import MusicBankQuestionForm from "@/components/MusicBankQuestionForm";
 import AudioUrlField from "@/components/admin/AudioUrlField";
-import {
-  DEFAULT_MUSIC_QUESTION_BODY,
-  type MusicBankItem,
-} from "@/lib/music-bank";
-import { fetchMusicBankFromServer } from "@/lib/music-bank-client";
+import { DEFAULT_MUSIC_QUESTION_BODY, type MusicBankItem } from "@/lib/music-bank";
+import { addMusicBankItemAsync, fetchMusicBankFromServer } from "@/lib/music-bank-client";
 import QuizTagStats from "@/components/QuizTagStats";
 import ImageUrlField from "@/components/admin/ImageUrlField";
 import { optionLetter } from "@/lib/quiz-question-options";
@@ -301,6 +298,20 @@ export default function QuizLibraryEditor({ quizId }: Props) {
     if (!target || target.kind !== "music") return;
     const displacedBankId = target.bankQuestionId;
 
+    const restoreToBank =
+      displacedBankId &&
+      displacedBankId !== bankId &&
+      target.musicArtist?.trim() &&
+      target.musicTitle?.trim() &&
+      target.audioUrl?.trim()
+        ? {
+            artist: target.musicArtist.trim(),
+            title: target.musicTitle.trim(),
+            audioUrl: target.audioUrl.trim(),
+            note: target.hostNote?.trim() || undefined,
+          }
+        : null;
+
     setQuiz((prev) => {
       if (!prev) return prev;
 
@@ -316,7 +327,7 @@ export default function QuizLibraryEditor({ quizId }: Props) {
           q.id === targetQuestionId
             ? {
                 ...q,
-                body: q.body.trim() || DEFAULT_MUSIC_QUESTION_BODY,
+                body: DEFAULT_MUSIC_QUESTION_BODY,
                 musicArtist: artist,
                 musicTitle: title,
                 answer: `${artist} — ${title}`,
@@ -332,7 +343,18 @@ export default function QuizLibraryEditor({ quizId }: Props) {
       };
     });
 
-    setMsg({ text: "Hudobná ukážka vložená — nezabudni uložiť kvíz.", ok: true });
+    void (async () => {
+      if (restoreToBank) {
+        try {
+          await addMusicBankItemAsync(restoreToBank);
+        } catch {
+          /* napr. duplicita — slot sa aj tak prepíše */
+        }
+      }
+      await refreshMusicBank();
+    })();
+
+    setMsg({ text: "Hudobná ukážka vložená a odstránená z banky — nezabudni uložiť kvíz.", ok: true });
   };
 
   const returnQuestionToBank = (questionId: string) => {
@@ -340,6 +362,19 @@ export default function QuizLibraryEditor({ quizId }: Props) {
     const bankId = question?.bankQuestionId;
     if (!bankId) return;
     if (!window.confirm("Vrátiť otázku do banky? Obsah otázky sa vymaže.")) return;
+
+    const musicRestore =
+      question?.kind === "music" &&
+      question.musicArtist?.trim() &&
+      question.musicTitle?.trim() &&
+      question.audioUrl?.trim()
+        ? {
+            artist: question.musicArtist.trim(),
+            title: question.musicTitle.trim(),
+            audioUrl: question.audioUrl.trim(),
+            note: question.hostNote?.trim() || undefined,
+          }
+        : null;
 
     setQuiz((prev) =>
       prev
@@ -370,6 +405,18 @@ export default function QuizLibraryEditor({ quizId }: Props) {
           }
         : prev
     );
+
+    if (musicRestore) {
+      void addMusicBankItemAsync(musicRestore)
+        .then(() => refreshMusicBank())
+        .catch(() => {
+          setMsg({
+            text: "Slot vyprázdnený, ale skladbu sa nepodarilo vrátiť do banky hudby (možno duplicita).",
+            ok: false,
+          });
+        });
+    }
+
     setMsg({ text: "Otázka vrátená do banky — nezabudni uložiť.", ok: true });
   };
 
