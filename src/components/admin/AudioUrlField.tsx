@@ -2,11 +2,7 @@
 
 import { useState } from "react";
 import { Upload, X } from "lucide-react";
-import {
-  guessAudioContentType,
-  MAX_AUDIO_BYTES,
-  MAX_AUDIO_SERVER_BYTES,
-} from "@/lib/audio-upload";
+import { uploadAudioFileClient } from "@/lib/upload-audio-client";
 
 type Props = {
   label?: string;
@@ -15,101 +11,6 @@ type Props = {
   onUploadError?: (message: string) => void;
   onUploadSuccess?: (message: string) => void;
 };
-
-function messageFromUploadResponse(res: Response, text: string): string {
-  try {
-    const data = JSON.parse(text) as { error?: string };
-    if (data.error) return data.error;
-  } catch {
-    /* not JSON */
-  }
-  if (res.status === 413) {
-    return "Súbor je príliš veľký na upload cez server — skúsim priamy upload do úložiska.";
-  }
-  if (text.trim()) return text.slice(0, 280);
-  return `Nepodarilo sa nahrať audio (HTTP ${res.status}).`;
-}
-
-async function uploadViaServer(file: File): Promise<string> {
-  const formData = new FormData();
-  formData.append("file", file);
-  const res = await fetch("/api/admin/upload?kind=audio", {
-    method: "POST",
-    body: formData,
-    credentials: "same-origin",
-  });
-  const text = await res.text();
-  if (!res.ok) {
-    throw new Error(messageFromUploadResponse(res, text));
-  }
-  let data: { url?: string } = {};
-  try {
-    data = JSON.parse(text) as { url?: string };
-  } catch {
-    throw new Error("Neplatná odpoveď servera pri nahrávaní.");
-  }
-  if (!data.url) throw new Error("Server nevrátil URL súboru.");
-  return data.url;
-}
-
-async function uploadViaSupabaseStorage(file: File): Promise<string> {
-  const contentType = guessAudioContentType(file.name, file.type || "");
-  const prep = await fetch("/api/admin/upload/audio", {
-    method: "POST",
-    credentials: "same-origin",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      fileName: file.name,
-      contentType,
-      fileSize: file.size,
-    }),
-  });
-  const prepText = await prep.text();
-  if (!prep.ok) {
-    throw new Error(messageFromUploadResponse(prep, prepText));
-  }
-
-  let signed: {
-    signedUrl?: string;
-    token?: string;
-    publicUrl?: string;
-    contentType?: string;
-  } = {};
-  try {
-    signed = JSON.parse(prepText) as typeof signed;
-  } catch {
-    throw new Error("Neplatná odpoveď pri príprave uploadu.");
-  }
-  if (!signed.signedUrl || !signed.publicUrl) {
-    throw new Error("Úložisko nevrátilo upload URL.");
-  }
-
-  const uploadType = signed.contentType || contentType;
-  let uploadRes = await fetch(signed.signedUrl, {
-    method: "PUT",
-    body: file,
-    headers: { "Content-Type": uploadType },
-  });
-
-  if (!uploadRes.ok && signed.token) {
-    uploadRes = await fetch(signed.signedUrl, {
-      method: "PUT",
-      body: file,
-      headers: {
-        "Content-Type": uploadType,
-        Authorization: `Bearer ${signed.token}`,
-      },
-    });
-  }
-
-  if (!uploadRes.ok) {
-    throw new Error(
-      `Upload do Supabase Storage zlyhal (HTTP ${uploadRes.status}). Skontroluj bucket uploads a MIME typy audio v SQL (scripts/supabase.sql).`
-    );
-  }
-
-  return signed.publicUrl;
-}
 
 export default function AudioUrlField({
   label = "Audio ukážka (~30 s)",
@@ -124,24 +25,9 @@ export default function AudioUrlField({
     const file = event.target.files?.[0];
     if (!file) return;
 
-    if (file.size > MAX_AUDIO_BYTES) {
-      onUploadError?.("Maximálna veľkosť audio je 12 MB — skráť ukážku na približne 30 sekúnd.");
-      event.target.value = "";
-      return;
-    }
-
     setUploading(true);
     try {
-      let url: string;
-      if (file.size > MAX_AUDIO_SERVER_BYTES) {
-        url = await uploadViaSupabaseStorage(file);
-      } else {
-        try {
-          url = await uploadViaServer(file);
-        } catch {
-          url = await uploadViaSupabaseStorage(file);
-        }
-      }
+      const url = await uploadAudioFileClient(file);
       onChange(url);
       onUploadSuccess?.("Audio nahrané do úložiska.");
     } catch (err) {

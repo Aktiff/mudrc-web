@@ -69,3 +69,26 @@ export function formatMusicBankHostNote(item: MusicBankItem): string {
   if (item.note) parts.push(item.note);
   return parts.join(" · ");
 }
+
+const AUDIO_EXT = /\.(mp3|m4a|wav|ogg|aac)$/i;
+
+function humanizeMusicNamePart(raw: string): string {
+  return raw.trim().replace(/_/g, " ").replace(/\s+/g, " ");
+}
+
+/**
+ * Z názvu súboru „The Beatles - Help!.mp3“ alebo „Kryštof, Tomáš Klus - Cesta.mp3“.
+ */
+export function parseMusicTrackFromFileName(fileName: string): { artist: string; title: string } | null {
+  const base = fileName.replace(AUDIO_EXT, "").trim();
+  if (!base) return null;
+
+  const match = base.match(/^(.+?)\s+[-–—]\s+(.+)$/);
+  if (!match) return null;
+
+  const artist = humanizeMusicNamePart(match[1]);
+  const title = humanizeMusicNamePart(match[2]);
+  if (!artist || !title) return null;
+
+  return { artist, title };
+}
