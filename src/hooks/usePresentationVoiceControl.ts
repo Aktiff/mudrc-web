@@ -6,12 +6,17 @@ import {
   isSpeechRecognitionSupported,
   matchVoiceCommand,
   voiceControlErrorMessage,
+  type VoiceCommand,
 } from "@/lib/presentation-voice-control";
 
-const COMMAND_COOLDOWN_MS = 1200;
-const MAX_NETWORK_RETRIES = 4;
+const COMMAND_COOLDOWN_MS = 2800;
 
 const RECOGNITION_LANGS = ["sk-SK", "cs-CZ"] as const;
+
+function commandKey(command: VoiceCommand): string {
+  if (command.type === "goto_question") return `goto-${command.questionNumber}`;
+  return command.type;
+}
 
 function collectTranscripts(
   result: {
@@ -38,8 +43,7 @@ function collectTranscripts(
 export function usePresentationVoiceControl(
   active: boolean,
   enabled: boolean,
-  onNext: () => void,
-  onPrev: () => void
+  onCommand: (command: VoiceCommand) => void
 ) {
   const [listening, setListening] = useState(false);
   const [connecting, setConnecting] = useState(false);
@@ -49,13 +53,10 @@ export function usePresentationVoiceControl(
   const [recognitionLang, setRecognitionLang] = useState<string>(RECOGNITION_LANGS[0]);
   const enabledRef = useRef(enabled);
   const activeRef = useRef(active);
-  const onNextRef = useRef(onNext);
-  const onPrevRef = useRef(onPrev);
-  const langIndexRef = useRef(0);
+  const onCommandRef = useRef(onCommand);
   enabledRef.current = enabled;
   activeRef.current = active;
-  onNextRef.current = onNext;
-  onPrevRef.current = onPrev;
+  onCommandRef.current = onCommand;
 
   useEffect(() => {
     if (!active || !enabled) {
@@ -64,7 +65,6 @@ export function usePresentationVoiceControl(
       setFailed(false);
       setLastTranscript("");
       setError(null);
-      langIndexRef.current = 0;
       setRecognitionLang(RECOGNITION_LANGS[0]);
       return;
     }
@@ -77,9 +77,11 @@ export function usePresentationVoiceControl(
     }
 
     let lastFire = 0;
+    let lastKey = "";
     let networkRetries = 0;
     let stopped = false;
     let fatal = false;
+    const langIndexRef = { current: 0 };
 
     const applyLang = (index: number) => {
       langIndexRef.current = index;
@@ -123,32 +125,35 @@ export function usePresentationVoiceControl(
       }, delayMs);
     };
 
-    const handleResult = (transcript: string, isFinal: boolean) => {
+    const handleFinalTranscript = (transcript: string) => {
       const trimmed = transcript.trim();
       if (!trimmed) return;
       setLastTranscript(trimmed);
+
       const command = matchVoiceCommand(trimmed);
       if (!command) return;
-      if (!isFinal && trimmed.length < 4) return;
 
+      const key = commandKey(command);
       const now = Date.now();
+      if (key === lastKey && now - lastFire < COMMAND_COOLDOWN_MS) return;
       if (now - lastFire < COMMAND_COOLDOWN_MS) return;
-      lastFire = now;
 
-      if (command === "next") onNextRef.current();
-      else onPrevRef.current();
+      lastFire = now;
+      lastKey = key;
       networkRetries = 0;
       setConnecting(false);
       setError(null);
       setFailed(false);
+      onCommandRef.current(command);
     };
 
     recognition.onresult = (event) => {
       for (let i = event.resultIndex; i < event.results.length; i += 1) {
         const result = event.results[i];
+        if (!result.isFinal) continue;
         const transcripts = collectTranscripts(result);
         for (const text of transcripts) {
-          handleResult(text, result.isFinal);
+          handleFinalTranscript(text);
         }
       }
     };
@@ -159,9 +164,9 @@ export function usePresentationVoiceControl(
 
       if (event.error === "network") {
         networkRetries += 1;
-        if (networkRetries <= MAX_NETWORK_RETRIES) {
+        if (networkRetries <= 4) {
           setConnecting(true);
-          setError(`Pripájam rozpoznávanie… (${networkRetries}/${MAX_NETWORK_RETRIES})`);
+          setError(`Pripájam rozpoznávanie… (${networkRetries}/4)`);
           return;
         }
         setFailed(true);
@@ -194,9 +199,7 @@ export function usePresentationVoiceControl(
       }
 
       const delay =
-        networkRetries > 0 && networkRetries <= MAX_NETWORK_RETRIES
-          ? Math.min(1500 * networkRetries, 6000)
-          : 300;
+        networkRetries > 0 && networkRetries <= 4 ? Math.min(1500 * networkRetries, 6000) : 300;
       scheduleRestart(delay);
     };
 

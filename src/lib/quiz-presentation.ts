@@ -68,6 +68,48 @@ export function buildPresentationSlides(questions: QuizQuestionItem[]): Presenta
   return slides;
 }
 
+export function presentationRoundAtSlide(
+  slides: PresentationSlide[],
+  slideIndex: number
+): number {
+  const slide = slides[slideIndex];
+  if (!slide) return 1;
+
+  if (slide.type === "round" || slide.type === "correction" || slide.type === "answers_intro") {
+    return slide.roundNumber;
+  }
+  if (slide.type === "question_phase" || slide.type === "image_slide" || slide.type === "answer_phase") {
+    return slide.question.roundNumber;
+  }
+
+  for (let i = slideIndex; i >= 0; i -= 1) {
+    const s = slides[i];
+    if (s.type === "round") return s.roundNumber;
+    if (s.type === "correction" || s.type === "answers_intro") return s.roundNumber;
+  }
+
+  return 1;
+}
+
+/** Prvý slide danej otázky v kole (obrázok pred otázkou, ak existuje). */
+export function findSlideIndexForQuestionInRound(
+  slides: PresentationSlide[],
+  roundNumber: number,
+  questionNumber: number
+): number | null {
+  for (let i = 0; i < slides.length; i += 1) {
+    const slide = slides[i];
+    if (slide.type !== "question_phase" && slide.type !== "image_slide" && slide.type !== "answer_phase") {
+      continue;
+    }
+    const { roundNumber: r, questionNumber: qn } = slide.question;
+    if (r === roundNumber && qn === questionNumber) {
+      return i;
+    }
+  }
+  return null;
+}
+
 export function questionPhaseTitle(question: QuizQuestionItem): string {
   if (question.kind === "music") {
     return `K${question.roundNumber} · Hudba ${question.questionNumber}`;

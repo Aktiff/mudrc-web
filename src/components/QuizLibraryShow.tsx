@@ -10,10 +10,13 @@ import type { QuizLibraryItem, QuizQuestionItem } from "@/lib/quiz-library";
 import {
   bestPresentationImageUrl,
   buildPresentationSlides,
+  findSlideIndexForQuestionInRound,
+  presentationRoundAtSlide,
   shouldShowImageInAnswerPhase,
   shouldShowImageInQuestionPhase,
   type PresentationSlide,
 } from "@/lib/quiz-presentation";
+import type { VoiceCommand } from "@/lib/presentation-voice-control";
 import { findCorrectOptionIndex, getQuestionBodyText, getQuestionOptions, optionLetter } from "@/lib/quiz-question-options";
 import {
   defaultNextQuizDate,
@@ -434,6 +437,22 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
     setIndex((i) => Math.max(0, i - 1));
   }, []);
 
+  const handleVoiceCommand = useCallback(
+    (command: VoiceCommand) => {
+      if (command.type === "goto_question") {
+        const roundNumber = presentationRoundAtSlide(slides, index);
+        const target = findSlideIndexForQuestionInRound(slides, roundNumber, command.questionNumber);
+        if (target != null) {
+          setIndex(target);
+        }
+        return;
+      }
+      if (command.type === "next") goNext();
+      else goPrev();
+    },
+    [goNext, goPrev, index, slides]
+  );
+
   const {
     listening: voiceListening,
     connecting: voiceConnecting,
@@ -441,7 +460,7 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
     error: voiceError,
     lastTranscript: voiceLastTranscript,
     recognitionLang: voiceRecognitionLang,
-  } = usePresentationVoiceControl(started, voiceEnabled, goNext, goPrev);
+  } = usePresentationVoiceControl(started, voiceEnabled, handleVoiceCommand);
 
   const voiceMicActive = voiceEnabled && voiceListening && !voiceFailed;
 
@@ -540,8 +559,8 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
                 onChange={(e) => setVoiceEnabled(e.target.checked)}
               />
               <span className="text-sm text-white/75 leading-snug">
-                Ovládanie hlasom („ďalej“, „ďalšia otázka“, „späť“). Vo Vivaldi/Chrome treba aj prístup k službe
-                Google na rozpoznanie reči (nie len mikrofón).
+                Ovládanie hlasom: „otázka jedna“, „otázka päť“… (v aktuálnom kole), prípadne „ďalej“ / „späť“.
+                Odporúčame Chrome.
               </span>
             </label>
           ) : (
@@ -641,18 +660,14 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
       <SlideBackdrop />
 
       {voiceSupported && (
-        <div
-          className={`absolute z-20 pointer-events-none ${
-            isFullscreen ? "bottom-5 left-5" : "top-4 sm:top-5 left-4 sm:left-5"
-          } ${showQuestionBadge ? (isFullscreen ? "" : "mt-[5.5rem] sm:mt-28") : ""}`}
-        >
+        <div className="absolute z-20 bottom-4 right-4 sm:bottom-5 sm:right-5 flex flex-col items-end gap-1 pointer-events-none max-w-[11rem]">
           <button
             type="button"
             onClick={(e) => {
               e.stopPropagation();
               toggleVoiceControl();
             }}
-            className={`pointer-events-auto p-2.5 rounded-full border backdrop-blur-sm transition-colors ${
+            className={`pointer-events-auto p-1.5 rounded-full border backdrop-blur-sm transition-colors ${
               voiceMicActive
                 ? "bg-[#f0c800]/20 border-[#f0c800]/50 hover:bg-[#f0c800]/30"
                 : voiceEnabled && voiceConnecting
@@ -664,35 +679,29 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
             title={
               voiceEnabled
                 ? "Vypnúť hlas (M)"
-                : "Zapnúť hlas — povedz „ďalej“ alebo „ďalšia otázka“ (M)"
+                : "Zapnúť hlas — „otázka tri“, „otázka päť“ v aktuálnom kole (M)"
             }
           >
             {voiceMicActive ? (
-              <Mic className="w-5 h-5 text-[#f0c800]" />
+              <Mic className="w-3.5 h-3.5 text-[#f0c800]" />
             ) : voiceEnabled && (voiceConnecting || voiceFailed) ? (
-              <Mic className={`w-5 h-5 ${voiceFailed ? "text-red-300" : "text-[#f0c800]/70"}`} />
+              <Mic className={`w-3.5 h-3.5 ${voiceFailed ? "text-red-300" : "text-[#f0c800]/70"}`} />
             ) : (
-              <MicOff className="w-5 h-5" />
+              <MicOff className="w-3.5 h-3.5" />
             )}
           </button>
           {voiceError ? (
             <p
-              className={`pointer-events-none mt-2 max-w-[18rem] text-xs leading-snug ${
-                voiceError.startsWith("Pripájam") ? "text-[#f0c800]/80" : "text-red-300/90"
+              className={`pointer-events-none text-right text-[10px] leading-snug ${
+                voiceError.startsWith("Pripájam") ? "text-[#f0c800]/75" : "text-red-300/90"
               }`}
             >
               {voiceError}
             </p>
           ) : null}
-          {voiceEnabled && !voiceFailed && !voiceError ? (
-            <p className="pointer-events-none mt-2 max-w-[16rem] text-[10px] sm:text-xs text-white/45 leading-snug">
-              {voiceMicActive ? "Počúvam" : voiceConnecting ? "Pripájam…" : "Čakám…"} ({voiceRecognitionLang})
-              {voiceLastTranscript ? (
-                <>
-                  <br />
-                  <span className="text-white/70">„{voiceLastTranscript}“</span>
-                </>
-              ) : null}
+          {voiceEnabled && voiceMicActive && voiceLastTranscript ? (
+            <p className="pointer-events-none text-right text-[10px] text-white/40 truncate w-full" title={voiceLastTranscript}>
+              {voiceLastTranscript}
             </p>
           ) : null}
         </div>
