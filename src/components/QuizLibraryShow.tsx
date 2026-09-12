@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { Maximize2, X } from "lucide-react";
+import { Maximize2, Mic, MicOff, X } from "lucide-react";
+import { usePresentationVoiceControl } from "@/hooks/usePresentationVoiceControl";
+import { isSpeechRecognitionSupported } from "@/lib/presentation-voice-control";
 import type { QuizEvent } from "@/lib/data";
 import type { QuizLibraryItem, QuizQuestionItem } from "@/lib/quiz-library";
 import {
@@ -333,6 +335,8 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
   const [nextQuizVenue, setNextQuizVenue] = useState("");
   const [nextQuizAtLocal, setNextQuizAtLocal] = useState(() => toDatetimeLocalValue(defaultNextQuizDate()));
   const [nextQuizLine, setNextQuizLine] = useState("");
+  const [voiceEnabled, setVoiceEnabled] = useState(false);
+  const voiceSupported = useMemo(() => isSpeechRecognitionSupported(), []);
 
   useEffect(() => {
     Promise.all([
@@ -430,6 +434,17 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
     setIndex((i) => Math.max(0, i - 1));
   }, []);
 
+  const { listening: voiceListening, error: voiceError } = usePresentationVoiceControl(
+    started,
+    voiceEnabled,
+    goNext,
+    goPrev
+  );
+
+  const toggleVoiceControl = useCallback(() => {
+    setVoiceEnabled((on) => !on);
+  }, []);
+
   const toggleFullscreen = useCallback(async () => {
     if (!rootRef.current) return;
     try {
@@ -458,10 +473,14 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
         e.preventDefault();
         toggleFullscreen();
       }
+      if (e.key === "m" || e.key === "M") {
+        e.preventDefault();
+        toggleVoiceControl();
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [goNext, goPrev, started, toggleFullscreen]);
+  }, [goNext, goPrev, started, toggleFullscreen, toggleVoiceControl]);
 
   if (loading) {
     return (
@@ -508,6 +527,24 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
               </option>
             ))}
           </select>
+          {voiceSupported ? (
+            <label className="flex items-start gap-3 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 cursor-pointer">
+              <input
+                type="checkbox"
+                className="mt-1 size-4 accent-[#f0c800]"
+                checked={voiceEnabled}
+                onChange={(e) => setVoiceEnabled(e.target.checked)}
+              />
+              <span className="text-sm text-white/75 leading-snug">
+                Ovládanie hlasom („ďalej“, „ďalšia otázka“, „späť“). Funguje v Chrome / Edge — prehliadač
+                pýta prístup k mikrofónu.
+              </span>
+            </label>
+          ) : (
+            <p className="text-xs text-white/40">
+              Hlasové ovládanie nie je v tomto prehliadači dostupné (skús Chrome alebo Edge).
+            </p>
+          )}
           <button
             type="button"
             onClick={openNextQuizModal}
@@ -598,6 +635,41 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
       role="presentation"
     >
       <SlideBackdrop />
+
+      {voiceSupported && (
+        <div
+          className={`absolute z-20 pointer-events-none ${
+            isFullscreen ? "bottom-5 left-5" : "top-4 sm:top-5 left-4 sm:left-5"
+          } ${showQuestionBadge ? (isFullscreen ? "" : "mt-[5.5rem] sm:mt-28") : ""}`}
+        >
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleVoiceControl();
+            }}
+            className={`pointer-events-auto p-2.5 rounded-full border backdrop-blur-sm transition-colors ${
+              voiceEnabled && voiceListening
+                ? "bg-[#f0c800]/20 border-[#f0c800]/50 hover:bg-[#f0c800]/30"
+                : "bg-black/40 border-white/15 hover:bg-white/15"
+            }`}
+            title={
+              voiceEnabled
+                ? "Vypnúť hlas (M)"
+                : "Zapnúť hlas — povedz „ďalej“ alebo „ďalšia otázka“ (M)"
+            }
+          >
+            {voiceEnabled && voiceListening ? (
+              <Mic className="w-5 h-5 text-[#f0c800] animate-pulse" />
+            ) : (
+              <MicOff className="w-5 h-5" />
+            )}
+          </button>
+          {voiceError ? (
+            <p className="pointer-events-none mt-2 max-w-[14rem] text-xs text-red-300/90">{voiceError}</p>
+          ) : null}
+        </div>
+      )}
 
       {!isFullscreen && (
         <div className="absolute top-0 inset-x-0 flex items-center justify-end p-4 sm:p-5 z-20">
