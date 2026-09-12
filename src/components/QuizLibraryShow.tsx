@@ -2,22 +2,16 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { Maximize2, Mic, MicOff, X } from "lucide-react";
-import { usePresentationVoiceControl } from "@/hooks/usePresentationVoiceControl";
-import { isSpeechRecognitionSupported } from "@/lib/presentation-voice-control";
+import { Maximize2, X } from "lucide-react";
 import type { QuizEvent } from "@/lib/data";
 import type { QuizLibraryItem, QuizQuestionItem } from "@/lib/quiz-library";
 import {
   bestPresentationImageUrl,
   buildPresentationSlides,
-  findSlideIndexForQuestionInRound,
-  findSlideIndexForRoundIntro,
-  presentationRoundAtSlide,
   shouldShowImageInAnswerPhase,
   shouldShowImageInQuestionPhase,
   type PresentationSlide,
 } from "@/lib/quiz-presentation";
-import type { VoiceCommand } from "@/lib/presentation-voice-control";
 import { findCorrectOptionIndex, getQuestionBodyText, getQuestionOptions, optionLetter } from "@/lib/quiz-question-options";
 import {
   defaultNextQuizDate,
@@ -25,6 +19,11 @@ import {
   parseDatetimeLocalValue,
   toDatetimeLocalValue,
 } from "@/lib/next-quiz-presentation";
+import {
+  PRESENTATION_ASPECT_OPTIONS,
+  presentationStageBoxStyle,
+  type PresentationAspectMode,
+} from "@/lib/presentation-aspect";
 import { fixSlovakLineBreaks } from "@/lib/slovak-typography";
 
 type Props = {
@@ -104,10 +103,10 @@ function PresentationImage({
   const resolved = bestPresentationImageUrl(src);
   const className =
     variant === "full-slide"
-      ? "max-w-[98vw] max-h-[90vh] w-auto h-auto object-contain rounded-2xl shadow-[0_24px_80px_rgba(0,0,0,0.6)] ring-1 ring-white/10"
+      ? "max-w-full max-h-[90vh] w-auto h-auto object-contain rounded-2xl shadow-[0_24px_80px_rgba(0,0,0,0.6)] ring-1 ring-white/10"
       : variant === "hero"
-        ? "max-w-[98vw] max-h-[min(70vh,calc(100dvh-16rem))] w-auto h-auto object-contain rounded-2xl shadow-[0_24px_80px_rgba(0,0,0,0.6)] ring-1 ring-white/10"
-        : "max-w-[98vw] max-h-[min(44vh,calc(100dvh-32rem))] w-auto h-auto object-contain rounded-2xl shadow-[0_24px_80px_rgba(0,0,0,0.6)] ring-1 ring-white/10";
+        ? "max-w-full max-h-[min(70vh,calc(100dvh-16rem))] w-auto h-auto object-contain rounded-2xl shadow-[0_24px_80px_rgba(0,0,0,0.6)] ring-1 ring-white/10"
+        : "max-w-full max-h-[min(44vh,calc(100dvh-32rem))] w-auto h-auto object-contain rounded-2xl shadow-[0_24px_80px_rgba(0,0,0,0.6)] ring-1 ring-white/10";
 
   return (
     // eslint-disable-next-line @next/next/no-img-element
@@ -125,7 +124,7 @@ function OptionsGrid({
   if (!options.length) return null;
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-7 sm:gap-9 w-full max-w-[98vw]">
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-7 sm:gap-9 w-full max-w-full">
       {options.map((option, index) => {
         const isCorrect = index === highlightCorrectIndex;
 
@@ -180,7 +179,7 @@ function QuestionContent({
   return (
     <div
       className={`w-full flex flex-col items-center ${
-        imageHero ? "h-full max-h-[88vh] justify-start gap-5 sm:gap-6 pt-2" : "max-w-[98vw] gap-7 sm:gap-9"
+        imageHero ? "h-full max-h-[88vh] justify-start gap-5 sm:gap-6 pt-2 px-1" : "max-w-full w-full gap-7 sm:gap-9 px-1"
       }`}
     >
       {phase === "question" && question.kind === "music" && question.audioUrl?.trim() && (
@@ -212,7 +211,7 @@ function QuestionContent({
       )}
 
       {phase === "answer" && options.length > 0 && correctOptionIndex < 0 && question.answer.trim() && (
-        <div className="px-10 sm:px-14 py-6 sm:py-8 rounded-2xl bg-gradient-to-br from-[#f0c800] to-[#e6b800] text-black text-center max-w-[98vw] w-full shadow-[0_20px_60px_rgba(240,200,0,0.25)]">
+        <div className="px-10 sm:px-14 py-6 sm:py-8 rounded-2xl bg-gradient-to-br from-[#f0c800] to-[#e6b800] text-black text-center max-w-full w-full shadow-[0_20px_60px_rgba(240,200,0,0.25)]">
           <p className="font-display tracking-wide" style={ANSWER_TEXT_STYLE}>
             {fixSlovakLineBreaks(question.answer)}
           </p>
@@ -220,7 +219,7 @@ function QuestionContent({
       )}
 
       {phase === "answer" && options.length === 0 && question.kind === "music" && (question.musicArtist || question.musicTitle) && (
-        <div className="w-full max-w-[98vw] space-y-4">
+        <div className="w-full max-w-full space-y-4">
           <div className="px-10 sm:px-14 py-5 sm:py-6 rounded-2xl bg-gradient-to-br from-[#f0c800] to-[#e6b800] text-black text-center shadow-[0_20px_60px_rgba(240,200,0,0.25)]">
             <p className="text-sm font-semibold uppercase tracking-wider opacity-80 mb-1">Interpret · 1 bod</p>
             <p className="font-display tracking-wide" style={ANSWER_TEXT_STYLE}>
@@ -237,7 +236,7 @@ function QuestionContent({
       )}
 
       {phase === "answer" && options.length === 0 && !(question.kind === "music" && (question.musicArtist || question.musicTitle)) && (
-        <div className="px-10 sm:px-14 py-6 sm:py-8 rounded-2xl bg-gradient-to-br from-[#f0c800] to-[#e6b800] text-black text-center max-w-[98vw] w-full shadow-[0_20px_60px_rgba(240,200,0,0.25)]">
+        <div className="px-10 sm:px-14 py-6 sm:py-8 rounded-2xl bg-gradient-to-br from-[#f0c800] to-[#e6b800] text-black text-center max-w-full w-full shadow-[0_20px_60px_rgba(240,200,0,0.25)]">
           <p className="font-display tracking-wide" style={ANSWER_TEXT_STYLE}>
             {fixSlovakLineBreaks(question.answer) || "—"}
           </p>
@@ -251,7 +250,7 @@ function ImageSlide({ question }: { question: QuizQuestionItem }) {
   if (!question.imageUrl?.trim()) return null;
 
   return (
-    <div className="w-[98vw] h-[90vh] flex items-center justify-center">
+    <div className="w-full h-[90vh] max-w-full flex items-center justify-center px-2">
       <PresentationImage src={question.imageUrl} variant="full-slide" />
     </div>
   );
@@ -339,8 +338,7 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
   const [nextQuizVenue, setNextQuizVenue] = useState("");
   const [nextQuizAtLocal, setNextQuizAtLocal] = useState(() => toDatetimeLocalValue(defaultNextQuizDate()));
   const [nextQuizLine, setNextQuizLine] = useState("");
-  const [voiceEnabled, setVoiceEnabled] = useState(false);
-  const voiceSupported = useMemo(() => isSpeechRecognitionSupported(), []);
+  const [aspectMode, setAspectMode] = useState<PresentationAspectMode>("16:9");
 
   useEffect(() => {
     Promise.all([
@@ -438,48 +436,6 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
     setIndex((i) => Math.max(0, i - 1));
   }, []);
 
-  const handleVoiceCommand = useCallback(
-    (command: VoiceCommand) => {
-      if (command.type === "goto_round") {
-        const target = findSlideIndexForRoundIntro(slides, command.roundNumber);
-        if (target != null) setIndex(target);
-        return;
-      }
-      if (command.type === "goto_question") {
-        const roundNumber = presentationRoundAtSlide(slides, index);
-        const currentSlide = slides[index];
-        const preferAnswerPhase =
-          currentSlide?.type === "answer_phase" || currentSlide?.type === "answers_intro";
-        const target = findSlideIndexForQuestionInRound(
-          slides,
-          roundNumber,
-          command.questionNumber,
-          preferAnswerPhase
-        );
-        if (target != null) setIndex(target);
-        return;
-      }
-      if (command.type === "next") goNext();
-      else goPrev();
-    },
-    [goNext, goPrev, index, slides]
-  );
-
-  const {
-    listening: voiceListening,
-    connecting: voiceConnecting,
-    failed: voiceFailed,
-    error: voiceError,
-    lastTranscript: voiceLastTranscript,
-    recognitionLang: voiceRecognitionLang,
-  } = usePresentationVoiceControl(started, voiceEnabled, handleVoiceCommand);
-
-  const voiceMicActive = voiceEnabled && !voiceFailed && (voiceListening || voiceConnecting);
-
-  const toggleVoiceControl = useCallback(() => {
-    setVoiceEnabled((on) => !on);
-  }, []);
-
   const toggleFullscreen = useCallback(async () => {
     if (!rootRef.current) return;
     try {
@@ -508,14 +464,10 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
         e.preventDefault();
         toggleFullscreen();
       }
-      if (e.key === "m" || e.key === "M") {
-        e.preventDefault();
-        toggleVoiceControl();
-      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [goNext, goPrev, started, toggleFullscreen, toggleVoiceControl]);
+  }, [goNext, goPrev, started, toggleFullscreen]);
 
   if (loading) {
     return (
@@ -562,23 +514,23 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
               </option>
             ))}
           </select>
-          {voiceSupported ? (
-            <label className="flex items-start gap-3 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 cursor-pointer">
-              <input
-                type="checkbox"
-                className="mt-1 size-4 accent-[#f0c800]"
-                checked={voiceEnabled}
-                onChange={(e) => setVoiceEnabled(e.target.checked)}
-              />
-              <span className="text-sm text-white/75 leading-snug">
-                Hlas: „otázka 11“ / „otázka jedenásť“, „prvé kolo“… V hluku hovor zreteľne a blízko k mikrofónu (Chrome).
-              </span>
-            </label>
-          ) : (
-            <p className="text-xs text-white/40">
-              Hlasové ovládanie nie je v tomto prehliadači dostupné (skús Chrome alebo Edge).
+          <div className="space-y-2">
+            <span className="text-sm text-white/70">Formát obrazovky</span>
+            <select
+              className="w-full rounded-xl bg-white/10 border border-white/20 px-4 py-3 text-white"
+              value={aspectMode}
+              onChange={(e) => setAspectMode(e.target.value as PresentationAspectMode)}
+            >
+              {PRESENTATION_ASPECT_OPTIONS.map((opt) => (
+                <option key={opt.id} value={opt.id} className="text-black">
+                  {opt.label} — {opt.hint}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-white/45">
+              Na TV odporúčame 16 : 9 — obsah nebude natiahnutý do celého širokého panelu.
             </p>
-          )}
+          </div>
           <button
             type="button"
             onClick={openNextQuizModal}
@@ -658,66 +610,21 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
   const showQuestionBadge =
     slide?.type === "question_phase" || slide?.type === "image_slide" || slide?.type === "answer_phase";
 
-  return (
-    <div
-      ref={rootRef}
-      className="fixed inset-0 z-[9999] text-white flex flex-col select-none cursor-pointer overflow-hidden"
-      onClick={goNext}
-      onContextMenu={(e) => {
-        e.preventDefault();
-        goPrev();
-      }}
-      role="presentation"
-    >
-      <SlideBackdrop />
+  const stageStyle = presentationStageBoxStyle(aspectMode);
 
-      {voiceSupported && (
-        <div className="absolute z-20 bottom-4 right-4 sm:bottom-5 sm:right-5 flex flex-col items-end gap-1 pointer-events-none max-w-[11rem]">
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              toggleVoiceControl();
-            }}
-            className={`pointer-events-auto p-1.5 rounded-full border backdrop-blur-sm transition-colors ${
-              voiceMicActive
-                ? "bg-[#f0c800]/20 border-[#f0c800]/50 hover:bg-[#f0c800]/30"
-                : voiceEnabled && voiceConnecting
-                  ? "bg-[#f0c800]/10 border-[#f0c800]/35 hover:bg-[#f0c800]/20"
-                  : voiceFailed
-                    ? "bg-red-950/40 border-red-400/40 hover:bg-red-950/55"
-                    : "bg-black/40 border-white/15 hover:bg-white/15"
-            }`}
-            title={
-              voiceEnabled
-                ? "Vypnúť hlas (M)"
-                : "Zapnúť hlas — „otázka tri“, „otázka päť“ v aktuálnom kole (M)"
-            }
-          >
-            {voiceMicActive ? (
-              <Mic className="w-3.5 h-3.5 text-[#f0c800]" />
-            ) : voiceEnabled && (voiceConnecting || voiceFailed) ? (
-              <Mic className={`w-3.5 h-3.5 ${voiceFailed ? "text-red-300" : "text-[#f0c800]/70"}`} />
-            ) : (
-              <MicOff className="w-3.5 h-3.5" />
-            )}
-          </button>
-          {voiceError ? (
-            <p
-              className={`pointer-events-none text-right text-[10px] leading-snug ${
-                voiceError.startsWith("Pripájam") ? "text-[#f0c800]/75" : "text-red-300/90"
-              }`}
-            >
-              {voiceError}
-            </p>
-          ) : null}
-          {voiceEnabled && voiceMicActive && voiceLastTranscript ? (
-            <p className="pointer-events-none text-right text-[10px] text-white/40 truncate w-full" title={voiceLastTranscript}>
-              {voiceLastTranscript}
-            </p>
-          ) : null}
-        </div>
-      )}
+  return (
+    <div ref={rootRef} className="fixed inset-0 z-[9999] bg-[#030303] flex items-center justify-center overflow-hidden">
+      <div
+        className="relative text-white flex flex-col select-none cursor-pointer overflow-hidden shadow-[0_0_0_1px_rgba(255,255,255,0.06)]"
+        style={stageStyle}
+        onClick={goNext}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          goPrev();
+        }}
+        role="presentation"
+      >
+        <SlideBackdrop />
 
       {!isFullscreen && (
         <div className="absolute top-0 inset-x-0 flex items-center justify-end p-4 sm:p-5 z-20">
@@ -764,7 +671,7 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
         </div>
       )}
 
-      <div className="relative flex-1 flex items-center justify-center min-h-0 w-full px-[2vw] py-[1.5vh]">
+      <div className="relative flex-1 flex items-center justify-center min-h-0 w-full px-4 sm:px-6 py-[1.5vh]">
         {slide && (
           <PresentationView
             slide={slide}
@@ -785,6 +692,7 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }
