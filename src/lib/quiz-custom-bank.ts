@@ -1,5 +1,5 @@
 import type { QuizBankQuestion } from "@/lib/quiz-question-bank";
-import { resolveCustomQuestionTags } from "@/lib/quiz-bank-tag-inference";
+import { refreshStoredCustomQuestionTags, resolveCustomQuestionTags } from "@/lib/quiz-bank-tag-inference";
 
 export const CUSTOM_BANK_STORAGE_KEY = "mudrc-custom-bank-questions";
 
@@ -68,10 +68,10 @@ export function normalizeStoredCustomQuestion(raw: unknown): CustomBankQuestion 
         : options[correctIndex]?.trim() ?? "";
   if (!answer) return null;
 
-  const tagsRaw = row.tags;
-  const tags = Array.isArray(tagsRaw)
-    ? tagsRaw.filter((t): t is string => typeof t === "string").map((t) => t.trim().toLowerCase()).filter(Boolean)
-    : resolveCustomQuestionTags(undefined, row.body as string, answer);
+  const tagsRaw = Array.isArray(row.tags)
+    ? row.tags.filter((t): t is string => typeof t === "string").map((t) => t.trim().toLowerCase()).filter(Boolean)
+    : undefined;
+  const tags = refreshStoredCustomQuestionTags(tagsRaw, row.body as string, answer, typeof row.note === "string" ? row.note : undefined);
 
   return {
     id: row.id,
@@ -81,7 +81,7 @@ export function normalizeStoredCustomQuestion(raw: unknown): CustomBankQuestion 
     correctIndex: Math.min(Math.max(0, correctIndex), 5),
     difficulty: typeof row.difficulty === "number" ? Math.min(10, Math.max(1, row.difficulty)) : 5,
     note: typeof row.note === "string" ? row.note.trim() : "",
-    tags: tags.length ? Array.from(new Set(tags)).slice(0, 8) : ["vlastné"],
+    tags: tags.length ? tags : resolveCustomQuestionTags(undefined, row.body as string, answer),
     isImageQuestion: Boolean(row.isImageQuestion),
     isOpenQuestion: Boolean(row.isOpenQuestion),
     suggestedImageUrl:

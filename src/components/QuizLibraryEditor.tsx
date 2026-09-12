@@ -7,7 +7,12 @@ import type { QuizEvent } from "@/lib/data";
 import type { QuizLibraryItem, QuizQuestionItem, QuizQuestionKind } from "@/lib/quiz-library";
 import { collectUsedBankQuestionIdsFromQuiz } from "@/lib/quiz-library";
 import { findBankQuestionById } from "@/lib/quiz-question-bank";
-import { fetchCustomBankQuestionsFromServer, type CustomBankQuestion } from "@/lib/quiz-custom-bank";
+import {
+  addCustomBankQuestionAsync,
+  fetchCustomBankQuestionsFromServer,
+  isCustomBankQuestionId,
+  type CustomBankQuestion,
+} from "@/lib/quiz-custom-bank";
 import {
   buildStandardMudrcQuestions,
   describeQuizContent,
@@ -376,6 +381,32 @@ export default function QuizLibraryEditor({ quizId }: Props) {
           }
         : null;
 
+    const customRestore =
+      question &&
+      isCustomBankQuestionId(bankId) &&
+      question.body.trim() &&
+      question.answer.trim()
+        ? (() => {
+            const options = [...(question.options ?? [])];
+            while (options.length < 6) options.push("");
+            const hasChoices = options.some((o) => o.trim());
+            const correctIndex = hasChoices
+              ? Math.max(0, options.findIndex((o) => o.trim() === question.answer.trim()))
+              : 0;
+            return {
+              body: question.body.trim(),
+              options: options.slice(0, 6),
+              correctIndex,
+              answer: question.answer.trim(),
+              note: question.hostNote?.trim() || undefined,
+              tags: question.tags,
+              isOpenQuestion: !hasChoices,
+              isImageQuestion: Boolean(question.imageUrl?.trim() || question.imageDuringQuestion),
+              suggestedImageUrl: question.imageUrl?.trim() || undefined,
+            };
+          })()
+        : null;
+
     setQuiz((prev) =>
       prev
         ? {
@@ -414,6 +445,12 @@ export default function QuizLibraryEditor({ quizId }: Props) {
             text: "Slot vyprázdnený, ale skladbu sa nepodarilo vrátiť do banky hudby (možno duplicita).",
             ok: false,
           });
+        });
+    } else if (customRestore) {
+      void addCustomBankQuestionAsync(customRestore)
+        .then(() => refreshCustomBank())
+        .catch(() => {
+          setMsg({ text: "Slot vyprázdnený, ale otázku sa nepodarilo vrátiť do banky.", ok: false });
         });
     }
 

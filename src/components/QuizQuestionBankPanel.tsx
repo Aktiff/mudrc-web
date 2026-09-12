@@ -309,6 +309,17 @@ export default function QuizQuestionBankPanel({
     return defaultTargetId;
   };
 
+  const afterBankQuestionInserted = (bankId: string) => {
+    setTargetByBankId((prev) => {
+      const next = { ...prev };
+      delete next[bankId];
+      return next;
+    });
+    if (isCustomBankQuestionId(bankId)) {
+      void removeCustomBankQuestionAsync(bankId).then(() => onCustomBankChange?.());
+    }
+  };
+
   const handleInsert = (item: QuizBankQuestion) => {
     const targetId = getTargetId(item.id);
     if (!targetId) return;
@@ -329,11 +340,7 @@ export default function QuizQuestionBankPanel({
         item.note,
         suggestedImageUrl
       );
-      setTargetByBankId((prev) => {
-        const next = { ...prev };
-        delete next[item.id];
-        return next;
-      });
+      afterBankQuestionInserted(item.id);
       return;
     }
 
@@ -366,11 +373,7 @@ export default function QuizQuestionBankPanel({
       mixed.note,
       suggestedImageUrl
     );
-    setTargetByBankId((prev) => {
-      const next = { ...prev };
-      delete next[item.id];
-      return next;
-    });
+    afterBankQuestionInserted(item.id);
   };
 
   const dismissQuestion = (bankId: string) => {
