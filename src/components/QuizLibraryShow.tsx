@@ -11,6 +11,7 @@ import {
   bestPresentationImageUrl,
   buildPresentationSlides,
   findSlideIndexForQuestionInRound,
+  findSlideIndexForRoundIntro,
   presentationRoundAtSlide,
   shouldShowImageInAnswerPhase,
   shouldShowImageInQuestionPhase,
@@ -439,12 +440,23 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
 
   const handleVoiceCommand = useCallback(
     (command: VoiceCommand) => {
+      if (command.type === "goto_round") {
+        const target = findSlideIndexForRoundIntro(slides, command.roundNumber);
+        if (target != null) setIndex(target);
+        return;
+      }
       if (command.type === "goto_question") {
         const roundNumber = presentationRoundAtSlide(slides, index);
-        const target = findSlideIndexForQuestionInRound(slides, roundNumber, command.questionNumber);
-        if (target != null) {
-          setIndex(target);
-        }
+        const currentSlide = slides[index];
+        const preferAnswerPhase =
+          currentSlide?.type === "answer_phase" || currentSlide?.type === "answers_intro";
+        const target = findSlideIndexForQuestionInRound(
+          slides,
+          roundNumber,
+          command.questionNumber,
+          preferAnswerPhase
+        );
+        if (target != null) setIndex(target);
         return;
       }
       if (command.type === "next") goNext();
@@ -559,7 +571,7 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
                 onChange={(e) => setVoiceEnabled(e.target.checked)}
               />
               <span className="text-sm text-white/75 leading-snug">
-                Ovládanie hlasom: „otázka jedna“, „otázka päť“… (v aktuálnom kole), prípadne „ďalej“ / „späť“.
+                Ovládanie hlasom: „prvé kolo“ … „štvrté kolo“, „otázka jedna“… v aktuálnom kole, „ďalej“ / „späť“.
                 Odporúčame Chrome.
               </span>
             </label>
@@ -644,7 +656,8 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
     slide?.type === "image_slide"
       ? slide.question
       : null;
-  const showQuestionBadge = slide?.type === "question_phase" || slide?.type === "image_slide";
+  const showQuestionBadge =
+    slide?.type === "question_phase" || slide?.type === "image_slide" || slide?.type === "answer_phase";
 
   return (
     <div

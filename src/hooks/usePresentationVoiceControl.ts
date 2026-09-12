@@ -14,7 +14,8 @@ const COMMAND_COOLDOWN_MS = 2800;
 const RECOGNITION_LANGS = ["sk-SK", "cs-CZ"] as const;
 
 function commandKey(command: VoiceCommand): string {
-  if (command.type === "goto_question") return `goto-${command.questionNumber}`;
+  if (command.type === "goto_question") return `goto-q-${command.questionNumber}`;
+  if (command.type === "goto_round") return `goto-r-${command.roundNumber}`;
   return command.type;
 }
 

@@ -69,6 +69,7 @@ const QUESTION_NUMBER_WORDS: Record<string, number> = {
 
 export type VoiceCommand =
   | { type: "goto_question"; questionNumber: number }
+  | { type: "goto_round"; roundNumber: number }
   | { type: "next" }
   | { type: "prev" };
 
@@ -105,6 +106,25 @@ function parseQuestionNumberFromSpeech(normalized: string): number | null {
   return null;
 }
 
+function parseRoundNumberFromSpeech(normalized: string): number | null {
+  if (!normalized.includes("kolo")) return null;
+
+  if (/prv\w*\s+kolo|kolo\s+prv\w*|prve\s+kolo|prva\s+kolo/.test(normalized)) return 1;
+  if (/druh\w*\s+kolo|kolo\s+druh\w*|druhe\s+kolo/.test(normalized)) return 2;
+  if (/tret\w*\s+kolo|kolo\s+tret\w*|tretie\s+kolo/.test(normalized)) return 3;
+  if (/stvrt\w*\s+kolo|stvr\w*\s+kolo|kolo\s+stvrt\w*|kolo\s+stvr\w*|stvrte\s+kolo/.test(normalized)) {
+    return 4;
+  }
+
+  const digitMatch = normalized.match(/kolo\s*(\d)/);
+  if (digitMatch) {
+    const num = Number(digitMatch[1]);
+    if (num >= 1 && num <= 4) return num;
+  }
+
+  return null;
+}
+
 export function matchVoiceCommand(transcript: string): VoiceCommand | null {
   const n = normalizeSpeechText(transcript);
   if (!n) return null;
@@ -112,6 +132,11 @@ export function matchVoiceCommand(transcript: string): VoiceCommand | null {
   const questionNumber = parseQuestionNumberFromSpeech(n);
   if (questionNumber != null) {
     return { type: "goto_question", questionNumber };
+  }
+
+  const roundNumber = parseRoundNumberFromSpeech(n);
+  if (roundNumber != null) {
+    return { type: "goto_round", roundNumber };
   }
 
   for (const phrase of PREV_SUBSTRINGS) {

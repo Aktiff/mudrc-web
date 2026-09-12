@@ -91,23 +91,43 @@ export function presentationRoundAtSlide(
   return 1;
 }
 
-/** Prvý slide danej otázky v kole (obrázok pred otázkou, ak existuje). */
+/** Slide úvodu kola („1. kolo“). */
+export function findSlideIndexForRoundIntro(
+  slides: PresentationSlide[],
+  roundNumber: number
+): number | null {
+  for (let i = 0; i < slides.length; i += 1) {
+    const slide = slides[i];
+    if (slide.type === "round" && slide.roundNumber === roundNumber) {
+      return i;
+    }
+  }
+  return null;
+}
+
+/** Slide otázky v kole; pri `preferAnswerPhase` skočí na správnu odpoveď, ak existuje. */
 export function findSlideIndexForQuestionInRound(
   slides: PresentationSlide[],
   roundNumber: number,
-  questionNumber: number
+  questionNumber: number,
+  preferAnswerPhase = false
 ): number | null {
+  let firstMatch: number | null = null;
+  let answerMatch: number | null = null;
+
   for (let i = 0; i < slides.length; i += 1) {
     const slide = slides[i];
     if (slide.type !== "question_phase" && slide.type !== "image_slide" && slide.type !== "answer_phase") {
       continue;
     }
     const { roundNumber: r, questionNumber: qn } = slide.question;
-    if (r === roundNumber && qn === questionNumber) {
-      return i;
-    }
+    if (r !== roundNumber || qn !== questionNumber) continue;
+    if (firstMatch == null) firstMatch = i;
+    if (slide.type === "answer_phase") answerMatch = i;
   }
-  return null;
+
+  if (preferAnswerPhase && answerMatch != null) return answerMatch;
+  return firstMatch;
 }
 
 export function questionPhaseTitle(question: QuizQuestionItem): string {
