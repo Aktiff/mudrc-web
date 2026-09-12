@@ -2,7 +2,11 @@
 
 import { useState } from "react";
 import { Upload, X } from "lucide-react";
-import { MAX_AUDIO_BYTES, MAX_AUDIO_SERVER_BYTES } from "@/lib/audio-upload";
+import {
+  guessAudioContentType,
+  MAX_AUDIO_BYTES,
+  MAX_AUDIO_SERVER_BYTES,
+} from "@/lib/audio-upload";
 
 type Props = {
   label?: string;
@@ -20,7 +24,7 @@ function messageFromUploadResponse(res: Response, text: string): string {
     /* not JSON */
   }
   if (res.status === 413) {
-    return "Súbor je príliš veľký — skráť ukážku na ~30 s alebo vlož URL.";
+    return "Súbor je príliš veľký na upload cez server — skúsim priamy upload do úložiska.";
   }
   if (text.trim()) return text.slice(0, 280);
   return `Nepodarilo sa nahrať audio (HTTP ${res.status}).`;
@@ -48,15 +52,63 @@ async function uploadViaServer(file: File): Promise<string> {
   return data.url;
 }
 
-async function uploadViaBlobClient(file: File): Promise<string> {
-  const { upload } = await import("@vercel/blob/client");
-  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-") || "ukazka.mp3";
-  const blob = await upload(`mudrc/audio/${Date.now()}-${safeName}`, file, {
-    access: "public",
-    handleUploadUrl: "/api/admin/upload/audio",
+async function uploadViaSupabaseStorage(file: File): Promise<string> {
+  const contentType = guessAudioContentType(file.name, file.type || "");
+  const prep = await fetch("/api/admin/upload/audio", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      fileName: file.name,
+      contentType,
+      fileSize: file.size,
+    }),
   });
-  if (!blob.url) throw new Error("Blob upload nevrátil URL.");
-  return blob.url;
+  const prepText = await prep.text();
+  if (!prep.ok) {
+    throw new Error(messageFromUploadResponse(prep, prepText));
+  }
+
+  let signed: {
+    signedUrl?: string;
+    token?: string;
+    publicUrl?: string;
+    contentType?: string;
+  } = {};
+  try {
+    signed = JSON.parse(prepText) as typeof signed;
+  } catch {
+    throw new Error("Neplatná odpoveď pri príprave uploadu.");
+  }
+  if (!signed.signedUrl || !signed.publicUrl) {
+    throw new Error("Úložisko nevrátilo upload URL.");
+  }
+
+  const uploadType = signed.contentType || contentType;
+  let uploadRes = await fetch(signed.signedUrl, {
+    method: "PUT",
+    body: file,
+    headers: { "Content-Type": uploadType },
+  });
+
+  if (!uploadRes.ok && signed.token) {
+    uploadRes = await fetch(signed.signedUrl, {
+      method: "PUT",
+      body: file,
+      headers: {
+        "Content-Type": uploadType,
+        Authorization: `Bearer ${signed.token}`,
+      },
+    });
+  }
+
+  if (!uploadRes.ok) {
+    throw new Error(
+      `Upload do Supabase Storage zlyhal (HTTP ${uploadRes.status}). Skontroluj bucket uploads a MIME typy audio v SQL (scripts/supabase.sql).`
+    );
+  }
+
+  return signed.publicUrl;
 }
 
 export default function AudioUrlField({
@@ -82,20 +134,16 @@ export default function AudioUrlField({
     try {
       let url: string;
       if (file.size > MAX_AUDIO_SERVER_BYTES) {
-        url = await uploadViaBlobClient(file);
+        url = await uploadViaSupabaseStorage(file);
       } else {
         try {
           url = await uploadViaServer(file);
-        } catch (serverErr) {
-          try {
-            url = await uploadViaBlobClient(file);
-          } catch {
-            throw serverErr;
-          }
+        } catch {
+          url = await uploadViaSupabaseStorage(file);
         }
       }
       onChange(url);
-      onUploadSuccess?.("Audio nahrané.");
+      onUploadSuccess?.("Audio nahrané do úložiska.");
     } catch (err) {
       const text = err instanceof Error ? err.message : "Chyba pri nahrávaní audio.";
       onUploadError?.(text);
@@ -138,7 +186,7 @@ export default function AudioUrlField({
         )}
       </div>
       <p className="text-brand-muted text-xs mt-1.5">
-        Odporúčaná dĺžka ~30 s. Veľké MP3 sa nahrávajú priamo do úložiska (nie cez server).
+        Súbor ide do Supabase Storage (bucket uploads) — rovnaké úložisko ako fotky podnikov. Odporúčaná dĺžka ~30 s.
       </p>
       {value.trim() && (
         <audio controls src={value} className="w-full max-w-md mt-2" preload="metadata" />

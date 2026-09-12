@@ -26,8 +26,8 @@ export function formatSupabaseAudioUploadError(message: string): string {
   const lower = message.toLowerCase();
   if (lower.includes("mime") || lower.includes("content type") || lower.includes("invalid")) {
     return (
-      "Supabase bucket „uploads“ neakceptuje audio. V Storage → uploads povol MIME audio/mpeg (alebo zruš obmedzenie typov). " +
-      "Alternatíva: na Verceli zapni Blob store — audio pôjde priamo tam."
+      "Supabase bucket „uploads“ neakceptuje audio. V SQL Editore znova spusti scripts/supabase.sql (povolené MIME pre MP3) " +
+      "alebo v Storage → uploads zruš obmedzenie typov súborov."
     );
   }
   return `Supabase upload failed: ${message}`;

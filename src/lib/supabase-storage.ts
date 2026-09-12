@@ -213,6 +213,32 @@ export async function supabaseUploadPublicImage(
   return supabaseUploadPublicFile("events", fileName, data, contentType);
 }
 
+export type SupabaseSignedAudioUpload = {
+  signedUrl: string;
+  path: string;
+  token: string;
+  publicUrl: string;
+};
+
+export async function supabaseCreateSignedAudioUpload(fileName: string): Promise<SupabaseSignedAudioUpload> {
+  const supabase = getSupabase();
+  const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, "-") || "clip.mp3";
+  const objectPath = `audio/${Date.now()}-${safeName}`;
+
+  const { data, error } = await supabase.storage.from("uploads").createSignedUploadUrl(objectPath);
+  if (error || !data?.signedUrl || !data.path || !data.token) {
+    throw new Error(error?.message ?? "Nepodarilo sa pripraviť upload do Supabase Storage.");
+  }
+
+  const { data: publicUrl } = supabase.storage.from("uploads").getPublicUrl(objectPath);
+  return {
+    signedUrl: data.signedUrl,
+    path: data.path,
+    token: data.token,
+    publicUrl: publicUrl.publicUrl,
+  };
+}
+
 export function getSupabaseStorageDiagnostics() {
   return {
     configured: hasSupabaseStorage(),

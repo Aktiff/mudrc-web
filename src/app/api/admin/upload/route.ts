@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
-import { put } from "@vercel/blob";
 import {
   formatSupabaseAudioUploadError,
   guessAudioContentType,
@@ -10,7 +9,6 @@ import {
   MAX_AUDIO_SERVER_BYTES,
 } from "@/lib/audio-upload";
 import { hasSupabaseStorage, supabaseUploadPublicFile, supabaseUploadPublicImage } from "@/lib/supabase-storage";
-import { hasBlobStorage } from "@/lib/storage";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,14 +22,6 @@ async function uploadAudioBuffer(
 ): Promise<string> {
   const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, "-") || "clip.mp3";
 
-  if (hasBlobStorage()) {
-    const { url } = await put(`mudrc/audio/${Date.now()}-${safeName}`, buffer, {
-      access: "public",
-      contentType,
-    });
-    return url;
-  }
-
   if (hasSupabaseStorage()) {
     const ext = safeName.split(".").pop()?.toLowerCase() ?? "mp3";
     try {
@@ -44,7 +34,7 @@ async function uploadAudioBuffer(
 
   if (process.env.VERCEL) {
     throw new Error(
-      "Upload audio na produkcii vyžaduje Vercel Blob alebo Supabase s povoleným audio v buckete uploads."
+      "Upload audio na produkcii vyžaduje Supabase Storage (bucket uploads) — rovnako ako fotky v admin sekcii."
     );
   }
 
@@ -77,11 +67,11 @@ export async function POST(req: NextRequest) {
       if (file.size > MAX_AUDIO_BYTES) {
         return NextResponse.json({ error: "Maximálna veľkosť audio je 12 MB." }, { status: 400 });
       }
-      if (process.env.VERCEL && file.size > MAX_AUDIO_SERVER_BYTES && !hasBlobStorage()) {
+      if (process.env.VERCEL && file.size > MAX_AUDIO_SERVER_BYTES) {
         return NextResponse.json(
           {
             error:
-              "Súbor je príliš veľký na upload cez server (max ~3,5 MB). Skráť ukážku na ~30 s, zapni Vercel Blob, alebo vlož URL.",
+              "Súbor je príliš veľký na upload cez server (max ~3,5 MB). Editor použije priamy upload do Supabase — skús znova Nahrať.",
           },
           { status: 413 }
         );

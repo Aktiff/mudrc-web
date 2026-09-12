@@ -1,54 +1,74 @@
-import { handleUpload, type HandleUploadBody } from "@vercel/blob/client";
 import { NextResponse } from "next/server";
 import { isAdminRequest } from "@/lib/admin-session";
-import { MAX_AUDIO_BYTES } from "@/lib/audio-upload";
-import { hasBlobStorage } from "@/lib/storage";
+import {
+  formatSupabaseAudioUploadError,
+  guessAudioContentType,
+  isAllowedAudioFile,
+  MAX_AUDIO_BYTES,
+} from "@/lib/audio-upload";
+import { hasSupabaseStorage, supabaseCreateSignedAudioUpload } from "@/lib/supabase-storage";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const AUDIO_CONTENT_TYPES = [
-  "audio/mpeg",
-  "audio/mp3",
-  "audio/wav",
-  "audio/ogg",
-  "audio/mp4",
-  "audio/x-m4a",
-  "audio/aac",
-  "application/octet-stream",
-];
+type SignedUploadBody = {
+  fileName?: string;
+  contentType?: string;
+  fileSize?: number;
+};
 
+/** Pripraví priamy upload do Supabase Storage (obíde limit tela requestu na Verceli). */
 export async function POST(request: Request): Promise<NextResponse> {
   if (!isAdminRequest(request)) {
     return NextResponse.json({ error: "Neautorizovaný prístup" }, { status: 401 });
   }
 
-  if (!hasBlobStorage()) {
+  if (!hasSupabaseStorage()) {
     return NextResponse.json(
       {
         error:
-          "Priame nahrávanie veľkých súborov vyžaduje Vercel Blob (BLOB_READ_WRITE_TOKEN). Skús menší súbor (~30 s) alebo vlož URL.",
+          "Chýba Supabase (SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY). Audio sa ukladá do bucketu uploads — rovnako ako fotky podnikov.",
       },
       { status: 503 }
     );
   }
 
-  const body = (await request.json()) as HandleUploadBody;
+  let body: SignedUploadBody;
+  try {
+    body = (await request.json()) as SignedUploadBody;
+  } catch {
+    return NextResponse.json({ error: "Neplatné telo požiadavky." }, { status: 400 });
+  }
+
+  const fileName = typeof body.fileName === "string" ? body.fileName : "";
+  const fileSize = typeof body.fileSize === "number" ? body.fileSize : 0;
+  const contentType = typeof body.contentType === "string" ? body.contentType : "";
+
+  if (!fileName.trim()) {
+    return NextResponse.json({ error: "Chýba názov súboru." }, { status: 400 });
+  }
+  if (!isAllowedAudioFile(fileName, contentType)) {
+    return NextResponse.json({ error: "Povolené sú audio súbory (MP3, M4A, WAV, OGG)." }, { status: 400 });
+  }
+  if (fileSize <= 0 || fileSize > MAX_AUDIO_BYTES) {
+    return NextResponse.json(
+      { error: "Maximálna veľkosť audio je 12 MB — skráť ukážku na ~30 s." },
+      { status: 400 }
+    );
+  }
 
   try {
-    const jsonResponse = await handleUpload({
-      body,
-      request,
-      onBeforeGenerateToken: async () => ({
-        allowedContentTypes: AUDIO_CONTENT_TYPES,
-        maximumSizeInBytes: MAX_AUDIO_BYTES,
-        addRandomSuffix: true,
-      }),
+    const signed = await supabaseCreateSignedAudioUpload(fileName);
+    return NextResponse.json({
+      ...signed,
+      contentType: guessAudioContentType(fileName, contentType),
     });
-    return NextResponse.json(jsonResponse);
   } catch (error) {
-    console.error("audio client upload error:", error);
-    const message = error instanceof Error ? error.message : "Nepodarilo sa nahrať audio.";
-    return NextResponse.json({ error: message }, { status: 400 });
+    console.error("signed audio upload prep error:", error);
+    const message = error instanceof Error ? error.message : "Nepodarilo sa pripraviť upload.";
+    return NextResponse.json(
+      { error: formatSupabaseAudioUploadError(message) },
+      { status: 500 }
+    );
   }
 }
