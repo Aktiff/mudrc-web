@@ -7,7 +7,7 @@ import { normalizeQuestionOptions, parseEmbeddedOptions } from "@/lib/quiz-quest
 import { normalizeTags } from "@/lib/quiz-question-tags";
 import { teamKey } from "@/lib/poll";
 
-export type QuizQuestionKind = "normal" | "music";
+export type QuizQuestionKind = "normal" | "sound" | "video" | "music";
 
 export type QuizQuestionItem = {
   id: string;
@@ -26,6 +26,9 @@ export type QuizQuestionItem = {
   bankQuestionId?: string;
   imageUrl?: string;
   audioUrl?: string;
+  videoUrl?: string;
+  /** Popis ukážky z banky (zvuk / video) — pre vrátenie do banky */
+  mediaLabel?: string;
   /** true = obrázok aj pri otázke */
   imageDuringQuestion: boolean;
   /** true = fullscreen slide s fotkou pred otázkou */
@@ -96,7 +99,14 @@ function normalizeQuestion(input: Partial<QuizQuestionItem>): QuizQuestionItem |
     id: String(input.id),
     roundNumber: Number(input.roundNumber),
     questionNumber: Number(input.questionNumber),
-    kind: input.kind === "music" ? "music" : "normal",
+    kind:
+      input.kind === "music"
+        ? "music"
+        : input.kind === "sound"
+          ? "sound"
+          : input.kind === "video"
+            ? "video"
+            : "normal",
     body,
     answer: input.answer?.trim() ?? "",
     musicArtist: input.musicArtist?.trim() || undefined,
@@ -105,6 +115,8 @@ function normalizeQuestion(input: Partial<QuizQuestionItem>): QuizQuestionItem |
     bankQuestionId: input.bankQuestionId?.trim() || undefined,
     imageUrl: input.imageUrl?.trim() || undefined,
     audioUrl: input.audioUrl?.trim() || undefined,
+    videoUrl: input.videoUrl?.trim() || undefined,
+    mediaLabel: input.mediaLabel?.trim() || undefined,
     imageDuringQuestion: Boolean(input.imageDuringQuestion),
     imageBeforeQuestion: Boolean(input.imageBeforeQuestion),
     imageOnNextSlide: Boolean(input.imageOnNextSlide),
@@ -202,6 +214,20 @@ export function isQuestionSlotEmpty(question: QuizQuestionItem): boolean {
 export function findFirstEmptyMusicSlot(questions: QuizQuestionItem[]): QuizQuestionItem | undefined {
   return [...questions]
     .filter((q) => q.kind === "music")
+    .sort((a, b) => a.questionNumber - b.questionNumber)
+    .find(isQuestionSlotEmpty);
+}
+
+export function findFirstEmptySoundSlot(questions: QuizQuestionItem[]): QuizQuestionItem | undefined {
+  return [...questions]
+    .filter((q) => q.kind === "sound")
+    .sort((a, b) => a.questionNumber - b.questionNumber)
+    .find(isQuestionSlotEmpty);
+}
+
+export function findFirstEmptyVideoSlot(questions: QuizQuestionItem[]): QuizQuestionItem | undefined {
+  return [...questions]
+    .filter((q) => q.kind === "video")
     .sort((a, b) => a.questionNumber - b.questionNumber)
     .find(isQuestionSlotEmpty);
 }

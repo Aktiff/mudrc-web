@@ -55,13 +55,15 @@ export function buildBankTagWeightMap(
 
   if (!targetQuestionId) return weights;
 
-  const target = roundQuestions.find((q) => q.id === targetQuestionId && q.kind !== "music");
+  const target = roundQuestions.find(
+    (q) => q.id === targetQuestionId && q.kind === "normal"
+  );
   if (!target) return weights;
 
   const slot = target.questionNumber;
   const nearby = roundQuestions.filter(
     (q) =>
-      q.kind !== "music" &&
+      q.kind === "normal" &&
       isQuestionFilledForTags(q) &&
       Math.abs(q.questionNumber - slot) <= 2
   );

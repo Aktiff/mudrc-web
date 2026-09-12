@@ -12,6 +12,8 @@ const POLL_VOTES_KEY = "poll-votes";
 const SEAT_PLANS_KEY = "seat-plans";
 const CUSTOM_BANK_KEY = "custom-bank-questions";
 const MUSIC_BANK_KEY = "music-bank";
+const SOUND_BANK_KEY = "sound-bank";
+const VIDEO_BANK_KEY = "video-bank";
 const eventLeagueKey = (slug: string) => `event-league:${slug}`;
 
 export type EventLeagueData = {
@@ -177,6 +179,22 @@ export async function supabaseSetMusicBank(data: { tracks: unknown[] }): Promise
   await supabaseSet(MUSIC_BANK_KEY, data);
 }
 
+export async function supabaseFetchSoundBank(): Promise<SupabaseFetchResult<{ clips: unknown[] }>> {
+  return supabaseFetch<{ clips: unknown[] }>(SOUND_BANK_KEY);
+}
+
+export async function supabaseSetSoundBank(data: { clips: unknown[] }): Promise<void> {
+  await supabaseSet(SOUND_BANK_KEY, data);
+}
+
+export async function supabaseFetchVideoBank(): Promise<SupabaseFetchResult<{ clips: unknown[] }>> {
+  return supabaseFetch<{ clips: unknown[] }>(VIDEO_BANK_KEY);
+}
+
+export async function supabaseSetVideoBank(data: { clips: unknown[] }): Promise<void> {
+  await supabaseSet(VIDEO_BANK_KEY, data);
+}
+
 export async function supabaseFetchEventLeague(slug: string): Promise<SupabaseFetchResult<EventLeagueData>> {
   return supabaseFetch<EventLeagueData>(eventLeagueKey(slug));
 }
@@ -186,7 +204,7 @@ export async function supabaseSetEventLeague(slug: string, data: EventLeagueData
 }
 
 export async function supabaseUploadPublicFile(
-  folder: "events" | "audio",
+  folder: "events" | "audio" | "video",
   fileName: string,
   data: Buffer,
   contentType: string
@@ -221,9 +239,21 @@ export type SupabaseSignedAudioUpload = {
 };
 
 export async function supabaseCreateSignedAudioUpload(fileName: string): Promise<SupabaseSignedAudioUpload> {
+  return supabaseCreateSignedMediaUpload("audio", fileName, "clip.mp3");
+}
+
+export async function supabaseCreateSignedVideoUpload(fileName: string): Promise<SupabaseSignedAudioUpload> {
+  return supabaseCreateSignedMediaUpload("video", fileName, "clip.mp4");
+}
+
+async function supabaseCreateSignedMediaUpload(
+  folder: "audio" | "video",
+  fileName: string,
+  fallbackName: string
+): Promise<SupabaseSignedAudioUpload> {
   const supabase = getSupabase();
-  const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, "-") || "clip.mp3";
-  const objectPath = `audio/${Date.now()}-${safeName}`;
+  const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, "-") || fallbackName;
+  const objectPath = `${folder}/${Date.now()}-${safeName}`;
 
   const { data, error } = await supabase.storage.from("uploads").createSignedUploadUrl(objectPath);
   if (error || !data?.signedUrl || !data.path || !data.token) {

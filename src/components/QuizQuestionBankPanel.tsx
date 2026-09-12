@@ -3,7 +3,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { BookOpen, Check, ClipboardCopy, Shuffle, Trash2 } from "lucide-react";
 import type { QuizQuestionItem } from "@/lib/quiz-library";
-import { findFirstEmptyMusicSlot, findFirstEmptyQuestionSlot, isQuestionSlotEmpty } from "@/lib/quiz-library";
+import {
+  findFirstEmptyMusicSlot,
+  findFirstEmptyQuestionSlot,
+  findFirstEmptySoundSlot,
+  findFirstEmptyVideoSlot,
+  isQuestionSlotEmpty,
+} from "@/lib/quiz-library";
 import {
   applyBankQuestionOrder,
   bankQuestionTagScore,
@@ -35,8 +41,22 @@ import {
   type MusicBankItem,
 } from "@/lib/music-bank";
 import { fetchMusicBankFromServer, removeMusicBankItemAsync } from "@/lib/music-bank-client";
+import {
+  formatSoundBankHostNote,
+  isSoundBankId,
+  type SoundBankItem,
+} from "@/lib/sound-bank";
+import { fetchSoundBankFromServer, removeSoundBankItemAsync } from "@/lib/sound-bank-client";
+import {
+  formatVideoBankHostNote,
+  isVideoBankId,
+  type VideoBankItem,
+} from "@/lib/video-bank";
+import { fetchVideoBankFromServer, removeVideoBankItemAsync } from "@/lib/video-bank-client";
 
-type BankSourceFilter = "all" | "custom" | "generated" | "music";
+type BankSourceFilter = "all" | "custom" | "generated" | "sound" | "video" | "music";
+
+const MEDIA_FILTERS = new Set<BankSourceFilter>(["music", "sound", "video"]);
 
 type Props = {
   roundQuestions: QuizQuestionItem[];
@@ -44,9 +64,13 @@ type Props = {
   usedBankQuestionIds: string[];
   customBankQuestions?: QuizBankQuestion[];
   musicBankTracks?: MusicBankItem[];
+  soundBankClips?: SoundBankItem[];
+  videoBankClips?: VideoBankItem[];
   openRound?: number;
   onCustomBankChange?: () => void;
   onMusicBankChange?: () => void;
+  onSoundBankChange?: () => void;
+  onVideoBankChange?: () => void;
   onInsert: (
     bankId: string,
     targetQuestionId: string,
@@ -64,6 +88,22 @@ type Props = {
     artist: string,
     title: string,
     audioUrl: string,
+    hostNote?: string
+  ) => void;
+  onInsertSound?: (
+    bankId: string,
+    targetQuestionId: string,
+    label: string,
+    answer: string,
+    audioUrl: string,
+    hostNote?: string
+  ) => void;
+  onInsertVideo?: (
+    bankId: string,
+    targetQuestionId: string,
+    label: string,
+    answer: string,
+    videoUrl: string,
     hostNote?: string
   ) => void;
 };
@@ -96,11 +136,17 @@ export default function QuizQuestionBankPanel({
   usedBankQuestionIds,
   customBankQuestions: customBankQuestionsProp,
   musicBankTracks: musicBankTracksProp,
+  soundBankClips: soundBankClipsProp,
+  videoBankClips: videoBankClipsProp,
   openRound = 1,
   onCustomBankChange,
   onMusicBankChange,
+  onSoundBankChange,
+  onVideoBankChange,
   onInsert,
   onInsertMusic,
+  onInsertSound,
+  onInsertVideo,
 }: Props) {
   const [hiddenIds, setHiddenIds] = useState<string[]>([]);
   const [targetByBankId, setTargetByBankId] = useState<Record<string, string>>({});
@@ -110,9 +156,13 @@ export default function QuizQuestionBankPanel({
   const [sourceFilter, setSourceFilter] = useState<BankSourceFilter>("all");
   const [localCustom, setLocalCustom] = useState<CustomBankQuestion[]>([]);
   const [localMusic, setLocalMusic] = useState<MusicBankItem[]>([]);
+  const [localSound, setLocalSound] = useState<SoundBankItem[]>([]);
+  const [localVideo, setLocalVideo] = useState<VideoBankItem[]>([]);
 
   const customBankQuestions = customBankQuestionsProp ?? localCustom;
   const musicBankTracks = musicBankTracksProp ?? localMusic;
+  const soundBankClips = soundBankClipsProp ?? localSound;
+  const videoBankClips = videoBankClipsProp ?? localVideo;
 
   useEffect(() => {
     if (customBankQuestionsProp) return;
@@ -128,6 +178,16 @@ export default function QuizQuestionBankPanel({
     if (musicBankTracksProp) return;
     void fetchMusicBankFromServer().then(setLocalMusic);
   }, [musicBankTracksProp]);
+
+  useEffect(() => {
+    if (soundBankClipsProp) return;
+    void fetchSoundBankFromServer().then(setLocalSound);
+  }, [soundBankClipsProp]);
+
+  useEffect(() => {
+    if (videoBankClipsProp) return;
+    void fetchVideoBankFromServer().then(setLocalVideo);
+  }, [videoBankClipsProp]);
 
   useEffect(() => {
     setHiddenIds(readHiddenBankQuestionIds());
@@ -155,8 +215,16 @@ export default function QuizQuestionBankPanel({
       (t) => isMusicBankId(t.id) && !usedBankQuestionIds.includes(t.id)
     ).length;
     const musicTotal = musicBankTracks.length;
-    return { all: availableQuestions.length, custom, generated, music, musicTotal };
-  }, [availableQuestions, musicBankTracks, usedBankQuestionIds]);
+    const sound = soundBankClips.filter(
+      (t) => isSoundBankId(t.id) && !usedBankQuestionIds.includes(t.id)
+    ).length;
+    const soundTotal = soundBankClips.length;
+    const video = videoBankClips.filter(
+      (t) => isVideoBankId(t.id) && !usedBankQuestionIds.includes(t.id)
+    ).length;
+    const videoTotal = videoBankClips.length;
+    return { all: availableQuestions.length, custom, generated, music, musicTotal, sound, soundTotal, video, videoTotal };
+  }, [availableQuestions, musicBankTracks, soundBankClips, videoBankClips, usedBankQuestionIds]);
 
   const bankTags = useMemo(() => collectTagsFromBank(availableQuestions), [availableQuestions]);
 
@@ -228,6 +296,102 @@ export default function QuizQuestionBankPanel({
     void removeMusicBankItemAsync(id).then(() => onMusicBankChange?.());
   };
 
+  const soundQuestionsInRound = useMemo(
+    () =>
+      roundQuestions
+        .filter((q) => q.kind === "sound")
+        .sort((a, b) => a.questionNumber - b.questionNumber),
+    [roundQuestions]
+  );
+
+  const defaultSoundTargetId = useMemo(
+    () => findFirstEmptySoundSlot(soundQuestionsInRound)?.id ?? soundQuestionsInRound[0]?.id ?? "",
+    [soundQuestionsInRound]
+  );
+
+  const visibleSoundClips = useMemo(
+    () =>
+      soundBankClips.filter(
+        (clip) => isSoundBankId(clip.id) && !usedBankQuestionIds.includes(clip.id)
+      ),
+    [soundBankClips, usedBankQuestionIds]
+  );
+
+  const getSoundTargetId = (bankId: string) => targetByBankId[bankId] || defaultSoundTargetId;
+
+  const handleInsertSound = (clip: SoundBankItem) => {
+    if (!onInsertSound) return;
+    const targetId = getSoundTargetId(clip.id);
+    if (!targetId) return;
+    onInsertSound(
+      clip.id,
+      targetId,
+      clip.label,
+      clip.answer,
+      clip.audioUrl,
+      formatSoundBankHostNote(clip)
+    );
+    void removeSoundBankItemAsync(clip.id).then(() => onSoundBankChange?.());
+    setTargetByBankId((prev) => {
+      const next = { ...prev };
+      delete next[clip.id];
+      return next;
+    });
+  };
+
+  const dismissSoundClip = (id: string) => {
+    if (!window.confirm("Odstrániť túto zvukovú ukážku z banky?")) return;
+    void removeSoundBankItemAsync(id).then(() => onSoundBankChange?.());
+  };
+
+  const videoQuestionsInRound = useMemo(
+    () =>
+      roundQuestions
+        .filter((q) => q.kind === "video")
+        .sort((a, b) => a.questionNumber - b.questionNumber),
+    [roundQuestions]
+  );
+
+  const defaultVideoTargetId = useMemo(
+    () => findFirstEmptyVideoSlot(videoQuestionsInRound)?.id ?? videoQuestionsInRound[0]?.id ?? "",
+    [videoQuestionsInRound]
+  );
+
+  const visibleVideoClips = useMemo(
+    () =>
+      videoBankClips.filter(
+        (clip) => isVideoBankId(clip.id) && !usedBankQuestionIds.includes(clip.id)
+      ),
+    [videoBankClips, usedBankQuestionIds]
+  );
+
+  const getVideoTargetId = (bankId: string) => targetByBankId[bankId] || defaultVideoTargetId;
+
+  const handleInsertVideo = (clip: VideoBankItem) => {
+    if (!onInsertVideo) return;
+    const targetId = getVideoTargetId(clip.id);
+    if (!targetId) return;
+    onInsertVideo(
+      clip.id,
+      targetId,
+      clip.label,
+      clip.answer,
+      clip.videoUrl,
+      formatVideoBankHostNote(clip)
+    );
+    void removeVideoBankItemAsync(clip.id).then(() => onVideoBankChange?.());
+    setTargetByBankId((prev) => {
+      const next = { ...prev };
+      delete next[clip.id];
+      return next;
+    });
+  };
+
+  const dismissVideoClip = (id: string) => {
+    if (!window.confirm("Odstrániť toto video z banky?")) return;
+    void removeVideoBankItemAsync(id).then(() => onVideoBankChange?.());
+  };
+
   useEffect(() => {
     setManualOrderIds(null);
   }, [excludedTags, sourceFilter, usedBankKey, customBankKey]);
@@ -255,7 +419,7 @@ export default function QuizQuestionBankPanel({
   };
 
   const visibleQuestions = useMemo(() => {
-    if (sourceFilter === "music") return [];
+    if (MEDIA_FILTERS.has(sourceFilter)) return [];
     if (manualOrderIds?.length) {
       return applyBankQuestionOrder(filteredQuestions, manualOrderIds);
     }
@@ -393,15 +557,20 @@ export default function QuizQuestionBankPanel({
             <p className="text-brand-muted text-xs mt-0.5 leading-relaxed">
               {sourceFilter === "music"
                 ? `${visibleMusicTracks.length} skladieb v banke hudby${openRound === 4 ? " · ciel: hudobné sloty v 4. kole" : " · prepni na kolo 4 pre vloženie"}`
-                : `${visibleQuestions.length} textových otázok k dispozícii`}
-              {sourceFilter !== "all" && sourceFilter !== "music"
+                : sourceFilter === "sound"
+                  ? `${visibleSoundClips.length} zvukových ukážok${openRound === 3 ? " · ciel: zvuk v 3. kole" : " · prepni na kolo 3"}`
+                  : sourceFilter === "video"
+                    ? `${visibleVideoClips.length} video ukážok${openRound === 4 ? " · ciel: video v 4. kole" : " · prepni na kolo 4"}`
+                    : `${visibleQuestions.length} textových otázok k dispozícii`}
+              {sourceFilter !== "all" && !MEDIA_FILTERS.has(sourceFilter)
                 ? ` · filter: ${sourceFilter === "custom" ? "moje" : "vygenerované"}`
                 : ""}
-              {sourceFilter !== "music" && manualOrderIds
+              {!MEDIA_FILTERS.has(sourceFilter) && manualOrderIds
                 ? " · premiešané podľa tagov"
-                : sourceFilter !== "music" && customBankQuestions.some((q) => !usedBankQuestionIds.includes(q.id))
+                : !MEDIA_FILTERS.has(sourceFilter) &&
+                    customBankQuestions.some((q) => !usedBankQuestionIds.includes(q.id))
                   ? " · tvoje otázky navrchu"
-                  : sourceFilter !== "music"
+                  : !MEDIA_FILTERS.has(sourceFilter)
                     ? " · zoradené podľa najmenej použitých tagov"
                     : ""}
             </p>
@@ -409,7 +578,7 @@ export default function QuizQuestionBankPanel({
           <button
             type="button"
             onClick={shuffleQuestions}
-            disabled={sourceFilter === "music" || filteredQuestions.length < 2}
+            disabled={MEDIA_FILTERS.has(sourceFilter) || filteredQuestions.length < 2}
             className="btn-outline text-xs py-2 px-2.5 inline-flex items-center gap-1.5 shrink-0 disabled:opacity-40"
             title="Premieša poradie — menej použité tagy navrchu, rovnaké tagy nie hneď za sebou"
           >
@@ -424,6 +593,8 @@ export default function QuizQuestionBankPanel({
               ["all", "Všetky", sourceCounts.all],
               ["custom", "Moje otázky", sourceCounts.custom],
               ["generated", "Vygenerované", sourceCounts.generated],
+              ["sound", "Zvuk", sourceCounts.soundTotal],
+              ["video", "Video", sourceCounts.videoTotal],
               ["music", "Hudba", sourceCounts.musicTotal],
             ] as const
           ).map(([key, label, count]) => (
@@ -448,7 +619,19 @@ export default function QuizQuestionBankPanel({
           </p>
         )}
 
-        {bankTags.length > 0 && sourceFilter !== "music" && (
+        {sourceFilter === "sound" && (
+          <p className="text-xs font-semibold text-sky-800 dark:text-sky-200 bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800 rounded-lg px-3 py-2 leading-relaxed">
+            Hlasy a zvuky — vlož do slotov „Zvuk 1–5“ v 3. kole.
+          </p>
+        )}
+
+        {sourceFilter === "video" && (
+          <p className="text-xs font-semibold text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-2 leading-relaxed">
+            Filmové ukážky — vlož do slotov „Video 1–5“ v 4. kole (pred hudbou).
+          </p>
+        )}
+
+        {bankTags.length > 0 && !MEDIA_FILTERS.has(sourceFilter) && (
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-wider text-brand-muted mb-1.5">
               Skryť otázky s tagom
@@ -480,7 +663,95 @@ export default function QuizQuestionBankPanel({
       </div>
 
       <div className="flex-1 overflow-y-auto overscroll-y-contain px-4 py-3 space-y-3 min-h-0">
-        {sourceFilter === "music" ? (
+        {sourceFilter === "sound" ? (
+          visibleSoundClips.length === 0 ? (
+            <p className="text-brand-muted text-sm text-center py-8">
+              Banka zvuku je prázdna. Nahraj ukážky cez „Pridať zvukovú ukážku do banky“ hore v editore.
+            </p>
+          ) : (
+            visibleSoundClips.map((clip) => {
+              const targetId = getSoundTargetId(clip.id);
+              return (
+                <div key={clip.id} className="rounded-xl border border-sky-200 dark:border-sky-900 bg-brand-surface/50 p-3 space-y-2.5">
+                  <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-sky-100 text-sky-900 border border-sky-200">zvuk</span>
+                  <p className="text-sm font-semibold text-brand-text">{clip.label}</p>
+                  <p className="text-sm text-brand-muted">Odpoveď: {clip.answer}</p>
+                  {clip.audioUrl && <audio controls src={clip.audioUrl} className="w-full max-w-md" preload="metadata" />}
+                  <p className="text-xs text-brand-muted">{formatSoundBankHostNote(clip)}</p>
+                  {soundQuestionsInRound.length > 0 && onInsertSound ? (
+                    <div className="flex gap-2">
+                      <select
+                        className="input text-xs py-2 flex-1 min-w-0"
+                        value={targetId}
+                        onChange={(e) => setTargetByBankId((prev) => ({ ...prev, [clip.id]: e.target.value }))}
+                      >
+                        {soundQuestionsInRound.map((q) => (
+                          <option key={q.id} value={q.id}>
+                            Zvuk {q.questionNumber}
+                            {isQuestionSlotEmpty(q) ? " · prázdna" : " · obsadená"}
+                          </option>
+                        ))}
+                      </select>
+                      <button type="button" onClick={() => handleInsertSound(clip)} className="btn-primary text-xs py-2 px-3 shrink-0">
+                        Vložiť
+                      </button>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-amber-700 dark:text-amber-300">Pre vloženie prepni na kolo 3.</p>
+                  )}
+                  <button type="button" onClick={() => dismissSoundClip(clip.id)} className="btn-outline text-xs py-1.5 px-2 text-red-600 border-red-200">
+                    <Trash2 className="w-3 h-3 inline" /> Vymazať
+                  </button>
+                </div>
+              );
+            })
+          )
+        ) : sourceFilter === "video" ? (
+          visibleVideoClips.length === 0 ? (
+            <p className="text-brand-muted text-sm text-center py-8">
+              Banka videa je prázdna. Nahraj ukážky cez „Pridať video ukážku do banky“ hore v editore.
+            </p>
+          ) : (
+            visibleVideoClips.map((clip) => {
+              const targetId = getVideoTargetId(clip.id);
+              return (
+                <div key={clip.id} className="rounded-xl border border-amber-200 dark:border-amber-900 bg-brand-surface/50 p-3 space-y-2.5">
+                  <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-200">video</span>
+                  <p className="text-sm font-semibold text-brand-text">{clip.label}</p>
+                  <p className="text-sm text-brand-muted">Odpoveď: {clip.answer}</p>
+                  {clip.videoUrl && (
+                    <video controls src={clip.videoUrl} className="w-full max-w-md rounded-lg border border-brand-border" preload="metadata" />
+                  )}
+                  <p className="text-xs text-brand-muted">{formatVideoBankHostNote(clip)}</p>
+                  {videoQuestionsInRound.length > 0 && onInsertVideo ? (
+                    <div className="flex gap-2">
+                      <select
+                        className="input text-xs py-2 flex-1 min-w-0"
+                        value={targetId}
+                        onChange={(e) => setTargetByBankId((prev) => ({ ...prev, [clip.id]: e.target.value }))}
+                      >
+                        {videoQuestionsInRound.map((q) => (
+                          <option key={q.id} value={q.id}>
+                            Video {q.questionNumber}
+                            {isQuestionSlotEmpty(q) ? " · prázdna" : " · obsadená"}
+                          </option>
+                        ))}
+                      </select>
+                      <button type="button" onClick={() => handleInsertVideo(clip)} className="btn-primary text-xs py-2 px-3 shrink-0">
+                        Vložiť
+                      </button>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-amber-700 dark:text-amber-300">Pre vloženie prepni na kolo 4.</p>
+                  )}
+                  <button type="button" onClick={() => dismissVideoClip(clip.id)} className="btn-outline text-xs py-1.5 px-2 text-red-600 border-red-200">
+                    <Trash2 className="w-3 h-3 inline" /> Vymazať
+                  </button>
+                </div>
+              );
+            })
+          )
+        ) : sourceFilter === "music" ? (
           visibleMusicTracks.length === 0 ? (
             <p className="text-brand-muted text-sm text-center py-8">
               Banka hudby je prázdna. Nahraj skladby cez formulár „Pridať skladbu do banky hudby“ hore v editore.

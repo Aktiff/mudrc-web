@@ -182,11 +182,24 @@ function QuestionContent({
         imageHero ? "h-full max-h-[88vh] justify-start gap-5 sm:gap-6 pt-2 px-1" : "max-w-full w-full gap-7 sm:gap-9 px-1"
       }`}
     >
-      {phase === "question" && question.kind === "music" && question.audioUrl?.trim() && (
+      {phase === "question" &&
+        (question.kind === "music" || question.kind === "sound") &&
+        question.audioUrl?.trim() && (
         <audio
           controls
           src={question.audioUrl}
           className="w-full max-w-xl"
+          onClick={(e) => e.stopPropagation()}
+          onContextMenu={(e) => e.stopPropagation()}
+        />
+      )}
+
+      {phase === "question" && question.kind === "video" && question.videoUrl?.trim() && (
+        <video
+          controls
+          playsInline
+          src={question.videoUrl}
+          className="w-full max-w-4xl max-h-[50vh] rounded-xl border border-white/10 bg-black"
           onClick={(e) => e.stopPropagation()}
           onContextMenu={(e) => e.stopPropagation()}
         />

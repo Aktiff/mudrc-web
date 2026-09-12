@@ -25,9 +25,16 @@ import { buildPresentationSlides } from "@/lib/quiz-presentation";
 import QuizQuestionBankPanel from "@/components/QuizQuestionBankPanel";
 import CustomBankQuestionForm from "@/components/CustomBankQuestionForm";
 import MusicBankQuestionForm from "@/components/MusicBankQuestionForm";
+import SoundBankQuestionForm from "@/components/SoundBankQuestionForm";
+import VideoBankQuestionForm from "@/components/VideoBankQuestionForm";
 import AudioUrlField from "@/components/admin/AudioUrlField";
+import VideoUrlField from "@/components/admin/VideoUrlField";
 import { DEFAULT_MUSIC_QUESTION_BODY, type MusicBankItem } from "@/lib/music-bank";
 import { addMusicBankItemAsync, fetchMusicBankFromServer } from "@/lib/music-bank-client";
+import { DEFAULT_SOUND_QUESTION_BODY, type SoundBankItem } from "@/lib/sound-bank";
+import { addSoundBankItemAsync, fetchSoundBankFromServer } from "@/lib/sound-bank-client";
+import { DEFAULT_VIDEO_QUESTION_BODY, type VideoBankItem } from "@/lib/video-bank";
+import { addVideoBankItemAsync, fetchVideoBankFromServer } from "@/lib/video-bank-client";
 import QuizTagStats from "@/components/QuizTagStats";
 import ImageUrlField from "@/components/admin/ImageUrlField";
 import { optionLetter } from "@/lib/quiz-question-options";
@@ -109,9 +116,19 @@ export default function QuizLibraryEditor({ quizId }: Props) {
   const [libraryQuizzes, setLibraryQuizzes] = useState<QuizLibraryItem[]>([]);
   const [customBankQuestions, setCustomBankQuestions] = useState<CustomBankQuestion[]>([]);
   const [musicBankTracks, setMusicBankTracks] = useState<MusicBankItem[]>([]);
+  const [soundBankClips, setSoundBankClips] = useState<SoundBankItem[]>([]);
+  const [videoBankClips, setVideoBankClips] = useState<VideoBankItem[]>([]);
 
   const refreshMusicBank = useCallback(async () => {
     setMusicBankTracks(await fetchMusicBankFromServer());
+  }, []);
+
+  const refreshSoundBank = useCallback(async () => {
+    setSoundBankClips(await fetchSoundBankFromServer());
+  }, []);
+
+  const refreshVideoBank = useCallback(async () => {
+    setVideoBankClips(await fetchVideoBankFromServer());
   }, []);
 
   const refreshCustomBank = useCallback(async () => {
@@ -122,9 +139,11 @@ export default function QuizLibraryEditor({ quizId }: Props) {
   useEffect(() => {
     refreshCustomBank();
     refreshMusicBank();
+    refreshSoundBank();
+    refreshVideoBank();
     window.addEventListener("mudrc-custom-bank-updated", refreshCustomBank);
     return () => window.removeEventListener("mudrc-custom-bank-updated", refreshCustomBank);
-  }, [refreshCustomBank, refreshMusicBank]);
+  }, [refreshCustomBank, refreshMusicBank, refreshSoundBank, refreshVideoBank]);
 
   const refreshLibraryQuizzes = useCallback(async () => {
     const res = await fetch(`/api/admin/quiz-library?_=${Date.now()}`, { cache: "no-store" });
@@ -362,6 +381,141 @@ export default function QuizLibraryEditor({ quizId }: Props) {
     setMsg({ text: "Hudobná ukážka vložená a odstránená z banky — nezabudni uložiť kvíz.", ok: true });
   };
 
+  const insertFromSoundBank = (
+    bankId: string,
+    targetQuestionId: string,
+    label: string,
+    answer: string,
+    audioUrl: string,
+    hostNote?: string
+  ) => {
+    const target = questions.find((q) => q.id === targetQuestionId);
+    if (!target || target.kind !== "sound") return;
+    const displacedBankId = target.bankQuestionId;
+
+    const restoreToBank =
+      displacedBankId &&
+      displacedBankId !== bankId &&
+      target.mediaLabel?.trim() &&
+      target.answer?.trim() &&
+      target.audioUrl?.trim()
+        ? {
+            label: target.mediaLabel.trim(),
+            answer: target.answer.trim(),
+            audioUrl: target.audioUrl.trim(),
+            note: target.hostNote?.trim() || undefined,
+          }
+        : null;
+
+    setQuiz((prev) => {
+      if (!prev) return prev;
+      let usedIds = [...(prev.usedBankQuestionIds ?? [])];
+      if (displacedBankId && displacedBankId !== bankId) {
+        usedIds = usedIds.filter((id) => id !== displacedBankId);
+      }
+      usedIds = Array.from(new Set([...usedIds, bankId]));
+      return {
+        ...prev,
+        questions: prev.questions.map((q) =>
+          q.id === targetQuestionId
+            ? {
+                ...q,
+                body: DEFAULT_SOUND_QUESTION_BODY,
+                answer,
+                mediaLabel: label,
+                audioUrl,
+                bankQuestionId: bankId,
+                hostNote: hostNote?.trim() || undefined,
+                options: undefined,
+                tags: ["zvuk"],
+              }
+            : q
+        ),
+        usedBankQuestionIds: usedIds,
+      };
+    });
+
+    void (async () => {
+      if (restoreToBank) {
+        try {
+          await addSoundBankItemAsync(restoreToBank);
+        } catch {
+          /* duplicita */
+        }
+      }
+      await refreshSoundBank();
+    })();
+
+    setMsg({ text: "Zvuková ukážka vložená — nezabudni uložiť kvíz.", ok: true });
+  };
+
+  const insertFromVideoBank = (
+    bankId: string,
+    targetQuestionId: string,
+    label: string,
+    answer: string,
+    videoUrl: string,
+    hostNote?: string
+  ) => {
+    const target = questions.find((q) => q.id === targetQuestionId);
+    if (!target || target.kind !== "video") return;
+    const displacedBankId = target.bankQuestionId;
+
+    const restoreToBank =
+      displacedBankId &&
+      displacedBankId !== bankId &&
+      target.mediaLabel?.trim() &&
+      target.answer?.trim() &&
+      target.videoUrl?.trim()
+        ? {
+            label: target.mediaLabel.trim(),
+            answer: target.answer.trim(),
+            videoUrl: target.videoUrl.trim(),
+            note: target.hostNote?.trim() || undefined,
+          }
+        : null;
+
+    setQuiz((prev) => {
+      if (!prev) return prev;
+      let usedIds = [...(prev.usedBankQuestionIds ?? [])];
+      if (displacedBankId && displacedBankId !== bankId) {
+        usedIds = usedIds.filter((id) => id !== displacedBankId);
+      }
+      usedIds = Array.from(new Set([...usedIds, bankId]));
+      return {
+        ...prev,
+        questions: prev.questions.map((q) =>
+          q.id === targetQuestionId
+            ? {
+                ...q,
+                body: DEFAULT_VIDEO_QUESTION_BODY,
+                answer,
+                mediaLabel: label,
+                videoUrl,
+                bankQuestionId: bankId,
+                hostNote: hostNote?.trim() || undefined,
+                tags: ["video"],
+              }
+            : q
+        ),
+        usedBankQuestionIds: usedIds,
+      };
+    });
+
+    void (async () => {
+      if (restoreToBank) {
+        try {
+          await addVideoBankItemAsync(restoreToBank);
+        } catch {
+          /* duplicita */
+        }
+      }
+      await refreshVideoBank();
+    })();
+
+    setMsg({ text: "Video ukážka vložená — nezabudni uložiť kvíz.", ok: true });
+  };
+
   const returnQuestionToBank = (questionId: string) => {
     const question = questions.find((q) => q.id === questionId);
     const bankId = question?.bankQuestionId;
@@ -377,6 +531,30 @@ export default function QuizLibraryEditor({ quizId }: Props) {
             artist: question.musicArtist.trim(),
             title: question.musicTitle.trim(),
             audioUrl: question.audioUrl.trim(),
+            note: question.hostNote?.trim() || undefined,
+          }
+        : null;
+
+    const soundRestore =
+      question?.kind === "sound" &&
+      question.answer?.trim() &&
+      question.audioUrl?.trim()
+        ? {
+            label: question.mediaLabel?.trim() || question.answer.trim(),
+            answer: question.answer.trim(),
+            audioUrl: question.audioUrl.trim(),
+            note: question.hostNote?.trim() || undefined,
+          }
+        : null;
+
+    const videoRestore =
+      question?.kind === "video" &&
+      question.answer?.trim() &&
+      question.videoUrl?.trim()
+        ? {
+            label: question.mediaLabel?.trim() || question.answer.trim(),
+            answer: question.answer.trim(),
+            videoUrl: question.videoUrl.trim(),
             note: question.hostNote?.trim() || undefined,
           }
         : null;
@@ -420,6 +598,8 @@ export default function QuizLibraryEditor({ quizId }: Props) {
                     musicArtist: undefined,
                     musicTitle: undefined,
                     audioUrl: undefined,
+                    videoUrl: undefined,
+                    mediaLabel: undefined,
                     options: undefined,
                     bankQuestionId: undefined,
                     tags: undefined,
@@ -445,6 +625,18 @@ export default function QuizLibraryEditor({ quizId }: Props) {
             text: "Slot vyprázdnený, ale skladbu sa nepodarilo vrátiť do banky hudby (možno duplicita).",
             ok: false,
           });
+        });
+    } else if (soundRestore) {
+      void addSoundBankItemAsync(soundRestore)
+        .then(() => refreshSoundBank())
+        .catch(() => {
+          setMsg({ text: "Slot vyprázdnený, zvuk sa nepodarilo vrátiť do banky.", ok: false });
+        });
+    } else if (videoRestore) {
+      void addVideoBankItemAsync(videoRestore)
+        .then(() => refreshVideoBank())
+        .catch(() => {
+          setMsg({ text: "Slot vyprázdnený, video sa nepodarilo vrátiť do banky.", ok: false });
         });
     } else if (customRestore) {
       void addCustomBankQuestionAsync(customRestore)
@@ -487,11 +679,20 @@ export default function QuizLibraryEditor({ quizId }: Props) {
 
   const roundQuestions = useMemo(() => questionsInRound(questions, openRound), [questions, openRound]);
   const roundQuestionSections = useMemo(() => {
-    if (openRound !== 4) return [{ key: "all", title: null as string | null, items: roundQuestions }];
-    return [
-      { key: "normal", title: "Klasické otázky (5)", items: roundQuestions.filter((q) => q.kind === "normal") },
-      { key: "music", title: "Hudobné ukážky (5)", items: roundQuestions.filter((q) => q.kind === "music") },
-    ];
+    if (openRound === 3) {
+      return [
+        { key: "normal", title: "Klasické otázky (15)", items: roundQuestions.filter((q) => q.kind === "normal") },
+        { key: "sound", title: "Zvukové ukážky (5)", items: roundQuestions.filter((q) => q.kind === "sound") },
+      ];
+    }
+    if (openRound === 4) {
+      return [
+        { key: "normal", title: "Klasické otázky (5)", items: roundQuestions.filter((q) => q.kind === "normal") },
+        { key: "video", title: "Video ukážky (5)", items: roundQuestions.filter((q) => q.kind === "video") },
+        { key: "music", title: "Hudobné ukážky (5)", items: roundQuestions.filter((q) => q.kind === "music") },
+      ];
+    }
+    return [{ key: "all", title: null as string | null, items: roundQuestions }];
   }, [openRound, roundQuestions]);
 
   const insertEmptyQuestion = (afterQuestionNumber: number, kind: QuizQuestionKind) => {
@@ -516,7 +717,11 @@ export default function QuizLibraryEditor({ quizId }: Props) {
     const label =
       question.kind === "music"
         ? `hudobnú ukážku ${question.questionNumber}`
-        : `otázku ${question.questionNumber}`;
+        : question.kind === "sound"
+          ? `zvukovú ukážku ${question.questionNumber}`
+          : question.kind === "video"
+            ? `video ukážku ${question.questionNumber}`
+            : `otázku ${question.questionNumber}`;
     const bankNote = question.bankQuestionId ? " Otázka z banky bude znova dostupná." : "";
 
     if (!window.confirm(`Naozaj zmazať ${label}?${bankNote}`)) return;
@@ -536,7 +741,7 @@ export default function QuizLibraryEditor({ quizId }: Props) {
   };
 
   const regenerateTemplate = () => {
-    if (!window.confirm("Vymazať obsah a vytvoriť prázdnu štruktúru 55 otázok (4 kolá)?")) return;
+    if (!window.confirm("Vymazať obsah a vytvoriť prázdnu štruktúru (klasické + zvuk + video + hudba)?")) return;
     setQuiz((prev) => (prev ? { ...prev, questions: buildStandardMudrcQuestions() } : prev));
     setMsg({ text: "Štruktúra pripravená — doplň otázky a odpovede.", ok: true });
   };
@@ -596,6 +801,8 @@ export default function QuizLibraryEditor({ quizId }: Props) {
       </div>
 
       <CustomBankQuestionForm onAdded={refreshCustomBank} />
+      <SoundBankQuestionForm onAdded={refreshSoundBank} onMessage={(text, ok) => setMsg({ text, ok })} />
+      <VideoBankQuestionForm onAdded={refreshVideoBank} onMessage={(text, ok) => setMsg({ text, ok })} />
       <MusicBankQuestionForm onAdded={refreshMusicBank} onMessage={(text, ok) => setMsg({ text, ok })} />
 
       <div className="flex flex-wrap items-end justify-between gap-4">
@@ -708,7 +915,11 @@ export default function QuizLibraryEditor({ quizId }: Props) {
                 <span className="text-xs font-bold uppercase tracking-wider text-brand-orange-readable bg-brand-tint px-2.5 py-1 rounded-lg">
                   {question.kind === "music"
                     ? `Hudba ${question.questionNumber}`
-                    : `Otázka ${question.questionNumber}`}
+                    : question.kind === "sound"
+                      ? `Zvuk ${question.questionNumber}`
+                      : question.kind === "video"
+                        ? `Video ${question.questionNumber}`
+                        : `Otázka ${question.questionNumber}`}
                 </span>
               </div>
               <div className="flex items-center gap-1 shrink-0">
@@ -757,7 +968,15 @@ export default function QuizLibraryEditor({ quizId }: Props) {
                 className="input min-h-[80px] resize-y"
                 value={question.body}
                 onChange={(e) => updateQuestion(question.id, { body: e.target.value })}
-                placeholder={question.kind === "music" ? DEFAULT_MUSIC_QUESTION_BODY : "Sem napíš otázku…"}
+                placeholder={
+                  question.kind === "music"
+                    ? DEFAULT_MUSIC_QUESTION_BODY
+                    : question.kind === "sound"
+                      ? DEFAULT_SOUND_QUESTION_BODY
+                      : question.kind === "video"
+                        ? DEFAULT_VIDEO_QUESTION_BODY
+                        : "Sem napíš otázku…"
+                }
               />
             </div>
             {question.kind === "music" ? (
@@ -806,6 +1025,17 @@ export default function QuizLibraryEditor({ quizId }: Props) {
               />
             </div>
             )}
+            {(question.kind === "sound" || question.kind === "video") && (
+              <div>
+                <label className="label">Popis ukážky (pre teba / banku)</label>
+                <input
+                  className="input"
+                  value={question.mediaLabel ?? ""}
+                  onChange={(e) => updateQuestion(question.id, { mediaLabel: e.target.value })}
+                  placeholder="napr. Trump — prejav alebo Matrix lobby"
+                />
+              </div>
+            )}
             {question.kind === "normal" && (
               <div>
                 <label className="label">Tagy (oddelené čiarkou)</label>
@@ -829,7 +1059,7 @@ export default function QuizLibraryEditor({ quizId }: Props) {
                 )}
               </div>
             )}
-            {question.kind === "normal" && (
+            {(question.kind === "normal" || question.kind === "video") && (
               <div className="space-y-2">
                 <div className="flex items-center justify-between gap-2">
                   <label className="label mb-0">Možnosti (voliteľné)</label>
@@ -883,10 +1113,18 @@ export default function QuizLibraryEditor({ quizId }: Props) {
                 onUploadSuccess={(text) => setMsg({ text, ok: true })}
               />
               )}
-              {question.kind === "music" && (
+              {(question.kind === "music" || question.kind === "sound") && (
                 <AudioUrlField
                   value={question.audioUrl ?? ""}
                   onChange={(url) => updateQuestion(question.id, { audioUrl: url })}
+                  onUploadError={(text) => setMsg({ text, ok: false })}
+                  onUploadSuccess={(text) => setMsg({ text, ok: true })}
+                />
+              )}
+              {question.kind === "video" && (
+                <VideoUrlField
+                  value={question.videoUrl ?? ""}
+                  onChange={(url) => updateQuestion(question.id, { videoUrl: url })}
                   onUploadError={(text) => setMsg({ text, ok: false })}
                   onUploadSuccess={(text) => setMsg({ text, ok: true })}
                 />
@@ -997,11 +1235,17 @@ export default function QuizLibraryEditor({ quizId }: Props) {
             usedBankQuestionIds={globalUsedBankQuestionIds}
             customBankQuestions={customBankQuestions}
             musicBankTracks={musicBankTracks}
+            soundBankClips={soundBankClips}
+            videoBankClips={videoBankClips}
             openRound={openRound}
             onCustomBankChange={refreshCustomBank}
             onMusicBankChange={refreshMusicBank}
+            onSoundBankChange={refreshSoundBank}
+            onVideoBankChange={refreshVideoBank}
             onInsert={insertFromBank}
             onInsertMusic={insertFromMusicBank}
+            onInsertSound={insertFromSoundBank}
+            onInsertVideo={insertFromVideoBank}
           />
         </div>
 
@@ -1012,11 +1256,17 @@ export default function QuizLibraryEditor({ quizId }: Props) {
             usedBankQuestionIds={globalUsedBankQuestionIds}
             customBankQuestions={customBankQuestions}
             musicBankTracks={musicBankTracks}
+            soundBankClips={soundBankClips}
+            videoBankClips={videoBankClips}
             openRound={openRound}
             onCustomBankChange={refreshCustomBank}
             onMusicBankChange={refreshMusicBank}
+            onSoundBankChange={refreshSoundBank}
+            onVideoBankChange={refreshVideoBank}
             onInsert={insertFromBank}
             onInsertMusic={insertFromMusicBank}
+            onInsertSound={insertFromSoundBank}
+            onInsertVideo={insertFromVideoBank}
           />
         </div>
       </div>

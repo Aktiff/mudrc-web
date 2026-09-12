@@ -8,6 +8,13 @@ import {
   MAX_AUDIO_BYTES,
   MAX_AUDIO_SERVER_BYTES,
 } from "@/lib/audio-upload";
+import {
+  formatSupabaseVideoUploadError,
+  guessVideoContentType,
+  isAllowedVideoFile,
+  MAX_VIDEO_BYTES,
+  MAX_VIDEO_SERVER_BYTES,
+} from "@/lib/video-upload";
 import { hasSupabaseStorage, supabaseUploadPublicFile, supabaseUploadPublicImage } from "@/lib/supabase-storage";
 
 export const runtime = "nodejs";
@@ -15,34 +22,38 @@ export const dynamic = "force-dynamic";
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 
-async function uploadAudioBuffer(
+async function uploadMediaBuffer(
+  folder: "audio" | "video",
   buffer: Buffer,
   fileName: string,
-  contentType: string
+  contentType: string,
+  fallbackExt: string
 ): Promise<string> {
-  const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, "-") || "clip.mp3";
+  const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, "-") || `clip.${fallbackExt}`;
 
   if (hasSupabaseStorage()) {
-    const ext = safeName.split(".").pop()?.toLowerCase() ?? "mp3";
+    const ext = safeName.split(".").pop()?.toLowerCase() ?? fallbackExt;
     try {
-      return await supabaseUploadPublicFile("audio", `${Date.now()}.${ext}`, buffer, contentType);
+      return await supabaseUploadPublicFile(folder, `${Date.now()}.${ext}`, buffer, contentType);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Upload failed";
-      throw new Error(formatSupabaseAudioUploadError(message));
+      throw new Error(
+        folder === "video" ? formatSupabaseVideoUploadError(message) : formatSupabaseAudioUploadError(message)
+      );
     }
   }
 
   if (process.env.VERCEL) {
     throw new Error(
-      "Upload audio na produkcii vyžaduje Supabase Storage (bucket uploads) — rovnako ako fotky v admin sekcii."
+      "Upload na produkcii vyžaduje Supabase Storage (bucket uploads) — rovnako ako fotky v admin sekcii."
     );
   }
 
-  const uploadDir = path.join(process.cwd(), "public/uploads/audio");
+  const uploadDir = path.join(process.cwd(), `public/uploads/${folder}`);
   fs.mkdirSync(uploadDir, { recursive: true });
-  const filename = `${Date.now()}.${safeName.split(".").pop() ?? "mp3"}`;
+  const filename = `${Date.now()}.${safeName.split(".").pop() ?? fallbackExt}`;
   fs.writeFileSync(path.join(uploadDir, filename), buffer);
-  return `/uploads/audio/${filename}`;
+  return `/uploads/${folder}/${filename}`;
 }
 
 export async function POST(req: NextRequest) {
@@ -54,8 +65,36 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Nebol vybraný súbor." }, { status: 400 });
     }
 
+    const isVideo =
+      kind === "video" || isAllowedVideoFile(file.name, file.type || "");
     const isAudio =
-      kind === "audio" || isAllowedAudioFile(file.name, file.type || "");
+      !isVideo && (kind === "audio" || isAllowedAudioFile(file.name, file.type || ""));
+
+    if (isVideo) {
+      if (!isAllowedVideoFile(file.name, file.type || "")) {
+        return NextResponse.json(
+          { error: "Povolené sú video súbory (MP4, WEBM, MOV)." },
+          { status: 400 }
+        );
+      }
+      if (file.size > MAX_VIDEO_BYTES) {
+        return NextResponse.json({ error: "Maximálna veľkosť videa je 80 MB." }, { status: 400 });
+      }
+      if (process.env.VERCEL && file.size > MAX_VIDEO_SERVER_BYTES) {
+        return NextResponse.json(
+          {
+            error:
+              "Súbor je príliš veľký na upload cez server. Editor použije priamy upload do Supabase — skús znova Nahrať.",
+          },
+          { status: 413 }
+        );
+      }
+
+      const contentType = guessVideoContentType(file.name, file.type || "");
+      const buffer = Buffer.from(await file.arrayBuffer());
+      const url = await uploadMediaBuffer("video", buffer, file.name, contentType, "mp4");
+      return NextResponse.json({ url });
+    }
 
     if (isAudio) {
       if (!isAllowedAudioFile(file.name, file.type || "")) {
@@ -79,13 +118,13 @@ export async function POST(req: NextRequest) {
 
       const contentType = guessAudioContentType(file.name, file.type || "");
       const buffer = Buffer.from(await file.arrayBuffer());
-      const url = await uploadAudioBuffer(buffer, file.name, contentType);
+      const url = await uploadMediaBuffer("audio", buffer, file.name, contentType, "mp3");
       return NextResponse.json({ url });
     }
 
     if (!file.type.startsWith("image/")) {
       return NextResponse.json(
-        { error: "Povolené sú len obrázky (JPG, PNG, WEBP) alebo audio (MP3…)." },
+        { error: "Povolené sú obrázky, audio (MP3…) alebo video (MP4…)." },
         { status: 400 }
       );
     }

@@ -3,39 +3,53 @@ import type { QuizQuestionItem, QuizQuestionKind } from "@/lib/quiz-library";
 import { createSlideId } from "@/lib/quiz-deck";
 
 export const MUDRC_ROUND_QUESTION_COUNTS = [15, 15, 15, 10] as const;
+export const MUDRC_ROUND3_NORMAL = 15;
+export const MUDRC_ROUND3_SOUND = 5;
 export const MUDRC_ROUND4_NORMAL = 5;
+export const MUDRC_ROUND4_VIDEO = 5;
 export const MUDRC_ROUND4_MUSIC = 5;
 
 export const roundLabels: Record<number, string> = {
   1: "15 otázok",
   2: "15 otázok",
-  3: "15 otázok",
-  4: "5 otázok + 5 hudobných ukážok",
+  3: "15 otázok + 5 zvukových ukážok",
+  4: "5 otázok + 5 video + 5 hudobných ukážok",
 };
 
-/** Poradie otázok v kvíze — v 4. kole najprv všetkých 5 klasických, potom 5 hudobných. */
+function kindSortOrder(kind: QuizQuestionKind): number {
+  switch (kind) {
+    case "normal":
+      return 0;
+    case "sound":
+      return 1;
+    case "video":
+      return 2;
+    case "music":
+      return 3;
+    default:
+      return 0;
+  }
+}
+
+/** Poradie otázok v kvíze — v kole najprv klasické, potom zvuk / video / hudba. */
 export function compareQuizQuestions(a: QuizQuestionItem, b: QuizQuestionItem): number {
   if (a.roundNumber !== b.roundNumber) return a.roundNumber - b.roundNumber;
-  if (a.roundNumber === 4) {
-    const kindA = a.kind === "music" ? 1 : 0;
-    const kindB = b.kind === "music" ? 1 : 0;
-    if (kindA !== kindB) return kindA - kindB;
-    return a.questionNumber - b.questionNumber;
-  }
+  const kindA = kindSortOrder(a.kind);
+  const kindB = kindSortOrder(b.kind);
+  if (kindA !== kindB) return kindA - kindB;
   if (a.questionNumber !== b.questionNumber) return a.questionNumber - b.questionNumber;
-  return (a.kind === "music" ? 1 : 0) - (b.kind === "music" ? 1 : 0);
+  return kindA - kindB;
 }
 
 export function sortQuizQuestions(questions: QuizQuestionItem[]): QuizQuestionItem[] {
   return [...questions].sort(compareQuizQuestions);
 }
 
-/** Prečísluje otázky v rámci každého kola + typu (normal / music) na 1…n. */
+/** Prečísluje otázky v rámci každého kola + typu na 1…n. */
 export function renumberQuizQuestionGroups(questions: QuizQuestionItem[]): QuizQuestionItem[] {
   const groups = new Map<string, QuizQuestionItem[]>();
   for (const q of questions) {
-    const kind = q.kind === "music" ? "music" : "normal";
-    const key = `${q.roundNumber}-${kind}`;
+    const key = `${q.roundNumber}-${q.kind}`;
     const list = groups.get(key) ?? [];
     list.push(q);
     groups.set(key, list);
@@ -67,22 +81,33 @@ function createEmptyQuestion(
     answer: "",
     imageUrl: "",
     audioUrl: "",
+    videoUrl: "",
     imageDuringQuestion: false,
   };
 }
 
-/** 55 otázok v štandardnom Mudrc formáte — každá má text aj odpoveď na jednom mieste. */
+/** Štandardný Mudrc formát — klasické otázky + zvuk (kolo 3) + video + hudba (kolo 4). */
 export function buildStandardMudrcQuestions(): QuizQuestionItem[] {
   const questions: QuizQuestionItem[] = [];
 
-  for (let round = 1; round <= 3; round += 1) {
+  for (let round = 1; round <= 2; round += 1) {
     for (let num = 1; num <= 15; num += 1) {
       questions.push(createEmptyQuestion(round, num, "normal"));
     }
   }
 
+  for (let num = 1; num <= MUDRC_ROUND3_NORMAL; num += 1) {
+    questions.push(createEmptyQuestion(3, num, "normal"));
+  }
+  for (let num = 1; num <= MUDRC_ROUND3_SOUND; num += 1) {
+    questions.push(createEmptyQuestion(3, num, "sound"));
+  }
+
   for (let num = 1; num <= MUDRC_ROUND4_NORMAL; num += 1) {
     questions.push(createEmptyQuestion(4, num, "normal"));
+  }
+  for (let num = 1; num <= MUDRC_ROUND4_VIDEO; num += 1) {
+    questions.push(createEmptyQuestion(4, num, "video"));
   }
   for (let num = 1; num <= MUDRC_ROUND4_MUSIC; num += 1) {
     questions.push(createEmptyQuestion(4, num, "music"));
@@ -176,9 +201,18 @@ export function migrateSlidesToQuestions(slides: QuizSlide[]): QuizQuestionItem[
 
 export function describeQuizContent(questions: QuizQuestionItem[]): string {
   const normal = questions.filter((q) => q.kind === "normal").length;
+  const sound = questions.filter((q) => q.kind === "sound").length;
+  const video = questions.filter((q) => q.kind === "video").length;
   const music = questions.filter((q) => q.kind === "music").length;
   const rounds = new Set(questions.map((q) => q.roundNumber)).size;
-  return `${questions.length} otázok · ${rounds} kolá · ${music ? `${music} hudba` : "bez hudby"} (${normal} klasických)`;
+  const extras = [
+    sound ? `${sound} zvuk` : "",
+    video ? `${video} video` : "",
+    music ? `${music} hudba` : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  return `${questions.length} otázok · ${rounds} kolá · ${normal} klasických${extras ? ` · ${extras}` : ""}`;
 }
 
 /** @deprecated používaj buildStandardMudrcQuestions */
