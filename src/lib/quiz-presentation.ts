@@ -1,5 +1,5 @@
 import type { QuizQuestionItem } from "@/lib/quiz-library";
-import { roundLabels } from "@/lib/quiz-template";
+import { compareQuizQuestions, roundLabels } from "@/lib/quiz-template";
 
 export type PresentationSlide =
   | { type: "rules" }
@@ -12,12 +12,7 @@ export type PresentationSlide =
   | { type: "scores"; title: string; body: string };
 
 function sortQuestions(questions: QuizQuestionItem[]): QuizQuestionItem[] {
-  return [...questions].sort(
-    (a, b) =>
-      a.roundNumber - b.roundNumber ||
-      a.questionNumber - b.questionNumber ||
-      (a.kind === "music" ? 1 : 0) - (b.kind === "music" ? 1 : 0)
-  );
+  return [...questions].sort(compareQuizQuestions);
 }
 
 function questionsForRound(questions: QuizQuestionItem[], roundNumber: number): QuizQuestionItem[] {

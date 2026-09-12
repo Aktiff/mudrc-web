@@ -1,4 +1,4 @@
-import type { QuizLibraryItem } from "@/lib/quiz-library";
+import { normalizeLibraryQuiz, type QuizLibraryItem } from "@/lib/quiz-library";
 
 const draftStorageKey = (id: string) => `mudrc-quiz-draft-${id}`;
 
@@ -6,11 +6,11 @@ export function parseQuizPayload(data: unknown): QuizLibraryItem {
   if (!data || typeof data !== "object") {
     throw new Error("Neplatná odpoveď servera.");
   }
-  const quiz = { ...(data as QuizLibraryItem & Record<string, unknown>) };
-  delete quiz.usages;
-  delete quiz.usageCount;
-  delete quiz.playedTeamNames;
-  return quiz as QuizLibraryItem;
+  const raw = { ...(data as QuizLibraryItem & Record<string, unknown>) };
+  delete raw.usages;
+  delete raw.usageCount;
+  delete raw.playedTeamNames;
+  return normalizeLibraryQuiz(raw);
 }
 
 export function readQuizDraft(quizId: string): QuizLibraryItem | null {

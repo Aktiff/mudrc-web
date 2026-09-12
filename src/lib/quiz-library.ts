@@ -1,4 +1,8 @@
-import { buildStandardMudrcQuestions, migrateSlidesToQuestions } from "@/lib/quiz-template";
+import {
+  buildStandardMudrcQuestions,
+  migrateSlidesToQuestions,
+  renumberQuizQuestionGroups,
+} from "@/lib/quiz-template";
 import { normalizeQuestionOptions, parseEmbeddedOptions } from "@/lib/quiz-question-options";
 import { normalizeTags } from "@/lib/quiz-question-tags";
 import { teamKey } from "@/lib/poll";
@@ -134,6 +138,8 @@ export function normalizeLibraryQuiz(
 
   if (!questions.length) {
     questions = buildStandardMudrcQuestions();
+  } else {
+    questions = renumberQuizQuestionGroups(questions);
   }
 
   const bankIdsFromQuestions = questions

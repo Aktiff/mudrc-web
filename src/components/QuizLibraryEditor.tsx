@@ -8,7 +8,14 @@ import type { QuizLibraryItem, QuizQuestionItem, QuizQuestionKind } from "@/lib/
 import { collectUsedBankQuestionIdsFromQuiz } from "@/lib/quiz-library";
 import { findBankQuestionById } from "@/lib/quiz-question-bank";
 import { fetchCustomBankQuestionsFromServer, type CustomBankQuestion } from "@/lib/quiz-custom-bank";
-import { buildStandardMudrcQuestions, describeQuizContent, insertQuestionAfter, removeQuestion, roundLabels } from "@/lib/quiz-template";
+import {
+  buildStandardMudrcQuestions,
+  describeQuizContent,
+  insertQuestionAfter,
+  removeQuestion,
+  roundLabels,
+  sortQuizQuestions,
+} from "@/lib/quiz-template";
 import { buildPresentationSlides } from "@/lib/quiz-presentation";
 import QuizQuestionBankPanel from "@/components/QuizQuestionBankPanel";
 import CustomBankQuestionForm from "@/components/CustomBankQuestionForm";
@@ -36,25 +43,11 @@ type Props = {
 };
 
 function questionsInRound(questions: QuizQuestionItem[], round: number) {
-  return questions
-    .filter((q) => q.roundNumber === round)
-    .sort(
-      (a, b) =>
-        a.questionNumber - b.questionNumber || (a.kind === "music" ? 1 : 0) - (b.kind === "music" ? 1 : 0)
-    );
+  return sortQuizQuestions(questions.filter((q) => q.roundNumber === round));
 }
 
 function questionsInRoundKind(questions: QuizQuestionItem[], round: number, kind: QuizQuestionKind) {
   return questionsInRound(questions, round).filter((q) => q.kind === kind);
-}
-
-function sortAllQuestions(questions: QuizQuestionItem[]) {
-  return [...questions].sort(
-    (a, b) =>
-      a.roundNumber - b.roundNumber ||
-      a.questionNumber - b.questionNumber ||
-      (a.kind === "music" ? 1 : 0) - (b.kind === "music" ? 1 : 0)
-  );
 }
 
 function moveQuestionInGroup(
@@ -76,7 +69,7 @@ function moveQuestionInGroup(
   const rest = questions.filter(
     (q) => q.roundNumber !== target.roundNumber || q.kind !== target.kind
   );
-  return sortAllQuestions([...rest, ...renumbered]);
+  return sortQuizQuestions([...rest, ...renumbered]);
 }
 
 function reorderQuestionInGroup(
@@ -98,7 +91,7 @@ function reorderQuestionInGroup(
   const rest = questions.filter(
     (q) => q.roundNumber !== target.roundNumber || q.kind !== target.kind
   );
-  return sortAllQuestions([...rest, ...renumbered]);
+  return sortQuizQuestions([...rest, ...renumbered]);
 }
 
 export default function QuizLibraryEditor({ quizId }: Props) {
@@ -209,9 +202,12 @@ export default function QuizLibraryEditor({ quizId }: Props) {
   };
 
   const moveQuestion = (questionId: string, direction: "up" | "down") => {
-    setQuiz((prev) =>
-      prev ? { ...prev, questions: moveQuestionInGroup(prev.questions, questionId, direction) } : prev
-    );
+    setQuiz((prev) => {
+      if (!prev) return prev;
+      const nextQuestions = moveQuestionInGroup(prev.questions, questionId, direction);
+      if (nextQuestions === prev.questions) return prev;
+      return { ...prev, questions: nextQuestions };
+    });
   };
 
   const handleQuestionDrop = (targetId: string) => {
@@ -406,6 +402,13 @@ export default function QuizLibraryEditor({ quizId }: Props) {
   };
 
   const roundQuestions = useMemo(() => questionsInRound(questions, openRound), [questions, openRound]);
+  const roundQuestionSections = useMemo(() => {
+    if (openRound !== 4) return [{ key: "all", title: null as string | null, items: roundQuestions }];
+    return [
+      { key: "normal", title: "Klasické otázky (5)", items: roundQuestions.filter((q) => q.kind === "normal") },
+      { key: "music", title: "Hudobné ukážky (5)", items: roundQuestions.filter((q) => q.kind === "music") },
+    ];
+  }, [openRound, roundQuestions]);
 
   const insertEmptyQuestion = (afterQuestionNumber: number, kind: QuizQuestionKind) => {
     setQuiz((prev) =>
@@ -574,7 +577,14 @@ export default function QuizLibraryEditor({ quizId }: Props) {
           </h3>
 
           <div className="space-y-1">
-        {roundQuestions.map((question) => {
+        {roundQuestionSections.map((section) => (
+          <Fragment key={section.key}>
+            {section.title && (
+              <p className="text-xs font-bold uppercase tracking-wider text-brand-muted pt-3 pb-1 px-1">
+                {section.title}
+              </p>
+            )}
+        {section.items.map((question) => {
           const group = questionsInRoundKind(questions, openRound, question.kind);
           const groupIndex = group.findIndex((q) => q.id === question.id);
           const canMoveUp = groupIndex > 0;
@@ -891,6 +901,8 @@ export default function QuizLibraryEditor({ quizId }: Props) {
           </Fragment>
           );
         })}
+          </Fragment>
+        ))}
           </div>
         </div>
 

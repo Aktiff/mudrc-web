@@ -13,6 +13,46 @@ export const roundLabels: Record<number, string> = {
   4: "5 otázok + 5 hudobných ukážok",
 };
 
+/** Poradie otázok v kvíze — v 4. kole najprv všetkých 5 klasických, potom 5 hudobných. */
+export function compareQuizQuestions(a: QuizQuestionItem, b: QuizQuestionItem): number {
+  if (a.roundNumber !== b.roundNumber) return a.roundNumber - b.roundNumber;
+  if (a.roundNumber === 4) {
+    const kindA = a.kind === "music" ? 1 : 0;
+    const kindB = b.kind === "music" ? 1 : 0;
+    if (kindA !== kindB) return kindA - kindB;
+    return a.questionNumber - b.questionNumber;
+  }
+  if (a.questionNumber !== b.questionNumber) return a.questionNumber - b.questionNumber;
+  return (a.kind === "music" ? 1 : 0) - (b.kind === "music" ? 1 : 0);
+}
+
+export function sortQuizQuestions(questions: QuizQuestionItem[]): QuizQuestionItem[] {
+  return [...questions].sort(compareQuizQuestions);
+}
+
+/** Prečísluje otázky v rámci každého kola + typu (normal / music) na 1…n. */
+export function renumberQuizQuestionGroups(questions: QuizQuestionItem[]): QuizQuestionItem[] {
+  const groups = new Map<string, QuizQuestionItem[]>();
+  for (const q of questions) {
+    const kind = q.kind === "music" ? "music" : "normal";
+    const key = `${q.roundNumber}-${kind}`;
+    const list = groups.get(key) ?? [];
+    list.push(q);
+    groups.set(key, list);
+  }
+
+  const out: QuizQuestionItem[] = [];
+  for (const key of Array.from(groups.keys()).sort()) {
+    const list = groups.get(key)!;
+    list.sort(
+      (a: QuizQuestionItem, b: QuizQuestionItem) =>
+        a.questionNumber - b.questionNumber || a.id.localeCompare(b.id)
+    );
+    list.forEach((q: QuizQuestionItem, index: number) => out.push({ ...q, questionNumber: index + 1 }));
+  }
+  return sortQuizQuestions(out);
+}
+
 function createEmptyQuestion(
   roundNumber: number,
   questionNumber: number,
@@ -69,12 +109,7 @@ export function insertQuestionAfter(
   bumped.splice(afterQuestionNumber, 0, createEmptyQuestion(roundNumber, newNumber, kind));
 
   const rest = questions.filter((q) => q.roundNumber !== roundNumber || q.kind !== kind);
-  return [...rest, ...bumped].sort(
-    (a, b) =>
-      a.roundNumber - b.roundNumber ||
-      a.questionNumber - b.questionNumber ||
-      (a.kind === "music" ? 1 : 0) - (b.kind === "music" ? 1 : 0)
-  );
+  return sortQuizQuestions([...rest, ...bumped]);
 }
 
 /** Odstráni otázku a prečísluje zvyšok v rovnakej skupine (kolo + typ). */
@@ -92,12 +127,7 @@ export function removeQuestion(questions: QuizQuestionItem[], questionId: string
     (q) => q.roundNumber !== target.roundNumber || q.kind !== target.kind
   );
 
-  return [...rest, ...group].sort(
-    (a, b) =>
-      a.roundNumber - b.roundNumber ||
-      a.questionNumber - b.questionNumber ||
-      (a.kind === "music" ? 1 : 0) - (b.kind === "music" ? 1 : 0)
-  );
+  return sortQuizQuestions([...rest, ...group]);
 }
 
 /** Import starého formátu (samostatné slidy otázka + odpoveď). */
@@ -141,9 +171,7 @@ export function migrateSlidesToQuestions(slides: QuizSlide[]): QuizQuestionItem[
     }
   }
 
-  return Array.from(map.values()).sort(
-    (a, b) => a.roundNumber - b.roundNumber || a.questionNumber - b.questionNumber || a.kind.localeCompare(b.kind)
-  );
+  return sortQuizQuestions(Array.from(map.values()));
 }
 
 export function describeQuizContent(questions: QuizQuestionItem[]): string {
