@@ -4,8 +4,13 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState, Fragment } from "react";
 import { ChevronDown, ChevronUp, GripVertical, MonitorPlay, Plus, RotateCcw, Save, Trash2, X } from "lucide-react";
 import type { QuizEvent } from "@/lib/data";
-import type { QuizLibraryItem, QuizQuestionItem, QuizQuestionKind } from "@/lib/quiz-library";
-import { collectUsedBankQuestionIdsFromQuiz } from "@/lib/quiz-library";
+import {
+  collectUsedBankQuestionIdsFromQuiz,
+  normalizeLibraryQuiz,
+  type QuizLibraryItem,
+  type QuizQuestionItem,
+  type QuizQuestionKind,
+} from "@/lib/quiz-library";
 import { findBankQuestionById } from "@/lib/quiz-question-bank";
 import {
   addCustomBankQuestionAsync,
@@ -160,14 +165,14 @@ export default function QuizLibraryEditor({ quizId }: Props) {
     if (res.ok) {
       const serverQuiz = parseQuizPayload(await res.json());
       if (draft) {
-        setQuiz(draft);
+        setQuiz(normalizeLibraryQuiz(draft));
         setDraftRestored(true);
       } else {
         setQuiz(serverQuiz);
         setDraftRestored(false);
       }
     } else if (draft) {
-      setQuiz(draft);
+      setQuiz(normalizeLibraryQuiz(draft));
       setDraftRestored(true);
     } else {
       setQuiz(null);

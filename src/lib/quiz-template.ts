@@ -96,6 +96,30 @@ export function buildStandardMudrcQuestions(): QuizQuestionItem[] {
   return questions;
 }
 
+export const STANDARD_CONTENT_SLOTS: Record<number, number> = {
+  1: 15,
+  2: 15,
+  3: 15,
+  4: MUDRC_ROUND4_NORMAL,
+};
+
+/** Doplní prázdne sloty, ak v kole chýbajú (napr. po zmazaní otázky). */
+export function ensureStandardContentSlots(questions: QuizQuestionItem[]): QuizQuestionItem[] {
+  let out = [...questions];
+  for (const round of [1, 2, 3, 4] as const) {
+    const need = STANDARD_CONTENT_SLOTS[round];
+    const content = out.filter((q) => q.roundNumber === round && q.kind !== "music");
+    for (let i = content.length; i < need; i += 1) {
+      out.push(createEmptyQuestion(round, i + 1, "normal"));
+    }
+  }
+  const music = out.filter((q) => q.roundNumber === 4 && q.kind === "music");
+  for (let i = music.length; i < MUDRC_ROUND4_MUSIC; i += 1) {
+    out.push(createEmptyQuestion(4, i + 1, "music"));
+  }
+  return out;
+}
+
 /** Vloží prázdnu otázku za dané číslo v kole (0 = na začiatok skupiny). */
 export function insertQuestionAfter(
   questions: QuizQuestionItem[],
