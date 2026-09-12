@@ -278,12 +278,18 @@ function PresentationView({
   }
   if (slide.type === "correction") {
     return (
-      <div className="text-center px-8 max-w-4xl">
-        <p className="font-display text-7xl sm:text-9xl text-[#f0c800] tracking-wide mb-10 sm:mb-14">Opravovanie</p>
+      <div className="text-center px-6 sm:px-10 max-w-6xl w-full">
+        <p className="font-display text-7xl sm:text-9xl text-[#f0c800] tracking-wide mb-12 sm:mb-16 md:mb-20">
+          Opravovanie
+        </p>
         {nextQuizLine ? (
-          <div className="space-y-3 sm:space-y-4">
-            <p className="text-xl sm:text-2xl text-white/55 font-medium">Najbližší kvíz:</p>
-            <p className="text-2xl sm:text-4xl text-white/90 leading-snug">{nextQuizLine}</p>
+          <div className="space-y-6 sm:space-y-8 md:space-y-10">
+            <p className="text-3xl sm:text-5xl md:text-6xl text-white/60 font-semibold tracking-wide">
+              Najbližší kvíz:
+            </p>
+            <p className="font-display text-4xl sm:text-6xl md:text-7xl lg:text-8xl text-white leading-tight tracking-wide px-2">
+              {nextQuizLine}
+            </p>
           </div>
         ) : null}
       </div>
