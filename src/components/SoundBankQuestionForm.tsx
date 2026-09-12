@@ -132,7 +132,7 @@ export default function SoundBankQuestionForm({ onAdded, onMessage }: Props) {
         className="w-full flex items-center justify-between gap-3 px-5 py-4 text-left hover:bg-brand-warm/50 transition-colors"
       >
         <div>
-          <p className="font-semibold text-brand-text text-sm">Pridať zvukovú ukážku do banky</p>
+          <p className="font-semibold text-brand-text text-sm">Pridať zvukové ukážky do banky</p>
           <p className="text-brand-muted text-xs mt-0.5">
             Hlasy, zvuky · „Popis - Odpoveď.mp3“ · vložíš do ľubovoľného slotu otázky
           </p>

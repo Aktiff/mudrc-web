@@ -32,13 +32,12 @@ import {
 import { buildPresentationSlides } from "@/lib/quiz-presentation";
 import QuizQuestionBankPanel from "@/components/QuizQuestionBankPanel";
 import CustomBankQuestionForm from "@/components/CustomBankQuestionForm";
-import MusicBankQuestionForm from "@/components/MusicBankQuestionForm";
 import SoundBankQuestionForm from "@/components/SoundBankQuestionForm";
 import VideoBankQuestionForm from "@/components/VideoBankQuestionForm";
 import AudioUrlField from "@/components/admin/AudioUrlField";
 import VideoUrlField from "@/components/admin/VideoUrlField";
-import { DEFAULT_MUSIC_QUESTION_BODY, type MusicBankItem } from "@/lib/music-bank";
-import { addMusicBankItemAsync, fetchMusicBankFromServer } from "@/lib/music-bank-client";
+import { type MusicBankItem } from "@/lib/music-bank";
+import { fetchMusicBankFromServer } from "@/lib/music-bank-client";
 import { DEFAULT_SOUND_QUESTION_BODY, type SoundBankItem } from "@/lib/sound-bank";
 import { addSoundBankItemAsync, fetchSoundBankFromServer } from "@/lib/sound-bank-client";
 import { DEFAULT_VIDEO_QUESTION_BODY, type VideoBankItem } from "@/lib/video-bank";
@@ -290,7 +289,7 @@ export default function QuizLibraryEditor({ quizId }: Props) {
     suggestedImageUrl?: string
   ) => {
     const target = questions.find((q) => q.id === targetQuestionId);
-    if (!target || target.kind === "music") return;
+    if (!target) return;
     const displacedBankId = target.bankQuestionId;
 
     setQuiz((prev) => {
@@ -302,13 +301,15 @@ export default function QuizLibraryEditor({ quizId }: Props) {
       }
       usedIds = Array.from(new Set([...usedIds, bankId]));
 
+      const nextKind = target.kind === "music" ? "music" : "normal";
+
       return {
         ...prev,
         questions: prev.questions.map((q) =>
           q.id === targetQuestionId
             ? {
                 ...q,
-                kind: "normal",
+                kind: nextKind,
                 body,
                 answer,
                 options: options.length ? options : undefined,
@@ -361,67 +362,9 @@ export default function QuizLibraryEditor({ quizId }: Props) {
     audioUrl: string,
     hostNote?: string
   ) => {
-    const target = questions.find((q) => q.id === targetQuestionId);
-    if (!target || target.kind !== "music") return;
-    const displacedBankId = target.bankQuestionId;
-
-    const restoreToBank =
-      displacedBankId &&
-      displacedBankId !== bankId &&
-      target.musicArtist?.trim() &&
-      target.musicTitle?.trim() &&
-      target.audioUrl?.trim()
-        ? {
-            artist: target.musicArtist.trim(),
-            title: target.musicTitle.trim(),
-            audioUrl: target.audioUrl.trim(),
-            note: target.hostNote?.trim() || undefined,
-          }
-        : null;
-
-    setQuiz((prev) => {
-      if (!prev) return prev;
-
-      let usedIds = [...(prev.usedBankQuestionIds ?? [])];
-      if (displacedBankId && displacedBankId !== bankId) {
-        usedIds = usedIds.filter((id) => id !== displacedBankId);
-      }
-      usedIds = Array.from(new Set([...usedIds, bankId]));
-
-      return {
-        ...prev,
-        questions: prev.questions.map((q) =>
-          q.id === targetQuestionId
-            ? {
-                ...q,
-                body: DEFAULT_MUSIC_QUESTION_BODY,
-                musicArtist: artist,
-                musicTitle: title,
-                answer: `${artist} — ${title}`,
-                audioUrl,
-                bankQuestionId: bankId,
-                hostNote: hostNote?.trim() || undefined,
-                options: undefined,
-                tags: ["hudba"],
-              }
-            : q
-        ),
-        usedBankQuestionIds: usedIds,
-      };
-    });
-
-    void (async () => {
-      if (restoreToBank) {
-        try {
-          await addMusicBankItemAsync(restoreToBank);
-        } catch {
-          /* napr. duplicita — slot sa aj tak prepíše */
-        }
-      }
-      await refreshMusicBank();
-    })();
-
-    setMsg({ text: "Hudobná ukážka vložená a odstránená z banky — nezabudni uložiť kvíz.", ok: true });
+    const label = `${artist} — ${title}`;
+    insertFromSoundBank(bankId, targetQuestionId, label, label, audioUrl, hostNote);
+    void refreshMusicBank();
   };
 
   const insertFromSoundBank = (
@@ -433,17 +376,21 @@ export default function QuizLibraryEditor({ quizId }: Props) {
     hostNote?: string
   ) => {
     const target = questions.find((q) => q.id === targetQuestionId);
-    if (!target || target.kind === "music") return;
+    if (!target) return;
     const displacedBankId = target.bankQuestionId;
+    const slotIsMusicTail = target.kind === "music";
 
     const restoreToBank =
       displacedBankId &&
       displacedBankId !== bankId &&
-      target.mediaLabel?.trim() &&
       target.answer?.trim() &&
       target.audioUrl?.trim()
         ? {
-            label: target.mediaLabel.trim(),
+            label:
+              target.mediaLabel?.trim() ||
+              (target.musicArtist?.trim() && target.musicTitle?.trim()
+                ? `${target.musicArtist.trim()} — ${target.musicTitle.trim()}`
+                : target.answer.trim()),
             answer: target.answer.trim(),
             audioUrl: target.audioUrl.trim(),
             note: target.hostNote?.trim() || undefined,
@@ -463,10 +410,12 @@ export default function QuizLibraryEditor({ quizId }: Props) {
           q.id === targetQuestionId
             ? {
                 ...q,
-                kind: "sound",
+                kind: slotIsMusicTail ? "music" : "sound",
                 body: DEFAULT_SOUND_QUESTION_BODY,
                 answer,
                 mediaLabel: label,
+                musicArtist: undefined,
+                musicTitle: undefined,
                 audioUrl,
                 videoUrl: undefined,
                 bankQuestionId: bankId,
@@ -508,8 +457,9 @@ export default function QuizLibraryEditor({ quizId }: Props) {
     hostNote?: string
   ) => {
     const target = questions.find((q) => q.id === targetQuestionId);
-    if (!target || target.kind === "music") return;
+    if (!target) return;
     const displacedBankId = target.bankQuestionId;
+    const slotIsMusicTail = target.kind === "music";
 
     const restoreToBank =
       displacedBankId &&
@@ -538,12 +488,14 @@ export default function QuizLibraryEditor({ quizId }: Props) {
           q.id === targetQuestionId
             ? {
                 ...q,
-                kind: "video",
+                kind: slotIsMusicTail ? "music" : "video",
                 body: DEFAULT_VIDEO_QUESTION_BODY,
                 answer,
                 mediaLabel: label,
                 videoUrl,
                 audioUrl: undefined,
+                musicArtist: undefined,
+                musicTitle: undefined,
                 bankQuestionId: bankId,
                 hostNote: hostNote?.trim() || undefined,
                 options: undefined,
@@ -580,25 +532,16 @@ export default function QuizLibraryEditor({ quizId }: Props) {
     if (!bankId) return;
     if (!window.confirm("Vrátiť otázku do banky? Obsah otázky sa vymaže.")) return;
 
-    const musicRestore =
-      question?.kind === "music" &&
-      question.musicArtist?.trim() &&
-      question.musicTitle?.trim() &&
-      question.audioUrl?.trim()
-        ? {
-            artist: question.musicArtist.trim(),
-            title: question.musicTitle.trim(),
-            audioUrl: question.audioUrl.trim(),
-            note: question.hostNote?.trim() || undefined,
-          }
-        : null;
-
     const soundRestore =
-      question?.kind === "sound" &&
+      (question?.kind === "sound" || question?.kind === "music") &&
       question.answer?.trim() &&
       question.audioUrl?.trim()
         ? {
-            label: question.mediaLabel?.trim() || question.answer.trim(),
+            label:
+              question.mediaLabel?.trim() ||
+              (question.musicArtist?.trim() && question.musicTitle?.trim()
+                ? `${question.musicArtist.trim()} — ${question.musicTitle.trim()}`
+                : question.answer.trim()),
             answer: question.answer.trim(),
             audioUrl: question.audioUrl.trim(),
             note: question.hostNote?.trim() || undefined,
@@ -676,16 +619,7 @@ export default function QuizLibraryEditor({ quizId }: Props) {
         : prev
     );
 
-    if (musicRestore) {
-      void addMusicBankItemAsync(musicRestore)
-        .then(() => refreshMusicBank())
-        .catch(() => {
-          setMsg({
-            text: "Slot vyprázdnený, ale skladbu sa nepodarilo vrátiť do banky hudby (možno duplicita).",
-            ok: false,
-          });
-        });
-    } else if (soundRestore) {
+    if (soundRestore) {
       void addSoundBankItemAsync(soundRestore)
         .then(() => refreshSoundBank())
         .catch(() => {
@@ -738,18 +672,8 @@ export default function QuizLibraryEditor({ quizId }: Props) {
 
   const roundQuestions = useMemo(() => questionsInRound(questions, openRound), [questions, openRound]);
   const roundQuestionSections = useMemo(() => {
-    if (openRound === 4) {
-      return [
-        {
-          key: "content",
-          title: "Otázky (text / zvuk / video)",
-          items: roundQuestions.filter((q) => q.kind !== "music"),
-        },
-        { key: "music", title: "Hudobné ukážky (5)", items: roundQuestions.filter((q) => q.kind === "music") },
-      ];
-    }
     return [{ key: "all", title: null as string | null, items: roundQuestions }];
-  }, [openRound, roundQuestions]);
+  }, [roundQuestions]);
 
   const insertEmptyQuestion = (afterQuestionNumber: number, kind: QuizQuestionKind) => {
     setQuiz((prev) =>
@@ -772,7 +696,7 @@ export default function QuizLibraryEditor({ quizId }: Props) {
 
     const label =
       question.kind === "music"
-        ? `hudobnú ukážku ${question.questionNumber}`
+        ? `zvukovú ukážku (koniec kola) ${question.questionNumber}`
         : question.kind === "sound"
           ? `zvukovú ukážku ${question.questionNumber}`
           : question.kind === "video"
@@ -906,8 +830,6 @@ export default function QuizLibraryEditor({ quizId }: Props) {
       <CustomBankQuestionForm onAdded={refreshCustomBank} />
       <SoundBankQuestionForm onAdded={refreshSoundBank} onMessage={(text, ok) => setMsg({ text, ok })} />
       <VideoBankQuestionForm onAdded={refreshVideoBank} onMessage={(text, ok) => setMsg({ text, ok })} />
-      <MusicBankQuestionForm onAdded={refreshMusicBank} onMessage={(text, ok) => setMsg({ text, ok })} />
-
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-brand-muted text-sm">{describeQuizContent(questions)}</p>
@@ -1030,7 +952,7 @@ export default function QuizLibraryEditor({ quizId }: Props) {
                 </button>
                 <span className="text-xs font-bold uppercase tracking-wider text-brand-orange-readable bg-brand-tint px-2.5 py-1 rounded-lg">
                   {question.kind === "music"
-                    ? `Hudba ${question.questionNumber}`
+                    ? `Zvuk · koniec kola ${question.questionNumber}`
                     : question.kind === "sound"
                       ? `Zvuk ${question.questionNumber}`
                       : question.kind === "video"
@@ -1085,52 +1007,14 @@ export default function QuizLibraryEditor({ quizId }: Props) {
                 value={question.body}
                 onChange={(e) => updateQuestion(question.id, { body: e.target.value })}
                 placeholder={
-                  question.kind === "music"
-                    ? DEFAULT_MUSIC_QUESTION_BODY
-                    : question.kind === "sound"
-                      ? DEFAULT_SOUND_QUESTION_BODY
-                      : question.kind === "video"
-                        ? DEFAULT_VIDEO_QUESTION_BODY
-                        : "Sem napíš otázku…"
+                  question.kind === "music" || question.kind === "sound"
+                    ? DEFAULT_SOUND_QUESTION_BODY
+                    : question.kind === "video"
+                      ? DEFAULT_VIDEO_QUESTION_BODY
+                      : "Sem napíš otázku…"
                 }
               />
             </div>
-            {question.kind === "music" ? (
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div>
-                  <label className="label">Interpret (1 bod)</label>
-                  <input
-                    className="input"
-                    value={question.musicArtist ?? ""}
-                    onChange={(e) => {
-                      const musicArtist = e.target.value;
-                      const musicTitle = question.musicTitle ?? "";
-                      updateQuestion(question.id, {
-                        musicArtist,
-                        answer: musicArtist.trim() && musicTitle.trim() ? `${musicArtist.trim()} — ${musicTitle.trim()}` : question.answer,
-                      });
-                    }}
-                    placeholder="Správny interpret"
-                  />
-                </div>
-                <div>
-                  <label className="label">Názov skladby (1 bod)</label>
-                  <input
-                    className="input"
-                    value={question.musicTitle ?? ""}
-                    onChange={(e) => {
-                      const musicTitle = e.target.value;
-                      const musicArtist = question.musicArtist ?? "";
-                      updateQuestion(question.id, {
-                        musicTitle,
-                        answer: musicArtist.trim() && musicTitle.trim() ? `${musicArtist.trim()} — ${musicTitle.trim()}` : question.answer,
-                      });
-                    }}
-                    placeholder="Správny názov"
-                  />
-                </div>
-              </div>
-            ) : (
             <div>
               <label className="label">Správna odpoveď</label>
               <input
@@ -1140,8 +1024,7 @@ export default function QuizLibraryEditor({ quizId }: Props) {
                 placeholder="Správna odpoveď"
               />
             </div>
-            )}
-            {(question.kind === "sound" || question.kind === "video") && (
+            {(question.kind === "sound" || question.kind === "video" || question.kind === "music") && (
               <div>
                 <label className="label">Popis ukážky (pre teba / banku)</label>
                 <input

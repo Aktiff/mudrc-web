@@ -237,10 +237,9 @@ export function findFirstEmptyMusicSlot(questions: QuizQuestionItem[]): QuizQues
     .find(isQuestionSlotEmpty);
 }
 
-/** Prázdna otázka v kole — okrem hudobných slotov (tie sú len na konci 4. kola). */
+/** Prvá prázdna otázka v kole (vrátane bývalých hudobných slotov). */
 export function findFirstEmptyContentSlot(questions: QuizQuestionItem[]): QuizQuestionItem | undefined {
   return [...questions]
-    .filter((q) => q.kind !== "music")
     .sort((a, b) => a.questionNumber - b.questionNumber)
     .find(isQuestionSlotEmpty);
 }

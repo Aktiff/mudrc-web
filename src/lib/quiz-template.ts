@@ -10,7 +10,7 @@ export const roundLabels: Record<number, string> = {
   1: "15 otázok",
   2: "15 otázok",
   3: "15 otázok",
-  4: "5 otázok + 5 hudobných ukážok",
+  4: "5 otázok + 5 zvukových ukážok (koniec kola)",
 };
 
 /** Hudba = samostatná skupina na konci 4. kola; ostatné typy zdieľajú číslovanie v kole. */
