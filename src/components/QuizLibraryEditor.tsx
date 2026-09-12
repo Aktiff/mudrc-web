@@ -22,6 +22,9 @@ import {
   buildStandardMudrcQuestions,
   describeQuizContent,
   insertQuestionAfter,
+  isSameReorderGroup,
+  questionRenumberGroupKey,
+  questionsInSameReorderGroup,
   removeQuestion,
   roundLabels,
   sortQuizQuestions,
@@ -60,10 +63,6 @@ function questionsInRound(questions: QuizQuestionItem[], round: number) {
   return sortQuizQuestions(questions.filter((q) => q.roundNumber === round));
 }
 
-function questionsInRoundKind(questions: QuizQuestionItem[], round: number, kind: QuizQuestionKind) {
-  return questionsInRound(questions, round).filter((q) => q.kind === kind);
-}
-
 function moveQuestionInGroup(
   questions: QuizQuestionItem[],
   questionId: string,
@@ -72,7 +71,7 @@ function moveQuestionInGroup(
   const target = questions.find((q) => q.id === questionId);
   if (!target) return questions;
 
-  const group = questionsInRoundKind(questions, target.roundNumber, target.kind);
+  const group = questionsInSameReorderGroup(questions, target);
   const index = group.findIndex((q) => q.id === questionId);
   const swapIndex = direction === "up" ? index - 1 : index + 1;
   if (swapIndex < 0 || swapIndex >= group.length) return questions;
@@ -80,8 +79,9 @@ function moveQuestionInGroup(
   const reordered = [...group];
   [reordered[index], reordered[swapIndex]] = [reordered[swapIndex], reordered[index]];
   const renumbered = reordered.map((q, i) => ({ ...q, questionNumber: i + 1 }));
+  const groupKey = questionRenumberGroupKey(target);
   const rest = questions.filter(
-    (q) => q.roundNumber !== target.roundNumber || q.kind !== target.kind
+    (q) => q.roundNumber !== target.roundNumber || questionRenumberGroupKey(q) !== groupKey
   );
   return sortQuizQuestions([...rest, ...renumbered]);
 }
@@ -94,7 +94,7 @@ function reorderQuestionInGroup(
   const target = questions.find((q) => q.id === questionId);
   if (!target) return questions;
 
-  const group = questionsInRoundKind(questions, target.roundNumber, target.kind);
+  const group = questionsInSameReorderGroup(questions, target);
   const fromIndex = group.findIndex((q) => q.id === questionId);
   if (fromIndex < 0 || toIndex < 0 || toIndex >= group.length || fromIndex === toIndex) return questions;
 
@@ -102,8 +102,9 @@ function reorderQuestionInGroup(
   const [item] = reordered.splice(fromIndex, 1);
   reordered.splice(toIndex, 0, item);
   const renumbered = reordered.map((q, i) => ({ ...q, questionNumber: i + 1 }));
+  const groupKey = questionRenumberGroupKey(target);
   const rest = questions.filter(
-    (q) => q.roundNumber !== target.roundNumber || q.kind !== target.kind
+    (q) => q.roundNumber !== target.roundNumber || questionRenumberGroupKey(q) !== groupKey
   );
   return sortQuizQuestions([...rest, ...renumbered]);
 }
@@ -241,9 +242,9 @@ export default function QuizLibraryEditor({ quizId }: Props) {
     const dragged = questions.find((q) => q.id === dragQuestionId);
     const target = questions.find((q) => q.id === targetId);
     if (!dragged || !target) return;
-    if (dragged.roundNumber !== target.roundNumber || dragged.kind !== target.kind) return;
+    if (!isSameReorderGroup(dragged, target)) return;
 
-    const group = questionsInRoundKind(questions, target.roundNumber, target.kind);
+    const group = questionsInSameReorderGroup(questions, target);
     const toIndex = group.findIndex((q) => q.id === targetId);
     setQuiz((prev) =>
       prev ? { ...prev, questions: reorderQuestionInGroup(prev.questions, dragQuestionId, toIndex) } : prev
@@ -905,7 +906,7 @@ export default function QuizLibraryEditor({ quizId }: Props) {
               </p>
             )}
         {section.items.map((question) => {
-          const group = questionsInRoundKind(questions, openRound, question.kind);
+          const group = questionsInSameReorderGroup(questions, question);
           const groupIndex = group.findIndex((q) => q.id === question.id);
           const canMoveUp = groupIndex > 0;
           const canMoveDown = groupIndex >= 0 && groupIndex < group.length - 1;

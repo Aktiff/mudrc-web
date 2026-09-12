@@ -35,6 +35,23 @@ export function sortQuizQuestions(questions: QuizQuestionItem[]): QuizQuestionIt
   return [...questions].sort(compareQuizQuestions);
 }
 
+/** Otázky v tom istom bloku na prehadzovanie poradia (kolo + obsah alebo hudba). */
+export function questionsInSameReorderGroup(
+  questions: QuizQuestionItem[],
+  anchor: QuizQuestionItem
+): QuizQuestionItem[] {
+  const key = questionRenumberGroupKey(anchor);
+  return sortQuizQuestions(
+    questions.filter(
+      (q) => q.roundNumber === anchor.roundNumber && questionRenumberGroupKey(q) === key
+    )
+  );
+}
+
+export function isSameReorderGroup(a: QuizQuestionItem, b: QuizQuestionItem): boolean {
+  return a.roundNumber === b.roundNumber && questionRenumberGroupKey(a) === questionRenumberGroupKey(b);
+}
+
 /** Prečísluje otázky v rámci každého kola + typu na 1…n. */
 export function renumberQuizQuestionGroups(questions: QuizQuestionItem[]): QuizQuestionItem[] {
   const groups = new Map<string, QuizQuestionItem[]>();
@@ -127,8 +144,12 @@ export function insertQuestionAfter(
   kind: QuizQuestionKind,
   afterQuestionNumber: number
 ): QuizQuestionItem[] {
+  const musicGroup = kind === "music";
   const group = questions
-    .filter((q) => q.roundNumber === roundNumber && q.kind === kind)
+    .filter((q) => {
+      if (q.roundNumber !== roundNumber) return false;
+      return musicGroup ? q.kind === "music" : q.kind !== "music";
+    })
     .sort((a, b) => a.questionNumber - b.questionNumber);
 
   const newNumber = afterQuestionNumber + 1;
@@ -137,7 +158,10 @@ export function insertQuestionAfter(
   );
   bumped.splice(afterQuestionNumber, 0, createEmptyQuestion(roundNumber, newNumber, kind));
 
-  const rest = questions.filter((q) => q.roundNumber !== roundNumber || q.kind !== kind);
+  const rest = questions.filter((q) => {
+    if (q.roundNumber !== roundNumber) return true;
+    return musicGroup ? q.kind !== "music" : q.kind === "music";
+  });
   return sortQuizQuestions([...rest, ...bumped]);
 }
 
@@ -147,13 +171,16 @@ export function removeQuestion(questions: QuizQuestionItem[], questionId: string
   if (!target) return questions;
 
   const remaining = questions.filter((q) => q.id !== questionId);
+  const groupKey = questionRenumberGroupKey(target);
   const group = remaining
-    .filter((q) => q.roundNumber === target.roundNumber && q.kind === target.kind)
+    .filter(
+      (q) => q.roundNumber === target.roundNumber && questionRenumberGroupKey(q) === groupKey
+    )
     .sort((a, b) => a.questionNumber - b.questionNumber)
     .map((q, index) => ({ ...q, questionNumber: index + 1 }));
 
   const rest = remaining.filter(
-    (q) => q.roundNumber !== target.roundNumber || q.kind !== target.kind
+    (q) => q.roundNumber !== target.roundNumber || questionRenumberGroupKey(q) !== groupKey
   );
 
   return sortQuizQuestions([...rest, ...group]);
