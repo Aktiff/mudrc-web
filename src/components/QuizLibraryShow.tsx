@@ -182,9 +182,7 @@ function QuestionContent({
         imageHero ? "h-full max-h-[88vh] justify-start gap-5 sm:gap-6 pt-2 px-1" : "max-w-full w-full gap-7 sm:gap-9 px-1"
       }`}
     >
-      {phase === "question" &&
-        (question.kind === "music" || question.kind === "sound") &&
-        question.audioUrl?.trim() && (
+      {(question.kind === "music" || question.kind === "sound") && question.audioUrl?.trim() && (
         <audio
           controls
           src={question.audioUrl}
@@ -194,7 +192,7 @@ function QuestionContent({
         />
       )}
 
-      {phase === "question" && question.kind === "video" && question.videoUrl?.trim() && (
+      {question.kind === "video" && question.videoUrl?.trim() && (
         <video
           controls
           playsInline
@@ -231,27 +229,15 @@ function QuestionContent({
         </div>
       )}
 
-      {phase === "answer" && options.length === 0 && question.kind === "music" && (question.musicArtist || question.musicTitle) && (
-        <div className="w-full max-w-full space-y-4">
-          <div className="px-10 sm:px-14 py-5 sm:py-6 rounded-2xl bg-gradient-to-br from-[#f0c800] to-[#e6b800] text-black text-center shadow-[0_20px_60px_rgba(240,200,0,0.25)]">
-            <p className="text-sm font-semibold uppercase tracking-wider opacity-80 mb-1">Interpret · 1 bod</p>
-            <p className="font-display tracking-wide" style={ANSWER_TEXT_STYLE}>
-              {fixSlovakLineBreaks(question.musicArtist ?? "—")}
-            </p>
-          </div>
-          <div className="px-10 sm:px-14 py-5 sm:py-6 rounded-2xl bg-gradient-to-br from-[#f0c800] to-[#e6b800] text-black text-center shadow-[0_20px_60px_rgba(240,200,0,0.25)]">
-            <p className="text-sm font-semibold uppercase tracking-wider opacity-80 mb-1">Skladba · 1 bod</p>
-            <p className="font-display tracking-wide" style={ANSWER_TEXT_STYLE}>
-              {fixSlovakLineBreaks(question.musicTitle ?? "—")}
-            </p>
-          </div>
-        </div>
-      )}
-
-      {phase === "answer" && options.length === 0 && !(question.kind === "music" && (question.musicArtist || question.musicTitle)) && (
+      {phase === "answer" && options.length === 0 && (
         <div className="px-10 sm:px-14 py-6 sm:py-8 rounded-2xl bg-gradient-to-br from-[#f0c800] to-[#e6b800] text-black text-center max-w-full w-full shadow-[0_20px_60px_rgba(240,200,0,0.25)]">
           <p className="font-display tracking-wide" style={ANSWER_TEXT_STYLE}>
-            {fixSlovakLineBreaks(question.answer) || "—"}
+            {fixSlovakLineBreaks(
+              question.answer.trim() ||
+                (question.musicArtist?.trim() && question.musicTitle?.trim()
+                  ? `${question.musicArtist.trim()} — ${question.musicTitle.trim()}`
+                  : "")
+            ) || "—"}
           </p>
         </div>
       )}
