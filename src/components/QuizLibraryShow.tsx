@@ -434,12 +434,12 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
     setIndex((i) => Math.max(0, i - 1));
   }, []);
 
-  const { listening: voiceListening, error: voiceError } = usePresentationVoiceControl(
-    started,
-    voiceEnabled,
-    goNext,
-    goPrev
-  );
+  const {
+    listening: voiceListening,
+    error: voiceError,
+    lastTranscript: voiceLastTranscript,
+    recognitionLang: voiceRecognitionLang,
+  } = usePresentationVoiceControl(started, voiceEnabled, goNext, goPrev);
 
   const toggleVoiceControl = useCallback(() => {
     setVoiceEnabled((on) => !on);
@@ -536,8 +536,8 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
                 onChange={(e) => setVoiceEnabled(e.target.checked)}
               />
               <span className="text-sm text-white/75 leading-snug">
-                Ovládanie hlasom („ďalej“, „ďalšia otázka“, „späť“). Funguje v Chrome / Edge — prehliadač
-                pýta prístup k mikrofónu.
+                Ovládanie hlasom („ďalej“, „ďalšia otázka“, „späť“). Vo Vivaldi/Chrome treba aj prístup k službe
+                Google na rozpoznanie reči (nie len mikrofón).
               </span>
             </label>
           ) : (
@@ -666,7 +666,18 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
             )}
           </button>
           {voiceError ? (
-            <p className="pointer-events-none mt-2 max-w-[14rem] text-xs text-red-300/90">{voiceError}</p>
+            <p className="pointer-events-none mt-2 max-w-[16rem] text-xs text-red-300/90 leading-snug">{voiceError}</p>
+          ) : null}
+          {voiceEnabled && !voiceError ? (
+            <p className="pointer-events-none mt-2 max-w-[16rem] text-[10px] sm:text-xs text-white/45 leading-snug">
+              {voiceListening ? "Počúvam" : "Čakám…"} ({voiceRecognitionLang})
+              {voiceLastTranscript ? (
+                <>
+                  <br />
+                  <span className="text-white/70">„{voiceLastTranscript}“</span>
+                </>
+              ) : null}
+            </p>
           ) : null}
         </div>
       )}

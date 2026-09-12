@@ -31,6 +31,8 @@ const NEXT_SUBSTRINGS = [
   "pokracuj",
   "nasledujuci",
   "nasledujuca",
+  "next",
+  "dalsie",
 ];
 
 const PREV_SUBSTRINGS = ["spat", "naspat", "predchadzajuci", "predchadzajuca"];
@@ -57,9 +59,25 @@ export function matchVoiceCommand(transcript: string): "next" | "prev" | null {
     if (n.includes(normalizeSpeechText(phrase))) return "next";
   }
 
-  if (/\b(dalsi|dalsia|dalej|pokracuj)\b/.test(n)) return "next";
+  if (/\b(dalsi|dalsia|dalej|pokracuj|next)\b/.test(n)) return "next";
+  if (n.includes("dalej") || n.includes("dalsi")) return "next";
 
   return null;
+}
+
+export function voiceControlErrorMessage(code: string): string | null {
+  switch (code) {
+    case "not-allowed":
+      return "Prístup k mikrofónu bol zamietnutý.";
+    case "service-not-allowed":
+      return "Prehliadač blokuje službu rozpoznávania reči (Google). Vo Vivaldi skús vypnúť blokovanie Google služieb, alebo otestuj v Chrome.";
+    case "network":
+      return "Rozpoznávanie reči potrebuje internet (Google). Skontroluj pripojenie alebo firewall.";
+    case "audio-capture":
+      return "Mikrofón sa nepodarilo spustiť — skontroluj, či ho nepoužíva iná aplikácia.";
+    default:
+      return null;
+  }
 }
 
 export function getSpeechRecognitionCtor(): SpeechRecognitionCtor | null {
@@ -83,6 +101,6 @@ export function createPresentationVoiceRecognition(): PresentationVoiceRecogniti
   const recognition = new Ctor();
   recognition.lang = "sk-SK";
   recognition.continuous = true;
-  recognition.interimResults = false;
+  recognition.interimResults = true;
   return recognition;
 }
