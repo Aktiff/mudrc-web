@@ -134,7 +134,7 @@ export default function SoundBankQuestionForm({ onAdded, onMessage }: Props) {
         <div>
           <p className="font-semibold text-brand-text text-sm">Pridať zvukovú ukážku do banky</p>
           <p className="text-brand-muted text-xs mt-0.5">
-            Hlasy, zvuky · „Popis - Odpoveď.mp3“ · sloty v 3. kole
+            Hlasy, zvuky · „Popis - Odpoveď.mp3“ · vložíš do ľubovoľného slotu otázky
           </p>
         </div>
         {open ? <ChevronUp className="w-5 h-5 shrink-0" /> : <ChevronDown className="w-5 h-5 shrink-0" />}

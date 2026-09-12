@@ -124,7 +124,7 @@ export default function VideoBankQuestionForm({ onAdded, onMessage }: Props) {
       >
         <div>
           <p className="font-semibold text-brand-text text-sm">Pridať video ukážku do banky</p>
-          <p className="text-brand-muted text-xs mt-0.5">Filmy, seriály · sloty v 4. kole</p>
+          <p className="text-brand-muted text-xs mt-0.5">Filmy, seriály · vložíš do ľubovoľného slotu otázky</p>
         </div>
         {open ? <ChevronUp className="w-5 h-5 shrink-0" /> : <ChevronDown className="w-5 h-5 shrink-0" />}
       </button>

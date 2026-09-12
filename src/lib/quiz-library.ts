@@ -218,16 +218,10 @@ export function findFirstEmptyMusicSlot(questions: QuizQuestionItem[]): QuizQues
     .find(isQuestionSlotEmpty);
 }
 
-export function findFirstEmptySoundSlot(questions: QuizQuestionItem[]): QuizQuestionItem | undefined {
+/** Prázdna otázka v kole — okrem hudobných slotov (tie sú len na konci 4. kola). */
+export function findFirstEmptyContentSlot(questions: QuizQuestionItem[]): QuizQuestionItem | undefined {
   return [...questions]
-    .filter((q) => q.kind === "sound")
-    .sort((a, b) => a.questionNumber - b.questionNumber)
-    .find(isQuestionSlotEmpty);
-}
-
-export function findFirstEmptyVideoSlot(questions: QuizQuestionItem[]): QuizQuestionItem | undefined {
-  return [...questions]
-    .filter((q) => q.kind === "video")
+    .filter((q) => q.kind !== "music")
     .sort((a, b) => a.questionNumber - b.questionNumber)
     .find(isQuestionSlotEmpty);
 }

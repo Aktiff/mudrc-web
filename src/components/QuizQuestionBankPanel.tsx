@@ -2,13 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { BookOpen, Check, ClipboardCopy, Shuffle, Trash2 } from "lucide-react";
-import type { QuizQuestionItem } from "@/lib/quiz-library";
 import {
+  findFirstEmptyContentSlot,
   findFirstEmptyMusicSlot,
-  findFirstEmptyQuestionSlot,
-  findFirstEmptySoundSlot,
-  findFirstEmptyVideoSlot,
   isQuestionSlotEmpty,
+  type QuizQuestionItem,
 } from "@/lib/quiz-library";
 import {
   applyBankQuestionOrder,
@@ -109,6 +107,12 @@ type Props = {
 };
 
 const OPTION_LETTERS = ["A", "B", "C", "D", "E", "F"] as const;
+
+function contentSlotLabel(q: QuizQuestionItem): string {
+  const kindHint =
+    q.kind === "sound" ? " · zvuk" : q.kind === "video" ? " · video" : "";
+  return `Ot. ${q.questionNumber}${kindHint}${isQuestionSlotEmpty(q) ? " · prázdna" : " · obsadená"}`;
+}
 
 function TagChip({
   tag,
@@ -228,17 +232,18 @@ export default function QuizQuestionBankPanel({
 
   const bankTags = useMemo(() => collectTagsFromBank(availableQuestions), [availableQuestions]);
 
-  const normalQuestions = useMemo(
+  /** Všetky sloty v kole okrem hudby — sem patria text, zvuk aj video. */
+  const contentSlotQuestions = useMemo(
     () =>
       roundQuestions
-        .filter((q) => q.kind === "normal")
+        .filter((q) => q.kind !== "music")
         .sort((a, b) => a.questionNumber - b.questionNumber),
     [roundQuestions]
   );
 
   const defaultTargetId = useMemo(
-    () => findFirstEmptyQuestionSlot(normalQuestions)?.id ?? normalQuestions[0]?.id ?? "",
-    [normalQuestions]
+    () => findFirstEmptyContentSlot(contentSlotQuestions)?.id ?? contentSlotQuestions[0]?.id ?? "",
+    [contentSlotQuestions]
   );
 
   const tagCounts = useMemo(
@@ -296,18 +301,7 @@ export default function QuizQuestionBankPanel({
     void removeMusicBankItemAsync(id).then(() => onMusicBankChange?.());
   };
 
-  const soundQuestionsInRound = useMemo(
-    () =>
-      roundQuestions
-        .filter((q) => q.kind === "sound")
-        .sort((a, b) => a.questionNumber - b.questionNumber),
-    [roundQuestions]
-  );
-
-  const defaultSoundTargetId = useMemo(
-    () => findFirstEmptySoundSlot(soundQuestionsInRound)?.id ?? soundQuestionsInRound[0]?.id ?? "",
-    [soundQuestionsInRound]
-  );
+  const defaultSoundTargetId = defaultTargetId;
 
   const visibleSoundClips = useMemo(
     () =>
@@ -344,18 +338,7 @@ export default function QuizQuestionBankPanel({
     void removeSoundBankItemAsync(id).then(() => onSoundBankChange?.());
   };
 
-  const videoQuestionsInRound = useMemo(
-    () =>
-      roundQuestions
-        .filter((q) => q.kind === "video")
-        .sort((a, b) => a.questionNumber - b.questionNumber),
-    [roundQuestions]
-  );
-
-  const defaultVideoTargetId = useMemo(
-    () => findFirstEmptyVideoSlot(videoQuestionsInRound)?.id ?? videoQuestionsInRound[0]?.id ?? "",
-    [videoQuestionsInRound]
-  );
+  const defaultVideoTargetId = defaultTargetId;
 
   const visibleVideoClips = useMemo(
     () =>
@@ -558,9 +541,9 @@ export default function QuizQuestionBankPanel({
               {sourceFilter === "music"
                 ? `${visibleMusicTracks.length} skladieb v banke hudby${openRound === 4 ? " · ciel: hudobné sloty v 4. kole" : " · prepni na kolo 4 pre vloženie"}`
                 : sourceFilter === "sound"
-                  ? `${visibleSoundClips.length} zvukových ukážok${openRound === 3 ? " · ciel: zvuk v 3. kole" : " · prepni na kolo 3"}`
+                  ? `${visibleSoundClips.length} zvukových ukážok · vlož do otázky v aktuálnom kole`
                   : sourceFilter === "video"
-                    ? `${visibleVideoClips.length} video ukážok${openRound === 4 ? " · ciel: video v 4. kole" : " · prepni na kolo 4"}`
+                    ? `${visibleVideoClips.length} video ukážok · vlož do otázky v aktuálnom kole`
                     : `${visibleQuestions.length} textových otázok k dispozícii`}
               {sourceFilter !== "all" && !MEDIA_FILTERS.has(sourceFilter)
                 ? ` · filter: ${sourceFilter === "custom" ? "moje" : "vygenerované"}`
@@ -621,13 +604,13 @@ export default function QuizQuestionBankPanel({
 
         {sourceFilter === "sound" && (
           <p className="text-xs font-semibold text-sky-800 dark:text-sky-200 bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800 rounded-lg px-3 py-2 leading-relaxed">
-            Hlasy a zvuky — vlož do slotov „Zvuk 1–5“ v 3. kole.
+            Zvuková ukážka môže nahradiť ľubovoľnú otázku v aktuálnom kole (1–4). Hudobné sloty na konci 4. kola nie sú dostupné.
           </p>
         )}
 
         {sourceFilter === "video" && (
           <p className="text-xs font-semibold text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-2 leading-relaxed">
-            Filmové ukážky — vlož do slotov „Video 1–5“ v 4. kole (pred hudbou).
+            Video môže ísť do ľubovoľného slotu otázky v kole — rovnako ako text alebo zvuk.
           </p>
         )}
 
@@ -678,17 +661,16 @@ export default function QuizQuestionBankPanel({
                   <p className="text-sm text-brand-muted">Odpoveď: {clip.answer}</p>
                   {clip.audioUrl && <audio controls src={clip.audioUrl} className="w-full max-w-md" preload="metadata" />}
                   <p className="text-xs text-brand-muted">{formatSoundBankHostNote(clip)}</p>
-                  {soundQuestionsInRound.length > 0 && onInsertSound ? (
+                  {contentSlotQuestions.length > 0 && onInsertSound ? (
                     <div className="flex gap-2">
                       <select
                         className="input text-xs py-2 flex-1 min-w-0"
                         value={targetId}
                         onChange={(e) => setTargetByBankId((prev) => ({ ...prev, [clip.id]: e.target.value }))}
                       >
-                        {soundQuestionsInRound.map((q) => (
+                        {contentSlotQuestions.map((q) => (
                           <option key={q.id} value={q.id}>
-                            Zvuk {q.questionNumber}
-                            {isQuestionSlotEmpty(q) ? " · prázdna" : " · obsadená"}
+                            {contentSlotLabel(q)}
                           </option>
                         ))}
                       </select>
@@ -697,7 +679,7 @@ export default function QuizQuestionBankPanel({
                       </button>
                     </div>
                   ) : (
-                    <p className="text-xs text-amber-700 dark:text-amber-300">Pre vloženie prepni na kolo 3.</p>
+                    <p className="text-xs text-amber-700 dark:text-amber-300">V tomto kole nie je kam vložiť.</p>
                   )}
                   <button type="button" onClick={() => dismissSoundClip(clip.id)} className="btn-outline text-xs py-1.5 px-2 text-red-600 border-red-200">
                     <Trash2 className="w-3 h-3 inline" /> Vymazať
@@ -723,17 +705,16 @@ export default function QuizQuestionBankPanel({
                     <video controls src={clip.videoUrl} className="w-full max-w-md rounded-lg border border-brand-border" preload="metadata" />
                   )}
                   <p className="text-xs text-brand-muted">{formatVideoBankHostNote(clip)}</p>
-                  {videoQuestionsInRound.length > 0 && onInsertVideo ? (
+                  {contentSlotQuestions.length > 0 && onInsertVideo ? (
                     <div className="flex gap-2">
                       <select
                         className="input text-xs py-2 flex-1 min-w-0"
                         value={targetId}
                         onChange={(e) => setTargetByBankId((prev) => ({ ...prev, [clip.id]: e.target.value }))}
                       >
-                        {videoQuestionsInRound.map((q) => (
+                        {contentSlotQuestions.map((q) => (
                           <option key={q.id} value={q.id}>
-                            Video {q.questionNumber}
-                            {isQuestionSlotEmpty(q) ? " · prázdna" : " · obsadená"}
+                            {contentSlotLabel(q)}
                           </option>
                         ))}
                       </select>
@@ -742,7 +723,7 @@ export default function QuizQuestionBankPanel({
                       </button>
                     </div>
                   ) : (
-                    <p className="text-xs text-amber-700 dark:text-amber-300">Pre vloženie prepni na kolo 4.</p>
+                    <p className="text-xs text-amber-700 dark:text-amber-300">V tomto kole nie je kam vložiť.</p>
                   )}
                   <button type="button" onClick={() => dismissVideoClip(clip.id)} className="btn-outline text-xs py-1.5 px-2 text-red-600 border-red-200">
                     <Trash2 className="w-3 h-3 inline" /> Vymazať
@@ -881,7 +862,7 @@ export default function QuizQuestionBankPanel({
                 </p>
 
                 <div className="flex flex-col gap-2">
-                  {normalQuestions.length > 0 && (
+                  {contentSlotQuestions.length > 0 && (
                     <div className="flex gap-2">
                       <select
                         className="input text-xs py-2 flex-1 min-w-0"
@@ -890,10 +871,9 @@ export default function QuizQuestionBankPanel({
                           setTargetByBankId((prev) => ({ ...prev, [item.id]: e.target.value }))
                         }
                       >
-                        {normalQuestions.map((q) => (
+                        {contentSlotQuestions.map((q) => (
                           <option key={q.id} value={q.id}>
-                            Ot. {q.questionNumber}
-                            {isQuestionSlotEmpty(q) ? " · prázdna" : " · obsadená"}
+                            {contentSlotLabel(q)}
                           </option>
                         ))}
                       </select>

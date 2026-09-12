@@ -258,7 +258,8 @@ export default function QuizLibraryEditor({ quizId }: Props) {
     suggestedImageUrl?: string
   ) => {
     const target = questions.find((q) => q.id === targetQuestionId);
-    const displacedBankId = target?.bankQuestionId;
+    if (!target || target.kind === "music") return;
+    const displacedBankId = target.bankQuestionId;
 
     setQuiz((prev) => {
       if (!prev) return prev;
@@ -275,12 +276,16 @@ export default function QuizLibraryEditor({ quizId }: Props) {
           q.id === targetQuestionId
             ? {
                 ...q,
+                kind: "normal",
                 body,
                 answer,
                 options: options.length ? options : undefined,
                 bankQuestionId: bankId,
                 tags: tags.length ? tags : undefined,
                 hostNote: hostNote?.trim() || undefined,
+                audioUrl: undefined,
+                videoUrl: undefined,
+                mediaLabel: undefined,
                 ...(isImageQuestion
                   ? {
                       imageUrl: suggestedImageUrl?.trim() ?? "",
@@ -289,7 +294,13 @@ export default function QuizLibraryEditor({ quizId }: Props) {
                       imageOnNextSlide: false,
                       imageOnAnswerSlide: true,
                     }
-                  : {}),
+                  : {
+                      imageUrl: undefined,
+                      imageDuringQuestion: false,
+                      imageBeforeQuestion: undefined,
+                      imageOnNextSlide: undefined,
+                      imageOnAnswerSlide: undefined,
+                    }),
               }
             : q
         ),
@@ -390,7 +401,7 @@ export default function QuizLibraryEditor({ quizId }: Props) {
     hostNote?: string
   ) => {
     const target = questions.find((q) => q.id === targetQuestionId);
-    if (!target || target.kind !== "sound") return;
+    if (!target || target.kind === "music") return;
     const displacedBankId = target.bankQuestionId;
 
     const restoreToBank =
@@ -420,13 +431,20 @@ export default function QuizLibraryEditor({ quizId }: Props) {
           q.id === targetQuestionId
             ? {
                 ...q,
+                kind: "sound",
                 body: DEFAULT_SOUND_QUESTION_BODY,
                 answer,
                 mediaLabel: label,
                 audioUrl,
+                videoUrl: undefined,
                 bankQuestionId: bankId,
                 hostNote: hostNote?.trim() || undefined,
                 options: undefined,
+                imageUrl: undefined,
+                imageDuringQuestion: false,
+                imageBeforeQuestion: undefined,
+                imageOnNextSlide: undefined,
+                imageOnAnswerSlide: undefined,
                 tags: ["zvuk"],
               }
             : q
@@ -458,7 +476,7 @@ export default function QuizLibraryEditor({ quizId }: Props) {
     hostNote?: string
   ) => {
     const target = questions.find((q) => q.id === targetQuestionId);
-    if (!target || target.kind !== "video") return;
+    if (!target || target.kind === "music") return;
     const displacedBankId = target.bankQuestionId;
 
     const restoreToBank =
@@ -488,12 +506,20 @@ export default function QuizLibraryEditor({ quizId }: Props) {
           q.id === targetQuestionId
             ? {
                 ...q,
+                kind: "video",
                 body: DEFAULT_VIDEO_QUESTION_BODY,
                 answer,
                 mediaLabel: label,
                 videoUrl,
+                audioUrl: undefined,
                 bankQuestionId: bankId,
                 hostNote: hostNote?.trim() || undefined,
+                options: undefined,
+                imageUrl: undefined,
+                imageDuringQuestion: false,
+                imageBeforeQuestion: undefined,
+                imageOnNextSlide: undefined,
+                imageOnAnswerSlide: undefined,
                 tags: ["video"],
               }
             : q
@@ -593,6 +619,7 @@ export default function QuizLibraryEditor({ quizId }: Props) {
               q.id === questionId
                 ? {
                     ...q,
+                    kind: "normal",
                     body: "",
                     answer: "",
                     musicArtist: undefined,
@@ -679,16 +706,13 @@ export default function QuizLibraryEditor({ quizId }: Props) {
 
   const roundQuestions = useMemo(() => questionsInRound(questions, openRound), [questions, openRound]);
   const roundQuestionSections = useMemo(() => {
-    if (openRound === 3) {
-      return [
-        { key: "normal", title: "Klasické otázky (15)", items: roundQuestions.filter((q) => q.kind === "normal") },
-        { key: "sound", title: "Zvukové ukážky (5)", items: roundQuestions.filter((q) => q.kind === "sound") },
-      ];
-    }
     if (openRound === 4) {
       return [
-        { key: "normal", title: "Klasické otázky (5)", items: roundQuestions.filter((q) => q.kind === "normal") },
-        { key: "video", title: "Video ukážky (5)", items: roundQuestions.filter((q) => q.kind === "video") },
+        {
+          key: "content",
+          title: "Otázky (text / zvuk / video)",
+          items: roundQuestions.filter((q) => q.kind !== "music"),
+        },
         { key: "music", title: "Hudobné ukážky (5)", items: roundQuestions.filter((q) => q.kind === "music") },
       ];
     }
