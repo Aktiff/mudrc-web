@@ -2,22 +2,16 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
+  commandKeyFromVoiceCommand,
   createPresentationVoiceRecognition,
   isSpeechRecognitionSupported,
-  matchVoiceCommand,
+  matchVoiceCommandFromResults,
+  shouldAcceptVoiceCommand,
   voiceControlErrorMessage,
   type VoiceCommand,
 } from "@/lib/presentation-voice-control";
 
-const COMMAND_COOLDOWN_MS = 2800;
-
 const RECOGNITION_LANGS = ["sk-SK", "cs-CZ"] as const;
-
-function commandKey(command: VoiceCommand): string {
-  if (command.type === "goto_question") return `goto-q-${command.questionNumber}`;
-  if (command.type === "goto_round") return `goto-r-${command.roundNumber}`;
-  return command.type;
-}
 
 function collectTranscripts(
   result: {
@@ -27,7 +21,7 @@ function collectTranscripts(
   }
 ): string[] {
   const out: string[] = [];
-  const altCount = typeof result.length === "number" ? result.length : 1;
+  const altCount = typeof result.length === "number" ? Math.min(result.length, 5) : 1;
   for (let j = 0; j < altCount; j += 1) {
     const alt = result[j];
     if (alt && typeof alt === "object" && "transcript" in alt && alt.transcript) {
@@ -82,6 +76,9 @@ export function usePresentationVoiceControl(
     let networkRetries = 0;
     let stopped = false;
     let fatal = false;
+    let restartTimer: number | null = null;
+    let interimConfirmKey = "";
+    let interimConfirmCount = 0;
     const langIndexRef = { current: 0 };
 
     const applyLang = (index: number) => {
@@ -93,9 +90,17 @@ export function usePresentationVoiceControl(
 
     applyLang(0);
 
+    const clearRestartTimer = () => {
+      if (restartTimer != null) {
+        window.clearTimeout(restartTimer);
+        restartTimer = null;
+      }
+    };
+
     const stopRecognition = () => {
       fatal = true;
       stopped = true;
+      clearRestartTimer();
       setListening(false);
       setConnecting(false);
       try {
@@ -113,31 +118,40 @@ export function usePresentationVoiceControl(
     };
 
     const scheduleRestart = (delayMs: number) => {
-      window.setTimeout(() => {
+      clearRestartTimer();
+      setConnecting(true);
+      restartTimer = window.setTimeout(() => {
+        restartTimer = null;
         if (stopped || fatal || !enabledRef.current || !activeRef.current) return;
         try {
           recognition!.start();
           setListening(true);
           setConnecting(false);
         } catch {
-          setListening(false);
-          setConnecting(false);
+          scheduleRestart(Math.min(delayMs + 200, 1200));
         }
       }, delayMs);
     };
 
-    const handleFinalTranscript = (transcript: string) => {
-      const trimmed = transcript.trim();
-      if (!trimmed) return;
-      setLastTranscript(trimmed);
-
-      const command = matchVoiceCommand(trimmed);
-      if (!command) return;
-
-      const key = commandKey(command);
+    const tryDispatchCommand = (command: VoiceCommand, isFinal: boolean) => {
+      const key = commandKeyFromVoiceCommand(command);
       const now = Date.now();
-      if (key === lastKey && now - lastFire < COMMAND_COOLDOWN_MS) return;
-      if (now - lastFire < COMMAND_COOLDOWN_MS) return;
+
+      if (!isFinal && (command.type === "next" || command.type === "prev")) return;
+
+      if (!isFinal) {
+        if (key === interimConfirmKey) interimConfirmCount += 1;
+        else {
+          interimConfirmKey = key;
+          interimConfirmCount = 1;
+        }
+        if (interimConfirmCount < 2) return;
+      } else {
+        interimConfirmKey = "";
+        interimConfirmCount = 0;
+      }
+
+      if (!shouldAcceptVoiceCommand(command, key, lastKey, now - lastFire)) return;
 
       lastFire = now;
       lastKey = key;
@@ -148,26 +162,47 @@ export function usePresentationVoiceControl(
       onCommandRef.current(command);
     };
 
+    const handleResultBundle = (transcripts: string[], isFinal: boolean) => {
+      const joined = transcripts.join(" · ");
+      if (joined.trim()) setLastTranscript(joined);
+
+      const command = matchVoiceCommandFromResults(transcripts);
+      if (!command) {
+        if (isFinal) {
+          interimConfirmKey = "";
+          interimConfirmCount = 0;
+        }
+        return;
+      }
+      tryDispatchCommand(command, isFinal);
+    };
+
+    recognition.onstart = () => {
+      setListening(true);
+      setConnecting(false);
+    };
+
     recognition.onresult = (event) => {
       for (let i = event.resultIndex; i < event.results.length; i += 1) {
         const result = event.results[i];
-        if (!result.isFinal) continue;
         const transcripts = collectTranscripts(result);
-        for (const text of transcripts) {
-          handleFinalTranscript(text);
-        }
+        handleResultBundle(transcripts, result.isFinal);
       }
     };
 
     recognition.onerror = (event) => {
-      if (event.error === "no-speech" || event.error === "aborted") return;
+      if (event.error === "no-speech") {
+        scheduleRestart(80);
+        return;
+      }
+      if (event.error === "aborted") return;
       if (fatal || stopped) return;
 
       if (event.error === "network") {
         networkRetries += 1;
         if (networkRetries <= 4) {
-          setConnecting(true);
           setError(`Pripájam rozpoznávanie… (${networkRetries}/4)`);
+          scheduleRestart(Math.min(800 * networkRetries, 3200));
           return;
         }
         setFailed(true);
@@ -177,15 +212,12 @@ export function usePresentationVoiceControl(
       }
 
       if (event.error === "language-not-supported" && tryNextLang()) {
-        setConnecting(true);
-        scheduleRestart(400);
+        scheduleRestart(200);
         return;
       }
 
       const message = voiceControlErrorMessage(event.error);
-      if (message) {
-        setError(message);
-      }
+      if (message) setError(message);
       if (event.error === "not-allowed" || event.error === "service-not-allowed") {
         setFailed(true);
         stopRecognition();
@@ -198,10 +230,7 @@ export function usePresentationVoiceControl(
         setConnecting(false);
         return;
       }
-
-      const delay =
-        networkRetries > 0 && networkRetries <= 4 ? Math.min(1500 * networkRetries, 6000) : 300;
-      scheduleRestart(delay);
+      scheduleRestart(networkRetries > 0 ? 400 : 60);
     };
 
     try {
@@ -211,9 +240,7 @@ export function usePresentationVoiceControl(
       setFailed(false);
       setError(null);
     } catch {
-      setError("Nepodarilo sa spustiť rozpoznávanie reči.");
-      setFailed(true);
-      setListening(false);
+      scheduleRestart(300);
     }
 
     const activeRecognition = recognition;
@@ -221,6 +248,8 @@ export function usePresentationVoiceControl(
     return () => {
       stopped = true;
       fatal = true;
+      clearRestartTimer();
+      activeRecognition.onstart = null;
       activeRecognition.onend = null;
       activeRecognition.onresult = null;
       activeRecognition.onerror = null;

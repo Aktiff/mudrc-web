@@ -474,7 +474,7 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
     recognitionLang: voiceRecognitionLang,
   } = usePresentationVoiceControl(started, voiceEnabled, handleVoiceCommand);
 
-  const voiceMicActive = voiceEnabled && voiceListening && !voiceFailed;
+  const voiceMicActive = voiceEnabled && !voiceFailed && (voiceListening || voiceConnecting);
 
   const toggleVoiceControl = useCallback(() => {
     setVoiceEnabled((on) => !on);
@@ -571,8 +571,7 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
                 onChange={(e) => setVoiceEnabled(e.target.checked)}
               />
               <span className="text-sm text-white/75 leading-snug">
-                Ovládanie hlasom: „prvé kolo“ … „štvrté kolo“, „otázka jedna“… v aktuálnom kole, „ďalej“ / „späť“.
-                Odporúčame Chrome.
+                Hlas: „otázka 11“ / „otázka jedenásť“, „prvé kolo“… V hluku hovor zreteľne a blízko k mikrofónu (Chrome).
               </span>
             </label>
           ) : (
