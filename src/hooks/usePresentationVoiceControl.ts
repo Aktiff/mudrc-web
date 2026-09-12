@@ -9,7 +9,7 @@ import {
 } from "@/lib/presentation-voice-control";
 
 const COMMAND_COOLDOWN_MS = 1200;
-const MAX_NETWORK_RETRIES = 10;
+const MAX_NETWORK_RETRIES = 4;
 
 const RECOGNITION_LANGS = ["sk-SK", "cs-CZ"] as const;
 
@@ -42,6 +42,8 @@ export function usePresentationVoiceControl(
   onPrev: () => void
 ) {
   const [listening, setListening] = useState(false);
+  const [connecting, setConnecting] = useState(false);
+  const [failed, setFailed] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastTranscript, setLastTranscript] = useState("");
   const [recognitionLang, setRecognitionLang] = useState<string>(RECOGNITION_LANGS[0]);
@@ -58,6 +60,8 @@ export function usePresentationVoiceControl(
   useEffect(() => {
     if (!active || !enabled) {
       setListening(false);
+      setConnecting(false);
+      setFailed(false);
       setLastTranscript("");
       setError(null);
       langIndexRef.current = 0;
@@ -68,12 +72,14 @@ export function usePresentationVoiceControl(
     let recognition = createPresentationVoiceRecognition();
     if (!recognition) {
       setError("Prehliadač nepodporuje rozpoznávanie reči (skús Chrome alebo Edge).");
+      setFailed(true);
       return;
     }
 
     let lastFire = 0;
     let networkRetries = 0;
     let stopped = false;
+    let fatal = false;
 
     const applyLang = (index: number) => {
       langIndexRef.current = index;
@@ -84,11 +90,37 @@ export function usePresentationVoiceControl(
 
     applyLang(0);
 
+    const stopRecognition = () => {
+      fatal = true;
+      stopped = true;
+      setListening(false);
+      setConnecting(false);
+      try {
+        recognition?.abort();
+      } catch {
+        /* ignore */
+      }
+    };
+
     const tryNextLang = (): boolean => {
       const next = langIndexRef.current + 1;
       if (next >= RECOGNITION_LANGS.length) return false;
       applyLang(next);
       return true;
+    };
+
+    const scheduleRestart = (delayMs: number) => {
+      window.setTimeout(() => {
+        if (stopped || fatal || !enabledRef.current || !activeRef.current) return;
+        try {
+          recognition!.start();
+          setListening(true);
+          setConnecting(false);
+        } catch {
+          setListening(false);
+          setConnecting(false);
+        }
+      }, delayMs);
     };
 
     const handleResult = (transcript: string, isFinal: boolean) => {
@@ -106,7 +138,9 @@ export function usePresentationVoiceControl(
       if (command === "next") onNextRef.current();
       else onPrevRef.current();
       networkRetries = 0;
+      setConnecting(false);
       setError(null);
+      setFailed(false);
     };
 
     recognition.onresult = (event) => {
@@ -121,29 +155,24 @@ export function usePresentationVoiceControl(
 
     recognition.onerror = (event) => {
       if (event.error === "no-speech" || event.error === "aborted") return;
+      if (fatal || stopped) return;
 
       if (event.error === "network") {
         networkRetries += 1;
         if (networkRetries <= MAX_NETWORK_RETRIES) {
+          setConnecting(true);
           setError(`Pripájam rozpoznávanie… (${networkRetries}/${MAX_NETWORK_RETRIES})`);
-          setListening(false);
           return;
         }
+        setFailed(true);
         setError(voiceControlErrorMessage("network"));
-        setListening(false);
+        stopRecognition();
         return;
       }
 
       if (event.error === "language-not-supported" && tryNextLang()) {
-        window.setTimeout(() => {
-          if (stopped || !enabledRef.current) return;
-          try {
-            recognition!.start();
-            setListening(true);
-          } catch {
-            setListening(false);
-          }
-        }, 300);
+        setConnecting(true);
+        scheduleRestart(400);
         return;
       }
 
@@ -152,32 +181,34 @@ export function usePresentationVoiceControl(
         setError(message);
       }
       if (event.error === "not-allowed" || event.error === "service-not-allowed") {
-        setListening(false);
+        setFailed(true);
+        stopRecognition();
       }
     };
 
     recognition.onend = () => {
-      if (stopped || !enabledRef.current || !activeRef.current) {
+      if (stopped || fatal || !enabledRef.current || !activeRef.current) {
         setListening(false);
+        setConnecting(false);
         return;
       }
-      window.setTimeout(() => {
-        if (stopped || !enabledRef.current || !activeRef.current) return;
-        try {
-          recognition!.start();
-          setListening(true);
-        } catch {
-          setListening(false);
-        }
-      }, 250);
+
+      const delay =
+        networkRetries > 0 && networkRetries <= MAX_NETWORK_RETRIES
+          ? Math.min(1500 * networkRetries, 6000)
+          : 300;
+      scheduleRestart(delay);
     };
 
     try {
       recognition.start();
       setListening(true);
+      setConnecting(false);
+      setFailed(false);
       setError(null);
     } catch {
       setError("Nepodarilo sa spustiť rozpoznávanie reči.");
+      setFailed(true);
       setListening(false);
     }
 
@@ -185,6 +216,7 @@ export function usePresentationVoiceControl(
 
     return () => {
       stopped = true;
+      fatal = true;
       activeRecognition.onend = null;
       activeRecognition.onresult = null;
       activeRecognition.onerror = null;
@@ -194,11 +226,14 @@ export function usePresentationVoiceControl(
         /* ignore */
       }
       setListening(false);
+      setConnecting(false);
     };
   }, [active, enabled]);
 
   return {
     listening,
+    connecting,
+    failed,
     error,
     lastTranscript,
     recognitionLang,

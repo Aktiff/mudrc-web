@@ -436,10 +436,14 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
 
   const {
     listening: voiceListening,
+    connecting: voiceConnecting,
+    failed: voiceFailed,
     error: voiceError,
     lastTranscript: voiceLastTranscript,
     recognitionLang: voiceRecognitionLang,
   } = usePresentationVoiceControl(started, voiceEnabled, goNext, goPrev);
+
+  const voiceMicActive = voiceEnabled && voiceListening && !voiceFailed;
 
   const toggleVoiceControl = useCallback(() => {
     setVoiceEnabled((on) => !on);
@@ -649,9 +653,13 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
               toggleVoiceControl();
             }}
             className={`pointer-events-auto p-2.5 rounded-full border backdrop-blur-sm transition-colors ${
-              voiceEnabled && voiceListening
+              voiceMicActive
                 ? "bg-[#f0c800]/20 border-[#f0c800]/50 hover:bg-[#f0c800]/30"
-                : "bg-black/40 border-white/15 hover:bg-white/15"
+                : voiceEnabled && voiceConnecting
+                  ? "bg-[#f0c800]/10 border-[#f0c800]/35 hover:bg-[#f0c800]/20"
+                  : voiceFailed
+                    ? "bg-red-950/40 border-red-400/40 hover:bg-red-950/55"
+                    : "bg-black/40 border-white/15 hover:bg-white/15"
             }`}
             title={
               voiceEnabled
@@ -659,8 +667,10 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
                 : "Zapnúť hlas — povedz „ďalej“ alebo „ďalšia otázka“ (M)"
             }
           >
-            {voiceEnabled && voiceListening ? (
-              <Mic className="w-5 h-5 text-[#f0c800] animate-pulse" />
+            {voiceMicActive ? (
+              <Mic className="w-5 h-5 text-[#f0c800]" />
+            ) : voiceEnabled && (voiceConnecting || voiceFailed) ? (
+              <Mic className={`w-5 h-5 ${voiceFailed ? "text-red-300" : "text-[#f0c800]/70"}`} />
             ) : (
               <MicOff className="w-5 h-5" />
             )}
@@ -674,9 +684,9 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
               {voiceError}
             </p>
           ) : null}
-          {voiceEnabled && !voiceError ? (
+          {voiceEnabled && !voiceFailed && !voiceError ? (
             <p className="pointer-events-none mt-2 max-w-[16rem] text-[10px] sm:text-xs text-white/45 leading-snug">
-              {voiceListening ? "Počúvam" : "Čakám…"} ({voiceRecognitionLang})
+              {voiceMicActive ? "Počúvam" : voiceConnecting ? "Pripájam…" : "Čakám…"} ({voiceRecognitionLang})
               {voiceLastTranscript ? (
                 <>
                   <br />
