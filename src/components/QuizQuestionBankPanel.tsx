@@ -16,7 +16,6 @@ import {
 import {
   filterVisibleBankQuestions,
   formatBankQuestionBody,
-  isImageQuestionSlot,
   readHiddenBankQuestionIds,
   writeHiddenBankQuestionIds,
   type QuizBankQuestion,
@@ -216,19 +215,6 @@ export default function QuizQuestionBankPanel({
     [normalQuestions]
   );
 
-  const defaultTargetQuestion = useMemo(
-    () => normalQuestions.find((question) => question.id === defaultTargetId),
-    [normalQuestions, defaultTargetId]
-  );
-
-  const prioritizeImageQuestions = useMemo(() => {
-    if (!defaultTargetQuestion) return false;
-    return (
-      isQuestionSlotEmpty(defaultTargetQuestion) &&
-      isImageQuestionSlot(defaultTargetQuestion.questionNumber)
-    );
-  }, [defaultTargetQuestion]);
-
   useEffect(() => {
     setManualOrderIds(null);
   }, [excludedTags, usedBankQuestionIds, hiddenIds, sourceFilter, customBankQuestions]);
@@ -251,21 +237,17 @@ export default function QuizQuestionBankPanel({
       const bTime = "createdAt" in b && typeof b.createdAt === "number" ? b.createdAt : 0;
       return bTime - aTime;
     });
-    const generatedSorted = sortBankQuestionsByTagBalance(generated, tagCounts, { prioritizeImageQuestions });
+    const generatedSorted = sortBankQuestionsByTagBalance(generated, tagCounts);
     return [...customSorted, ...generatedSorted];
   };
 
   const visibleQuestions = useMemo(() => {
     if (sourceFilter === "music") return [];
-    if (manualOrderIds) {
-      const ordered = applyBankQuestionOrder(filteredQuestions, manualOrderIds);
-      if (sourceFilter === "generated") {
-        return sortBankQuestionsByTagBalance(ordered, tagCounts, { prioritizeImageQuestions });
-      }
-      return sortWithCustomPriority(ordered);
+    if (manualOrderIds?.length) {
+      return applyBankQuestionOrder(filteredQuestions, manualOrderIds);
     }
     return sortWithCustomPriority(filteredQuestions);
-  }, [filteredQuestions, manualOrderIds, tagCounts, prioritizeImageQuestions, sourceFilter]);
+  }, [filteredQuestions, manualOrderIds, tagCounts, sourceFilter]);
 
   const toggleTagExclusion = (tag: string) => {
     setExcludedTags((prev) =>
@@ -276,9 +258,7 @@ export default function QuizQuestionBankPanel({
   const shuffleQuestions = () => {
     const custom = filteredQuestions.filter((item) => isCustomBankQuestionId(item.id));
     const generated = filteredQuestions.filter((item) => isGeneratedBankQuestion(item));
-    const mixedGenerated = shuffleBankQuestionsByTagBalance(generated, tagCounts, {
-      prioritizeImageQuestions,
-    });
+    const mixedGenerated = shuffleBankQuestionsByTagBalance(generated, tagCounts);
     const customSorted = [...custom].sort((a, b) => {
       const aTime = "createdAt" in a && typeof a.createdAt === "number" ? a.createdAt : 0;
       const bTime = "createdAt" in b && typeof b.createdAt === "number" ? b.createdAt : 0;
@@ -406,13 +386,11 @@ export default function QuizQuestionBankPanel({
                 : ""}
               {sourceFilter !== "music" && manualOrderIds
                 ? " · premiešané podľa tagov"
-                : sourceFilter !== "music" && prioritizeImageQuestions
-                  ? ` · foto otázky navrchu (ot. ${defaultTargetQuestion?.questionNumber} čaká na fotku)`
-                  : sourceFilter !== "music" && customBankQuestions.some((q) => !usedBankQuestionIds.includes(q.id))
-                    ? " · tvoje otázky navrchu"
-                    : sourceFilter !== "music"
-                      ? " · zoradené podľa najmenej použitých tagov"
-                      : ""}
+                : sourceFilter !== "music" && customBankQuestions.some((q) => !usedBankQuestionIds.includes(q.id))
+                  ? " · tvoje otázky navrchu"
+                  : sourceFilter !== "music"
+                    ? " · zoradené podľa najmenej použitých tagov"
+                    : ""}
             </p>
           </div>
           <button
@@ -454,13 +432,6 @@ export default function QuizQuestionBankPanel({
         {sourceFilter === "music" && (
           <p className="text-xs font-semibold text-violet-800 dark:text-violet-200 bg-violet-50 dark:bg-violet-950/30 border border-violet-200 dark:border-violet-800 rounded-lg px-3 py-2 leading-relaxed">
             Každá ukážka = 1 bod za interpreta + 1 bod za názov skladby. Vlož do slotov „Hudba 1–5“ v 4. kole.
-          </p>
-        )}
-
-        {prioritizeImageQuestions && sourceFilter !== "music" && (
-          <p className="text-xs font-semibold text-brand-orange-readable bg-brand-tint border border-brand-orange/30 rounded-lg px-3 py-2 leading-relaxed">
-            Práve plníš otázku č. {defaultTargetQuestion?.questionNumber} — vo formáte Mudrc sú s fotkou
-            otázky 5 a 10. Vyber otázku z banky a doplni URL obrázka v editore.
           </p>
         )}
 

@@ -60,31 +60,21 @@ function bankQuestionTagUsageSum(item: QuizBankQuestion, tagCounts: Record<strin
 
 export function sortBankQuestionsByTagBalance(
   items: QuizBankQuestion[],
-  tagCounts: Record<string, number>,
-  options?: { prioritizeImageQuestions?: boolean }
+  tagCounts: Record<string, number>
 ): QuizBankQuestion[] {
-  const sortGroup = (group: QuizBankQuestion[]) =>
-    [...group].sort((a, b) => {
-      const sumDiff = bankQuestionTagUsageSum(a, tagCounts) - bankQuestionTagUsageSum(b, tagCounts);
-      if (sumDiff !== 0) return sumDiff;
+  return [...items].sort((a, b) => {
+    const maxDiff = bankQuestionTagScore(a, tagCounts) - bankQuestionTagScore(b, tagCounts);
+    if (maxDiff !== 0) return maxDiff;
 
-      const scoreDiff = bankQuestionTagScore(a, tagCounts) - bankQuestionTagScore(b, tagCounts);
-      if (scoreDiff !== 0) return scoreDiff;
+    const sumDiff = bankQuestionTagUsageSum(a, tagCounts) - bankQuestionTagUsageSum(b, tagCounts);
+    if (sumDiff !== 0) return sumDiff;
 
-      const overlapDiff =
-        bankQuestionUsedTagCount(a, tagCounts) - bankQuestionUsedTagCount(b, tagCounts);
-      if (overlapDiff !== 0) return overlapDiff;
+    const overlapDiff =
+      bankQuestionUsedTagCount(a, tagCounts) - bankQuestionUsedTagCount(b, tagCounts);
+    if (overlapDiff !== 0) return overlapDiff;
 
-      return a.body.localeCompare(b.body, "sk");
-    });
-
-  if (!options?.prioritizeImageQuestions) {
-    return sortGroup(items);
-  }
-
-  const imageItems = items.filter((item) => item.isImageQuestion);
-  const textItems = items.filter((item) => !item.isImageQuestion);
-  return [...sortGroup(imageItems), ...sortGroup(textItems)];
+    return a.body.localeCompare(b.body, "sk");
+  });
 }
 
 function tagOverlapCount(a: QuizBankQuestion, b: QuizBankQuestion): number {
@@ -106,49 +96,38 @@ function recentTagOverlapScore(item: QuizBankQuestion, recent: QuizBankQuestion[
 export function shuffleBankQuestionsByTagBalance(
   items: QuizBankQuestion[],
   tagCounts: Record<string, number>,
-  options?: { prioritizeImageQuestions?: boolean; separationWindow?: number }
+  options?: { separationWindow?: number }
 ): QuizBankQuestion[] {
   const separationWindow = options?.separationWindow ?? 3;
+  const pool = sortBankQuestionsByTagBalance(items, tagCounts);
+  const result: QuizBankQuestion[] = [];
+  const remaining = [...pool];
 
-  const mixGroup = (group: QuizBankQuestion[]): QuizBankQuestion[] => {
-    const pool = sortBankQuestionsByTagBalance(group, tagCounts);
-    const result: QuizBankQuestion[] = [];
-    const remaining = [...pool];
+  while (remaining.length > 0) {
+    const recent = result.slice(-separationWindow);
+    let bestIndex = 0;
+    let bestScore = Number.POSITIVE_INFINITY;
 
-    while (remaining.length > 0) {
-      const recent = result.slice(-separationWindow);
-      let bestIndex = 0;
-      let bestScore = Number.POSITIVE_INFINITY;
+    for (let index = 0; index < remaining.length; index += 1) {
+      const item = remaining[index]!;
+      let score =
+        bankQuestionTagScore(item, tagCounts) * 1000 +
+        bankQuestionTagUsageSum(item, tagCounts) * 100 +
+        bankQuestionUsedTagCount(item, tagCounts) +
+        recentTagOverlapScore(item, recent);
 
-      for (let index = 0; index < remaining.length; index += 1) {
-        const item = remaining[index]!;
-        let score =
-          bankQuestionTagUsageSum(item, tagCounts) * 100 +
-          bankQuestionTagScore(item, tagCounts) * 10 +
-          bankQuestionUsedTagCount(item, tagCounts) +
-          recentTagOverlapScore(item, recent);
+      score += Math.random();
 
-        score += Math.random();
-
-        if (score < bestScore) {
-          bestScore = score;
-          bestIndex = index;
-        }
+      if (score < bestScore) {
+        bestScore = score;
+        bestIndex = index;
       }
-
-      result.push(remaining.splice(bestIndex, 1)[0]!);
     }
 
-    return result;
-  };
-
-  if (!options?.prioritizeImageQuestions) {
-    return mixGroup(items);
+    result.push(remaining.splice(bestIndex, 1)[0]!);
   }
 
-  const imageItems = items.filter((item) => item.isImageQuestion);
-  const textItems = items.filter((item) => !item.isImageQuestion);
-  return [...mixGroup(imageItems), ...mixGroup(textItems)];
+  return result;
 }
 
 export function applyBankQuestionOrder(
