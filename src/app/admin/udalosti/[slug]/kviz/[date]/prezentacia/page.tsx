@@ -50,8 +50,10 @@ export default function PrezentaciaPage({ params }: { params: { slug: string; da
   }, []);
 
   useEffect(() => {
-    fetch(`/api/admin/events/${params.slug}/kviz/${encodeURIComponent(params.date)}?_=${Date.now()}`, {
+    const quizParam = decodeURIComponent(params.date);
+    fetch(`/api/admin/events/${params.slug}/kviz/${encodeURIComponent(quizParam)}?_=${Date.now()}`, {
       cache: "no-store",
+      credentials: "same-origin",
     })
       .then(async (r) => {
         if (!r.ok) return null;
@@ -61,10 +63,11 @@ export default function PrezentaciaPage({ params }: { params: { slug: string; da
         if (data?.result?.teams?.length) {
           setTeams(data.result.teams);
           setQuizDate(data.result.date);
-          setQuizKey(decodeURIComponent(params.date));
+          setQuizKey(data.result.id ?? quizParam);
         }
         setLoading(false);
-      });
+      })
+      .catch(() => setLoading(false));
   }, [params.slug, params.date]);
 
   const teamsWithBonus: TeamDisplay[] = teams.map((t, i) => ({

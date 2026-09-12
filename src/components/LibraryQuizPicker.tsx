@@ -5,6 +5,7 @@ import { AlertTriangle, CheckCircle2 } from "lucide-react";
 import Link from "next/link";
 import { quizLibraryListRequestUrl, type LibraryQuizListItem } from "@/lib/quiz-library-client";
 import { CANVAS_LIBRARY_QUIZ_ID } from "@/lib/quiz-result-library";
+import type { QuizUsageExclude } from "@/lib/quiz-library-usage";
 
 type QuizOption = LibraryQuizListItem;
 
@@ -12,9 +13,19 @@ type Props = {
   value: string;
   onChange: (id: string) => void;
   teamNames: string[];
+  /** Pri úprave existujúceho večera — nepočítať tento záznam do „už hrali“. */
+  excludeUsage?: QuizUsageExclude | null;
+  /** Kratší text pri detaile výsledku */
+  variant?: "default" | "editResult";
 };
 
-export default function LibraryQuizPicker({ value, onChange, teamNames }: Props) {
+export default function LibraryQuizPicker({
+  value,
+  onChange,
+  teamNames,
+  excludeUsage = null,
+  variant = "default",
+}: Props) {
   const [options, setOptions] = useState<QuizOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -28,7 +39,10 @@ export default function LibraryQuizPicker({ value, onChange, teamNames }: Props)
     setLoading(true);
     setLoadError(null);
     try {
-      const res = await fetch(quizLibraryListRequestUrl(activeTeams), { cache: "no-store" });
+      const res = await fetch(quizLibraryListRequestUrl(activeTeams, excludeUsage), {
+        cache: "no-store",
+        credentials: "same-origin",
+      });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         setOptions([]);
@@ -51,7 +65,7 @@ export default function LibraryQuizPicker({ value, onChange, teamNames }: Props)
     } finally {
       setLoading(false);
     }
-  }, [activeTeams]);
+  }, [activeTeams, excludeUsage]);
 
   useEffect(() => {
     load();
@@ -69,10 +83,16 @@ export default function LibraryQuizPicker({ value, onChange, teamNames }: Props)
     <div className="mb-6 bg-brand-warm border border-brand-border rounded-2xl p-5 space-y-3">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <label className="label mb-1">Hotový kvíz (voliteľné)</label>
+          <label className="label mb-1">Hotový kvíz {variant === "editResult" ? "" : "(voliteľné)"}</label>
           <p className="text-brand-muted text-xs max-w-xl">
-            Ak si kvíz robil v Canve, vyber „Kvíz v Canve“ — výsledky sa uložia bez priradenia ku knižnici a kvíz
-            v knižnici zostane voľný. Inak vyber, ktorý hotový kvíz si použil.
+            {variant === "editResult" ? (
+              <>Kvíz priradený k tomuto večeru. Ak si sa pomýlil, zvoľ iný a ulož priradenie.</>
+            ) : (
+              <>
+                Ak si kvíz robil v Canve, vyber „Kvíz v Canve“ — výsledky sa uložia bez priradenia ku knižnici a kvíz
+                v knižnici zostane voľný. Inak vyber, ktorý hotový kvíz si použil.
+              </>
+            )}
           </p>
         </div>
         <Link href="/admin/hotove-kvizy" className="text-xs font-semibold text-brand-orange-readable hover:underline">
@@ -97,7 +117,7 @@ export default function LibraryQuizPicker({ value, onChange, teamNames }: Props)
         ))}
       </select>
 
-      {selected && selected.id !== CANVAS_LIBRARY_QUIZ_ID && activeTeams.length > 0 && (
+      {variant !== "editResult" && selected && selected.id !== CANVAS_LIBRARY_QUIZ_ID && activeTeams.length > 0 && (
         <div
           className={`text-sm rounded-xl px-4 py-3 flex items-start gap-2 ${
             selected.isSafe

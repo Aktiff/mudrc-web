@@ -8,11 +8,21 @@ import { findQuizResultIndex, normalizeDateKey } from "@/lib/quiz-result-key";
 
 import { buildQuizTeamsDetail } from "@/lib/quiz-save";
 
+import { collectPlayedTeamNames, getConflictingTeams } from "@/lib/quiz-library";
+import { buildQuizUsageMap } from "@/lib/quiz-library-usage";
 import { isAssignedLibraryQuiz, normalizeResultLibraryQuizId } from "@/lib/quiz-result-library";
 
 import { revalidatePublicEventPaths } from "@/lib/revalidate-public";
 
-import { deleteStoredQuiz, readQuizResult, rebuildLeagueTableForEvent, updateEvents, upsertStoredQuiz } from "@/lib/storage";
+import {
+  deleteStoredQuiz,
+  readAllEventsRaw,
+  readAllStoredQuizzes,
+  readQuizResult,
+  rebuildLeagueTableForEvent,
+  updateEvents,
+  upsertStoredQuiz,
+} from "@/lib/storage";
 
 
 
@@ -251,7 +261,24 @@ export async function PATCH(req: NextRequest, { params }: { params: { slug: stri
 
   const previousLibraryQuizId = existing.result.libraryQuizId;
 
-
+  if (isAssignedLibraryQuiz(normalizedLibraryQuizId)) {
+    const [storedQuizzes, { events }] = await Promise.all([readAllStoredQuizzes(), readAllEventsRaw()]);
+    const usages =
+      buildQuizUsageMap(storedQuizzes, events, { eventSlug: params.slug, quizResultId: quizId }).get(
+        normalizedLibraryQuizId!
+      ) ?? [];
+    const played = collectPlayedTeamNames(usages);
+    const teamNames = (existing.result.teams ?? []).map((team) => team.teamName.trim()).filter(Boolean);
+    const conflicts = getConflictingTeams(played, teamNames);
+    if (conflicts.length) {
+      return NextResponse.json(
+        {
+          error: `Tieto tímy už hrali tento hotový kvíz: ${conflicts.join(", ")}. Vyber iný kvíz.`,
+        },
+        { status: 409 }
+      );
+    }
+  }
 
   try {
 

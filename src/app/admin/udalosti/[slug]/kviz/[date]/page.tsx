@@ -6,12 +6,7 @@ import type { QuizEvent, PastResultTeam } from "@/lib/data";
 import { TeamAutocomplete } from "@/components/TeamAutocomplete";
 import { AdminDatePicker } from "@/components/AdminDatePicker";
 import LibraryQuizPicker from "@/components/LibraryQuizPicker";
-import {
-  CANVAS_LIBRARY_QUIZ_ID,
-  isAssignedLibraryQuiz,
-  isCanvasLibraryQuiz,
-  libraryQuizAssignmentLabel,
-} from "@/lib/quiz-result-library";
+import { CANVAS_LIBRARY_QUIZ_ID, isCanvasLibraryQuiz } from "@/lib/quiz-result-library";
 
 type ResultDetail = {
   date: string;
@@ -278,22 +273,12 @@ export default function AdminQuizDetailPage({ params }: { params: { slug: string
 
       <div className="bg-brand-card rounded-2xl border border-brand-border p-6 mb-5">
         <h2 className="font-semibold text-brand-text mb-1">Hotový kvíz</h2>
-        <p className="text-brand-muted text-sm mb-4">
-          Aktuálne:{" "}
-          <span className="font-medium text-brand-text">
-            {libraryQuizAssignmentLabel(result.libraryQuizId)}
-          </span>
-          {isAssignedLibraryQuiz(result.libraryQuizId) && (
-            <span className="text-brand-muted">
-              {" "}
-              — ak si kvíz robil v Canve, prepni na „Kvíz v Canve“ a hotový kvíz sa uvoľní.
-            </span>
-          )}
-        </p>
         <LibraryQuizPicker
           value={assignmentLibraryQuizId}
           onChange={setAssignmentLibraryQuizId}
           teamNames={result.teams.map((team) => team.teamName)}
+          excludeUsage={{ eventSlug: params.slug, quizResultId: quizKey }}
+          variant="editResult"
         />
         {assignmentMsg && (
           <p className={`text-sm mb-3 ${assignmentMsg.ok ? "text-green-600 dark:text-green-400" : "text-red-500"}`}>
