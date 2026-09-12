@@ -3,6 +3,7 @@ import path from "path";
 import type { QuizDeck } from "@/lib/quiz-deck";
 import type { QuizLibraryItem } from "@/lib/quiz-library";
 import { createLibraryQuizId, defaultLibraryQuiz, normalizeLibraryQuiz } from "@/lib/quiz-library";
+import { readQuizLibraryBackup, writeQuizLibraryBackup } from "@/lib/quiz-library-backup";
 import { readAllQuizDecks } from "@/lib/quiz-deck-storage";
 import {
   hasSupabaseStorage,
@@ -185,6 +186,11 @@ export async function createLibraryQuiz(title?: string): Promise<QuizLibraryItem
   return quiz;
 }
 
+function countFilledQuestions(quiz: QuizLibraryItem | null | undefined): number {
+  if (!quiz?.questions?.length) return 0;
+  return quiz.questions.filter((q) => q.body.trim() || q.answer.trim() || q.audioUrl?.trim() || q.videoUrl?.trim()).length;
+}
+
 export async function saveLibraryQuiz(input: Partial<QuizLibraryItem>): Promise<QuizLibraryItem> {
   const existing = input.id ? await readQuizById(input.id) : null;
   const merged: Partial<QuizLibraryItem> = {
@@ -198,10 +204,31 @@ export async function saveLibraryQuiz(input: Partial<QuizLibraryItem>): Promise<
     merged.usedBankQuestionIds = existing.usedBankQuestionIds;
   }
 
+  const existingFilled = countFilledQuestions(existing);
+  const incomingFilled = countFilledQuestions(merged as QuizLibraryItem);
+  if (existingFilled >= 5 && incomingFilled < Math.max(3, existingFilled - 5)) {
+    throw new Error(
+      `Uloženie zrušené — v kvíze by ostalo len ${incomingFilled} vyplnených otázok (predtým ${existingFilled}). Obnov stránku alebo zálohu.`
+    );
+  }
+
+  if (existing?.questions?.length) {
+    await writeQuizLibraryBackup(existing);
+  }
+
   const normalized = normalizeLibraryQuiz(merged);
   await persistQuiz(normalized);
   return normalized;
 }
+
+export async function restoreLibraryQuizFromBackup(id: string): Promise<QuizLibraryItem | null> {
+  const backup = await readQuizLibraryBackup(id);
+  if (!backup) return null;
+  await persistQuiz(backup);
+  return backup;
+}
+
+export { readQuizLibraryBackup };
 
 export async function deleteLibraryQuiz(id: string): Promise<boolean> {
   const existing = await readQuizById(id);

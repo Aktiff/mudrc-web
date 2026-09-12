@@ -1,6 +1,7 @@
 import { normalizeLibraryQuiz, type QuizLibraryItem } from "@/lib/quiz-library";
 
 const draftStorageKey = (id: string) => `mudrc-quiz-draft-${id}`;
+const localBackupKey = (id: string) => `mudrc-quiz-backup-${id}`;
 
 export function parseQuizPayload(data: unknown): QuizLibraryItem {
   if (!data || typeof data !== "object") {
@@ -27,9 +28,22 @@ export function readQuizDraft(quizId: string): QuizLibraryItem | null {
 export function writeQuizDraft(quiz: QuizLibraryItem): void {
   if (typeof window === "undefined") return;
   try {
-    window.sessionStorage.setItem(draftStorageKey(quiz.id), JSON.stringify(quiz));
+    const json = JSON.stringify(quiz);
+    window.sessionStorage.setItem(draftStorageKey(quiz.id), json);
+    window.localStorage.setItem(localBackupKey(quiz.id), json);
   } catch {
     /* sessionStorage plné alebo nedostupné */
+  }
+}
+
+export function readQuizLocalBackup(quizId: string): QuizLibraryItem | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(localBackupKey(quizId));
+    if (!raw) return null;
+    return parseQuizPayload(JSON.parse(raw));
+  } catch {
+    return null;
   }
 }
 

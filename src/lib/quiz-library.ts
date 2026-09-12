@@ -83,7 +83,18 @@ export function defaultLibraryQuiz(title = "Nový kvíz"): QuizLibraryItem {
 }
 
 function normalizeQuestion(input: Partial<QuizQuestionItem>): QuizQuestionItem | null {
-  if (!input.id || !input.roundNumber || !input.questionNumber) return null;
+  const id = typeof input.id === "string" ? input.id.trim() : "";
+  const roundNumber = Number(input.roundNumber);
+  const questionNumber = Number(input.questionNumber);
+  if (
+    !id ||
+    !Number.isFinite(roundNumber) ||
+    roundNumber < 1 ||
+    !Number.isFinite(questionNumber) ||
+    questionNumber < 1
+  ) {
+    return null;
+  }
 
   let body = input.body?.trim() ?? "";
   let options = normalizeQuestionOptions(input.options);
@@ -141,10 +152,17 @@ export function normalizeLibraryQuiz(
   const now = new Date().toISOString();
 
   let questions: QuizQuestionItem[] = [];
+  const rawQuestionCount = Array.isArray(input.questions) ? input.questions.length : 0;
+
   if (Array.isArray(input.questions) && input.questions.length) {
     questions = input.questions
       .map((q) => normalizeQuestion(q as QuizQuestionItem))
       .filter((q): q is QuizQuestionItem => Boolean(q));
+    if (questions.length === 0 && rawQuestionCount > 0) {
+      throw new Error(
+        "Kvíz sa nepodarilo spracovať — otázky mali neplatný formát. Nič sa neuložilo; skús obnoviť zálohu."
+      );
+    }
   } else if (Array.isArray(input.slides) && input.slides.length) {
     questions = migrateSlidesToQuestions(input.slides as import("@/lib/quiz-deck").QuizSlide[]);
   }

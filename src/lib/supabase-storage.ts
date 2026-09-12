@@ -139,6 +139,21 @@ export async function supabaseDeleteQuizLibraryItem(id: string): Promise<void> {
   await supabaseDelete(quizLibraryItemKey(id));
 }
 
+const quizLibraryBackupKey = (id: string) => `quiz-library-backup:${id}`;
+
+export async function supabaseFetchQuizLibraryBackup(
+  id: string
+): Promise<SupabaseFetchResult<{ quiz: unknown; savedAt: string }>> {
+  return supabaseFetch<{ quiz: unknown; savedAt: string }>(quizLibraryBackupKey(id));
+}
+
+export async function supabaseSetQuizLibraryBackup(
+  id: string,
+  data: { quiz: unknown; savedAt: string }
+): Promise<void> {
+  await supabaseSet(quizLibraryBackupKey(id), data);
+}
+
 export async function supabaseFetchPollConfigs(): Promise<SupabaseFetchResult<{ configs: unknown[] }>> {
   return supabaseFetch<{ configs: unknown[] }>(POLL_CONFIGS_KEY);
 }

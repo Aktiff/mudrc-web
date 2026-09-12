@@ -51,8 +51,15 @@ import {
   clearQuizDraft,
   parseQuizPayload,
   readQuizDraft,
+  readQuizLocalBackup,
   writeQuizDraft,
 } from "@/lib/quiz-editor-draft";
+
+function countFilledQuizQuestions(questions: QuizQuestionItem[]): number {
+  return questions.filter(
+    (q) => q.body.trim() || q.answer.trim() || q.audioUrl?.trim() || q.videoUrl?.trim()
+  ).length;
+}
 
 type Props = {
   quizId: string;
@@ -124,6 +131,7 @@ export default function QuizLibraryEditor({ quizId }: Props) {
   const [musicBankTracks, setMusicBankTracks] = useState<MusicBankItem[]>([]);
   const [soundBankClips, setSoundBankClips] = useState<SoundBankItem[]>([]);
   const [videoBankClips, setVideoBankClips] = useState<VideoBankItem[]>([]);
+  const [serverBackupFilled, setServerBackupFilled] = useState<number | null>(null);
 
   const refreshMusicBank = useCallback(async () => {
     setMusicBankTracks(await fetchMusicBankFromServer());
@@ -165,12 +173,22 @@ export default function QuizLibraryEditor({ quizId }: Props) {
 
     if (res.ok) {
       const serverQuiz = parseQuizPayload(await res.json());
+      const active = draft ? normalizeLibraryQuiz(draft) : serverQuiz;
       if (draft) {
-        setQuiz(normalizeLibraryQuiz(draft));
+        setQuiz(active);
         setDraftRestored(true);
       } else {
         setQuiz(serverQuiz);
         setDraftRestored(false);
+      }
+      const local = readQuizLocalBackup(quizId);
+      const filledNow = countFilledQuizQuestions(active.questions);
+      const filledLocal = local ? countFilledQuizQuestions(local.questions) : 0;
+      if (filledLocal >= filledNow + 5) {
+        setMsg({
+          text: `V prehliadači je záloha s ${filledLocal} vyplnenými otázkami (teraz ${filledNow}). Skús „Obnoviť zálohu z prehliadača“.`,
+          ok: false,
+        });
       }
     } else if (draft) {
       setQuiz(normalizeLibraryQuiz(draft));
@@ -189,7 +207,15 @@ export default function QuizLibraryEditor({ quizId }: Props) {
     fetch(`/api/admin/events?_=${Date.now()}`, { cache: "no-store" })
       .then((r) => r.json())
       .then((d) => setEvents(d.events ?? []));
-  }, [load, refreshLibraryQuizzes]);
+    void fetch(`/api/admin/quiz-library/${quizId}/backup`, { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d: { filledCount?: number }) => {
+        if (typeof d.filledCount === "number" && d.filledCount > 0) {
+          setServerBackupFilled(d.filledCount);
+        }
+      })
+      .catch(() => {});
+  }, [load, refreshLibraryQuizzes, quizId]);
 
   useEffect(() => {
     if (!quiz || loading) return;
@@ -776,6 +802,53 @@ export default function QuizLibraryEditor({ quizId }: Props) {
     setMsg({ text: "Štruktúra pripravená — doplň otázky a odpovede.", ok: true });
   };
 
+  const restoreFromLocalBackup = () => {
+    const backup = readQuizLocalBackup(quizId);
+    if (!backup) {
+      setMsg({ text: "V prehliadači nie je žiadna záloha tohto kvízu.", ok: false });
+      return;
+    }
+    const filled = countFilledQuizQuestions(backup.questions);
+    if (
+      !window.confirm(
+        `Obnoviť kvíz zo zálohy v prehliadači? (${filled} vyplnených otázok — neuložené zmeny sa prepíšu.)`
+      )
+    ) {
+      return;
+    }
+    setQuiz(normalizeLibraryQuiz(backup));
+    setDraftRestored(true);
+    setMsg({ text: "Záloha z prehliadača obnovená — skontroluj a ulož.", ok: true });
+  };
+
+  const restoreFromServerBackup = async () => {
+    if (
+      !window.confirm(
+        "Obnoviť kvíz zo serverovej zálohy (stav tesne pred posledným úspešným uložením)?"
+      )
+    ) {
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/admin/quiz-library/${quizId}/backup`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        setMsg({ text: data.error ?? "Záloha na serveri nie je k dispozícii.", ok: false });
+        return;
+      }
+      const restored = parseQuizPayload(data);
+      clearQuizDraft(quizId);
+      setQuiz(restored);
+      setDraftRestored(false);
+      setMsg({ text: "Kvíz obnovený zo serverovej zálohy.", ok: true });
+    } catch {
+      setMsg({ text: "Obnova zo servera zlyhala.", ok: false });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const save = async () => {
     if (!quiz) return;
     setSaving(true);
@@ -862,6 +935,19 @@ export default function QuizLibraryEditor({ quizId }: Props) {
             <MonitorPlay className="w-4 h-4" />
             Spustiť
           </Link>
+          <button type="button" onClick={restoreFromLocalBackup} className="btn-outline text-sm py-2.5 px-4">
+            Obnoviť zálohu z prehliadača
+          </button>
+          {serverBackupFilled != null && serverBackupFilled > 0 && (
+            <button
+              type="button"
+              onClick={() => void restoreFromServerBackup()}
+              disabled={saving}
+              className="btn-outline text-sm py-2.5 px-4"
+            >
+              Server ({serverBackupFilled} ot.)
+            </button>
+          )}
           <button type="button" onClick={regenerateTemplate} className="btn-outline text-sm py-2.5 px-4">
             Reset štruktúry
           </button>
