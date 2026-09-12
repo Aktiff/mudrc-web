@@ -3,15 +3,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, CheckCircle2 } from "lucide-react";
 import Link from "next/link";
+import { quizLibraryListRequestUrl, type LibraryQuizListItem } from "@/lib/quiz-library-client";
 import { CANVAS_LIBRARY_QUIZ_ID } from "@/lib/quiz-result-library";
 
-type QuizOption = {
-  id: string;
-  title: string;
-  usageCount: number;
-  isSafe: boolean;
-  conflictingTeams: string[];
-};
+type QuizOption = LibraryQuizListItem;
 
 type Props = {
   value: string;
@@ -22,6 +17,7 @@ type Props = {
 export default function LibraryQuizPicker({ value, onChange, teamNames }: Props) {
   const [options, setOptions] = useState<QuizOption[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const activeTeams = useMemo(
     () => teamNames.map((name) => name.trim()).filter(Boolean),
@@ -30,25 +26,41 @@ export default function LibraryQuizPicker({ value, onChange, teamNames }: Props)
 
   const load = useCallback(async () => {
     setLoading(true);
-    const qs = activeTeams.length ? `?teams=${encodeURIComponent(activeTeams.join("\n"))}` : "";
-    const res = await fetch(`/api/admin/quiz-library${qs}&_=${Date.now()}`.replace("?&", "?"), { cache: "no-store" });
-    if (res.ok) {
+    setLoadError(null);
+    try {
+      const res = await fetch(quizLibraryListRequestUrl(activeTeams), { cache: "no-store" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setOptions([]);
+        setLoadError((data as { error?: string }).error ?? "Nepodarilo sa načítať knižnicu kvízov.");
+        return;
+      }
       const data = await res.json();
       setOptions(
-        (data.quizzes ?? []).map((quiz: QuizOption & { slides?: unknown[] }) => ({
+        (data.quizzes ?? []).map((quiz: QuizOption) => ({
           id: quiz.id,
           title: quiz.title,
-          usageCount: quiz.usageCount,
-          isSafe: quiz.isSafe,
-          conflictingTeams: quiz.conflictingTeams,
+          usageCount: quiz.usageCount ?? 0,
+          isSafe: quiz.isSafe ?? true,
+          conflictingTeams: quiz.conflictingTeams ?? [],
         }))
       );
+    } catch {
+      setOptions([]);
+      setLoadError("Sieťová chyba pri načítaní knižnice.");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, [activeTeams]);
 
   useEffect(() => {
     load();
+  }, [load]);
+
+  useEffect(() => {
+    const onFocus = () => load();
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
   }, [load]);
 
   const selected = options.find((option) => option.id === value);
@@ -108,7 +120,11 @@ export default function LibraryQuizPicker({ value, onChange, teamNames }: Props)
         </p>
       )}
 
-      {!loading && options.length === 0 && (
+      {loadError ? (
+        <p className="text-sm text-red-600 dark:text-red-400">{loadError}</p>
+      ) : null}
+
+      {!loading && !loadError && options.length === 0 && (
         <p className="text-sm text-brand-muted">
           Knižnica je prázdna. Môžeš použiť „Kvíz v Canve“ alebo{" "}
           <Link href="/admin/hotove-kvizy" className="text-brand-orange-readable underline">

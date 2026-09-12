@@ -6,7 +6,7 @@ import { AlertTriangle, Layers, MonitorPlay, Pencil, Play, Plus, Trash2 } from "
 import type { QuizEvent } from "@/lib/data";
 import type { QuizLibraryItem, QuizUsage } from "@/lib/quiz-library";
 import { clearQuizDraft } from "@/lib/quiz-editor-draft";
-import { CANVAS_LIBRARY_QUIZ_ID, isCanvasLibraryQuiz } from "@/lib/quiz-result-library";
+import { CANVAS_LIBRARY_QUIZ_ID, isAssignedLibraryQuiz, isCanvasLibraryQuiz } from "@/lib/quiz-result-library";
 import QuizResultsEntryForm, {
   parseTeamNamesInput,
   teamsFromNames,
@@ -159,6 +159,16 @@ export default function HotoveKvizyList() {
     if (!quizDate || validTeams.length < 2) {
       setMessage({ text: "Zadaj dátum a aspoň 2 tímy s bodmi.", ok: false });
       return;
+    }
+    if (isAssignedLibraryQuiz(libraryQuizId)) {
+      const picked = quizzes.find((quiz) => quiz.id === libraryQuizId);
+      if (picked && !picked.isSafe) {
+        setMessage({
+          text: `Tieto tímy už hrali „${picked.title}“: ${picked.conflictingTeams.join(", ")}.`,
+          ok: false,
+        });
+        return;
+      }
     }
 
     setSubmitting(true);

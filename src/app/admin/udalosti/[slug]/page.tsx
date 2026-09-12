@@ -14,8 +14,14 @@ import { AdminDatePicker, AdminTimePicker } from "@/components/AdminDatePicker";
 import { PollAdminMultiDatePicker } from "@/components/PollAdminMultiDatePicker";
 import { TeamAutocomplete } from "@/components/TeamAutocomplete";
 import LibraryQuizPicker from "@/components/LibraryQuizPicker";
+import { fetchLibraryQuizList } from "@/lib/quiz-library-client";
 import RegistrationPlayersStepper from "@/components/admin/RegistrationPlayersStepper";
-import { CANVAS_LIBRARY_QUIZ_ID, isCanvasLibraryQuiz, libraryQuizAssignmentLabel } from "@/lib/quiz-result-library";
+import {
+  CANVAS_LIBRARY_QUIZ_ID,
+  isAssignedLibraryQuiz,
+  isCanvasLibraryQuiz,
+  libraryQuizAssignmentLabel,
+} from "@/lib/quiz-result-library";
 
 type Tab = "info" | "liga" | "vysledky" | "pravidla" | "pridat" | "registracie" | "anketa";
 
@@ -168,6 +174,16 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
       setQuizMsg({ text: "Kvíz s týmto dátumom je už vytvorený. Zvoľ iný dátum alebo ho uprav vo Výsledkoch.", ok: false });
       setMsg({ text: "Kvíz s týmto dátumom je už vytvorený.", ok: false });
       return;
+    }
+    if (isAssignedLibraryQuiz(libraryQuizId)) {
+      const list = await fetchLibraryQuizList(validTeams.map((team) => team.name));
+      const picked = list.find((quiz) => quiz.id === libraryQuizId);
+      if (picked && !picked.isSafe) {
+        const text = `Tieto tímy už hrali „${picked.title}“: ${picked.conflictingTeams.join(", ")}. Vyber iný kvíz.`;
+        setQuizMsg({ text, ok: false });
+        setMsg({ text, ok: false });
+        return;
+      }
     }
     setQuizSubmitting(true);
     setQuizResult(null);

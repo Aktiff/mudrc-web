@@ -3,9 +3,23 @@ import { revalidatePath } from "next/cache";
 import { sortLeagueTable } from "@/lib/data";
 import { normalizeDateKey } from "@/lib/quiz-result-key";
 import { buildQuizTeamsDetail } from "@/lib/quiz-save";
-import { isCanvasLibraryQuiz, normalizeResultLibraryQuizId } from "@/lib/quiz-result-library";
+import { collectPlayedTeamNames, getConflictingTeams } from "@/lib/quiz-library";
+import { buildQuizUsageMap } from "@/lib/quiz-library-usage";
+import {
+  isAssignedLibraryQuiz,
+  isCanvasLibraryQuiz,
+  normalizeResultLibraryQuizId,
+} from "@/lib/quiz-result-library";
 import { revalidatePublicEventPaths } from "@/lib/revalidate-public";
-import { hasQuizForDate, readStoredQuiz, readEvents, updateEvents, upsertStoredQuiz } from "@/lib/storage";
+import {
+  hasQuizForDate,
+  readAllEventsRaw,
+  readAllStoredQuizzes,
+  readEvents,
+  readStoredQuiz,
+  updateEvents,
+  upsertStoredQuiz,
+} from "@/lib/storage";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -28,6 +42,22 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
 
   const { sorted, teamsDetail, winnerTeam, winnerTotal, responseLigaPoints } = buildQuizTeamsDetail(teams);
   const resultId = normalizeDateKey(date);
+
+  if (isAssignedLibraryQuiz(normalizedLibraryQuizId)) {
+    const [storedQuizzes, { events }] = await Promise.all([readAllStoredQuizzes(), readAllEventsRaw()]);
+    const usages = buildQuizUsageMap(storedQuizzes, events).get(normalizedLibraryQuizId!) ?? [];
+    const played = collectPlayedTeamNames(usages);
+    const teamNames = sorted.map((team) => team.name.trim()).filter(Boolean);
+    const conflicts = getConflictingTeams(played, teamNames);
+    if (conflicts.length) {
+      return NextResponse.json(
+        {
+          error: `Tieto tímy už hrali tento hotový kvíz: ${conflicts.join(", ")}. Vyber iný kvíz z knižnice.`,
+        },
+        { status: 409 }
+      );
+    }
+  }
 
   if (await hasQuizForDate(params.slug, date)) {
     return NextResponse.json(
