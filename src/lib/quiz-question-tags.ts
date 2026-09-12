@@ -41,6 +41,38 @@ export function countTagUsageInQuestions(questions: QuizQuestionItem[]): Record<
   return counts;
 }
 
+/** Váhy tagov pre banku — celý kvíz + zvýraznenie aktuálneho kola a susedných slotov. */
+export function buildBankTagWeightMap(
+  allQuizQuestions: QuizQuestionItem[],
+  roundQuestions: QuizQuestionItem[],
+  targetQuestionId?: string
+): Record<string, number> {
+  const weights = countTagUsageInQuestions(allQuizQuestions);
+
+  for (const [tag, count] of Object.entries(countTagUsageInQuestions(roundQuestions))) {
+    weights[tag] = (weights[tag] ?? 0) + count * 3;
+  }
+
+  if (!targetQuestionId) return weights;
+
+  const target = roundQuestions.find((q) => q.id === targetQuestionId && q.kind !== "music");
+  if (!target) return weights;
+
+  const slot = target.questionNumber;
+  const nearby = roundQuestions.filter(
+    (q) =>
+      q.kind !== "music" &&
+      isQuestionFilledForTags(q) &&
+      Math.abs(q.questionNumber - slot) <= 2
+  );
+
+  for (const [tag, count] of Object.entries(countTagUsageInQuestions(nearby))) {
+    weights[tag] = (weights[tag] ?? 0) + count * 8;
+  }
+
+  return weights;
+}
+
 /** Najvyšší počet použití medzi tagmi otázky — čím nižší, tým vhodnejšia pre kvíz. */
 export function bankQuestionTagScore(
   item: QuizBankQuestion,
@@ -98,7 +130,7 @@ export function shuffleBankQuestionsByTagBalance(
   tagCounts: Record<string, number>,
   options?: { separationWindow?: number }
 ): QuizBankQuestion[] {
-  const separationWindow = options?.separationWindow ?? 3;
+  const separationWindow = options?.separationWindow ?? 8;
   const pool = sortBankQuestionsByTagBalance(items, tagCounts);
   const result: QuizBankQuestion[] = [];
   const remaining = [...pool];
@@ -111,12 +143,12 @@ export function shuffleBankQuestionsByTagBalance(
     for (let index = 0; index < remaining.length; index += 1) {
       const item = remaining[index]!;
       let score =
-        bankQuestionTagScore(item, tagCounts) * 1000 +
-        bankQuestionTagUsageSum(item, tagCounts) * 100 +
-        bankQuestionUsedTagCount(item, tagCounts) +
-        recentTagOverlapScore(item, recent);
+        bankQuestionTagScore(item, tagCounts) * 10_000 +
+        bankQuestionTagUsageSum(item, tagCounts) * 500 +
+        bankQuestionUsedTagCount(item, tagCounts) * 50 +
+        recentTagOverlapScore(item, recent) * 2;
 
-      score += Math.random();
+      score += Math.random() * 5;
 
       if (score < bestScore) {
         bestScore = score;

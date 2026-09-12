@@ -7,8 +7,8 @@ import { findFirstEmptyMusicSlot, findFirstEmptyQuestionSlot, isQuestionSlotEmpt
 import {
   applyBankQuestionOrder,
   bankQuestionTagScore,
+  buildBankTagWeightMap,
   collectTagsFromBank,
-  countTagUsageInQuestions,
   filterBankQuestionsByTags,
   shuffleBankQuestionsByTagBalance,
   sortBankQuestionsByTagBalance,
@@ -133,7 +133,15 @@ export default function QuizQuestionBankPanel({
     setHiddenIds(readHiddenBankQuestionIds());
   }, []);
 
-  const tagCounts = useMemo(() => countTagUsageInQuestions(allQuizQuestions), [allQuizQuestions]);
+  const usedBankKey = useMemo(
+    () => [...usedBankQuestionIds].sort().join("\0"),
+    [usedBankQuestionIds]
+  );
+
+  const customBankKey = useMemo(
+    () => customBankQuestions.map((q) => q.id).sort().join("\0"),
+    [customBankQuestions]
+  );
 
   const availableQuestions = useMemo(
     () => filterVisibleBankQuestions(usedBankQuestionIds, hiddenIds, customBankQuestions),
@@ -158,6 +166,16 @@ export default function QuizQuestionBankPanel({
         .filter((q) => q.kind === "normal")
         .sort((a, b) => a.questionNumber - b.questionNumber),
     [roundQuestions]
+  );
+
+  const defaultTargetId = useMemo(
+    () => findFirstEmptyQuestionSlot(normalQuestions)?.id ?? normalQuestions[0]?.id ?? "",
+    [normalQuestions]
+  );
+
+  const tagCounts = useMemo(
+    () => buildBankTagWeightMap(allQuizQuestions, roundQuestions, defaultTargetId || undefined),
+    [allQuizQuestions, roundQuestions, defaultTargetId]
   );
 
   const musicQuestionsInRound = useMemo(
@@ -210,14 +228,9 @@ export default function QuizQuestionBankPanel({
     void removeMusicBankItemAsync(id).then(() => onMusicBankChange?.());
   };
 
-  const defaultTargetId = useMemo(
-    () => findFirstEmptyQuestionSlot(normalQuestions)?.id ?? normalQuestions[0]?.id ?? "",
-    [normalQuestions]
-  );
-
   useEffect(() => {
     setManualOrderIds(null);
-  }, [excludedTags, usedBankQuestionIds, hiddenIds, sourceFilter, customBankQuestions]);
+  }, [excludedTags, sourceFilter, usedBankKey, customBankKey]);
 
   const filteredQuestions = useMemo(() => {
     let list = filterBankQuestionsByTags(availableQuestions, excludedTags);
