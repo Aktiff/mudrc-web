@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { AlertTriangle, Layers, MonitorPlay, Pencil, Play, Plus, Trash2 } from "lucide-react";
+import { AlertTriangle, BookOpen, Layers, MonitorPlay, Pencil, Play, Plus, Trash2 } from "lucide-react";
 import type { QuizEvent } from "@/lib/data";
 import type { QuizLibraryItem, QuizUsage } from "@/lib/quiz-library";
 import { clearQuizDraft } from "@/lib/quiz-editor-draft";
@@ -326,15 +326,24 @@ export default function HotoveKvizyList() {
             <p className={`text-sm mt-1 ${listMessage.ok ? "text-green-600" : "text-red-500"}`}>{listMessage.text}</p>
           )}
         </div>
-        <button
-          type="button"
-          onClick={createQuiz}
-          disabled={creating}
-          className="btn-primary text-sm py-2.5 px-5 inline-flex items-center gap-2"
-        >
-          <Plus className="w-4 h-4" />
-          {creating ? "Vytváram…" : "Nový kvíz"}
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Link
+            href="/admin/hotove-kvizy/banka"
+            className="btn-outline text-sm py-2.5 px-5 inline-flex items-center gap-2"
+          >
+            <BookOpen className="w-4 h-4" />
+            Banka otázok
+          </Link>
+          <button
+            type="button"
+            onClick={createQuiz}
+            disabled={creating}
+            className="btn-primary text-sm py-2.5 px-5 inline-flex items-center gap-2"
+          >
+            <Plus className="w-4 h-4" />
+            {creating ? "Vytváram…" : "Nový kvíz"}
+          </button>
+        </div>
       </div>
 
       <div className="space-y-3">
