@@ -46,7 +46,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   };
 
   const linkClass = (active: boolean) =>
-    `flex items-center gap-2 lg:gap-3 px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors whitespace-nowrap shrink-0 ${
+    `flex items-center gap-2 lg:gap-3 px-3 py-2 lg:py-2.5 rounded-xl text-sm font-semibold transition-colors whitespace-nowrap shrink-0 ${
       active
         ? "bg-brand-orange text-brand-btn-fg shadow-sm"
         : "text-brand-muted hover:bg-brand-hover hover:text-brand-text"
@@ -55,7 +55,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   return (
     <div className="min-h-screen bg-brand-bg overflow-x-clip">
       <aside className="hidden lg:flex w-56 bg-brand-card border-r border-brand-border flex-col fixed top-16 bottom-0 left-0 z-40">
-        <div className="px-5 py-5 border-b border-brand-border">
+        <div className="p-5 border-b border-brand-border">
           <Link href="/" className="font-display text-xl text-brand-text tracking-wider">
             MUDRC{" "}
             <span className="bg-gradient-to-r from-brand-orange to-orange-400 bg-clip-text text-transparent">
@@ -63,7 +63,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </span>
           </Link>
         </div>
-        <nav className="flex-1 px-4 py-4 space-y-1.5">
+        <nav className="flex-1 p-3 space-y-1">
           {navItems.map((item) => {
             const active = item.isActive
               ? item.isActive(pathname)
@@ -78,10 +78,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             );
           })}
         </nav>
-        <div className="px-4 py-4 border-t border-brand-border">
+        <div className="p-3 border-t border-brand-border">
           <button
             onClick={handleLogout}
-            className="flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-semibold text-brand-muted hover:bg-brand-hover hover:text-brand-text w-full transition-colors"
+            className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-brand-muted hover:bg-brand-hover hover:text-brand-text w-full transition-colors"
           >
             <LogOut className="w-4 h-4" />
             Odhlásiť sa
@@ -89,7 +89,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </div>
       </aside>
 
-      <nav className="lg:hidden fixed top-16 inset-x-0 z-30 bg-brand-card/95 backdrop-blur border-b border-brand-border px-4 py-2.5 overflow-x-auto">
+      <nav className="lg:hidden fixed top-16 inset-x-0 z-30 bg-brand-card/95 backdrop-blur border-b border-brand-border px-3 py-2 overflow-x-auto">
         <div className="flex items-center gap-1 min-w-max">
           {navItems.map((item) => {
             const active = item.isActive
@@ -114,17 +114,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </div>
       </nav>
 
-      <div className="lg:pl-56 min-w-0">
-        <main
-          className={`box-border min-w-0 w-full overflow-x-clip mt-16 pt-14 lg:pt-0 px-4 sm:px-6 lg:px-8 xl:px-10 ${
-            pathname.startsWith("/admin/zasadacie/") && pathname !== "/admin/zasadacie"
-              ? "py-4 lg:py-6 pb-10"
-              : "py-6 lg:py-10 pb-12"
-          }`}
-        >
-          <div className="mx-auto w-full max-w-7xl min-w-0">{children}</div>
-        </main>
-      </div>
+      <main className={`box-border min-w-0 max-w-full overflow-x-clip mt-16 pt-14 lg:pt-0 px-5 sm:px-8 lg:px-10 lg:ml-56 lg:w-[calc(100%-14rem)] ${
+        pathname.startsWith("/admin/zasadacie/") && pathname !== "/admin/zasadacie"
+          ? "py-4 lg:py-5 pb-10"
+          : "py-6 lg:py-10 pb-12"
+      }`}>
+        {children}
+      </main>
     </div>
   );
 }

@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 
 export default function HotoveKvizyPage() {
   return (
-    <div className="w-full min-w-0">
+    <div className="w-full">
       <div className="mb-10 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-5 sm:gap-6">
         <div className="min-w-0">
           <h1 className="font-display text-4xl text-brand-text tracking-wide mb-1">Hotové kvízy</h1>

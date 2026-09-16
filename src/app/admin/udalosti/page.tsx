@@ -13,8 +13,8 @@ export default async function AdminUdalostitPage() {
   const pollActiveBySlug = await getPollActiveFlagsBySlug(events.map((event) => event.slug));
 
   return (
-    <div className="w-full min-w-0">
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 sm:gap-6 mb-8 sm:mb-10">
+    <div className="w-full">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-8">
         <div>
           <h1 className="font-display text-4xl text-brand-text tracking-wide mb-1">Udalosti</h1>
           <p className="text-brand-muted text-sm">Spravuj kvízové udalosti a podniky</p>
