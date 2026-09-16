@@ -120,7 +120,7 @@ export default function VideoBankQuestionForm({ onAdded, onMessage }: Props) {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center justify-between gap-3 px-5 py-4 text-left hover:bg-brand-warm/50 transition-colors"
+        className="w-full flex items-center justify-between gap-3 px-5 py-4 sm:px-6 sm:py-5 text-left hover:bg-brand-warm/50 transition-colors"
       >
         <div>
           <p className="font-semibold text-brand-text text-sm">Pridať video ukážku do banky</p>
@@ -129,7 +129,7 @@ export default function VideoBankQuestionForm({ onAdded, onMessage }: Props) {
         {open ? <ChevronUp className="w-5 h-5 shrink-0" /> : <ChevronDown className="w-5 h-5 shrink-0" />}
       </button>
       {open && (
-        <div className="px-5 pb-5 pt-0 space-y-4 border-t border-brand-border">
+        <div className="px-5 py-5 sm:px-6 sm:py-6 space-y-5 border-t border-brand-border">
           <label className="btn-primary text-sm py-2 px-4 inline-flex items-center gap-2 cursor-pointer">
             <Upload className="w-4 h-4" />
             {bulkUploading ? "Nahrávam…" : "Hromadný upload video"}

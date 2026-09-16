@@ -114,10 +114,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </div>
       </nav>
 
-      <main className={`box-border min-w-0 max-w-full overflow-x-clip mt-16 pt-14 lg:pt-0 px-4 sm:px-6 lg:px-8 lg:ml-56 lg:w-[calc(100%-14rem)] ${
+      <main className={`box-border min-w-0 max-w-full overflow-x-clip mt-16 pt-14 lg:pt-0 px-5 sm:px-8 lg:px-10 lg:ml-56 lg:w-[calc(100%-14rem)] ${
         pathname.startsWith("/admin/zasadacie/") && pathname !== "/admin/zasadacie"
-          ? "py-3 lg:py-4"
-          : "py-6 lg:py-8"
+          ? "py-4 lg:py-5 pb-10"
+          : "py-6 lg:py-10 pb-12"
       }`}>
         {children}
       </main>

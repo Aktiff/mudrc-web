@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 export default function HotoveKvizyPage() {
   return (
     <div className="w-full">
-      <div className="mb-8 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+      <div className="mb-10 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-5 sm:gap-6">
         <div className="min-w-0">
           <h1 className="font-display text-4xl text-brand-text tracking-wide mb-1">Hotové kvízy</h1>
           <p className="text-brand-muted text-sm max-w-3xl leading-relaxed">
@@ -17,7 +17,7 @@ export default function HotoveKvizyPage() {
         </div>
         <Link
           href="/admin/hotove-kvizy/banka"
-          className="btn-primary text-sm py-2.5 px-5 inline-flex items-center gap-2 shrink-0 self-start"
+          className="btn-primary text-sm py-2.5 px-5 inline-flex items-center gap-2 shrink-0 self-start sm:mt-1"
         >
           <BookOpen className="w-4 h-4" />
           Banka otázok

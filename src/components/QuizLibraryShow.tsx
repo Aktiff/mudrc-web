@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent } from "react";
 import { Maximize2, X } from "lucide-react";
 import type { QuizEvent } from "@/lib/data";
 import type { QuizLibraryItem, QuizQuestionItem } from "@/lib/quiz-library";
@@ -435,6 +435,17 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
     setIndex((i) => Math.max(0, i - 1));
   }, []);
 
+  const handleStageClick = useCallback(
+    (e: MouseEvent<HTMLDivElement>) => {
+      if (e.button !== 0) return;
+      const rect = e.currentTarget.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      if (x < rect.width / 2) goPrev();
+      else goNext();
+    },
+    [goNext, goPrev]
+  );
+
   const toggleFullscreen = useCallback(async () => {
     if (!rootRef.current) return;
     try {
@@ -614,9 +625,9 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
   return (
     <div ref={rootRef} className="fixed inset-0 z-[9999] bg-[#030303] flex items-center justify-center overflow-hidden">
       <div
-        className="relative text-white flex flex-col select-none cursor-pointer overflow-hidden shadow-[0_0_0_1px_rgba(255,255,255,0.06)]"
+        className="relative text-white flex flex-col select-none overflow-hidden shadow-[0_0_0_1px_rgba(255,255,255,0.06)]"
         style={stageStyle}
-        onClick={goNext}
+        onClick={handleStageClick}
         onContextMenu={(e) => {
           e.preventDefault();
           goPrev();

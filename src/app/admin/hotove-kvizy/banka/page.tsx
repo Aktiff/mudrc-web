@@ -11,7 +11,7 @@ export default function HotoveKvizyBankaPage() {
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
 
   return (
-    <div className="w-full max-w-3xl space-y-6">
+    <div className="w-full max-w-3xl mx-auto space-y-8 pb-4">
       <Link
         href="/admin/hotove-kvizy"
         className="inline-flex items-center gap-1 text-sm text-brand-muted hover:text-brand-orange-readable"
@@ -20,7 +20,7 @@ export default function HotoveKvizyBankaPage() {
         Späť na hotové kvízy
       </Link>
 
-      <div className="flex items-start gap-3">
+      <div className="flex items-start gap-4 pb-1">
         <div className="w-11 h-11 rounded-xl bg-brand-tint flex items-center justify-center shrink-0">
           <BookOpen className="w-5 h-5 text-brand-orange" />
         </div>
@@ -36,9 +36,11 @@ export default function HotoveKvizyBankaPage() {
         <p className={`text-sm ${msg.ok ? "text-green-600" : "text-red-500"}`}>{msg.text}</p>
       )}
 
-      <CustomBankQuestionForm />
-      <SoundBankQuestionForm onMessage={(text, ok) => setMsg({ text, ok })} />
-      <VideoBankQuestionForm onMessage={(text, ok) => setMsg({ text, ok })} />
+      <div className="space-y-6">
+        <CustomBankQuestionForm />
+        <SoundBankQuestionForm onMessage={(text, ok) => setMsg({ text, ok })} />
+        <VideoBankQuestionForm onMessage={(text, ok) => setMsg({ text, ok })} />
+      </div>
     </div>
   );
 }

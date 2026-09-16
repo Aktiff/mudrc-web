@@ -513,7 +513,7 @@ export default function QuizQuestionBankPanel({
 
   return (
     <div className="bg-brand-card border border-brand-border rounded-2xl flex flex-col min-w-0 max-w-full h-full min-h-0 overflow-hidden">
-      <div className="px-4 py-4 border-b border-brand-border shrink-0 space-y-3">
+      <div className="px-5 py-5 sm:px-6 border-b border-brand-border shrink-0 space-y-3">
         <div className="flex items-start gap-3">
           <div className="w-9 h-9 rounded-xl bg-brand-tint flex items-center justify-center shrink-0">
             <BookOpen className="w-4 h-4 text-brand-orange" />
@@ -619,7 +619,7 @@ export default function QuizQuestionBankPanel({
         )}
       </div>
 
-      <div className="flex-1 overflow-y-auto overscroll-y-contain px-4 py-3 space-y-3 min-h-0">
+      <div className="flex-1 overflow-y-auto overscroll-y-contain px-5 py-4 sm:px-6 space-y-3 min-h-0">
         {sourceFilter === "sound" ? (
           visibleSoundClips.length === 0 && visibleMusicTracks.length === 0 ? (
             <p className="text-brand-muted text-sm text-center py-8">

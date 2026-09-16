@@ -112,6 +112,10 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
   const [deletingRegId, setDeletingRegId] = useState<string | null>(null);
   const [updatingPlayersRegId, setUpdatingPlayersRegId] = useState<string | null>(null);
   const [clearingRegs, setClearingRegs] = useState(false);
+  const [newRegTeamName, setNewRegTeamName] = useState("");
+  const [newRegPhone, setNewRegPhone] = useState("");
+  const [newRegPlayers, setNewRegPlayers] = useState<number | "">("");
+  const [addingReg, setAddingReg] = useState(false);
   const [pollAdmin, setPollAdmin] = useState<PollAdminState | null>(null);
   const [pollLoading, setPollLoading] = useState(false);
   const [pollToggling, setPollToggling] = useState(false);
@@ -456,6 +460,49 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
       );
     } finally {
       setUpdatingPlayersRegId(null);
+    }
+  };
+
+  const addRegistrationManual = async () => {
+    const teamName = newRegTeamName.trim();
+    const minPlayers = Math.max(1, form.minPlayers ?? 2);
+    const defaultPlayers = Math.max(minPlayers, form.minPlayers ?? 4);
+    const players =
+      newRegPlayers === "" ? defaultPlayers : parseRegistrationPlayerCount(String(newRegPlayers)) || defaultPlayers;
+    const maxPlayers = Math.max(minPlayers, form.maxPlayers ?? 8, 20);
+    const clamped = Math.min(maxPlayers, Math.max(minPlayers, players));
+
+    if (!teamName) {
+      setMsg({ text: "Zadaj názov tímu.", ok: false });
+      return;
+    }
+
+    setAddingReg(true);
+    try {
+      const res = await fetch("/api/admin/registrations", {
+        method: "POST",
+        cache: "no-store",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          eventSlug: params.slug,
+          venue: form.venue,
+          teamName,
+          players: clamped,
+          phone: newRegPhone.trim(),
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setMsg({ text: data.error ?? "Registráciu sa nepodarilo pridať.", ok: false });
+        return;
+      }
+      setNewRegTeamName("");
+      setNewRegPhone("");
+      setNewRegPlayers("");
+      loadRegistrations();
+      setMsg({ text: `Tím „${teamName}" pridaný do registrácií.`, ok: true });
+    } finally {
+      setAddingReg(false);
     }
   };
 
@@ -1229,6 +1276,63 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
               </button>
             </div>
           </div>
+
+          <div className="mb-6 pb-6 border-b border-brand-border space-y-3">
+            <p className="text-xs font-semibold uppercase tracking-wider text-brand-muted">Pridať tím (telefón / na mieste)</p>
+            <div className="grid gap-3 sm:grid-cols-[1fr_minmax(7rem,9rem)_minmax(9rem,11rem)_auto] sm:items-end">
+              <div>
+                <label className="label">Názov tímu</label>
+                <input
+                  className="input"
+                  value={newRegTeamName}
+                  onChange={(e) => setNewRegTeamName(e.target.value)}
+                  placeholder="napr. Nováčikovia"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      void addRegistrationManual();
+                    }
+                  }}
+                />
+              </div>
+              <div>
+                <label className="label">Počet hráčov</label>
+                <input
+                  className="input"
+                  type="number"
+                  min={Math.max(1, form.minPlayers ?? 2)}
+                  max={Math.max(form.minPlayers ?? 2, form.maxPlayers ?? 8, 20)}
+                  value={newRegPlayers}
+                  onChange={(e) =>
+                    setNewRegPlayers(e.target.value === "" ? "" : Number(e.target.value))
+                  }
+                  placeholder={String(Math.max(form.minPlayers ?? 2, 4))}
+                />
+              </div>
+              <div>
+                <label className="label">Telefón (voliteľné)</label>
+                <input
+                  className="input"
+                  value={newRegPhone}
+                  onChange={(e) => setNewRegPhone(e.target.value)}
+                  placeholder="090x…"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => void addRegistrationManual()}
+                disabled={addingReg || !newRegTeamName.trim()}
+                className="btn-primary text-sm py-2.5 px-4 inline-flex items-center justify-center gap-2 sm:mb-0 disabled:opacity-50"
+              >
+                <UserPlus className="w-4 h-4" />
+                {addingReg ? "Pridávam…" : "Pridať tím"}
+              </button>
+            </div>
+            <p className="text-brand-muted text-xs">
+              Funguje aj keď sú registrácie na webe vypnuté. Duplicitný názov tímu na tomto podniku admin neuloží.
+            </p>
+          </div>
+
           {registrations.length > 0 && (
             <div className="flex flex-wrap items-center justify-between gap-3 mb-6 pb-6 border-b border-brand-border">
               <p className="text-brand-muted text-sm">

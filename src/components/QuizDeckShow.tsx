@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type MouseEvent } from "react";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import type { QuizDeck, QuizSlide } from "@/lib/quiz-deck";
 
@@ -149,10 +149,18 @@ export default function QuizDeckShow({ eventSlug }: Props) {
     );
   }
 
+  const handleStageClick = (e: MouseEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    if (x < rect.width / 2) goPrev();
+    else goNext();
+  };
+
   return (
     <div
-      className="fixed inset-0 bg-[#0a0a0a] text-white flex flex-col select-none cursor-pointer"
-      onClick={goNext}
+      className="fixed inset-0 bg-[#0a0a0a] text-white flex flex-col select-none"
+      onClick={handleStageClick}
       role="presentation"
     >
       <div className="absolute top-0 inset-x-0 flex items-center justify-between p-4 sm:p-6 z-20 pointer-events-none">

@@ -88,7 +88,7 @@ export default function QuizResultsEntryForm({
   };
 
   return (
-    <div className="bg-brand-card rounded-2xl border border-brand-border p-6 space-y-6">
+    <div className="bg-brand-card rounded-2xl border border-brand-border p-6 sm:p-8 space-y-6">
       <div>
         <h2 className="font-display text-2xl text-brand-text tracking-wide mb-1">Zapísať výsledok kvízu</h2>
         <p className="text-brand-muted text-sm">

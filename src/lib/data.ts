@@ -78,6 +78,26 @@ export function sortEventsByDate(events: QuizEvent[]): QuizEvent[] {
   });
 }
 
+/** Admin prehľad: najbližší budúci termín hore; kvíz vypnutý (`active === false`) úplne dole. */
+export function sortEventsForAdminOverview(events: QuizEvent[]): QuizEvent[] {
+  const now = Date.now();
+  const ts = (e: QuizEvent) => parseSkEventDateTime(e.date, e.time)?.getTime() ?? Number.POSITIVE_INFINITY;
+
+  return [...events].sort((a, b) => {
+    const activeA = a.active !== false;
+    const activeB = b.active !== false;
+    if (activeA !== activeB) return activeA ? -1 : 1;
+
+    const tA = ts(a);
+    const tB = ts(b);
+    const futureA = tA >= now;
+    const futureB = tB >= now;
+    if (futureA !== futureB) return futureA ? -1 : 1;
+    if (futureA) return tA - tB || a.venue.localeCompare(b.venue, "sk");
+    return tB - tA || a.venue.localeCompare(b.venue, "sk");
+  });
+}
+
 export function formatSkWeekday(date: string): string | null {
   const match = date.trim().match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
   if (!match) return null;

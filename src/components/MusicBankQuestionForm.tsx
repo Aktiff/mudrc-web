@@ -177,7 +177,7 @@ export default function MusicBankQuestionForm({ onAdded, onMessage }: Props) {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center justify-between gap-3 px-5 py-4 text-left hover:bg-brand-warm/50 transition-colors"
+        className="w-full flex items-center justify-between gap-3 px-5 py-4 sm:px-6 sm:py-5 text-left hover:bg-brand-warm/50 transition-colors"
       >
         <div>
           <p className="font-semibold text-brand-text text-sm">Pridať skladbu do banky hudby</p>
@@ -189,7 +189,7 @@ export default function MusicBankQuestionForm({ onAdded, onMessage }: Props) {
       </button>
 
       {open && (
-        <div className="px-5 pb-5 pt-0 space-y-5 border-t border-brand-border">
+        <div className="px-5 py-5 sm:px-6 sm:py-6 space-y-5 border-t border-brand-border">
           <div className="rounded-xl border border-dashed border-violet-300/60 dark:border-violet-700 bg-brand-warm/40 p-4 space-y-3">
             <div>
               <p className="text-sm font-semibold text-brand-text">Hromadné nahratie</p>

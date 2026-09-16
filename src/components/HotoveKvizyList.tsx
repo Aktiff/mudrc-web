@@ -290,7 +290,7 @@ export default function HotoveKvizyList() {
   const safeCount = quizzes.filter((quiz) => quiz.isSafe).length;
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-10">
       <QuizResultsEntryForm
         events={events}
         quizzes={quizzes}

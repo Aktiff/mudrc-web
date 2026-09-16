@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { Calendar, Plus, PauseCircle } from "lucide-react";
-import { formatEventDateLabel } from "@/lib/data";
+import { formatEventDateLabel, sortEventsForAdminOverview } from "@/lib/data";
 import { readEvents } from "@/lib/storage";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminDashboard() {
   const { events } = await readEvents();
+  const sortedEvents = sortEventsForAdminOverview(events);
 
   return (
     <div className="w-full">
@@ -40,7 +41,7 @@ export default async function AdminDashboard() {
       </div>
 
       <div className="space-y-3">
-        {events.map((e) => (
+        {sortedEvents.map((e) => (
           <Link
             key={e.slug}
             href={`/admin/udalosti/${e.slug}`}
