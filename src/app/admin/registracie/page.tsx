@@ -118,13 +118,15 @@ export default function RegistraciaPage() {
   };
 
   return (
-    <div className="w-full">
-      <h1 className="font-display text-4xl text-brand-text tracking-wide mb-1">Registrácie</h1>
-      <p className="text-brand-muted text-sm mb-2">Zoznam všetkých prihlásených tímov</p>
-      <p className="text-brand-muted text-xs mb-6">
+    <div className="w-full min-w-0">
+      <header className="mb-6 sm:mb-8">
+        <h1 className="font-display text-4xl text-brand-text tracking-wide mb-2">Registrácie</h1>
+        <p className="text-brand-muted text-sm mb-2">Zoznam všetkých prihlásených tímov</p>
+        <p className="text-brand-muted text-xs">
         Pri každom tíme môžeš tlačidlami <strong className="text-brand-text">− / +</strong> upraviť počet hráčov (uloží sa
         hneď).
-      </p>
+        </p>
+      </header>
       {msg && (
         <p className={`text-sm mb-4 ${msg.ok ? "text-green-600" : "text-red-500"}`}>{msg.text}</p>
       )}
