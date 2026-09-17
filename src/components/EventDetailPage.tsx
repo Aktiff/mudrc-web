@@ -14,7 +14,7 @@ import {
   Medal,
 } from "lucide-react";
 import type { QuizEvent } from "@/lib/data";
-import { formatDuration, formatEventDateLabel, isRegistrationOpen } from "@/lib/data";
+import { formatDuration, formatEventDateLabel, isRegistrationOpen, leagueTeamNameSuggestions } from "@/lib/data";
 import type { RegionSlug } from "@/lib/regions";
 import { getRegion } from "@/lib/regions";
 import Breadcrumbs from "@/components/Breadcrumbs";
@@ -39,6 +39,7 @@ export default function EventDetailPage({ event, region, pollHref }: EventDetail
   const rules = event.rules ?? [];
   const regionConfig = getRegion(region)!;
   const topThree = event.leagueTable.slice(0, 3);
+  const teamSuggestions = leagueTeamNameSuggestions(event.leagueTable);
 
   return (
     <>
@@ -220,6 +221,7 @@ export default function EventDetailPage({ event, region, pollHref }: EventDetail
           venue={event.venue}
           minPlayers={event.minPlayers}
           maxPlayers={event.maxPlayers}
+          teamSuggestions={teamSuggestions}
           onClose={() => setShowModal(false)}
         />
       )}

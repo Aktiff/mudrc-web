@@ -2,16 +2,25 @@
 import { useState } from "react";
 import { X } from "lucide-react";
 import { trackRegistrationComplete } from "@/lib/analytics";
+import { TeamAutocomplete } from "@/components/TeamAutocomplete";
 
 interface Props {
   eventSlug: string;
   venue: string;
   minPlayers?: number;
   maxPlayers?: number;
+  teamSuggestions?: string[];
   onClose: () => void;
 }
 
-export default function RegistrationModal({ eventSlug, venue, minPlayers = 2, maxPlayers = 8, onClose }: Props) {
+export default function RegistrationModal({
+  eventSlug,
+  venue,
+  minPlayers = 2,
+  maxPlayers = 8,
+  teamSuggestions = [],
+  onClose,
+}: Props) {
   const [teamName, setTeamName] = useState("");
   const [players, setPlayers] = useState(String(minPlayers));
   const [phone, setPhone] = useState("");
@@ -72,12 +81,12 @@ export default function RegistrationModal({ eventSlug, venue, minPlayers = 2, ma
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-brand-text mb-1.5">{"Názov tímu"}</label>
-                <input
-                  type="text"
-                  required
+                <TeamAutocomplete
                   value={teamName}
-                  onChange={(e) => setTeamName(e.target.value)}
-                  placeholder={"napr. Mudrc"}
+                  onChange={setTeamName}
+                  suggestions={teamSuggestions}
+                  placeholder="napr. Mudrc"
+                  required
                   className="w-full border border-brand-border rounded-xl px-4 py-3 text-brand-text bg-brand-surface placeholder:text-brand-muted-light focus:outline-none focus:border-brand-orange transition-colors"
                 />
               </div>

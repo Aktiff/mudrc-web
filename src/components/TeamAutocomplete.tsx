@@ -8,6 +8,7 @@ interface Props {
   placeholder?: string;
   className?: string;
   onEnter?: () => void;
+  required?: boolean;
 }
 
 function normalizeSearch(text: string): string {
@@ -28,7 +29,15 @@ function matchesSuggestion(query: string, suggestion: string): boolean {
   );
 }
 
-export function TeamAutocomplete({ value, onChange, suggestions, placeholder, className, onEnter }: Props) {
+export function TeamAutocomplete({
+  value,
+  onChange,
+  suggestions,
+  placeholder,
+  className,
+  onEnter,
+  required,
+}: Props) {
   const [open, setOpen] = useState(false);
   const [highlighted, setHighlighted] = useState(0);
   const ref = useRef<HTMLDivElement>(null);
@@ -108,6 +117,7 @@ export function TeamAutocomplete({ value, onChange, suggestions, placeholder, cl
         placeholder={placeholder}
         autoComplete="off"
         spellCheck={false}
+        required={required}
       />
       {showDropdown && (
         <ul className="absolute z-50 top-full mt-1 left-0 right-0 bg-brand-card border border-brand-border rounded-xl shadow-lg overflow-hidden max-h-56 overflow-y-auto">

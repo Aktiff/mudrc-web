@@ -4,7 +4,13 @@ import { useState } from "react";
 import Link from "next/link";
 import { Calendar, MapPin, Clock, ArrowRight, Users, Timer } from "lucide-react";
 import type { QuizEvent } from "@/lib/data";
-import { formatDuration, formatEventDateLabel, isRegistrationOpen, sortEventsByDate } from "@/lib/data";
+import {
+  formatDuration,
+  formatEventDateLabel,
+  isRegistrationOpen,
+  leagueTeamNameSuggestions,
+  sortEventsByDate,
+} from "@/lib/data";
 import { eventPath } from "@/lib/regions";
 import RegistrationAction from "./RegistrationAction";
 import RegistrationModal from "./RegistrationModal";
@@ -20,6 +26,7 @@ export default function QuizEventCards({ events }: { events: QuizEvent[] }) {
   const [modalSlug, setModalSlug] = useState<string | null>(null);
   const sortedEvents = sortEventsByDate(events);
   const activeEvent = sortedEvents.find((event) => event.slug === modalSlug);
+  const activeTeamSuggestions = activeEvent ? leagueTeamNameSuggestions(activeEvent.leagueTable) : [];
 
   if (sortedEvents.length === 0) {
     return <p className="text-brand-muted text-center py-8">Momentálne nemáme žiadne aktívne kvízy v tomto regióne.</p>;
@@ -101,6 +108,7 @@ export default function QuizEventCards({ events }: { events: QuizEvent[] }) {
           venue={activeEvent.venue}
           minPlayers={activeEvent.minPlayers}
           maxPlayers={activeEvent.maxPlayers}
+          teamSuggestions={activeTeamSuggestions}
           onClose={() => setModalSlug(null)}
         />
       )}

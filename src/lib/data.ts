@@ -140,6 +140,21 @@ export function sortLeagueTable(table: LeagueEntry[]): LeagueEntry[] {
     .map((entry, index) => ({ ...entry, rank: index + 1 }));
 }
 
+/** Unikátne názvy tímov z ligovej tabuľky — na autocomplete pri registrácii. */
+export function leagueTeamNameSuggestions(leagueTable: LeagueEntry[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const row of leagueTable) {
+    const name = row.teamName.trim();
+    if (!name) continue;
+    const key = name.toLocaleLowerCase("sk");
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(name);
+  }
+  return out.sort((a, b) => a.localeCompare(b, "sk"));
+}
+
 export function mergeLeagueTablesMax(a: LeagueEntry[], b: LeagueEntry[]): LeagueEntry[] {
   const map = new Map<string, LeagueEntry>();
 
