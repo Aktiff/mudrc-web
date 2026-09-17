@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Plus, Calendar, ChevronRight } from "lucide-react";
 import { RestoreMissingEvents } from "@/components/admin/RestoreMissingEvents";
-import { formatEventDateLabel } from "@/lib/data";
+import { formatEventDateLabel, sortEventsForAdminOverview } from "@/lib/data";
 import { isValidStoredEvent } from "@/lib/event-normalize";
 import { getPollActiveFlagsBySlug } from "@/lib/poll-storage";
 import { listMissingSeedEvents, readAllEventsRaw } from "@/lib/storage";
@@ -11,9 +11,10 @@ export const dynamic = "force-dynamic";
 export default async function AdminUdalostitPage() {
   const [{ events }, missing] = await Promise.all([readAllEventsRaw(), listMissingSeedEvents()]);
   const pollActiveBySlug = await getPollActiveFlagsBySlug(events.map((event) => event.slug));
+  const sortedEvents = sortEventsForAdminOverview(events);
 
   return (
-    <div className="w-full">
+    <div className="w-full min-w-0">
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-8">
         <div>
           <h1 className="font-display text-4xl text-brand-text tracking-wide mb-1">Udalosti</h1>
@@ -27,7 +28,7 @@ export default async function AdminUdalostitPage() {
         missing={missing.map((event) => ({ slug: event.slug, venue: event.venue, city: event.city }))}
       />
       <div className="space-y-4">
-        {events.map((e) => {
+        {sortedEvents.map((e) => {
           const invalid = !isValidStoredEvent(e);
           return (
           <Link
