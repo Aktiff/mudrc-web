@@ -23,6 +23,7 @@ import {
   PRESENTATION_ASPECT_OPTIONS,
   presentationStageBoxStyle,
   type PresentationAspectMode,
+  isLetterboxedStage,
 } from "@/lib/presentation-aspect";
 import { fixSlovakLineBreaks } from "@/lib/slovak-typography";
 import PresentationZoomLayer from "@/components/PresentationZoomLayer";
@@ -50,18 +51,52 @@ function SlideBackdrop() {
   );
 }
 
-function RulesSlide({ rules, venueName }: { rules: string[]; venueName: string }) {
+function RulesSlide({
+  rules,
+  venueName,
+  letterboxed,
+}: {
+  rules: string[];
+  venueName: string;
+  letterboxed: boolean;
+}) {
   return (
-    <div className="flex flex-col items-center gap-8 w-full max-w-4xl px-8 mx-auto">
+    <div
+      className={`flex flex-col items-center w-full max-w-4xl mx-auto min-h-0 overflow-hidden ${
+        letterboxed ? "h-full flex-1 gap-2 px-2 sm:px-3 pt-2 pb-1" : "gap-8 px-8 max-h-full"
+      }`}
+    >
       {venueName && (
-        <p className="text-[#f0c800]/70 text-lg sm:text-xl tracking-wide">{venueName}</p>
+        <p className={`text-[#f0c800]/70 tracking-wide shrink-0 ${letterboxed ? "text-sm" : "text-lg sm:text-xl"}`}>
+          {venueName}
+        </p>
       )}
-      <div className="w-16 h-1 rounded-full bg-gradient-to-r from-transparent via-[#f0c800] to-transparent" />
-      <p className="text-[#f0c800] text-2xl sm:text-3xl tracking-wide font-semibold font-display">Pravidlá</p>
-      <ul className="space-y-4 w-full rounded-3xl border border-white/10 bg-white/[0.03] backdrop-blur-sm p-8 sm:p-10">
+      <div
+        className={`rounded-full bg-gradient-to-r from-transparent via-[#f0c800] to-transparent shrink-0 ${
+          letterboxed ? "w-12 h-0.5" : "w-16 h-1"
+        }`}
+      />
+      <p
+        className={`text-[#f0c800] tracking-wide font-semibold font-display shrink-0 ${
+          letterboxed ? "text-xl sm:text-2xl" : "text-2xl sm:text-3xl"
+        }`}
+      >
+        Pravidlá
+      </p>
+      <ul
+        className={`w-full min-h-0 flex-1 overflow-y-auto overscroll-y-contain rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-sm ${
+          letterboxed ? "space-y-2 p-4 sm:p-5 text-sm sm:text-base leading-snug" : "space-y-4 p-8 sm:p-10"
+        }`}
+      >
         {rules.map((rule, index) => (
-          <li key={index} className="flex gap-5 text-lg sm:text-2xl text-white/95 leading-snug">
-            <span className="text-[#f0c800] font-display text-3xl sm:text-4xl shrink-0 w-8 text-right">{index + 1}</span>
+          <li key={index} className={`flex gap-3 text-white/95 ${letterboxed ? "" : "gap-5 text-lg sm:text-2xl leading-snug"}`}>
+            <span
+              className={`text-[#f0c800] font-display shrink-0 text-right ${
+                letterboxed ? "text-lg w-6" : "text-3xl sm:text-4xl w-8"
+              }`}
+            >
+              {index + 1}
+            </span>
             <span>{fixSlovakLineBreaks(rule)}</span>
           </li>
         ))}
@@ -70,9 +105,20 @@ function RulesSlide({ rules, venueName }: { rules: string[]; venueName: string }
   );
 }
 
-function questionTextStyle(text: string, withImage = false): CSSProperties {
+function questionTextStyle(text: string, withImage = false, letterboxed = false): CSSProperties {
   const len = text.length;
-  const lineHeight = 1.45;
+  const lineHeight = 1.4;
+
+  if (letterboxed) {
+    if (withImage) {
+      if (len > 80) return { fontSize: "clamp(1.35rem, 2.85vh, 2.85rem)", lineHeight };
+      return { fontSize: "clamp(1.45rem, 3.1vh, 3.1rem)", lineHeight };
+    }
+    if (len > 120) return { fontSize: "clamp(1.3rem, 2.65vh, 2.65rem)", lineHeight };
+    if (len > 80) return { fontSize: "clamp(1.4rem, 2.85vh, 2.85rem)", lineHeight };
+    if (len > 50) return { fontSize: "clamp(1.45rem, 3vh, 3rem)", lineHeight };
+    return { fontSize: "clamp(1.5rem, 3.15vh, 3.15rem)", lineHeight };
+  }
 
   if (withImage) {
     if (len > 100) return { fontSize: "clamp(2.75rem, 6vmin, 5.5rem)", lineHeight };
@@ -95,9 +141,12 @@ const ANSWER_TEXT_STYLE = { fontSize: "clamp(3.25rem, 7vmin, 8.5rem)", lineHeigh
 const QUESTION_TEXT_CLASS =
   "font-sans font-semibold text-white text-center tracking-normal whitespace-pre-wrap [text-wrap:pretty] drop-shadow-[0_4px_24px_rgba(0,0,0,0.85)] w-full max-w-full px-1 sm:px-2 py-[0.1em] shrink-0 normal-case overflow-visible";
 
-/** Vnútorný okraj plátna — rovnaký zo všetkých strán, obsah ostáva vycentrovaný. */
-const SLIDE_SAFE_AREA_CLASS =
-  "w-full h-full max-h-full min-h-0 box-border px-[max(1.25rem,2.4vmin)] py-[max(1.25rem,2.8vmin)] flex flex-col items-center justify-center overflow-hidden";
+function slideSafeAreaClass(letterboxed: boolean) {
+  if (letterboxed) {
+    return "w-full h-full max-h-full min-h-0 box-border px-3 pt-3 pb-3 sm:px-4 sm:pb-4 flex flex-col items-center justify-start overflow-hidden";
+  }
+  return "w-full h-full max-h-full min-h-0 box-border px-[max(1.25rem,2.4vmin)] py-[max(1.25rem,2.8vmin)] flex flex-col items-center justify-center overflow-hidden";
+}
 
 function PresentationImage({
   src,
@@ -123,21 +172,36 @@ function PresentationImage({
 function OptionsGrid({
   options,
   highlightCorrectIndex = -1,
+  letterboxed = false,
 }: {
   options: string[];
   highlightCorrectIndex?: number;
+  letterboxed?: boolean;
 }) {
   if (!options.length) return null;
 
+  const optionTextStyle = letterboxed
+    ? ({ fontSize: "clamp(0.95rem, 2.15vh, 1.85rem)", lineHeight: 1.32 } as const)
+    : OPTION_TEXT_STYLE;
+  const letterStyle = letterboxed
+    ? ({ fontSize: "clamp(1.05rem, 2.35vh, 2rem)" } as const)
+    : OPTION_LETTER_STYLE;
+
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-7 sm:gap-9 w-full max-w-full">
+    <div
+      className={`grid grid-cols-1 sm:grid-cols-2 w-full max-w-full min-h-0 shrink ${
+        letterboxed ? "gap-2 sm:gap-3" : "gap-7 sm:gap-9"
+      }`}
+    >
       {options.map((option, index) => {
         const isCorrect = index === highlightCorrectIndex;
 
         return (
           <div
             key={`${index}-${option}`}
-            className={`flex items-center gap-6 sm:gap-8 w-full px-8 sm:px-11 py-6 sm:py-8 rounded-2xl border-[3px] shadow-[0_12px_48px_rgba(0,0,0,0.45)] ${
+            className={`flex items-center w-full rounded-2xl border-[3px] shadow-[0_12px_48px_rgba(0,0,0,0.45)] ${
+              letterboxed ? "gap-3 px-4 py-3 sm:px-5 sm:py-3.5" : "gap-6 sm:gap-8 px-8 sm:px-11 py-6 sm:py-8"
+            } ${
               isCorrect
                 ? "border-[#f0c800] bg-gradient-to-br from-[#f0c800] to-[#e6b800] text-black ring-4 ring-[#f0c800]/35"
                 : "border-white/20 bg-white/[0.06] backdrop-blur-sm text-white"
@@ -147,15 +211,15 @@ function OptionsGrid({
               className={`font-display leading-none shrink-0 w-[5rem] sm:w-28 text-left ${
                 isCorrect ? "text-black/70" : "text-[#f0c800]"
               }`}
-              style={OPTION_LETTER_STYLE}
+              style={letterStyle}
             >
               {optionLetter(index)})
             </span>
             <p
-              className={`flex-1 min-w-0 font-sans font-semibold tracking-normal leading-[1.45] text-left normal-case overflow-visible py-[0.05em] ${
-                isCorrect ? "font-bold" : ""
-              }`}
-              style={OPTION_TEXT_STYLE}
+              className={`flex-1 min-w-0 font-sans font-semibold tracking-normal text-left normal-case overflow-visible py-[0.05em] ${
+                letterboxed ? "leading-[1.35]" : "leading-[1.45]"
+              } ${isCorrect ? "font-bold" : ""}`}
+              style={optionTextStyle}
             >
               {fixSlovakLineBreaks(option)}
             </p>
@@ -169,9 +233,11 @@ function OptionsGrid({
 function QuestionContent({
   question,
   phase,
+  letterboxed,
 }: {
   question: QuizQuestionItem;
   phase: "question" | "answer";
+  letterboxed: boolean;
 }) {
   const showImage =
     phase === "question" ? shouldShowImageInQuestionPhase(question) : shouldShowImageInAnswerPhase(question);
@@ -190,7 +256,11 @@ function QuestionContent({
       className={`w-full max-w-full min-h-0 max-h-full box-border overflow-hidden ${
         imageHero
           ? "max-h-full grid grid-rows-[auto_minmax(0,1fr)_auto] gap-[max(0.75rem,1.8vmin)] px-[max(0.35rem,0.8vmin)] py-[max(0.25rem,0.6vmin)]"
-          : "flex flex-col items-center justify-center gap-6 sm:gap-8 px-[max(0.35rem,0.8vmin)] overflow-visible"
+          : `flex flex-col items-center min-h-0 max-h-full overflow-hidden ${
+              letterboxed
+                ? "justify-start gap-2 sm:gap-2.5 px-1 pt-12 sm:pt-14"
+                : "justify-center gap-6 sm:gap-8 px-[max(0.35rem,0.8vmin)]"
+            }`
       }`}
     >
       {(question.kind === "music" || question.kind === "sound") && question.audioUrl?.trim() && (
@@ -216,7 +286,7 @@ function QuestionContent({
 
       <p
         className={`${QUESTION_TEXT_CLASS} shrink-0`}
-        style={questionTextStyle(questionText, imageHero || imageWithOptions)}
+        style={questionTextStyle(questionText, imageHero || imageWithOptions, letterboxed)}
       >
         {questionText}
       </p>
@@ -237,7 +307,9 @@ function QuestionContent({
       )}
 
       {options.length > 0 && (
-        <OptionsGrid options={options} highlightCorrectIndex={correctOptionIndex} />
+        <div className={letterboxed ? "w-full min-h-0 flex-1 flex flex-col justify-center" : "w-full"}>
+          <OptionsGrid options={options} highlightCorrectIndex={correctOptionIndex} letterboxed={letterboxed} />
+        </div>
       )}
 
       {phase === "answer" && options.length > 0 && correctOptionIndex < 0 && question.answer.trim() && (
@@ -279,15 +351,17 @@ function PresentationView({
   eventRules,
   venueName,
   nextQuizLine,
+  letterboxed,
 }: {
   slide: PresentationSlide;
   eventRules: string[];
   venueName: string;
   nextQuizLine: string;
+  letterboxed: boolean;
 }) {
   if (slide.type === "rules") {
     const rules = eventRules.length ? eventRules : ["Pravidlá nastav v admin → Udalosť → Pravidlá."];
-    return <RulesSlide rules={rules} venueName={venueName} />;
+    return <RulesSlide rules={rules} venueName={venueName} letterboxed={letterboxed} />;
   }
   if (slide.type === "round") {
     return (
@@ -336,7 +410,7 @@ function PresentationView({
   if (slide.type === "question_phase") {
     return (
       <div className="w-full max-h-full min-h-0 flex flex-col items-center justify-center overflow-visible">
-        <QuestionContent question={slide.question} phase="question" />
+        <QuestionContent question={slide.question} phase="question" letterboxed={letterboxed} />
       </div>
     );
   }
@@ -350,7 +424,7 @@ function PresentationView({
   if (slide.type === "answer_phase") {
     return (
       <div className="w-full max-h-full min-h-0 flex flex-col items-center justify-center overflow-visible">
-        <QuestionContent question={slide.question} phase="answer" />
+        <QuestionContent question={slide.question} phase="answer" letterboxed={letterboxed} />
       </div>
     );
   }
@@ -655,11 +729,12 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
     slide?.type === "question_phase" || slide?.type === "image_slide" || slide?.type === "answer_phase";
 
   const stageStyle = presentationStageBoxStyle(aspectMode);
+  const letterboxed = isLetterboxedStage(aspectMode);
 
   return (
     <div ref={rootRef} className="fixed inset-0 z-[9999] bg-[#030303] flex items-center justify-center overflow-hidden">
       <div
-        className="relative text-white flex flex-col select-none overflow-hidden shadow-[0_0_0_1px_rgba(255,255,255,0.06)]"
+        className="relative text-white flex flex-col select-none overflow-hidden min-h-0 min-w-0 shadow-[0_0_0_1px_rgba(255,255,255,0.06)]"
         style={stageStyle}
         onContextMenu={(e) => {
           e.preventDefault();
@@ -695,9 +770,19 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
       )}
 
       {showQuestionBadge && activeQuestion && (
-        <div className="absolute top-4 sm:top-5 left-4 sm:left-5 z-10 pointer-events-none">
-          <div className="size-[4.75rem] sm:size-24 md:size-28 rounded-2xl bg-[#f0c800] shadow-[0_10px_40px_rgba(240,200,0,0.45)] ring-2 ring-[#f0c800]/40 flex items-center justify-center">
-            <span className="font-display text-[3.25rem] sm:text-6xl md:text-7xl text-black tabular-nums leading-none [font-variant-numeric:tabular-nums]">
+        <div
+          className={`absolute z-10 pointer-events-none ${letterboxed ? "top-2 left-2 sm:top-3 sm:left-3" : "top-4 sm:top-5 left-4 sm:left-5"}`}
+        >
+          <div
+            className={`rounded-2xl bg-[#f0c800] shadow-[0_10px_40px_rgba(240,200,0,0.45)] ring-2 ring-[#f0c800]/40 flex items-center justify-center ${
+              letterboxed ? "size-12 sm:size-14" : "size-[4.75rem] sm:size-24 md:size-28"
+            }`}
+          >
+            <span
+              className={`font-display text-black tabular-nums leading-none [font-variant-numeric:tabular-nums] ${
+                letterboxed ? "text-2xl sm:text-3xl" : "text-[3.25rem] sm:text-6xl md:text-7xl"
+              }`}
+            >
               {activeQuestion.questionNumber}
             </span>
           </div>
@@ -705,9 +790,21 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
       )}
 
       {showSlideTimer && (
-        <div className="absolute top-4 sm:top-5 right-4 sm:right-5 z-10 pointer-events-none">
-          <div className="min-w-[4.75rem] sm:min-w-24 md:min-w-28 h-[4.75rem] sm:h-24 md:h-28 px-3 sm:px-4 rounded-2xl bg-black/80 border-2 border-white/30 backdrop-blur-sm shadow-[0_10px_40px_rgba(0,0,0,0.6)] flex items-center justify-center">
-            <span className="font-mono text-[3.25rem] sm:text-6xl md:text-7xl font-bold text-white tabular-nums leading-none">
+        <div
+          className={`absolute z-10 pointer-events-none ${letterboxed ? "top-2 right-2 sm:top-3 sm:right-3" : "top-4 sm:top-5 right-4 sm:right-5"}`}
+        >
+          <div
+            className={`rounded-2xl bg-black/80 border-2 border-white/30 backdrop-blur-sm shadow-[0_10px_40px_rgba(0,0,0,0.6)] flex items-center justify-center ${
+              letterboxed
+                ? "min-w-12 h-12 sm:min-w-14 sm:h-14 px-2"
+                : "min-w-[4.75rem] sm:min-w-24 md:min-w-28 h-[4.75rem] sm:h-24 md:h-28 px-3 sm:px-4"
+            }`}
+          >
+            <span
+              className={`font-mono font-bold text-white tabular-nums leading-none ${
+                letterboxed ? "text-2xl sm:text-3xl" : "text-[3.25rem] sm:text-6xl md:text-7xl"
+              }`}
+            >
               {slideElapsed}
             </span>
           </div>
@@ -717,17 +814,22 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
       <PresentationZoomLayer
         slideKey={`${index}-${slide?.type ?? "none"}`}
         className="relative flex-1 flex min-h-0 w-full"
-        innerClassName="min-h-0"
+        innerClassName={letterboxed ? "min-h-0 items-stretch justify-start" : "min-h-0"}
         onBackgroundClick={handleStageClick}
       >
-        <div className={SLIDE_SAFE_AREA_CLASS}>
+        <div className={slideSafeAreaClass(letterboxed)}>
           {slide && (
-            <div className="w-full min-h-0 max-h-full flex flex-col items-center justify-center overflow-visible">
+            <div
+              className={`w-full min-h-0 max-h-full flex flex-col items-center overflow-hidden ${
+                letterboxed ? "h-full flex-1 justify-start" : "justify-center"
+              }`}
+            >
               <PresentationView
                 slide={slide}
                 eventRules={eventRules}
                 venueName={venueName}
                 nextQuizLine={nextQuizLine}
+                letterboxed={letterboxed}
               />
             </div>
           )}

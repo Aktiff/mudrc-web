@@ -21,6 +21,11 @@ const RATIO: Record<Exclude<PresentationAspectMode, "viewport">, [number, number
   "4:3": [4, 3],
 };
 
+/** Letterboxed rám (16:9, 4:3…) — obsah musí zmestiť do boxu, nie celej obrazovky. */
+export function isLetterboxedStage(mode: PresentationAspectMode): boolean {
+  return mode !== "viewport";
+}
+
 export function presentationStageBoxStyle(mode: PresentationAspectMode): CSSProperties {
   if (mode === "viewport") {
     return { width: "100%", height: "100%", maxWidth: "100%", maxHeight: "100%" };
