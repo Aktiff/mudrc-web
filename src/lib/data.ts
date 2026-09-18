@@ -140,12 +140,11 @@ export function sortLeagueTable(table: LeagueEntry[]): LeagueEntry[] {
     .map((entry, index) => ({ ...entry, rank: index + 1 }));
 }
 
-/** Unikátne názvy tímov z ligovej tabuľky — na autocomplete pri registrácii. */
-export function leagueTeamNameSuggestions(leagueTable: LeagueEntry[]): string[] {
+function uniqueTeamNamesSorted(names: string[]): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
-  for (const row of leagueTable) {
-    const name = row.teamName.trim();
+  for (const raw of names) {
+    const name = raw.trim();
     if (!name) continue;
     const key = name.toLocaleLowerCase("sk");
     if (seen.has(key)) continue;
@@ -153,6 +152,22 @@ export function leagueTeamNameSuggestions(leagueTable: LeagueEntry[]): string[] 
     out.push(name);
   }
   return out.sort((a, b) => a.localeCompare(b, "sk"));
+}
+
+/** Unikátne názvy tímov z ligovej tabuľky — na autocomplete pri registrácii. */
+export function leagueTeamNameSuggestions(leagueTable: LeagueEntry[]): string[] {
+  return uniqueTeamNamesSorted(leagueTable.map((row) => row.teamName));
+}
+
+/** Tímy z ligy + minulých kvízov daného podniku (admin registrácie, zápis výsledkov). */
+export function eventTeamNameSuggestions(event: Pick<QuizEvent, "leagueTable" | "pastResults">): string[] {
+  const names: string[] = [];
+  for (const row of event.leagueTable ?? []) names.push(row.teamName);
+  for (const result of event.pastResults ?? []) {
+    names.push(result.winnerTeam);
+    for (const team of result.teams ?? []) names.push(team.teamName);
+  }
+  return uniqueTeamNamesSorted(names);
 }
 
 export function mergeLeagueTablesMax(a: LeagueEntry[], b: LeagueEntry[]): LeagueEntry[] {

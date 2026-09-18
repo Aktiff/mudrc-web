@@ -1,10 +1,10 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Trash2, ChevronLeft, Save, PauseCircle, PlayCircle, Upload, ImageIcon, Phone, Users, Clock, RefreshCw, Vote, ExternalLink, UserPlus, UserX, Armchair } from "lucide-react";
 import Link from "next/link";
 import type { QuizEvent, LeagueEntry, PastResult } from "@/lib/data";
-import { sortLeagueTable } from "@/lib/data";
+import { eventTeamNameSuggestions, sortLeagueTable } from "@/lib/data";
 import { hasSeedLeagueBackup } from "@/lib/league-seed";
 import { formatPollOptionLabel, pollOptionsMatch } from "@/lib/poll";
 import { findQuizResult, mergePastResults, normalizeDateKey, quizResultKey } from "@/lib/quiz-result-key";
@@ -259,6 +259,11 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
     leagueTable: [],
     pastResults: [],
   });
+
+  const teamNameSuggestions = useMemo(
+    () => eventTeamNameSuggestions({ leagueTable: form.leagueTable, pastResults: form.pastResults }),
+    [form.leagueTable, form.pastResults]
+  );
 
   useEffect(() => {
     if (!isNew) {
@@ -1169,7 +1174,7 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
                   className="input py-2.5"
                   value={team.name}
                   onChange={(v) => updateQuizTeam(i, "name", v)}
-                  suggestions={form.leagueTable.map((e) => e.teamName)}
+                  suggestions={teamNameSuggestions}
                   placeholder={`Tím ${i + 1}`}
                 />
                 {Array.from({ length: form.rounds || 4 }, (_, k) => (
@@ -1282,17 +1287,13 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
             <div className="grid gap-3 sm:grid-cols-[1fr_minmax(7rem,9rem)_minmax(9rem,11rem)_auto] sm:items-end">
               <div>
                 <label className="label">Názov tímu</label>
-                <input
+                <TeamAutocomplete
                   className="input"
                   value={newRegTeamName}
-                  onChange={(e) => setNewRegTeamName(e.target.value)}
+                  onChange={setNewRegTeamName}
+                  suggestions={teamNameSuggestions}
                   placeholder="napr. Nováčikovia"
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      void addRegistrationManual();
-                    }
-                  }}
+                  onEnter={() => void addRegistrationManual()}
                 />
               </div>
               <div>
