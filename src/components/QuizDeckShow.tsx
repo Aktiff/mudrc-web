@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState, type MouseEvent } from "react";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import type { QuizDeck, QuizSlide } from "@/lib/quiz-deck";
+import PresentationZoomLayer from "@/components/PresentationZoomLayer";
 
 type Props = {
   eventSlug: string;
@@ -158,11 +159,7 @@ export default function QuizDeckShow({ eventSlug }: Props) {
   };
 
   return (
-    <div
-      className="fixed inset-0 bg-[#0a0a0a] text-white flex flex-col select-none"
-      onClick={handleStageClick}
-      role="presentation"
-    >
+    <div className="fixed inset-0 bg-[#0a0a0a] text-white flex flex-col select-none" role="presentation">
       <div className="absolute top-0 inset-x-0 flex items-center justify-between p-4 sm:p-6 z-20 pointer-events-none">
         <span className="text-white/40 text-sm font-mono">
           {index + 1} / {deck.slides.length}
@@ -176,9 +173,13 @@ export default function QuizDeckShow({ eventSlug }: Props) {
         </Link>
       </div>
 
-      <div className="flex-1 flex items-center justify-center min-h-0 py-16">
+      <PresentationZoomLayer
+        slideKey={`${index}-${answerRevealed ? "a" : "q"}`}
+        className="flex-1 min-h-0 py-16"
+        onBackgroundClick={handleStageClick}
+      >
         {slide && <SlideView slide={slide} answerRevealed={answerRevealed} />}
-      </div>
+      </PresentationZoomLayer>
 
       <div className="absolute bottom-0 inset-x-0 p-4 sm:p-6 flex items-center justify-between z-20 pointer-events-none">
         <button

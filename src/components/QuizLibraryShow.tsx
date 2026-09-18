@@ -25,6 +25,7 @@ import {
   type PresentationAspectMode,
 } from "@/lib/presentation-aspect";
 import { fixSlovakLineBreaks } from "@/lib/slovak-typography";
+import PresentationZoomLayer from "@/components/PresentationZoomLayer";
 
 type Props = {
   quizId: string;
@@ -627,7 +628,6 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
       <div
         className="relative text-white flex flex-col select-none overflow-hidden shadow-[0_0_0_1px_rgba(255,255,255,0.06)]"
         style={stageStyle}
-        onClick={handleStageClick}
         onContextMenu={(e) => {
           e.preventDefault();
           goPrev();
@@ -681,7 +681,11 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
         </div>
       )}
 
-      <div className="relative flex-1 flex items-center justify-center min-h-0 w-full px-4 sm:px-6 py-[1.5vh]">
+      <PresentationZoomLayer
+        slideKey={`${index}-${slide?.type ?? "none"}`}
+        className="relative flex-1 flex min-h-0 w-full px-4 sm:px-6 py-[1.5vh]"
+        onBackgroundClick={handleStageClick}
+      >
         {slide && (
           <PresentationView
             slide={slide}
@@ -690,7 +694,7 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
             nextQuizLine={nextQuizLine}
           />
         )}
-      </div>
+      </PresentationZoomLayer>
 
       {!isFullscreen && (
         <div className="absolute bottom-0 inset-x-0 z-20">
