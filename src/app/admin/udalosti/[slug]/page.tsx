@@ -265,6 +265,14 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
     [form.leagueTable, form.pastResults]
   );
 
+  const registrationPlayerTotal = useMemo(() => {
+    const minPlayers = Math.max(1, form.minPlayers ?? 2);
+    return registrations.reduce(
+      (sum, reg) => sum + (parseRegistrationPlayerCount(reg.players) || minPlayers),
+      0
+    );
+  }, [registrations, form.minPlayers]);
+
   useEffect(() => {
     if (!isNew) {
       loadEventFromServer(params.slug).then((ev) => {
@@ -1338,6 +1346,15 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
             <div className="flex flex-wrap items-center justify-between gap-3 mb-6 pb-6 border-b border-brand-border">
               <p className="text-brand-muted text-sm">
                 {registrations.length} {registrations.length === 1 ? "registrácia" : "registrácií"} pre tento podnik
+                {" · "}
+                <span className="text-brand-text font-semibold">
+                  {registrationPlayerTotal === 1
+                    ? "1 hráč"
+                    : registrationPlayerTotal >= 2 && registrationPlayerTotal <= 4
+                      ? `${registrationPlayerTotal} hráči`
+                      : `${registrationPlayerTotal} hráčov`}{" "}
+                  celkom
+                </span>
               </p>
               <button
                 onClick={clearAllRegistrations}
