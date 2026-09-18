@@ -99,7 +99,7 @@ const OPTION_TEXT_STYLE = { fontSize: "clamp(3rem, 6.5vmin, 7.5rem)", lineHeight
 const ANSWER_TEXT_STYLE = { fontSize: "clamp(3.25rem, 7vmin, 8.5rem)", lineHeight: 1.45 } as const;
 
 const QUESTION_TEXT_CLASS =
-  "font-sans font-semibold text-white text-center tracking-normal whitespace-pre-wrap [text-wrap:pretty] drop-shadow-[0_4px_24px_rgba(0,0,0,0.85)] w-full max-w-full px-1 sm:px-2 py-[0.1em] shrink-0 normal-case overflow-visible";
+  "relative z-[1] font-sans font-semibold text-white text-center tracking-normal whitespace-pre-wrap [text-wrap:pretty] drop-shadow-[0_4px_24px_rgba(0,0,0,0.85)] w-full max-w-full px-1 sm:px-2 py-[0.1em] shrink-0 normal-case overflow-visible";
 
 /** Vnútorný okraj plátna — rovnaký zo všetkých strán, obsah ostáva vycentrovaný. */
 const SLIDE_SAFE_AREA_CLASS =
@@ -705,7 +705,7 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
       )}
 
       {showQuestionBadge && activeQuestion && (
-        <div className="absolute top-4 sm:top-5 left-4 sm:left-5 z-10 pointer-events-none">
+        <div className="absolute top-4 sm:top-5 left-4 sm:left-5 z-[1] pointer-events-none">
           <div
             className={`${badgeTimer.boxClass} rounded-2xl bg-[#f0c800] shadow-[0_10px_40px_rgba(240,200,0,0.45)] ring-2 ring-[#f0c800]/40 flex items-center justify-center`}
             style={badgeTimer.boxStyle}
@@ -720,7 +720,7 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
       )}
 
       {showSlideTimer && (
-        <div className="absolute top-4 sm:top-5 right-4 sm:right-5 z-10 pointer-events-none">
+        <div className="absolute top-4 sm:top-5 right-4 sm:right-5 z-[1] pointer-events-none">
           <div
             className={`${badgeTimer.timerClass} px-3 sm:px-4 rounded-2xl bg-black/80 border-2 border-white/30 backdrop-blur-sm shadow-[0_10px_40px_rgba(0,0,0,0.6)] flex items-center justify-center`}
             style={badgeTimer.timerStyle}
@@ -734,7 +734,7 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
 
       <PresentationZoomLayer
         slideKey={slideKey}
-        className="relative flex-1 flex min-h-0 w-full"
+        className="relative z-[2] flex-1 flex min-h-0 w-full"
         innerClassName="min-h-0"
         onBackgroundClick={handleStageClick}
       >

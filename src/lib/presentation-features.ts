@@ -16,8 +16,8 @@ export const PRESENTATION_FEATURES = {
    */
   questionOverflowAutoFit: true,
 
-  /** 0.7 = o 30 % menšie číslo otázky a timer (1 = pôvodná veľkosť). */
-  badgeTimerSizeMultiplier: 0.7,
+  /** 1 = plná veľkosť badge a timeru na slide. */
+  badgeTimerSizeMultiplier: 1,
 } as const;
 
 const QUESTION_SLIDE_TYPES = new Set(["question_phase", "answer_phase", "image_slide"]);
@@ -38,12 +38,12 @@ const BADGE_TIMER_FULL = {
   textClass: "text-[3.25rem] sm:text-6xl md:text-7xl",
 } as const;
 
-/** O 30 % menšie (multiplier 0.7) — statické triedy kvôli Tailwind JIT. */
-const BADGE_TIMER_REDUCED = {
-  boxClass: "size-[3.325rem] sm:size-[4.2rem] md:size-[4.9rem]",
+/** ~12 % menšie (multiplier 0.88) — statické triedy kvôli Tailwind JIT. */
+const BADGE_TIMER_COMPACT = {
+  boxClass: "size-[4.18rem] sm:size-[5.28rem] md:size-[6.16rem]",
   timerClass:
-    "min-w-[3.325rem] sm:min-w-[4.2rem] md:min-w-[4.9rem] h-[3.325rem] sm:h-[4.2rem] md:h-[4.9rem]",
-  textClass: "text-[2.275rem] sm:text-[2.625rem] md:text-[3.0625rem]",
+    "min-w-[4.18rem] sm:min-w-[5.28rem] md:min-w-[6.16rem] h-[4.18rem] sm:h-[5.28rem] md:h-[6.16rem]",
+  textClass: "text-[2.86rem] sm:text-[3.3rem] md:text-[3.85rem]",
 } as const;
 
 export type PresentationBadgeTimerSizes = {
@@ -56,7 +56,7 @@ export type PresentationBadgeTimerSizes = {
 
 export function presentationBadgeTimerSizes(multiplier: number): PresentationBadgeTimerSizes {
   if (multiplier >= 0.999) return { ...BADGE_TIMER_FULL };
-  if (multiplier <= 0.701) return { ...BADGE_TIMER_REDUCED };
+  if (multiplier >= 0.84) return { ...BADGE_TIMER_COMPACT };
   const style: CSSProperties = { transform: `scale(${multiplier})`, transformOrigin: "center center" };
   return { ...BADGE_TIMER_FULL, boxStyle: style, timerStyle: style };
 }
