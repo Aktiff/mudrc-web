@@ -354,14 +354,8 @@ function PresentationView({
       </div>
     );
   }
-  return (
-    <div className="text-center px-8 max-w-4xl mx-auto">
-      <p className="font-display text-6xl sm:text-8xl text-white tracking-wide mb-6">{slide.title}</p>
-      {slide.body?.trim() ? (
-        <p className="text-xl sm:text-2xl text-white/80 whitespace-pre-wrap leading-relaxed">{slide.body}</p>
-      ) : null}
-    </div>
-  );
+
+  return null;
 }
 
 export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props) {
