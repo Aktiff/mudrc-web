@@ -126,7 +126,7 @@ export default function PresentationZoomLayer({
   return (
     <div
       ref={viewportRef}
-      className={`overflow-hidden touch-none ${isZoomed ? "cursor-grab active:cursor-grabbing" : ""} ${className}`}
+      className={`overflow-hidden touch-none box-border p-[max(6px,0.8vmin)] ${isZoomed ? "cursor-grab active:cursor-grabbing" : ""} ${className}`}
       onClick={onClick}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}

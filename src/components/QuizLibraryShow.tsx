@@ -94,9 +94,15 @@ const ANSWER_TEXT_STYLE = { fontSize: "clamp(3.25rem, 7vmin, 8.5rem)" } as const
 const QUESTION_TEXT_CLASS =
   "font-display text-white text-center leading-[1.06] tracking-wide whitespace-pre-wrap [text-wrap:pretty] drop-shadow-[0_4px_24px_rgba(0,0,0,0.85)] w-full max-w-full px-1 sm:px-2 shrink-0";
 
-/** Minimálny odstup obsahu od okraja projekčného plátna (otázky, odpovede, obrázky). */
-const SLIDE_SAFE_AREA_CLASS =
-  "w-full h-full max-h-full min-h-0 box-border p-3 sm:p-4 md:p-5 flex flex-col items-center justify-center overflow-hidden";
+/** Vnútorný okraj plátna — vždy viditeľný odstup od okraja (aj na TV / fullscreen). */
+function slideSafeAreaClass(hasQuestionBadge: boolean) {
+  const sides = "px-[max(1.25rem,2.4vmin)]";
+  const bottom = "pb-[max(1.25rem,2.8vmin)]";
+  const top = hasQuestionBadge
+    ? "pt-[max(6.25rem,16vmin)]"
+    : "pt-[max(1.25rem,2.8vmin)]";
+  return `w-full h-full max-h-full min-h-0 box-border ${sides} ${top} ${bottom} flex flex-col items-center justify-center overflow-hidden`;
+}
 
 function PresentationImage({
   src,
@@ -108,10 +114,10 @@ function PresentationImage({
   const resolved = bestPresentationImageUrl(src);
   const className =
     variant === "full-slide"
-      ? "max-w-full max-h-full w-auto h-auto object-contain rounded-2xl shadow-[0_24px_80px_rgba(0,0,0,0.6)] ring-1 ring-white/10"
+      ? "max-w-[calc(100%-4px)] max-h-[calc(100%-4px)] w-auto h-auto object-contain rounded-2xl shadow-[0_24px_80px_rgba(0,0,0,0.6)] ring-1 ring-white/10"
       : variant === "hero"
-        ? "max-w-full max-h-full w-auto h-auto object-contain rounded-2xl shadow-[0_24px_80px_rgba(0,0,0,0.6)] ring-1 ring-white/10"
-        : "max-w-full max-h-full w-auto h-auto object-contain rounded-2xl shadow-[0_24px_80px_rgba(0,0,0,0.6)] ring-1 ring-white/10";
+        ? "max-w-[calc(100%-4px)] max-h-[calc(100%-4px)] w-auto h-auto object-contain rounded-2xl shadow-[0_24px_80px_rgba(0,0,0,0.6)] ring-1 ring-white/10"
+        : "max-w-[calc(100%-4px)] max-h-[calc(100%-4px)] w-auto h-auto object-contain rounded-2xl shadow-[0_24px_80px_rgba(0,0,0,0.6)] ring-1 ring-white/10";
 
   return (
     // eslint-disable-next-line @next/next/no-img-element
@@ -182,14 +188,14 @@ function QuestionContent({
   const imageWithOptions = showImage && options.length > 0;
 
   const answerBoxClass =
-    "shrink-0 px-8 sm:px-12 py-5 sm:py-7 rounded-2xl bg-gradient-to-br from-[#f0c800] to-[#e6b800] text-black text-center w-full max-w-full shadow-[0_20px_60px_rgba(240,200,0,0.25)]";
+    "shrink-0 px-6 sm:px-10 py-5 sm:py-6 rounded-2xl bg-gradient-to-br from-[#f0c800] to-[#e6b800] text-black text-center w-full max-w-full shadow-[0_20px_60px_rgba(240,200,0,0.25)]";
 
   return (
     <div
-      className={`w-full max-w-full min-h-0 flex flex-col items-center box-border ${
+      className={`w-full max-w-full min-h-0 box-border ${
         imageHero
-          ? "h-full max-h-full flex-1 gap-3 sm:gap-4 px-1 sm:px-2 py-1"
-          : "gap-6 sm:gap-8 px-1 sm:px-2 py-1 max-h-full overflow-y-auto overflow-x-hidden"
+          ? "h-full max-h-full grid grid-rows-[auto_minmax(0,1fr)_auto] gap-[max(0.75rem,1.8vmin)] px-[max(0.5rem,1vmin)]"
+          : "flex flex-col items-center gap-6 sm:gap-8 px-[max(0.5rem,1vmin)] max-h-full overflow-y-auto overflow-x-hidden"
       }`}
     >
       {(question.kind === "music" || question.kind === "sound") && question.audioUrl?.trim() && (
@@ -214,7 +220,7 @@ function QuestionContent({
       )}
 
       <p
-        className={`${QUESTION_TEXT_CLASS} shrink-0`}
+        className={`${QUESTION_TEXT_CLASS} shrink-0 mt-[max(0.25rem,0.6vmin)]`}
         style={questionTextStyle(questionText, imageHero || imageWithOptions)}
       >
         {questionText}
@@ -224,8 +230,8 @@ function QuestionContent({
         <div
           className={
             imageHero
-              ? "flex-1 min-h-0 w-full flex items-center justify-center overflow-hidden py-1"
-              : "w-full flex items-center justify-center shrink-0 max-h-[min(42vh,100%)] overflow-hidden py-1"
+              ? "min-h-0 w-full flex items-center justify-center overflow-hidden p-[max(0.5rem,1.2vmin)] box-border"
+              : "w-full flex items-center justify-center shrink-0 max-h-[min(42vh,100%)] overflow-hidden p-[max(0.5rem,1.2vmin)] box-border"
           }
         >
           <PresentationImage
@@ -716,9 +722,9 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
         innerClassName="min-h-0"
         onBackgroundClick={handleStageClick}
       >
-        <div className={SLIDE_SAFE_AREA_CLASS}>
+        <div className={slideSafeAreaClass(Boolean(showQuestionBadge && activeQuestion))}>
           {slide && (
-            <div className="w-full min-h-0 max-h-full flex flex-col items-center justify-center overflow-hidden">
+            <div className="w-full min-h-0 max-h-full h-full flex flex-col items-stretch justify-center overflow-hidden">
               <PresentationView
                 slide={slide}
                 eventRules={eventRules}
