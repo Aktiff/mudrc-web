@@ -41,7 +41,7 @@ function SlideView({ slide, answerRevealed }: { slide: QuizSlide; answerRevealed
           // eslint-disable-next-line @next/next/no-img-element
           <img src={slide.imageUrl} alt="" className="max-h-[40vh] max-w-full rounded-2xl object-contain shadow-2xl" />
         )}
-        <p className="font-sans font-semibold text-3xl sm:text-5xl md:text-6xl text-white text-center leading-tight tracking-normal whitespace-pre-wrap normal-case">
+        <p className="font-sans font-semibold text-3xl sm:text-5xl md:text-6xl text-white text-center leading-[1.45] tracking-normal whitespace-pre-wrap normal-case py-[0.08em] overflow-visible">
           {slide.body || "Otázka"}
         </p>
         {answerRevealed && slide.answer && (

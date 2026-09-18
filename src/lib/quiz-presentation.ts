@@ -62,7 +62,7 @@ export function buildPresentationSlides(questions: QuizQuestionItem[]): Presenta
   slides.push({
     type: "scores",
     title: "Vyhodnotenie",
-    body: "Po zadaní bodov spustite odhalenie tabuľky v admin → Výsledky → Prezentácia.",
+    body: "",
   });
 
   return slides;

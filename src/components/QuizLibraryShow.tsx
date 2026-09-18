@@ -72,27 +72,28 @@ function RulesSlide({ rules, venueName }: { rules: string[]; venueName: string }
 
 function questionTextStyle(text: string, withImage = false): CSSProperties {
   const len = text.length;
+  const lineHeight = 1.45;
 
   if (withImage) {
-    if (len > 100) return { fontSize: "clamp(2.75rem, 6vmin, 5.5rem)" };
-    if (len > 60) return { fontSize: "clamp(3.25rem, 7vmin, 6.5rem)" };
-    if (len > 30) return { fontSize: "clamp(3.75rem, 8vmin, 7.5rem)" };
-    return { fontSize: "clamp(4rem, 8.5vmin, 8.5rem)" };
+    if (len > 100) return { fontSize: "clamp(2.75rem, 6vmin, 5.5rem)", lineHeight };
+    if (len > 60) return { fontSize: "clamp(3.25rem, 7vmin, 6.5rem)", lineHeight };
+    if (len > 30) return { fontSize: "clamp(3.75rem, 8vmin, 7.5rem)", lineHeight };
+    return { fontSize: "clamp(4rem, 8.5vmin, 8.5rem)", lineHeight };
   }
 
-  if (len > 140) return { fontSize: "clamp(3rem, 6.5vmin, 7rem)" };
-  if (len > 100) return { fontSize: "clamp(3.25rem, 7vmin, 7.75rem)" };
-  if (len > 70) return { fontSize: "clamp(3.5rem, 7.5vmin, 8.5rem)" };
-  if (len > 45) return { fontSize: "clamp(3.75rem, 8vmin, 9.25rem)" };
-  return { fontSize: "clamp(4rem, 8.5vmin, 10rem)" };
+  if (len > 140) return { fontSize: "clamp(3rem, 6.5vmin, 7rem)", lineHeight };
+  if (len > 100) return { fontSize: "clamp(3.25rem, 7vmin, 7.75rem)", lineHeight };
+  if (len > 70) return { fontSize: "clamp(3.5rem, 7.5vmin, 8.5rem)", lineHeight };
+  if (len > 45) return { fontSize: "clamp(3.75rem, 8vmin, 9.25rem)", lineHeight };
+  return { fontSize: "clamp(4rem, 8.5vmin, 10rem)", lineHeight };
 }
 
 const OPTION_LETTER_STYLE = { fontSize: "clamp(3.5rem, 7.5vmin, 8.5rem)" } as const;
-const OPTION_TEXT_STYLE = { fontSize: "clamp(3rem, 6.5vmin, 7.5rem)" } as const;
-const ANSWER_TEXT_STYLE = { fontSize: "clamp(3.25rem, 7vmin, 8.5rem)" } as const;
+const OPTION_TEXT_STYLE = { fontSize: "clamp(3rem, 6.5vmin, 7.5rem)", lineHeight: 1.45 } as const;
+const ANSWER_TEXT_STYLE = { fontSize: "clamp(3.25rem, 7vmin, 8.5rem)", lineHeight: 1.45 } as const;
 
 const QUESTION_TEXT_CLASS =
-  "font-sans font-semibold text-white text-center leading-[1.12] tracking-normal whitespace-pre-wrap [text-wrap:pretty] drop-shadow-[0_4px_24px_rgba(0,0,0,0.85)] w-full max-w-full px-1 sm:px-2 shrink-0 normal-case";
+  "font-sans font-semibold text-white text-center tracking-normal whitespace-pre-wrap [text-wrap:pretty] drop-shadow-[0_4px_24px_rgba(0,0,0,0.85)] w-full max-w-full px-1 sm:px-2 py-[0.1em] shrink-0 normal-case overflow-visible";
 
 /** Vnútorný okraj plátna — rovnaký zo všetkých strán, obsah ostáva vycentrovaný. */
 const SLIDE_SAFE_AREA_CLASS =
@@ -151,7 +152,7 @@ function OptionsGrid({
               {optionLetter(index)})
             </span>
             <p
-              className={`flex-1 min-w-0 font-sans font-semibold tracking-normal leading-snug text-left normal-case ${
+              className={`flex-1 min-w-0 font-sans font-semibold tracking-normal leading-[1.45] text-left normal-case overflow-visible py-[0.05em] ${
                 isCorrect ? "font-bold" : ""
               }`}
               style={OPTION_TEXT_STYLE}
@@ -189,7 +190,7 @@ function QuestionContent({
       className={`w-full max-w-full min-h-0 max-h-full box-border overflow-hidden ${
         imageHero
           ? "max-h-full grid grid-rows-[auto_minmax(0,1fr)_auto] gap-[max(0.75rem,1.8vmin)] px-[max(0.35rem,0.8vmin)] py-[max(0.25rem,0.6vmin)]"
-          : "flex flex-col items-center justify-center gap-6 sm:gap-8 px-[max(0.35rem,0.8vmin)]"
+          : "flex flex-col items-center justify-center gap-6 sm:gap-8 px-[max(0.35rem,0.8vmin)] overflow-visible"
       }`}
     >
       {(question.kind === "music" || question.kind === "sound") && question.audioUrl?.trim() && (
@@ -325,9 +326,16 @@ function PresentationView({
       </div>
     );
   }
+  if (slide.type === "scores") {
+    return (
+      <div className="text-center px-8 max-w-4xl w-full mx-auto">
+        <p className="font-display text-6xl sm:text-8xl text-white tracking-wide">{slide.title}</p>
+      </div>
+    );
+  }
   if (slide.type === "question_phase") {
     return (
-      <div className="w-full max-h-full min-h-0 flex flex-col items-center justify-center overflow-hidden">
+      <div className="w-full max-h-full min-h-0 flex flex-col items-center justify-center overflow-visible">
         <QuestionContent question={slide.question} phase="question" />
       </div>
     );
@@ -341,15 +349,17 @@ function PresentationView({
   }
   if (slide.type === "answer_phase") {
     return (
-      <div className="w-full max-h-full min-h-0 flex flex-col items-center justify-center overflow-hidden">
+      <div className="w-full max-h-full min-h-0 flex flex-col items-center justify-center overflow-visible">
         <QuestionContent question={slide.question} phase="answer" />
       </div>
     );
   }
   return (
-    <div className="text-center px-8 max-w-4xl">
+    <div className="text-center px-8 max-w-4xl mx-auto">
       <p className="font-display text-6xl sm:text-8xl text-white tracking-wide mb-6">{slide.title}</p>
-      <p className="text-xl sm:text-2xl text-white/80 whitespace-pre-wrap leading-relaxed">{slide.body}</p>
+      {slide.body?.trim() ? (
+        <p className="text-xl sm:text-2xl text-white/80 whitespace-pre-wrap leading-relaxed">{slide.body}</p>
+      ) : null}
     </div>
   );
 }
@@ -718,7 +728,7 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
       >
         <div className={SLIDE_SAFE_AREA_CLASS}>
           {slide && (
-            <div className="w-full min-h-0 max-h-full flex flex-col items-center justify-center overflow-hidden">
+            <div className="w-full min-h-0 max-h-full flex flex-col items-center justify-center overflow-visible">
               <PresentationView
                 slide={slide}
                 eventRules={eventRules}
