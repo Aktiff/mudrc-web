@@ -45,7 +45,7 @@ function SlideView({ slide, answerRevealed }: { slide: QuizSlide; answerRevealed
           {slide.body || "Otázka"}
         </p>
         {answerRevealed && slide.answer && (
-          <div className="mt-4 px-8 py-5 rounded-2xl bg-[#f0c800] text-black text-center max-w-4xl">
+          <div className="mt-4 shrink-0 px-8 py-5 rounded-2xl bg-[#f0c800] text-black text-center w-full max-w-4xl mx-1">
             <p className="text-sm uppercase tracking-wider font-bold mb-1 opacity-70">Odpoveď</p>
             <p className="text-2xl sm:text-4xl font-display tracking-wide">{slide.answer}</p>
           </div>
@@ -175,10 +175,13 @@ export default function QuizDeckShow({ eventSlug }: Props) {
 
       <PresentationZoomLayer
         slideKey={`${index}-${answerRevealed ? "a" : "q"}`}
-        className="flex-1 min-h-0 py-16"
+        className="flex-1 min-h-0 py-12 sm:py-14"
+        innerClassName="min-h-0"
         onBackgroundClick={handleStageClick}
       >
-        {slide && <SlideView slide={slide} answerRevealed={answerRevealed} />}
+        <div className="w-full h-full max-h-full min-h-0 box-border p-3 sm:p-4 md:p-5 flex items-center justify-center overflow-hidden">
+          {slide && <SlideView slide={slide} answerRevealed={answerRevealed} />}
+        </div>
       </PresentationZoomLayer>
 
       <div className="absolute bottom-0 inset-x-0 p-4 sm:p-6 flex items-center justify-between z-20 pointer-events-none">

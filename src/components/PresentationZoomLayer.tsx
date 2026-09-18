@@ -134,7 +134,10 @@ export default function PresentationZoomLayer({
       onPointerCancel={endDrag}
       role="presentation"
     >
-      <div className={`w-full h-full flex items-center justify-center will-change-transform ${innerClassName}`} style={innerStyle}>
+      <div
+        className={`w-full h-full min-h-0 max-h-full flex items-center justify-center will-change-transform ${innerClassName}`}
+        style={innerStyle}
+      >
         {children}
       </div>
     </div>

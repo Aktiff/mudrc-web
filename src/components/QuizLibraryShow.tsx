@@ -92,7 +92,11 @@ const OPTION_TEXT_STYLE = { fontSize: "clamp(3rem, 6.5vmin, 7.5rem)" } as const;
 const ANSWER_TEXT_STYLE = { fontSize: "clamp(3.25rem, 7vmin, 8.5rem)" } as const;
 
 const QUESTION_TEXT_CLASS =
-  "font-display text-white text-center leading-[1.06] tracking-wide whitespace-pre-wrap [text-wrap:pretty] drop-shadow-[0_4px_24px_rgba(0,0,0,0.85)] w-full max-w-[96vw] px-2";
+  "font-display text-white text-center leading-[1.06] tracking-wide whitespace-pre-wrap [text-wrap:pretty] drop-shadow-[0_4px_24px_rgba(0,0,0,0.85)] w-full max-w-full px-1 sm:px-2 shrink-0";
+
+/** Minimálny odstup obsahu od okraja projekčného plátna (otázky, odpovede, obrázky). */
+const SLIDE_SAFE_AREA_CLASS =
+  "w-full h-full max-h-full min-h-0 box-border p-3 sm:p-4 md:p-5 flex flex-col items-center justify-center overflow-hidden";
 
 function PresentationImage({
   src,
@@ -104,10 +108,10 @@ function PresentationImage({
   const resolved = bestPresentationImageUrl(src);
   const className =
     variant === "full-slide"
-      ? "max-w-full max-h-[90vh] w-auto h-auto object-contain rounded-2xl shadow-[0_24px_80px_rgba(0,0,0,0.6)] ring-1 ring-white/10"
+      ? "max-w-full max-h-full w-auto h-auto object-contain rounded-2xl shadow-[0_24px_80px_rgba(0,0,0,0.6)] ring-1 ring-white/10"
       : variant === "hero"
-        ? "max-w-full max-h-[min(70vh,calc(100dvh-16rem))] w-auto h-auto object-contain rounded-2xl shadow-[0_24px_80px_rgba(0,0,0,0.6)] ring-1 ring-white/10"
-        : "max-w-full max-h-[min(44vh,calc(100dvh-32rem))] w-auto h-auto object-contain rounded-2xl shadow-[0_24px_80px_rgba(0,0,0,0.6)] ring-1 ring-white/10";
+        ? "max-w-full max-h-full w-auto h-auto object-contain rounded-2xl shadow-[0_24px_80px_rgba(0,0,0,0.6)] ring-1 ring-white/10"
+        : "max-w-full max-h-full w-auto h-auto object-contain rounded-2xl shadow-[0_24px_80px_rgba(0,0,0,0.6)] ring-1 ring-white/10";
 
   return (
     // eslint-disable-next-line @next/next/no-img-element
@@ -177,10 +181,15 @@ function QuestionContent({
   const imageHero = showImage && options.length === 0;
   const imageWithOptions = showImage && options.length > 0;
 
+  const answerBoxClass =
+    "shrink-0 px-8 sm:px-12 py-5 sm:py-7 rounded-2xl bg-gradient-to-br from-[#f0c800] to-[#e6b800] text-black text-center w-full max-w-full shadow-[0_20px_60px_rgba(240,200,0,0.25)]";
+
   return (
     <div
-      className={`w-full flex flex-col items-center ${
-        imageHero ? "h-full max-h-[88vh] justify-start gap-5 sm:gap-6 pt-2 px-1" : "max-w-full w-full gap-7 sm:gap-9 px-1"
+      className={`w-full max-w-full min-h-0 flex flex-col items-center box-border ${
+        imageHero
+          ? "h-full max-h-full flex-1 gap-3 sm:gap-4 px-1 sm:px-2 py-1"
+          : "gap-6 sm:gap-8 px-1 sm:px-2 py-1 max-h-full overflow-y-auto overflow-x-hidden"
       }`}
     >
       {(question.kind === "music" || question.kind === "sound") && question.audioUrl?.trim() && (
@@ -212,10 +221,18 @@ function QuestionContent({
       </p>
 
       {showImage && question.imageUrl && (
-        <PresentationImage
-          src={question.imageUrl}
-          variant={imageHero ? "hero" : imageWithOptions ? "with-options" : "hero"}
-        />
+        <div
+          className={
+            imageHero
+              ? "flex-1 min-h-0 w-full flex items-center justify-center overflow-hidden py-1"
+              : "w-full flex items-center justify-center shrink-0 max-h-[min(42vh,100%)] overflow-hidden py-1"
+          }
+        >
+          <PresentationImage
+            src={question.imageUrl}
+            variant={imageHero ? "hero" : imageWithOptions ? "with-options" : "hero"}
+          />
+        </div>
       )}
 
       {options.length > 0 && (
@@ -223,16 +240,16 @@ function QuestionContent({
       )}
 
       {phase === "answer" && options.length > 0 && correctOptionIndex < 0 && question.answer.trim() && (
-        <div className="px-10 sm:px-14 py-6 sm:py-8 rounded-2xl bg-gradient-to-br from-[#f0c800] to-[#e6b800] text-black text-center max-w-full w-full shadow-[0_20px_60px_rgba(240,200,0,0.25)]">
-          <p className="font-display tracking-wide" style={ANSWER_TEXT_STYLE}>
+        <div className={answerBoxClass}>
+          <p className="font-display tracking-wide break-words" style={ANSWER_TEXT_STYLE}>
             {fixSlovakLineBreaks(question.answer)}
           </p>
         </div>
       )}
 
       {phase === "answer" && options.length === 0 && (
-        <div className="px-10 sm:px-14 py-6 sm:py-8 rounded-2xl bg-gradient-to-br from-[#f0c800] to-[#e6b800] text-black text-center max-w-full w-full shadow-[0_20px_60px_rgba(240,200,0,0.25)]">
-          <p className="font-display tracking-wide" style={ANSWER_TEXT_STYLE}>
+        <div className={answerBoxClass}>
+          <p className="font-display tracking-wide break-words" style={ANSWER_TEXT_STYLE}>
             {fixSlovakLineBreaks(
               question.answer.trim() ||
                 (question.musicArtist?.trim() && question.musicTitle?.trim()
@@ -250,7 +267,7 @@ function ImageSlide({ question }: { question: QuizQuestionItem }) {
   if (!question.imageUrl?.trim()) return null;
 
   return (
-    <div className="w-full h-[90vh] max-w-full flex items-center justify-center px-2">
+    <div className="w-full h-full max-h-full min-h-0 flex-1 flex items-center justify-center overflow-hidden px-1 py-1">
       <PresentationImage src={question.imageUrl} variant="full-slide" />
     </div>
   );
@@ -309,13 +326,25 @@ function PresentationView({
     );
   }
   if (slide.type === "question_phase") {
-    return <QuestionContent question={slide.question} phase="question" />;
+    return (
+      <div className="w-full h-full max-h-full min-h-0 flex flex-col items-center">
+        <QuestionContent question={slide.question} phase="question" />
+      </div>
+    );
   }
   if (slide.type === "image_slide") {
-    return <ImageSlide question={slide.question} />;
+    return (
+      <div className="w-full h-full max-h-full min-h-0 flex flex-col items-center">
+        <ImageSlide question={slide.question} />
+      </div>
+    );
   }
   if (slide.type === "answer_phase") {
-    return <QuestionContent question={slide.question} phase="answer" />;
+    return (
+      <div className="w-full h-full max-h-full min-h-0 flex flex-col items-center">
+        <QuestionContent question={slide.question} phase="answer" />
+      </div>
+    );
   }
   return (
     <div className="text-center px-8 max-w-4xl">
@@ -683,17 +712,22 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
 
       <PresentationZoomLayer
         slideKey={`${index}-${slide?.type ?? "none"}`}
-        className="relative flex-1 flex min-h-0 w-full px-4 sm:px-6 py-[1.5vh]"
+        className="relative flex-1 flex min-h-0 w-full"
+        innerClassName="min-h-0"
         onBackgroundClick={handleStageClick}
       >
-        {slide && (
-          <PresentationView
-            slide={slide}
-            eventRules={eventRules}
-            venueName={venueName}
-            nextQuizLine={nextQuizLine}
-          />
-        )}
+        <div className={SLIDE_SAFE_AREA_CLASS}>
+          {slide && (
+            <div className="w-full min-h-0 max-h-full flex flex-col items-center justify-center overflow-hidden">
+              <PresentationView
+                slide={slide}
+                eventRules={eventRules}
+                venueName={venueName}
+                nextQuizLine={nextQuizLine}
+              />
+            </div>
+          )}
+        </div>
       </PresentationZoomLayer>
 
       {!isFullscreen && (
