@@ -52,7 +52,7 @@ function SlideBackdrop() {
 
 function RulesSlide({ rules, venueName }: { rules: string[]; venueName: string }) {
   return (
-    <div className="flex flex-col items-center gap-8 w-full max-w-4xl px-8">
+    <div className="flex flex-col items-center gap-8 w-full max-w-4xl px-8 mx-auto">
       {venueName && (
         <p className="text-[#f0c800]/70 text-lg sm:text-xl tracking-wide uppercase">{venueName}</p>
       )}
@@ -94,15 +94,9 @@ const ANSWER_TEXT_STYLE = { fontSize: "clamp(3.25rem, 7vmin, 8.5rem)" } as const
 const QUESTION_TEXT_CLASS =
   "font-display text-white text-center leading-[1.06] tracking-wide whitespace-pre-wrap [text-wrap:pretty] drop-shadow-[0_4px_24px_rgba(0,0,0,0.85)] w-full max-w-full px-1 sm:px-2 shrink-0";
 
-/** Vnútorný okraj plátna — vždy viditeľný odstup od okraja (aj na TV / fullscreen). */
-function slideSafeAreaClass(hasQuestionBadge: boolean) {
-  const sides = "px-[max(1.25rem,2.4vmin)]";
-  const bottom = "pb-[max(1.25rem,2.8vmin)]";
-  const top = hasQuestionBadge
-    ? "pt-[max(6.25rem,16vmin)]"
-    : "pt-[max(1.25rem,2.8vmin)]";
-  return `w-full h-full max-h-full min-h-0 box-border ${sides} ${top} ${bottom} flex flex-col items-center justify-center overflow-hidden`;
-}
+/** Vnútorný okraj plátna — rovnaký zo všetkých strán, obsah ostáva vycentrovaný. */
+const SLIDE_SAFE_AREA_CLASS =
+  "w-full h-full max-h-full min-h-0 box-border px-[max(1.25rem,2.4vmin)] py-[max(1.25rem,2.8vmin)] flex flex-col items-center justify-center overflow-hidden";
 
 function PresentationImage({
   src,
@@ -192,10 +186,10 @@ function QuestionContent({
 
   return (
     <div
-      className={`w-full max-w-full min-h-0 box-border ${
+      className={`w-full max-w-full min-h-0 max-h-full box-border overflow-hidden ${
         imageHero
-          ? "h-full max-h-full grid grid-rows-[auto_minmax(0,1fr)_auto] gap-[max(0.75rem,1.8vmin)] px-[max(0.5rem,1vmin)]"
-          : "flex flex-col items-center gap-6 sm:gap-8 px-[max(0.5rem,1vmin)] max-h-full overflow-y-auto overflow-x-hidden"
+          ? "max-h-full grid grid-rows-[auto_minmax(0,1fr)_auto] gap-[max(0.75rem,1.8vmin)] px-[max(0.35rem,0.8vmin)] py-[max(0.25rem,0.6vmin)]"
+          : "flex flex-col items-center justify-center gap-6 sm:gap-8 px-[max(0.35rem,0.8vmin)]"
       }`}
     >
       {(question.kind === "music" || question.kind === "sound") && question.audioUrl?.trim() && (
@@ -220,7 +214,7 @@ function QuestionContent({
       )}
 
       <p
-        className={`${QUESTION_TEXT_CLASS} shrink-0 mt-[max(0.25rem,0.6vmin)]`}
+        className={`${QUESTION_TEXT_CLASS} shrink-0`}
         style={questionTextStyle(questionText, imageHero || imageWithOptions)}
       >
         {questionText}
@@ -296,7 +290,7 @@ function PresentationView({
   }
   if (slide.type === "round") {
     return (
-      <div className="text-center px-8">
+      <div className="text-center px-8 w-full mx-auto">
         <p className="font-display text-7xl sm:text-9xl md:text-[10rem] text-white tracking-wide leading-none">
           {slide.title}
         </p>
@@ -306,7 +300,7 @@ function PresentationView({
   }
   if (slide.type === "correction") {
     return (
-      <div className="text-center px-6 sm:px-10 max-w-6xl w-full">
+      <div className="text-center px-6 sm:px-10 max-w-6xl w-full mx-auto">
         <p className="font-display text-7xl sm:text-9xl text-[#f0c800] tracking-wide mb-12 sm:mb-16 md:mb-20">
           Opravovanie
         </p>
@@ -325,7 +319,7 @@ function PresentationView({
   }
   if (slide.type === "answers_intro") {
     return (
-      <div className="text-center px-8">
+      <div className="text-center px-8 w-full mx-auto">
         <div className="w-24 h-1 mx-auto rounded-full bg-[#f0c800] mb-8" />
         <p className="font-display text-5xl sm:text-7xl md:text-8xl text-white tracking-wide">{slide.title}</p>
       </div>
@@ -333,21 +327,21 @@ function PresentationView({
   }
   if (slide.type === "question_phase") {
     return (
-      <div className="w-full h-full max-h-full min-h-0 flex flex-col items-center">
+      <div className="w-full max-h-full min-h-0 flex flex-col items-center justify-center overflow-hidden">
         <QuestionContent question={slide.question} phase="question" />
       </div>
     );
   }
   if (slide.type === "image_slide") {
     return (
-      <div className="w-full h-full max-h-full min-h-0 flex flex-col items-center">
+      <div className="w-full max-h-full min-h-0 flex flex-col items-center justify-center overflow-hidden">
         <ImageSlide question={slide.question} />
       </div>
     );
   }
   if (slide.type === "answer_phase") {
     return (
-      <div className="w-full h-full max-h-full min-h-0 flex flex-col items-center">
+      <div className="w-full max-h-full min-h-0 flex flex-col items-center justify-center overflow-hidden">
         <QuestionContent question={slide.question} phase="answer" />
       </div>
     );
@@ -722,9 +716,9 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
         innerClassName="min-h-0"
         onBackgroundClick={handleStageClick}
       >
-        <div className={slideSafeAreaClass(Boolean(showQuestionBadge && activeQuestion))}>
+        <div className={SLIDE_SAFE_AREA_CLASS}>
           {slide && (
-            <div className="w-full min-h-0 max-h-full h-full flex flex-col items-stretch justify-center overflow-hidden">
+            <div className="w-full min-h-0 max-h-full flex flex-col items-center justify-center overflow-hidden">
               <PresentationView
                 slide={slide}
                 eventRules={eventRules}
