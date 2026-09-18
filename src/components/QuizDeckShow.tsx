@@ -41,13 +41,13 @@ function SlideView({ slide, answerRevealed }: { slide: QuizSlide; answerRevealed
           // eslint-disable-next-line @next/next/no-img-element
           <img src={slide.imageUrl} alt="" className="max-h-[40vh] max-w-full rounded-2xl object-contain shadow-2xl" />
         )}
-        <p className="font-display text-3xl sm:text-5xl md:text-6xl text-white text-center leading-tight tracking-wide whitespace-pre-wrap">
+        <p className="font-sans font-semibold text-3xl sm:text-5xl md:text-6xl text-white text-center leading-tight tracking-normal whitespace-pre-wrap normal-case">
           {slide.body || "Otázka"}
         </p>
         {answerRevealed && slide.answer && (
           <div className="mt-4 shrink-0 px-8 py-5 rounded-2xl bg-[#f0c800] text-black text-center w-full max-w-4xl mx-1">
             <p className="text-sm uppercase tracking-wider font-bold mb-1 opacity-70">Odpoveď</p>
-            <p className="text-2xl sm:text-4xl font-display tracking-wide">{slide.answer}</p>
+            <p className="text-2xl sm:text-4xl font-sans font-bold tracking-normal normal-case">{slide.answer}</p>
           </div>
         )}
       </div>

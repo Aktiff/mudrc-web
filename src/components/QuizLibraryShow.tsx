@@ -54,10 +54,10 @@ function RulesSlide({ rules, venueName }: { rules: string[]; venueName: string }
   return (
     <div className="flex flex-col items-center gap-8 w-full max-w-4xl px-8 mx-auto">
       {venueName && (
-        <p className="text-[#f0c800]/70 text-lg sm:text-xl tracking-wide uppercase">{venueName}</p>
+        <p className="text-[#f0c800]/70 text-lg sm:text-xl tracking-wide">{venueName}</p>
       )}
       <div className="w-16 h-1 rounded-full bg-gradient-to-r from-transparent via-[#f0c800] to-transparent" />
-      <p className="text-[#f0c800] text-2xl sm:text-3xl uppercase tracking-[0.35em] font-semibold">Pravidlá</p>
+      <p className="text-[#f0c800] text-2xl sm:text-3xl tracking-wide font-semibold font-display">Pravidlá</p>
       <ul className="space-y-4 w-full rounded-3xl border border-white/10 bg-white/[0.03] backdrop-blur-sm p-8 sm:p-10">
         {rules.map((rule, index) => (
           <li key={index} className="flex gap-5 text-lg sm:text-2xl text-white/95 leading-snug">
@@ -92,7 +92,7 @@ const OPTION_TEXT_STYLE = { fontSize: "clamp(3rem, 6.5vmin, 7.5rem)" } as const;
 const ANSWER_TEXT_STYLE = { fontSize: "clamp(3.25rem, 7vmin, 8.5rem)" } as const;
 
 const QUESTION_TEXT_CLASS =
-  "font-display text-white text-center leading-[1.06] tracking-wide whitespace-pre-wrap [text-wrap:pretty] drop-shadow-[0_4px_24px_rgba(0,0,0,0.85)] w-full max-w-full px-1 sm:px-2 shrink-0";
+  "font-sans font-semibold text-white text-center leading-[1.12] tracking-normal whitespace-pre-wrap [text-wrap:pretty] drop-shadow-[0_4px_24px_rgba(0,0,0,0.85)] w-full max-w-full px-1 sm:px-2 shrink-0 normal-case";
 
 /** Vnútorný okraj plátna — rovnaký zo všetkých strán, obsah ostáva vycentrovaný. */
 const SLIDE_SAFE_AREA_CLASS =
@@ -151,7 +151,7 @@ function OptionsGrid({
               {optionLetter(index)})
             </span>
             <p
-              className={`flex-1 min-w-0 font-display tracking-wide leading-snug text-left ${
+              className={`flex-1 min-w-0 font-sans font-semibold tracking-normal leading-snug text-left normal-case ${
                 isCorrect ? "font-bold" : ""
               }`}
               style={OPTION_TEXT_STYLE}
@@ -241,7 +241,7 @@ function QuestionContent({
 
       {phase === "answer" && options.length > 0 && correctOptionIndex < 0 && question.answer.trim() && (
         <div className={answerBoxClass}>
-          <p className="font-display tracking-wide break-words" style={ANSWER_TEXT_STYLE}>
+          <p className="font-sans font-bold tracking-normal break-words normal-case" style={ANSWER_TEXT_STYLE}>
             {fixSlovakLineBreaks(question.answer)}
           </p>
         </div>
@@ -249,7 +249,7 @@ function QuestionContent({
 
       {phase === "answer" && options.length === 0 && (
         <div className={answerBoxClass}>
-          <p className="font-display tracking-wide break-words" style={ANSWER_TEXT_STYLE}>
+          <p className="font-sans font-bold tracking-normal break-words normal-case" style={ANSWER_TEXT_STYLE}>
             {fixSlovakLineBreaks(
               question.answer.trim() ||
                 (question.musicArtist?.trim() && question.musicTitle?.trim()
