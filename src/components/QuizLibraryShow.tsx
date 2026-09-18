@@ -24,7 +24,13 @@ import {
   presentationStageBoxStyle,
   type PresentationAspectMode,
 } from "@/lib/presentation-aspect";
+import {
+  PRESENTATION_FEATURES,
+  presentationBadgeTimerSizes,
+  shouldAutoFitQuestionSlide,
+} from "@/lib/presentation-features";
 import { fixSlovakLineBreaks } from "@/lib/slovak-typography";
+import PresentationStageAutoFit from "@/components/PresentationStageAutoFit";
 import PresentationZoomLayer from "@/components/PresentationZoomLayer";
 
 type Props = {
@@ -371,7 +377,7 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
   const [nextQuizVenue, setNextQuizVenue] = useState("");
   const [nextQuizAtLocal, setNextQuizAtLocal] = useState(() => toDatetimeLocalValue(defaultNextQuizDate()));
   const [nextQuizLine, setNextQuizLine] = useState("");
-  const [aspectMode, setAspectMode] = useState<PresentationAspectMode>("16:9");
+  const [aspectMode, setAspectMode] = useState<PresentationAspectMode>("tv-16:9");
 
   useEffect(() => {
     Promise.all([
@@ -572,7 +578,8 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
               ))}
             </select>
             <p className="text-xs text-white/45">
-              Na TV odporúčame 16 : 9 — obsah nebude natiahnutý do celého širokého panelu.
+              Na televízor vyber <span className="text-white/65">TV 16 : 9</span> — rovnaký vzhľad ako na PC, len sa
+              zmestí do rámca.
             </p>
           </div>
           <button
@@ -655,6 +662,9 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
     slide?.type === "question_phase" || slide?.type === "image_slide" || slide?.type === "answer_phase";
 
   const stageStyle = presentationStageBoxStyle(aspectMode);
+  const slideKey = `${index}-${slide?.type ?? "none"}`;
+  const questionAutoFit = shouldAutoFitQuestionSlide(aspectMode, slide?.type);
+  const badgeTimer = presentationBadgeTimerSizes(PRESENTATION_FEATURES.badgeTimerSizeMultiplier);
 
   return (
     <div ref={rootRef} className="fixed inset-0 z-[9999] bg-[#030303] flex items-center justify-center overflow-hidden">
@@ -696,8 +706,13 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
 
       {showQuestionBadge && activeQuestion && (
         <div className="absolute top-4 sm:top-5 left-4 sm:left-5 z-10 pointer-events-none">
-          <div className="size-[4.75rem] sm:size-24 md:size-28 rounded-2xl bg-[#f0c800] shadow-[0_10px_40px_rgba(240,200,0,0.45)] ring-2 ring-[#f0c800]/40 flex items-center justify-center">
-            <span className="font-display text-[3.25rem] sm:text-6xl md:text-7xl text-black tabular-nums leading-none [font-variant-numeric:tabular-nums]">
+          <div
+            className={`${badgeTimer.boxClass} rounded-2xl bg-[#f0c800] shadow-[0_10px_40px_rgba(240,200,0,0.45)] ring-2 ring-[#f0c800]/40 flex items-center justify-center`}
+            style={badgeTimer.boxStyle}
+          >
+            <span
+              className={`font-display ${badgeTimer.textClass} text-black tabular-nums leading-none [font-variant-numeric:tabular-nums]`}
+            >
               {activeQuestion.questionNumber}
             </span>
           </div>
@@ -706,8 +721,11 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
 
       {showSlideTimer && (
         <div className="absolute top-4 sm:top-5 right-4 sm:right-5 z-10 pointer-events-none">
-          <div className="min-w-[4.75rem] sm:min-w-24 md:min-w-28 h-[4.75rem] sm:h-24 md:h-28 px-3 sm:px-4 rounded-2xl bg-black/80 border-2 border-white/30 backdrop-blur-sm shadow-[0_10px_40px_rgba(0,0,0,0.6)] flex items-center justify-center">
-            <span className="font-mono text-[3.25rem] sm:text-6xl md:text-7xl font-bold text-white tabular-nums leading-none">
+          <div
+            className={`${badgeTimer.timerClass} px-3 sm:px-4 rounded-2xl bg-black/80 border-2 border-white/30 backdrop-blur-sm shadow-[0_10px_40px_rgba(0,0,0,0.6)] flex items-center justify-center`}
+            style={badgeTimer.timerStyle}
+          >
+            <span className={`font-mono ${badgeTimer.textClass} font-bold text-white tabular-nums leading-none`}>
               {slideElapsed}
             </span>
           </div>
@@ -715,12 +733,12 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
       )}
 
       <PresentationZoomLayer
-        slideKey={`${index}-${slide?.type ?? "none"}`}
+        slideKey={slideKey}
         className="relative flex-1 flex min-h-0 w-full"
         innerClassName="min-h-0"
         onBackgroundClick={handleStageClick}
       >
-        <div className={SLIDE_SAFE_AREA_CLASS}>
+        <PresentationStageAutoFit enabled={questionAutoFit} slideKey={slideKey} className={SLIDE_SAFE_AREA_CLASS}>
           {slide && (
             <div className="w-full min-h-0 max-h-full flex flex-col items-center justify-center overflow-visible">
               <PresentationView
@@ -731,7 +749,7 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
               />
             </div>
           )}
-        </div>
+        </PresentationStageAutoFit>
       </PresentationZoomLayer>
 
       {!isFullscreen && (

@@ -10,9 +10,15 @@ import {
   type PointerEvent,
   type ReactNode,
 } from "react";
+import { PRESENTATION_FEATURES } from "@/lib/presentation-features";
 
-const MIN_SCALE = 1;
-const MAX_SCALE = 4;
+function manualZoomLimits() {
+  const { manualZoomOut, minManualZoomScale, maxManualZoomScale } = PRESENTATION_FEATURES;
+  return {
+    min: manualZoomOut ? minManualZoomScale : 1,
+    max: maxManualZoomScale,
+  };
+}
 
 type Props = {
   slideKey: string;
@@ -60,11 +66,18 @@ export default function PresentationZoomLayer({
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
       e.stopPropagation();
+      const { min: MIN_SCALE, max: MAX_SCALE } = manualZoomLimits();
       setTransform((prev) => {
         const factor = Math.exp(-e.deltaY * 0.0011);
-        const nextScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, prev.scale * factor));
-        if (nextScale <= MIN_SCALE + 0.001) {
+        let nextScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, prev.scale * factor));
+        if (Math.abs(nextScale - 1) < 0.008) {
+          nextScale = 1;
+        }
+        if (Math.abs(nextScale - 1) < 0.001) {
           return { scale: 1, x: 0, y: 0 };
+        }
+        if (nextScale <= 1) {
+          return { scale: nextScale, x: 0, y: 0 };
         }
         return { ...prev, scale: nextScale };
       });

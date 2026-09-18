@@ -1,6 +1,12 @@
 import type { CSSProperties } from "react";
 
-export type PresentationAspectMode = "viewport" | "16:9" | "18:9" | "16:10" | "4:3";
+export type PresentationAspectMode =
+  | "viewport"
+  | "16:9"
+  | "tv-16:9"
+  | "18:9"
+  | "16:10"
+  | "4:3";
 
 export const PRESENTATION_ASPECT_OPTIONS: {
   id: PresentationAspectMode;
@@ -8,7 +14,12 @@ export const PRESENTATION_ASPECT_OPTIONS: {
   hint: string;
 }[] = [
   { id: "viewport", label: "Celá obrazovka", hint: "Notebook / PC — využije celú šírku" },
-  { id: "16:9", label: "16 : 9", hint: "TV, projektor (Full HD)" },
+  { id: "16:9", label: "16 : 9", hint: "Letterbox 16:9 bez zmeny veľkosti textu" },
+  {
+    id: "tv-16:9",
+    label: "TV 16 : 9",
+    hint: "Pre televízor — rovnaký rám 16:9 (otázky sa zmenšia len ak treba)",
+  },
   { id: "18:9", label: "18 : 9", hint: "Ultrawide TV, niektoré telefóny" },
   { id: "16:10", label: "16 : 10", hint: "MacBook, niektoré monitory" },
   { id: "4:3", label: "4 : 3", hint: "Užší formát, menej „natiahnuté“ na širokom TV" },
@@ -16,15 +27,11 @@ export const PRESENTATION_ASPECT_OPTIONS: {
 
 const RATIO: Record<Exclude<PresentationAspectMode, "viewport">, [number, number]> = {
   "16:9": [16, 9],
+  "tv-16:9": [16, 9],
   "18:9": [18, 9],
   "16:10": [16, 10],
   "4:3": [4, 3],
 };
-
-/** Letterboxed rám (16:9, 4:3…) — obsah musí zmestiť do boxu, nie celej obrazovky. */
-export function isLetterboxedStage(mode: PresentationAspectMode): boolean {
-  return mode !== "viewport";
-}
 
 export function presentationStageBoxStyle(mode: PresentationAspectMode): CSSProperties {
   if (mode === "viewport") {
