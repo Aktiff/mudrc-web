@@ -15,8 +15,20 @@ export default function HotoveKvizyBankaPage() {
 
   const bump = () => setRefreshKey((v) => v + 1);
 
+  const addForms = (
+    <div className="space-y-4 min-w-0 max-w-full">
+      <h2 className="font-display text-xl text-brand-text tracking-wide">Pridať do banky</h2>
+      <CustomBankQuestionForm onAdded={bump} />
+      <MusicBankQuestionForm onAdded={bump} onMessage={(text, ok) => setMsg({ text, ok })} />
+      <SoundBankQuestionForm onAdded={bump} onMessage={(text, ok) => setMsg({ text, ok })} />
+      <VideoBankQuestionForm onAdded={bump} onMessage={(text, ok) => setMsg({ text, ok })} />
+    </div>
+  );
+
+  const inventory = <QuestionBankInventory refreshKey={refreshKey} onChanged={bump} fillHeight />;
+
   return (
-    <div className="w-full max-w-3xl mx-auto space-y-8 pb-4">
+    <div className="min-w-0 max-w-full space-y-6 pb-6">
       <Link
         href="/admin/hotove-kvizy"
         className="inline-flex items-center gap-1 text-sm text-brand-muted hover:text-brand-orange-readable"
@@ -25,14 +37,14 @@ export default function HotoveKvizyBankaPage() {
         Späť na hotové kvízy
       </Link>
 
-      <div className="flex items-start gap-4 pb-1">
+      <div className="flex items-start gap-4">
         <div className="w-11 h-11 rounded-xl bg-brand-tint flex items-center justify-center shrink-0">
           <BookOpen className="w-5 h-5 text-brand-orange" />
         </div>
-        <div>
+        <div className="min-w-0">
           <h1 className="font-display text-4xl text-brand-text tracking-wide mb-1">Banka otázok</h1>
-          <p className="text-brand-muted text-sm leading-relaxed">
-            Prehľad uložených položiek, pridávanie a úpravy. V editore kvízu vkladáš z pravej banky do slotov.
+          <p className="text-brand-muted text-sm leading-relaxed max-w-3xl">
+            Vľavo pridávaš otázky a médiá, vpravo prehľad a úpravy. V editore kvízu vkladáš z banky do slotov.
           </p>
         </div>
       </div>
@@ -41,13 +53,11 @@ export default function HotoveKvizyBankaPage() {
         <p className={`text-sm ${msg.ok ? "text-green-600" : "text-red-500"}`}>{msg.text}</p>
       )}
 
-      <QuestionBankInventory refreshKey={refreshKey} onChanged={bump} />
-
-      <div className="space-y-6">
-        <CustomBankQuestionForm onAdded={bump} />
-        <MusicBankQuestionForm onAdded={bump} onMessage={(text, ok) => setMsg({ text, ok })} />
-        <SoundBankQuestionForm onAdded={bump} onMessage={(text, ok) => setMsg({ text, ok })} />
-        <VideoBankQuestionForm onAdded={bump} onMessage={(text, ok) => setMsg({ text, ok })} />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 min-w-0 max-w-full items-start">
+        <div className="min-w-0 max-w-full">{addForms}</div>
+        <div className="min-w-0 max-w-full lg:sticky lg:top-24 lg:self-start lg:z-20 lg:h-[calc(100vh-7rem)]">
+          {inventory}
+        </div>
       </div>
     </div>
   );

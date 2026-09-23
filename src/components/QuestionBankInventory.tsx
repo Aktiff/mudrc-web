@@ -26,9 +26,11 @@ type Tab = "questions" | "sound" | "video" | "music";
 type Props = {
   refreshKey?: number;
   onChanged?: () => void;
+  /** Keď je rodič sticky panel (celá výška), zoznam sa roztiahne a scrolluje vo vnútri. */
+  fillHeight?: boolean;
 };
 
-export default function QuestionBankInventory({ refreshKey = 0, onChanged }: Props) {
+export default function QuestionBankInventory({ refreshKey = 0, onChanged, fillHeight = false }: Props) {
   const [tab, setTab] = useState<Tab>("questions");
   const [loading, setLoading] = useState(true);
   const [questions, setQuestions] = useState<CustomBankQuestion[]>([]);
@@ -97,8 +99,12 @@ export default function QuestionBankInventory({ refreshKey = 0, onChanged }: Pro
   };
 
   return (
-    <div className="bg-brand-card border border-brand-border rounded-2xl overflow-hidden">
-      <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 border-b border-brand-border">
+    <div
+      className={`bg-brand-card border border-brand-border rounded-2xl overflow-hidden min-w-0 max-w-full ${
+        fillHeight ? "flex flex-col h-full min-h-[min(420px,55vh)] lg:min-h-0" : ""
+      }`}
+    >
+      <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 border-b border-brand-border shrink-0">
         <div>
           <p className="font-semibold text-brand-text">Obsah banky</p>
           <p className="text-brand-muted text-xs mt-0.5">Prehľad a úpravy uložených položiek</p>
@@ -113,7 +119,7 @@ export default function QuestionBankInventory({ refreshKey = 0, onChanged }: Pro
         </button>
       </div>
 
-      <div className="flex flex-wrap gap-1 p-2 border-b border-brand-border bg-brand-warm/40">
+      <div className="flex flex-wrap gap-1 p-2 border-b border-brand-border bg-brand-warm/40 shrink-0">
         {tabs.map((t) => (
           <button
             key={t.id}
@@ -130,7 +136,11 @@ export default function QuestionBankInventory({ refreshKey = 0, onChanged }: Pro
         ))}
       </div>
 
-      <div className="p-4 sm:p-5 max-h-[min(520px,55vh)] overflow-y-auto">
+      <div
+        className={`p-4 sm:p-5 overflow-y-auto ${
+          fillHeight ? "flex-1 min-h-0" : "max-h-[min(520px,55vh)]"
+        }`}
+      >
         {loading ? (
           <p className="text-sm text-brand-muted text-center py-8">Načítavam…</p>
         ) : tab === "questions" ? (
