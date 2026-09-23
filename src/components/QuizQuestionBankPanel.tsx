@@ -35,6 +35,7 @@ import { shuffleQuestionOptionsRandom } from "@/lib/quiz-question-options";
 import {
   DEFAULT_MUSIC_QUESTION_BODY,
   formatMusicBankHostNote,
+  formatMusicBankTagsLabel,
   isMusicBankId,
   type MusicBankItem,
 } from "@/lib/music-bank";
@@ -94,7 +95,8 @@ type Props = {
     label: string,
     answer: string,
     audioUrl: string,
-    hostNote?: string
+    hostNote?: string,
+    tags?: string[]
   ) => void;
   onInsertVideo?: (
     bankId: string,
@@ -306,7 +308,8 @@ export default function QuizQuestionBankPanel({
       label,
       label,
       track.audioUrl,
-      formatMusicBankHostNote(track)
+      formatMusicBankHostNote(track),
+      track.tags
     );
     void removeMusicBankItemAsync(track.id).then(() => onMusicBankChange?.());
     setTargetByBankId((prev) => {
@@ -670,6 +673,11 @@ export default function QuizQuestionBankPanel({
                     <p className="text-sm font-semibold text-brand-text">{track.artist} — {track.title}</p>
                     {track.audioUrl && <audio controls src={track.audioUrl} className="w-full max-w-md" preload="metadata" />}
                     <p className="text-xs text-brand-muted">{formatMusicBankHostNote(track)}</p>
+                    {track.tags && track.tags.length > 0 && (
+                      <p className="text-[11px] text-violet-800 dark:text-violet-200 font-medium">
+                        {formatMusicBankTagsLabel(track.tags)}
+                      </p>
+                    )}
                     {bankTargetSlots.length > 0 && onInsertSound ? (
                       <div className="flex gap-2">
                         <select

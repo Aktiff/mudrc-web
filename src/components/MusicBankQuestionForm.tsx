@@ -4,7 +4,12 @@ import { useMemo, useState } from "react";
 import { ChevronDown, ChevronUp, Plus, Upload } from "lucide-react";
 import AudioUrlField from "@/components/admin/AudioUrlField";
 import { addMusicBankItemAsync, findMusicTrackConflictAsync } from "@/lib/music-bank-client";
-import { formatMusicTrackDuplicateMessage, musicTrackKey, parseMusicTrackFromFileName } from "@/lib/music-bank";
+import {
+  formatMusicBankTagsLabel,
+  formatMusicTrackDuplicateMessage,
+  musicTrackKey,
+  parseMusicTrackFromFileName,
+} from "@/lib/music-bank";
 import { uploadAudioFileClient } from "@/lib/upload-audio-client";
 
 type Props = {
@@ -151,7 +156,7 @@ export default function MusicBankQuestionForm({ onAdded, onMessage }: Props) {
 
     setSubmitting(true);
     try {
-      await addMusicBankItemAsync({
+      const saved = await addMusicBankItemAsync({
         artist: artist.trim(),
         title: title.trim(),
         audioUrl: audioUrl.trim(),
@@ -161,7 +166,11 @@ export default function MusicBankQuestionForm({ onAdded, onMessage }: Props) {
       setTitle("");
       setAudioUrl("");
       setNote("");
-      onMessage?.("Skladba pridaná do banky hudby.", true);
+      const tagLine = formatMusicBankTagsLabel(saved.tags);
+      onMessage?.(
+        tagLine ? `Skladba pridaná. Tagy: ${tagLine}` : "Skladba pridaná (tagy sa nepodarilo zistiť).",
+        true
+      );
       onAdded?.();
     } catch (err) {
       const text = err instanceof Error ? err.message : "Uloženie zlyhalo.";
@@ -182,7 +191,7 @@ export default function MusicBankQuestionForm({ onAdded, onMessage }: Props) {
         <div>
           <p className="font-semibold text-brand-text text-sm">Pridať skladbu do banky hudby</p>
           <p className="text-brand-muted text-xs mt-0.5">
-            Hromadný upload · názov súboru „Interpret - Skladba.mp3“ · 1+1 bod · 4. kolo
+            Hromadný upload · tagy (jazyk, štýl, dekáda) z MusicBrainz · 1+1 bod · 4. kolo
           </p>
         </div>
         {open ? <ChevronUp className="w-5 h-5 text-brand-muted shrink-0" /> : <ChevronDown className="w-5 h-5 text-brand-muted shrink-0" />}

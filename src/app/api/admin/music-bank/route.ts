@@ -35,7 +35,12 @@ export async function POST(req: NextRequest) {
     }
     const track = await addStoredMusicBankItem(body);
     const tracks = await readStoredMusicBank();
-    return NextResponse.json({ ok: true, track, tracks });
+    return NextResponse.json({
+      ok: true,
+      track,
+      tracks,
+      autoTags: track.tags ?? [],
+    });
   } catch (error) {
     if (error instanceof MusicTrackDuplicateError) {
       return NextResponse.json(

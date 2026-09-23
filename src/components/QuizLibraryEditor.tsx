@@ -360,10 +360,11 @@ export default function QuizLibraryEditor({ quizId }: Props) {
     artist: string,
     title: string,
     audioUrl: string,
-    hostNote?: string
+    hostNote?: string,
+    tags?: string[]
   ) => {
     const label = `${artist} — ${title}`;
-    insertFromSoundBank(bankId, targetQuestionId, label, label, audioUrl, hostNote);
+    insertFromSoundBank(bankId, targetQuestionId, label, label, audioUrl, hostNote, tags);
     void refreshMusicBank();
   };
 
@@ -373,7 +374,8 @@ export default function QuizLibraryEditor({ quizId }: Props) {
     label: string,
     answer: string,
     audioUrl: string,
-    hostNote?: string
+    hostNote?: string,
+    bankTags?: string[]
   ) => {
     const target = questions.find((q) => q.id === targetQuestionId);
     if (!target) return;
@@ -426,7 +428,9 @@ export default function QuizLibraryEditor({ quizId }: Props) {
                 imageBeforeQuestion: undefined,
                 imageOnNextSlide: undefined,
                 imageOnAnswerSlide: undefined,
-                tags: ["zvuk"],
+                tags: bankTags?.length
+                  ? Array.from(new Set([...bankTags, slotIsMusicTail ? "hudba" : "zvuk"]))
+                  : [slotIsMusicTail ? "hudba" : "zvuk"],
               }
             : q
         ),

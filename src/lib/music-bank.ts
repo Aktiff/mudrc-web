@@ -1,3 +1,5 @@
+import { normalizeTags } from "@/lib/quiz-question-tags";
+
 export const MUSIC_BANK_STORAGE_KEY = "mudrc-music-bank";
 export const MUSIC_BANK_ID_PREFIX = "music-bank-";
 
@@ -7,6 +9,8 @@ export type MusicBankItem = {
   title: string;
   audioUrl: string;
   note?: string;
+  /** Jazyk, štýl, dekáda — doplnené pri uploade z MusicBrainz. */
+  tags?: string[];
   createdAt: number;
 };
 
@@ -15,6 +19,7 @@ export type NewMusicBankItemInput = {
   title: string;
   audioUrl: string;
   note?: string;
+  tags?: string[];
 };
 
 export type MusicTrackDuplicateSource = "bank" | "quiz";
@@ -76,6 +81,7 @@ export function normalizeMusicBankItem(raw: unknown): MusicBankItem | null {
     title,
     audioUrl,
     note: typeof row.note === "string" ? row.note.trim() : undefined,
+    tags: normalizeTags(row.tags),
     createdAt: typeof row.createdAt === "number" ? row.createdAt : Date.now(),
   };
 }
@@ -97,6 +103,7 @@ export function createMusicBankItem(input: NewMusicBankItemInput): MusicBankItem
     title: input.title.trim(),
     audioUrl: input.audioUrl.trim(),
     note: input.note?.trim() || undefined,
+    tags: normalizeTags(input.tags),
     createdAt: Date.now(),
   };
 }
@@ -105,8 +112,14 @@ export const DEFAULT_MUSIC_QUESTION_BODY = "Napíš meno interpreta a názov skl
 
 export function formatMusicBankHostNote(item: MusicBankItem): string {
   const parts = [`Interpret: ${item.artist}`, `Skladba: ${item.title}`, "Body: 1 + 1"];
+  if (item.tags?.length) parts.push(`Tagy: ${item.tags.join(", ")}`);
   if (item.note) parts.push(item.note);
   return parts.join(" · ");
+}
+
+export function formatMusicBankTagsLabel(tags: string[] | undefined): string {
+  if (!tags?.length) return "";
+  return tags.join(" · ");
 }
 
 const AUDIO_EXT = /\.(mp3|m4a|wav|ogg|aac)$/i;

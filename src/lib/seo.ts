@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import type { QuizEvent } from "@/lib/data";
-import { formatFeaturedEventLine } from "@/lib/featured-event";
+import { formatEventDateLabel } from "@/lib/data";
 import { eventPath, getEventRegionSlug, getRegion, type RegionSlug } from "@/lib/regions";
-import { DEFAULT_SITE_TITLE } from "@/lib/site-metadata";
 import { OG_IMAGE_VERSION } from "@/lib/og-image";
 import { SITE_URL, absoluteUrl } from "@/lib/site-url";
 
@@ -18,11 +17,26 @@ export function parseSkDateTime(date: string, time: string): string | undefined 
   return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}T${hours.padStart(2, "0")}:${minutes.padStart(2, "0")}:00+02:00`;
 }
 
+/** Titulok pre FB / OG — dátum, čas a miesto (nie generický názov webu). */
+export function buildEventShareTitle(event: QuizEvent): string {
+  const when = `${formatEventDateLabel(event.date)} · ${event.time}`;
+  const where = `${event.venue}, ${event.city}`;
+  return `Kvíz ${where} · ${when}`;
+}
+
+export function buildEventShareDescription(event: QuizEvent): string {
+  const when = `${formatEventDateLabel(event.date)} o ${event.time}`;
+  const place = event.address.trim()
+    ? `${event.venue}, ${event.address}, ${event.city}`
+    : `${event.venue}, ${event.city}`;
+  return `${place} · ${when} · vstup ${event.entryFee} €/hráč · registrácia online`;
+}
+
 export function buildEventMetadata(event: QuizEvent, region: RegionSlug): Metadata {
   const path = eventPath(event);
   const pageTitle = `Kvíz ${event.venue}, ${event.city}`;
-  const shareTitle = DEFAULT_SITE_TITLE;
-  const shareDescription = formatFeaturedEventLine(event);
+  const shareTitle = buildEventShareTitle(event);
+  const shareDescription = buildEventShareDescription(event);
   const ogImagePath = `${path}/opengraph-image?v=${OG_IMAGE_VERSION}`;
 
   return {

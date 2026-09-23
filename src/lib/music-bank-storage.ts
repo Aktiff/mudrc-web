@@ -11,6 +11,7 @@ import {
   type MusicTrackDuplicateConflict,
   type NewMusicBankItemInput,
 } from "@/lib/music-bank";
+import { lookupMusicTrackAutoTags } from "@/lib/music-track-metadata";
 import { readAllLibraryQuizzes } from "@/lib/quiz-library-storage";
 import { hasSupabaseStorage, supabaseFetchMusicBank, supabaseSetMusicBank } from "@/lib/supabase-storage";
 
@@ -86,7 +87,9 @@ export async function addStoredMusicBankItem(input: NewMusicBankItemInput): Prom
     throw new MusicTrackDuplicateError(conflict);
   }
 
-  const item = createMusicBankItem({ ...input, artist, title });
+  const autoTags =
+    input.tags?.length ? input.tags : await lookupMusicTrackAutoTags(artist, title);
+  const item = createMusicBankItem({ ...input, artist, title, tags: autoTags });
   const existing = await readStoredMusicBank();
   await writeStoredMusicBank([item, ...existing.filter((t) => t.id !== item.id)]);
   return item;
