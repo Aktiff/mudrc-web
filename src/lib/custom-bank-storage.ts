@@ -1,7 +1,9 @@
 import fs from "fs";
 import path from "path";
 import {
+  applyCustomBankQuestionUpdate,
   createCustomBankQuestion,
+  isCustomBankQuestionId,
   normalizeStoredCustomQuestion,
   type CustomBankQuestion,
   type NewCustomBankQuestionInput,
@@ -63,6 +65,23 @@ export async function addStoredCustomBankQuestion(
   const existing = await readStoredCustomBankQuestions();
   await writeStoredCustomBankQuestions([item, ...existing.filter((q) => q.id !== item.id)]);
   return item;
+}
+
+export async function updateStoredCustomBankQuestion(
+  id: string,
+  input: NewCustomBankQuestionInput
+): Promise<CustomBankQuestion> {
+  if (!isCustomBankQuestionId(id)) throw new Error("NOT_FOUND");
+  if (!input?.body?.trim()) throw new Error("Chýba text otázky");
+
+  const existing = await readStoredCustomBankQuestions();
+  const current = existing.find((q) => q.id === id);
+  if (!current) throw new Error("NOT_FOUND");
+
+  const updated = applyCustomBankQuestionUpdate(current, input);
+  const next = existing.map((q) => (q.id === id ? updated : q));
+  await writeStoredCustomBankQuestions(next);
+  return updated;
 }
 
 export async function removeStoredCustomBankQuestion(id: string): Promise<boolean> {

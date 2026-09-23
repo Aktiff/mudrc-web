@@ -4,11 +4,16 @@ import Link from "next/link";
 import { useState } from "react";
 import { BookOpen, ChevronLeft } from "lucide-react";
 import CustomBankQuestionForm from "@/components/CustomBankQuestionForm";
+import MusicBankQuestionForm from "@/components/MusicBankQuestionForm";
+import QuestionBankInventory from "@/components/QuestionBankInventory";
 import SoundBankQuestionForm from "@/components/SoundBankQuestionForm";
 import VideoBankQuestionForm from "@/components/VideoBankQuestionForm";
 
 export default function HotoveKvizyBankaPage() {
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const bump = () => setRefreshKey((v) => v + 1);
 
   return (
     <div className="w-full max-w-3xl mx-auto space-y-8 pb-4">
@@ -27,7 +32,7 @@ export default function HotoveKvizyBankaPage() {
         <div>
           <h1 className="font-display text-4xl text-brand-text tracking-wide mb-1">Banka otázok</h1>
           <p className="text-brand-muted text-sm leading-relaxed">
-            Sem pridávaj vlastné otázky, zvuk a video. V editore kvízu ich potom vložíš z pravej banky do slotov.
+            Prehľad uložených položiek, pridávanie a úpravy. V editore kvízu vkladáš z pravej banky do slotov.
           </p>
         </div>
       </div>
@@ -36,10 +41,13 @@ export default function HotoveKvizyBankaPage() {
         <p className={`text-sm ${msg.ok ? "text-green-600" : "text-red-500"}`}>{msg.text}</p>
       )}
 
+      <QuestionBankInventory refreshKey={refreshKey} onChanged={bump} />
+
       <div className="space-y-6">
-        <CustomBankQuestionForm />
-        <SoundBankQuestionForm onMessage={(text, ok) => setMsg({ text, ok })} />
-        <VideoBankQuestionForm onMessage={(text, ok) => setMsg({ text, ok })} />
+        <CustomBankQuestionForm onAdded={bump} />
+        <MusicBankQuestionForm onAdded={bump} onMessage={(text, ok) => setMsg({ text, ok })} />
+        <SoundBankQuestionForm onAdded={bump} onMessage={(text, ok) => setMsg({ text, ok })} />
+        <VideoBankQuestionForm onAdded={bump} onMessage={(text, ok) => setMsg({ text, ok })} />
       </div>
     </div>
   );

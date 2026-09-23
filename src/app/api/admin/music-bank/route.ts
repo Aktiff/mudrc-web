@@ -4,6 +4,7 @@ import {
   findMusicTrackConflict,
   readStoredMusicBank,
   removeStoredMusicBankItem,
+  updateStoredMusicBankItem,
 } from "@/lib/music-bank-storage";
 import { formatMusicTrackDuplicateMessage, MusicTrackDuplicateError, type NewMusicBankItemInput } from "@/lib/music-bank";
 
@@ -50,6 +51,27 @@ export async function POST(req: NextRequest) {
     }
     const message = error instanceof Error ? error.message : "Chyba pri ukladaní skladby";
     return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
+export async function PATCH(req: NextRequest) {
+  try {
+    const body = await req.json();
+    const id = typeof body?.id === "string" ? body.id.trim() : "";
+    if (!id) return NextResponse.json({ error: "Chýba id skladby" }, { status: 400 });
+    const track = await updateStoredMusicBankItem(id, body);
+    const tracks = await readStoredMusicBank();
+    return NextResponse.json({ ok: true, track, tracks });
+  } catch (error) {
+    if (error instanceof MusicTrackDuplicateError) {
+      return NextResponse.json(
+        { error: formatMusicTrackDuplicateMessage(error.conflict), conflict: error.conflict },
+        { status: 409 }
+      );
+    }
+    const message = error instanceof Error ? error.message : "Chyba pri úprave skladby";
+    const status = message === "NOT_FOUND" ? 404 : 500;
+    return NextResponse.json({ error: message }, { status });
   }
 }
 

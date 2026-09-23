@@ -4,6 +4,7 @@ import {
   findVideoClipConflict,
   readStoredVideoBank,
   removeStoredVideoBankItem,
+  updateStoredVideoBankItem,
 } from "@/lib/video-bank-storage";
 import {
   formatVideoClipDuplicateMessage,
@@ -49,6 +50,27 @@ export async function POST(req: NextRequest) {
     }
     const message = error instanceof Error ? error.message : "Chyba pri ukladaní videa";
     return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
+export async function PATCH(req: NextRequest) {
+  try {
+    const body = await req.json();
+    const id = typeof body?.id === "string" ? body.id.trim() : "";
+    if (!id) return NextResponse.json({ error: "Chýba id ukážky" }, { status: 400 });
+    const clip = await updateStoredVideoBankItem(id, body as NewVideoBankItemInput);
+    const clips = await readStoredVideoBank();
+    return NextResponse.json({ ok: true, clip, clips });
+  } catch (error) {
+    if (error instanceof VideoClipDuplicateError) {
+      return NextResponse.json(
+        { error: formatVideoClipDuplicateMessage(error.conflict), conflict: error.conflict },
+        { status: 409 }
+      );
+    }
+    const message = error instanceof Error ? error.message : "Chyba pri úprave ukážky";
+    const status = message === "NOT_FOUND" ? 404 : 500;
+    return NextResponse.json({ error: message }, { status });
   }
 }
 

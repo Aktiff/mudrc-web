@@ -1,7 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { BookOpen, Check, ClipboardCopy, Shuffle, Trash2 } from "lucide-react";
+import { BookOpen, Check, ClipboardCopy, Pencil, Shuffle, Trash2 } from "lucide-react";
+import {
+  EditMusicTrackDialog,
+  EditSoundClipDialog,
+  EditVideoClipDialog,
+} from "@/components/BankMediaEditDialogs";
+import EditCustomBankQuestionDialog from "@/components/EditCustomBankQuestionDialog";
 import {
   findFirstEmptyContentSlot,
   isQuestionSlotEmpty,
@@ -166,6 +172,10 @@ export default function QuizQuestionBankPanel({
   const [sourceFilter, setSourceFilter] = useState<BankSourceFilter>("all");
   const [localCustom, setLocalCustom] = useState<CustomBankQuestion[]>([]);
   const [localMusic, setLocalMusic] = useState<MusicBankItem[]>([]);
+  const [editCustomQuestion, setEditCustomQuestion] = useState<CustomBankQuestion | null>(null);
+  const [editSoundClip, setEditSoundClip] = useState<SoundBankItem | null>(null);
+  const [editVideoClip, setEditVideoClip] = useState<VideoBankItem | null>(null);
+  const [editMusicTrack, setEditMusicTrack] = useState<MusicBankItem | null>(null);
   const [localSound, setLocalSound] = useState<SoundBankItem[]>([]);
   const [localVideo, setLocalVideo] = useState<VideoBankItem[]>([]);
 
@@ -502,6 +512,24 @@ export default function QuizQuestionBankPanel({
     afterBankQuestionInserted(item.id);
   };
 
+  const resolveCustomQuestion = (id: string): CustomBankQuestion | null => {
+    const row = customBankQuestions.find((q) => q.id === id);
+    if (!row || !isCustomBankQuestionId(row.id)) return null;
+    if (!("createdAt" in row) || typeof row.createdAt !== "number") return null;
+    return row as CustomBankQuestion;
+  };
+
+  const refreshBanksAfterEdit = () => {
+    onCustomBankChange?.();
+    onSoundBankChange?.();
+    onVideoBankChange?.();
+    onMusicBankChange?.();
+    if (!customBankQuestionsProp) void fetchCustomBankQuestionsFromServer().then(setLocalCustom);
+    if (!soundBankClipsProp) void fetchSoundBankFromServer().then(setLocalSound);
+    if (!videoBankClipsProp) void fetchVideoBankFromServer().then(setLocalVideo);
+    if (!musicBankTracksProp) void fetchMusicBankFromServer().then(setLocalMusic);
+  };
+
   const dismissQuestion = (bankId: string) => {
     if (isCustomBankQuestionId(bankId)) {
       if (!window.confirm("Odstrániť túto vlastnú otázku z banky?")) return;
@@ -659,9 +687,18 @@ export default function QuizQuestionBankPanel({
                     ) : (
                       <p className="text-xs text-amber-700 dark:text-amber-300">V tomto kole nie je kam vložiť.</p>
                     )}
-                    <button type="button" onClick={() => dismissSoundClip(clip.id)} className="btn-outline text-xs py-1.5 px-2 text-red-600 border-red-200">
-                      <Trash2 className="w-3 h-3 inline" /> Vymazať
-                    </button>
+                    <div className="flex flex-wrap gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setEditSoundClip(clip)}
+                        className="btn-outline text-xs py-1.5 px-2 inline-flex items-center gap-1"
+                      >
+                        <Pencil className="w-3 h-3" /> Upraviť
+                      </button>
+                      <button type="button" onClick={() => dismissSoundClip(clip.id)} className="btn-outline text-xs py-1.5 px-2 text-red-600 border-red-200">
+                        <Trash2 className="w-3 h-3 inline" /> Vymazať
+                      </button>
+                    </div>
                   </div>
                 );
               })}
@@ -698,9 +735,18 @@ export default function QuizQuestionBankPanel({
                     ) : (
                       <p className="text-xs text-amber-700 dark:text-amber-300">V tomto kole nie je kam vložiť.</p>
                     )}
-                    <button type="button" onClick={() => dismissMusicTrack(track.id)} className="btn-outline text-xs py-1.5 px-2 text-red-600 border-red-200">
-                      <Trash2 className="w-3 h-3 inline" /> Vymazať
-                    </button>
+                    <div className="flex flex-wrap gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setEditMusicTrack(track)}
+                        className="btn-outline text-xs py-1.5 px-2 inline-flex items-center gap-1"
+                      >
+                        <Pencil className="w-3 h-3" /> Upraviť
+                      </button>
+                      <button type="button" onClick={() => dismissMusicTrack(track.id)} className="btn-outline text-xs py-1.5 px-2 text-red-600 border-red-200">
+                        <Trash2 className="w-3 h-3 inline" /> Vymazať
+                      </button>
+                    </div>
                   </div>
                 );
               })}
@@ -743,9 +789,18 @@ export default function QuizQuestionBankPanel({
                   ) : (
                     <p className="text-xs text-amber-700 dark:text-amber-300">V tomto kole nie je kam vložiť.</p>
                   )}
-                  <button type="button" onClick={() => dismissVideoClip(clip.id)} className="btn-outline text-xs py-1.5 px-2 text-red-600 border-red-200">
-                    <Trash2 className="w-3 h-3 inline" /> Vymazať
-                  </button>
+                  <div className="flex flex-wrap gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setEditVideoClip(clip)}
+                      className="btn-outline text-xs py-1.5 px-2 inline-flex items-center gap-1"
+                    >
+                      <Pencil className="w-3 h-3" /> Upraviť
+                    </button>
+                    <button type="button" onClick={() => dismissVideoClip(clip.id)} className="btn-outline text-xs py-1.5 px-2 text-red-600 border-red-200">
+                      <Trash2 className="w-3 h-3 inline" /> Vymazať
+                    </button>
+                  </div>
                 </div>
               );
             })
@@ -853,6 +908,16 @@ export default function QuizQuestionBankPanel({
                     </div>
                   )}
                   <div className="flex flex-wrap gap-1.5">
+                    {isCustomBankQuestionId(item.id) && resolveCustomQuestion(item.id) && (
+                      <button
+                        type="button"
+                        onClick={() => setEditCustomQuestion(resolveCustomQuestion(item.id))}
+                        className="btn-outline text-xs py-1.5 px-2 inline-flex items-center gap-1"
+                      >
+                        <Pencil className="w-3 h-3" />
+                        Upraviť
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => copyText(formatBankQuestionBody(item), `${item.id}-body`)}
@@ -876,6 +941,15 @@ export default function QuizQuestionBankPanel({
           })
         )}
       </div>
+
+      <EditCustomBankQuestionDialog
+        question={editCustomQuestion}
+        onClose={() => setEditCustomQuestion(null)}
+        onSaved={refreshBanksAfterEdit}
+      />
+      <EditSoundClipDialog clip={editSoundClip} onClose={() => setEditSoundClip(null)} onSaved={refreshBanksAfterEdit} />
+      <EditVideoClipDialog clip={editVideoClip} onClose={() => setEditVideoClip(null)} onSaved={refreshBanksAfterEdit} />
+      <EditMusicTrackDialog track={editMusicTrack} onClose={() => setEditMusicTrack(null)} onSaved={refreshBanksAfterEdit} />
     </div>
   );
 }

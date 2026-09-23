@@ -51,6 +51,25 @@ export async function addSoundBankItemAsync(input: NewSoundBankItemInput): Promi
   return clip;
 }
 
+export async function updateSoundBankItemAsync(
+  id: string,
+  input: NewSoundBankItemInput
+): Promise<SoundBankItem> {
+  const res = await fetch("/api/admin/sound-bank", {
+    method: "PATCH",
+    cache: "no-store",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id, ...input }),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(typeof data.error === "string" ? data.error : "Uloženie zlyhalo");
+  }
+  const clip = normalizeSoundBankItem(data.clip);
+  if (!clip) throw new Error("Neplatná odpoveď servera");
+  return clip;
+}
+
 export async function removeSoundBankItemAsync(id: string): Promise<void> {
   await fetch(`/api/admin/sound-bank?id=${encodeURIComponent(id)}`, {
     method: "DELETE",

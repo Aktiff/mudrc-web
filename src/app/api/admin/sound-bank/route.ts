@@ -4,6 +4,7 @@ import {
   findSoundClipConflict,
   readStoredSoundBank,
   removeStoredSoundBankItem,
+  updateStoredSoundBankItem,
 } from "@/lib/sound-bank-storage";
 import {
   formatSoundClipDuplicateMessage,
@@ -49,6 +50,27 @@ export async function POST(req: NextRequest) {
     }
     const message = error instanceof Error ? error.message : "Chyba pri ukladaní zvuku";
     return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
+export async function PATCH(req: NextRequest) {
+  try {
+    const body = await req.json();
+    const id = typeof body?.id === "string" ? body.id.trim() : "";
+    if (!id) return NextResponse.json({ error: "Chýba id ukážky" }, { status: 400 });
+    const clip = await updateStoredSoundBankItem(id, body as NewSoundBankItemInput);
+    const clips = await readStoredSoundBank();
+    return NextResponse.json({ ok: true, clip, clips });
+  } catch (error) {
+    if (error instanceof SoundClipDuplicateError) {
+      return NextResponse.json(
+        { error: formatSoundClipDuplicateMessage(error.conflict), conflict: error.conflict },
+        { status: 409 }
+      );
+    }
+    const message = error instanceof Error ? error.message : "Chyba pri úprave ukážky";
+    const status = message === "NOT_FOUND" ? 404 : 500;
+    return NextResponse.json({ error: message }, { status });
   }
 }
 

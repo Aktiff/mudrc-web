@@ -52,11 +52,16 @@ export async function writeStoredSoundBank(clips: SoundBankItem[]): Promise<void
 
 export async function findSoundClipConflict(
   label: string,
-  answer: string
+  answer: string,
+  excludeId?: string
 ): Promise<SoundClipDuplicateConflict | null> {
   const key = soundClipKey(label, answer);
   const bank = await readStoredSoundBank();
-  if (bank.some((clip) => soundClipKey(clip.label, clip.answer) === key)) {
+  if (
+    bank.some(
+      (clip) => clip.id !== excludeId && soundClipKey(clip.label, clip.answer) === key
+    )
+  ) {
     return { source: "bank", label: label.trim(), answer: answer.trim() };
   }
 
@@ -95,6 +100,34 @@ export async function addStoredSoundBankItem(input: NewSoundBankItemInput): Prom
   const existing = await readStoredSoundBank();
   await writeStoredSoundBank([item, ...existing.filter((t) => t.id !== item.id)]);
   return item;
+}
+
+export async function updateStoredSoundBankItem(
+  id: string,
+  input: NewSoundBankItemInput
+): Promise<SoundBankItem> {
+  const label = input.label.trim();
+  const answer = input.answer.trim();
+  const audioUrl = input.audioUrl.trim();
+  if (!label || !answer || !audioUrl) throw new Error("Vyplň popis, odpoveď a audio URL.");
+
+  const existing = await readStoredSoundBank();
+  const current = existing.find((c) => c.id === id);
+  if (!current) throw new Error("NOT_FOUND");
+
+  const conflict = await findSoundClipConflict(label, answer, id);
+  if (conflict) throw new SoundClipDuplicateError(conflict);
+
+  const updated: SoundBankItem = {
+    ...current,
+    label,
+    answer,
+    audioUrl,
+    note: input.note?.trim() || undefined,
+  };
+  const next = existing.map((c) => (c.id === id ? updated : c));
+  await writeStoredSoundBank(next);
+  return updated;
 }
 
 export async function removeStoredSoundBankItem(id: string): Promise<boolean> {

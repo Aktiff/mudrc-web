@@ -51,6 +51,25 @@ export async function addMusicBankItemAsync(input: NewMusicBankItemInput): Promi
   return track;
 }
 
+export async function updateMusicBankItemAsync(
+  id: string,
+  input: NewMusicBankItemInput
+): Promise<MusicBankItem> {
+  const res = await fetch("/api/admin/music-bank", {
+    method: "PATCH",
+    cache: "no-store",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id, ...input }),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(typeof data.error === "string" ? data.error : "Uloženie zlyhalo");
+  }
+  const track = normalizeMusicBankItem(data.track);
+  if (!track) throw new Error("Neplatná odpoveď servera");
+  return track;
+}
+
 export async function removeMusicBankItemAsync(id: string): Promise<void> {
   await fetch(`/api/admin/music-bank?id=${encodeURIComponent(id)}`, {
     method: "DELETE",

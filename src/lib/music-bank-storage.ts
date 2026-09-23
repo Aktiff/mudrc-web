@@ -53,11 +53,16 @@ export async function writeStoredMusicBank(tracks: MusicBankItem[]): Promise<voi
 
 export async function findMusicTrackConflict(
   artist: string,
-  title: string
+  title: string,
+  excludeId?: string
 ): Promise<MusicTrackDuplicateConflict | null> {
   const key = musicTrackKey(artist, title);
   const bank = await readStoredMusicBank();
-  if (bank.some((track) => musicTrackKey(track.artist, track.title) === key)) {
+  if (
+    bank.some(
+      (track) => track.id !== excludeId && musicTrackKey(track.artist, track.title) === key
+    )
+  ) {
     return { source: "bank", artist: artist.trim(), title: title.trim() };
   }
 
@@ -93,6 +98,35 @@ export async function addStoredMusicBankItem(input: NewMusicBankItemInput): Prom
   const existing = await readStoredMusicBank();
   await writeStoredMusicBank([item, ...existing.filter((t) => t.id !== item.id)]);
   return item;
+}
+
+export async function updateStoredMusicBankItem(
+  id: string,
+  input: NewMusicBankItemInput
+): Promise<MusicBankItem> {
+  const artist = input.artist.trim();
+  const title = input.title.trim();
+  const audioUrl = input.audioUrl.trim();
+  if (!artist || !title || !audioUrl) throw new Error("Vyplň interpreta, názov a audio URL.");
+
+  const existing = await readStoredMusicBank();
+  const current = existing.find((t) => t.id === id);
+  if (!current) throw new Error("NOT_FOUND");
+
+  const conflict = await findMusicTrackConflict(artist, title, id);
+  if (conflict) throw new MusicTrackDuplicateError(conflict);
+
+  const updated = createMusicBankItem({
+    ...input,
+    artist,
+    title,
+    audioUrl,
+    tags: input.tags?.length ? input.tags : current.tags,
+  });
+  const merged: MusicBankItem = { ...updated, id: current.id, createdAt: current.createdAt };
+  const next = existing.map((t) => (t.id === id ? merged : t));
+  await writeStoredMusicBank(next);
+  return merged;
 }
 
 export async function removeStoredMusicBankItem(id: string): Promise<boolean> {

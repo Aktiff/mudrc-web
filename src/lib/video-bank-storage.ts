@@ -52,11 +52,16 @@ export async function writeStoredVideoBank(clips: VideoBankItem[]): Promise<void
 
 export async function findVideoClipConflict(
   label: string,
-  answer: string
+  answer: string,
+  excludeId?: string
 ): Promise<VideoClipDuplicateConflict | null> {
   const key = videoClipKey(label, answer);
   const bank = await readStoredVideoBank();
-  if (bank.some((clip) => videoClipKey(clip.label, clip.answer) === key)) {
+  if (
+    bank.some(
+      (clip) => clip.id !== excludeId && videoClipKey(clip.label, clip.answer) === key
+    )
+  ) {
     return { source: "bank", label: label.trim(), answer: answer.trim() };
   }
 
@@ -95,6 +100,34 @@ export async function addStoredVideoBankItem(input: NewVideoBankItemInput): Prom
   const existing = await readStoredVideoBank();
   await writeStoredVideoBank([item, ...existing.filter((t) => t.id !== item.id)]);
   return item;
+}
+
+export async function updateStoredVideoBankItem(
+  id: string,
+  input: NewVideoBankItemInput
+): Promise<VideoBankItem> {
+  const label = input.label.trim();
+  const answer = input.answer.trim();
+  const videoUrl = input.videoUrl.trim();
+  if (!label || !answer || !videoUrl) throw new Error("Vyplň popis, odpoveď a video URL.");
+
+  const existing = await readStoredVideoBank();
+  const current = existing.find((c) => c.id === id);
+  if (!current) throw new Error("NOT_FOUND");
+
+  const conflict = await findVideoClipConflict(label, answer, id);
+  if (conflict) throw new VideoClipDuplicateError(conflict);
+
+  const updated: VideoBankItem = {
+    ...current,
+    label,
+    answer,
+    videoUrl,
+    note: input.note?.trim() || undefined,
+  };
+  const next = existing.map((c) => (c.id === id ? updated : c));
+  await writeStoredVideoBank(next);
+  return updated;
 }
 
 export async function removeStoredVideoBankItem(id: string): Promise<boolean> {

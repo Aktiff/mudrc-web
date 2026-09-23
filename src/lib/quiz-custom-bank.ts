@@ -139,6 +139,14 @@ export function compactChoiceBankQuestion(item: QuizBankQuestion): QuizBankQuest
   };
 }
 
+export function applyCustomBankQuestionUpdate(
+  existing: CustomBankQuestion,
+  input: NewCustomBankQuestionInput
+): CustomBankQuestion {
+  const next = createCustomBankQuestion(input);
+  return { ...next, id: existing.id, createdAt: existing.createdAt };
+}
+
 export function createCustomBankQuestion(input: NewCustomBankQuestionInput): CustomBankQuestion {
   const isOpenQuestion = Boolean(input.isOpenQuestion);
   const options = [...input.options].slice(0, 6) as QuizBankQuestion["options"];
@@ -250,6 +258,31 @@ export async function addCustomBankQuestionAsync(input: NewCustomBankQuestionInp
   } catch {
     return addCustomBankQuestion(input);
   }
+}
+
+export async function updateCustomBankQuestionAsync(
+  id: string,
+  input: NewCustomBankQuestionInput
+): Promise<CustomBankQuestion> {
+  if (!isCustomBankQuestionId(id)) {
+    throw new Error("Neplatné id otázky v banke.");
+  }
+  const res = await fetch("/api/admin/custom-bank", {
+    method: "PATCH",
+    cache: "no-store",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id, ...input }),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(typeof data.error === "string" ? data.error : "Uloženie zlyhalo");
+  }
+  const updated = normalizeStoredCustomQuestion(data.question);
+  if (!updated) throw new Error("Uloženie zlyhalo");
+  const questions = parseCustomBankQuestionList(data.questions ?? [updated]);
+  writeCustomBankQuestions(questions);
+  notifyCustomBankUpdated();
+  return updated;
 }
 
 export async function removeCustomBankQuestionAsync(id: string): Promise<void> {

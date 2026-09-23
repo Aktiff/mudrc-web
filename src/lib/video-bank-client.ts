@@ -51,6 +51,25 @@ export async function addVideoBankItemAsync(input: NewVideoBankItemInput): Promi
   return clip;
 }
 
+export async function updateVideoBankItemAsync(
+  id: string,
+  input: NewVideoBankItemInput
+): Promise<VideoBankItem> {
+  const res = await fetch("/api/admin/video-bank", {
+    method: "PATCH",
+    cache: "no-store",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id, ...input }),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(typeof data.error === "string" ? data.error : "Uloženie zlyhalo");
+  }
+  const clip = normalizeVideoBankItem(data.clip);
+  if (!clip) throw new Error("Neplatná odpoveď servera");
+  return clip;
+}
+
 export async function removeVideoBankItemAsync(id: string): Promise<void> {
   await fetch(`/api/admin/video-bank?id=${encodeURIComponent(id)}`, {
     method: "DELETE",
