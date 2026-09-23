@@ -5,7 +5,7 @@ import { X } from "lucide-react";
 import AudioUrlField from "@/components/admin/AudioUrlField";
 import VideoUrlField from "@/components/admin/VideoUrlField";
 import type { MusicBankItem } from "@/lib/music-bank";
-import { updateMusicBankItemAsync } from "@/lib/music-bank-client";
+import { refreshMusicTrackAutoTagsAsync, updateMusicBankItemAsync } from "@/lib/music-bank-client";
 import type { SoundBankItem } from "@/lib/sound-bank";
 import { updateSoundBankItemAsync } from "@/lib/sound-bank-client";
 import type { VideoBankItem } from "@/lib/video-bank";
@@ -209,6 +209,7 @@ export function EditMusicTrackDialog({
   const [tagsText, setTagsText] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [refreshingTags, setRefreshingTags] = useState(false);
 
   useEffect(() => {
     if (!track) return;
@@ -221,6 +222,20 @@ export function EditMusicTrackDialog({
   }, [track]);
 
   if (!track) return null;
+
+  const refreshTags = async () => {
+    setError("");
+    setRefreshingTags(true);
+    try {
+      const updated = await refreshMusicTrackAutoTagsAsync(track.id);
+      setTagsText(formatTagsInput(updated.tags));
+      onSaved();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Obnova tagov zlyhala.");
+    } finally {
+      setRefreshingTags(false);
+    }
+  };
 
   const save = async () => {
     setError("");
@@ -256,7 +271,17 @@ export function EditMusicTrackDialog({
       </div>
       <AudioUrlField value={audioUrl} onChange={setAudioUrl} />
       <div>
-        <label className="label">Tagy (jazyk, štýl, dekáda…)</label>
+        <div className="flex items-center justify-between gap-2 mb-1">
+          <label className="label mb-0">Tagy (jazyk, štýl, dekáda…)</label>
+          <button
+            type="button"
+            disabled={refreshingTags || submitting}
+            onClick={() => void refreshTags()}
+            className="text-xs font-semibold text-brand-orange-readable hover:underline shrink-0"
+          >
+            {refreshingTags ? "Hľadám online…" : "Doplniť online"}
+          </button>
+        </div>
         <input className="input text-sm py-2" value={tagsText} onChange={(e) => setTagsText(e.target.value)} />
       </div>
       <div>

@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { Pencil, RefreshCw, Trash2 } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Pencil, RefreshCw, Sparkles, Trash2 } from "lucide-react";
+import MusicBankTagFilters from "@/components/MusicBankTagFilters";
 import {
   EditMusicTrackDialog,
   EditSoundClipDialog,
@@ -15,7 +16,16 @@ import {
   type CustomBankQuestion,
 } from "@/lib/quiz-custom-bank";
 import { formatMusicBankTagsLabel, type MusicBankItem } from "@/lib/music-bank";
-import { fetchMusicBankFromServer, removeMusicBankItemAsync } from "@/lib/music-bank-client";
+import {
+  EMPTY_MUSIC_BANK_TAG_FILTERS,
+  filterMusicBankTracks,
+  musicTagFiltersActive,
+} from "@/lib/music-bank-filters";
+import {
+  fetchMusicBankFromServer,
+  refreshMusicTrackAutoTagsAsync,
+  removeMusicBankItemAsync,
+} from "@/lib/music-bank-client";
 import type { SoundBankItem } from "@/lib/sound-bank";
 import { fetchSoundBankFromServer, removeSoundBankItemAsync } from "@/lib/sound-bank-client";
 import type { VideoBankItem } from "@/lib/video-bank";
@@ -42,6 +52,13 @@ export default function QuestionBankInventory({ refreshKey = 0, onChanged, fillH
   const [editSound, setEditSound] = useState<SoundBankItem | null>(null);
   const [editVideo, setEditVideo] = useState<VideoBankItem | null>(null);
   const [editMusic, setEditMusic] = useState<MusicBankItem | null>(null);
+  const [musicFilters, setMusicFilters] = useState(EMPTY_MUSIC_BANK_TAG_FILTERS);
+  const [refreshingTagId, setRefreshingTagId] = useState<string | null>(null);
+
+  const filteredMusic = useMemo(
+    () => filterMusicBankTracks(music, musicFilters),
+    [music, musicFilters]
+  );
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -98,6 +115,18 @@ export default function QuestionBankInventory({ refreshKey = 0, onChanged, fillH
     afterEdit();
   };
 
+  const refreshMusicTags = async (id: string) => {
+    setRefreshingTagId(id);
+    try {
+      await refreshMusicTrackAutoTagsAsync(id);
+      afterEdit();
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : "Obnova tagov zlyhala.");
+    } finally {
+      setRefreshingTagId(null);
+    }
+  };
+
   return (
     <div
       className={`bg-brand-card border border-brand-border rounded-2xl overflow-hidden min-w-0 max-w-full ${
@@ -135,6 +164,17 @@ export default function QuestionBankInventory({ refreshKey = 0, onChanged, fillH
           </button>
         ))}
       </div>
+
+      {tab === "music" && music.length > 0 && (
+        <div className="px-4 sm:px-5 py-3 border-b border-brand-border bg-brand-warm/20 shrink-0 space-y-2">
+          <MusicBankTagFilters tracks={music} value={musicFilters} onChange={setMusicFilters} />
+          {musicTagFiltersActive(musicFilters) && (
+            <p className="text-[11px] text-brand-muted">
+              Zobrazených {filteredMusic.length} z {music.length} skladieb
+            </p>
+          )}
+        </div>
+      )}
 
       <div
         className={`p-4 sm:p-5 overflow-y-auto ${
@@ -221,17 +261,31 @@ export default function QuestionBankInventory({ refreshKey = 0, onChanged, fillH
           )
         ) : music.length === 0 ? (
           <p className="text-sm text-brand-muted text-center py-8">Zatiaľ žiadna hudba.</p>
+        ) : filteredMusic.length === 0 ? (
+          <p className="text-sm text-brand-muted text-center py-8">Žiadna skladba nevyhovuje filtrom.</p>
         ) : (
           <ul className="space-y-3">
-            {music.map((track) => (
+            {filteredMusic.map((track) => (
               <li key={track.id} className="rounded-xl border border-brand-border p-3 space-y-2">
                 <p className="text-sm font-semibold">
                   {track.artist} — {track.title}
                 </p>
                 {track.tags?.length ? (
                   <p className="text-[11px] text-violet-800 dark:text-violet-200">{formatMusicBankTagsLabel(track.tags)}</p>
-                ) : null}
-                <div className="flex gap-2">
+                ) : (
+                  <p className="text-[11px] text-amber-700 dark:text-amber-300">Tagy chýbajú alebo sú neúplné</p>
+                )}
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    disabled={refreshingTagId === track.id}
+                    onClick={() => void refreshMusicTags(track.id)}
+                    className="btn-outline text-xs py-1.5 px-2 inline-flex items-center gap-1"
+                    title="Fuzzy vyhľadanie (iTunes, Deezer, MusicBrainz) — netreba presný názov"
+                  >
+                    <Sparkles className="w-3 h-3" />
+                    {refreshingTagId === track.id ? "Hľadám…" : "Doplniť tagy"}
+                  </button>
                   <button type="button" onClick={() => setEditMusic(track)} className="btn-outline text-xs py-1.5 px-2 inline-flex items-center gap-1">
                     <Pencil className="w-3 h-3" /> Upraviť
                   </button>

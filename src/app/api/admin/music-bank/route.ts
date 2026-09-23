@@ -4,6 +4,7 @@ import {
   findMusicTrackConflict,
   readStoredMusicBank,
   removeStoredMusicBankItem,
+  refreshStoredMusicBankItemTags,
   updateStoredMusicBankItem,
 } from "@/lib/music-bank-storage";
 import { formatMusicTrackDuplicateMessage, MusicTrackDuplicateError, type NewMusicBankItemInput } from "@/lib/music-bank";
@@ -59,6 +60,11 @@ export async function PATCH(req: NextRequest) {
     const body = await req.json();
     const id = typeof body?.id === "string" ? body.id.trim() : "";
     if (!id) return NextResponse.json({ error: "Chýba id skladby" }, { status: 400 });
+    if (body?.refreshAutoTags === true) {
+      const track = await refreshStoredMusicBankItemTags(id);
+      const tracks = await readStoredMusicBank();
+      return NextResponse.json({ ok: true, track, tracks });
+    }
     const track = await updateStoredMusicBankItem(id, body);
     const tracks = await readStoredMusicBank();
     return NextResponse.json({ ok: true, track, tracks });

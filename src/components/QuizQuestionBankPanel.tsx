@@ -8,6 +8,7 @@ import {
   EditVideoClipDialog,
 } from "@/components/BankMediaEditDialogs";
 import EditCustomBankQuestionDialog from "@/components/EditCustomBankQuestionDialog";
+import MusicBankTagFilters from "@/components/MusicBankTagFilters";
 import {
   findFirstEmptyContentSlot,
   isQuestionSlotEmpty,
@@ -45,6 +46,11 @@ import {
   isMusicBankId,
   type MusicBankItem,
 } from "@/lib/music-bank";
+import {
+  EMPTY_MUSIC_BANK_TAG_FILTERS,
+  filterMusicBankTracks,
+  musicTagFiltersActive,
+} from "@/lib/music-bank-filters";
 import { fetchMusicBankFromServer, removeMusicBankItemAsync } from "@/lib/music-bank-client";
 import {
   formatSoundBankHostNote,
@@ -178,6 +184,7 @@ export default function QuizQuestionBankPanel({
   const [editMusicTrack, setEditMusicTrack] = useState<MusicBankItem | null>(null);
   const [localSound, setLocalSound] = useState<SoundBankItem[]>([]);
   const [localVideo, setLocalVideo] = useState<VideoBankItem[]>([]);
+  const [musicTagFilters, setMusicTagFilters] = useState(EMPTY_MUSIC_BANK_TAG_FILTERS);
 
   const customBankQuestions = customBankQuestionsProp ?? localCustom;
   const musicBankTracks = musicBankTracksProp ?? localMusic;
@@ -269,6 +276,11 @@ export default function QuizQuestionBankPanel({
       (track) => isMusicBankId(track.id) && !usedBankQuestionIds.includes(track.id)
     );
   }, [musicBankTracks, usedBankQuestionIds]);
+
+  const filteredMusicTracks = useMemo(
+    () => filterMusicBankTracks(visibleMusicTracks, musicTagFilters),
+    [visibleMusicTracks, musicTagFilters]
+  );
 
   const defaultSoundTargetId = defaultTargetId;
 
@@ -608,9 +620,28 @@ export default function QuizQuestionBankPanel({
         </div>
 
         {sourceFilter === "sound" && (
-          <p className="text-xs font-semibold text-sky-800 dark:text-sky-200 bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800 rounded-lg px-3 py-2 leading-relaxed">
-            Zvuková ukážka môže ísť kamkoľvek v aktuálnom kole — aj do slotov „Zvuk · koniec kola“ na konci 4. kola.
-          </p>
+          <>
+            <p className="text-xs font-semibold text-sky-800 dark:text-sky-200 bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800 rounded-lg px-3 py-2 leading-relaxed">
+              Zvuková ukážka môže ísť kamkoľvek v aktuálnom kole — aj do slotov „Zvuk · koniec kola“ na konci 4. kola.
+            </p>
+            {visibleMusicTracks.length > 0 && (
+              <div className="space-y-1.5">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-brand-muted">
+                  Filter skladieb v banke hudby
+                </p>
+                <MusicBankTagFilters
+                  tracks={visibleMusicTracks}
+                  value={musicTagFilters}
+                  onChange={setMusicTagFilters}
+                />
+                {musicTagFiltersActive(musicTagFilters) && (
+                  <p className="text-[11px] text-brand-muted">
+                    Skladby: {filteredMusicTracks.length} / {visibleMusicTracks.length}
+                  </p>
+                )}
+              </div>
+            )}
+          </>
         )}
 
         {sourceFilter === "video" && (
@@ -652,7 +683,7 @@ export default function QuizQuestionBankPanel({
 
       <div className="flex-1 overflow-y-auto overscroll-y-contain px-5 py-4 sm:px-6 space-y-3 min-h-0">
         {sourceFilter === "sound" ? (
-          visibleSoundClips.length === 0 && visibleMusicTracks.length === 0 ? (
+          visibleSoundClips.length === 0 && filteredMusicTracks.length === 0 && visibleMusicTracks.length === 0 ? (
             <p className="text-brand-muted text-sm text-center py-8">
               Banka zvukových ukážok je prázdna. Nahraj cez „Pridať zvukovú ukážku do banky“ hore v editore.
             </p>
@@ -702,7 +733,10 @@ export default function QuizQuestionBankPanel({
                   </div>
                 );
               })}
-              {visibleMusicTracks.map((track) => {
+              {filteredMusicTracks.length === 0 && visibleMusicTracks.length > 0 && visibleSoundClips.length === 0 ? (
+                <p className="text-brand-muted text-sm text-center py-6">Žiadna skladba nevyhovuje filtrom.</p>
+              ) : null}
+              {filteredMusicTracks.map((track) => {
                 const targetId = getSoundTargetId(track.id);
                 return (
                   <div key={track.id} className="rounded-xl border border-sky-200 dark:border-sky-900 bg-brand-surface/50 p-3 space-y-2.5">

@@ -11,7 +11,7 @@ import {
   type MusicTrackDuplicateConflict,
   type NewMusicBankItemInput,
 } from "@/lib/music-bank";
-import { lookupMusicTrackAutoTags } from "@/lib/music-track-metadata";
+import { enrichMusicTrackAutoTags, lookupMusicTrackAutoTags } from "@/lib/music-track-metadata";
 import { readAllLibraryQuizzes } from "@/lib/quiz-library-storage";
 import { hasSupabaseStorage, supabaseFetchMusicBank, supabaseSetMusicBank } from "@/lib/supabase-storage";
 
@@ -124,6 +124,18 @@ export async function updateStoredMusicBankItem(
     tags: input.tags?.length ? input.tags : current.tags,
   });
   const merged: MusicBankItem = { ...updated, id: current.id, createdAt: current.createdAt };
+  const next = existing.map((t) => (t.id === id ? merged : t));
+  await writeStoredMusicBank(next);
+  return merged;
+}
+
+export async function refreshStoredMusicBankItemTags(id: string): Promise<MusicBankItem> {
+  const existing = await readStoredMusicBank();
+  const current = existing.find((t) => t.id === id);
+  if (!current) throw new Error("NOT_FOUND");
+
+  const tags = await enrichMusicTrackAutoTags(current.artist, current.title, current.tags);
+  const merged: MusicBankItem = { ...current, tags };
   const next = existing.map((t) => (t.id === id ? merged : t));
   await writeStoredMusicBank(next);
   return merged;

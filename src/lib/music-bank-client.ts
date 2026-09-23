@@ -70,6 +70,22 @@ export async function updateMusicBankItemAsync(
   return track;
 }
 
+export async function refreshMusicTrackAutoTagsAsync(id: string): Promise<MusicBankItem> {
+  const res = await fetch("/api/admin/music-bank", {
+    method: "PATCH",
+    cache: "no-store",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id, refreshAutoTags: true }),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(typeof data.error === "string" ? data.error : "Obnova tagov zlyhala");
+  }
+  const track = normalizeMusicBankItem(data.track);
+  if (!track) throw new Error("Neplatná odpoveď servera");
+  return track;
+}
+
 export async function removeMusicBankItemAsync(id: string): Promise<void> {
   await fetch(`/api/admin/music-bank?id=${encodeURIComponent(id)}`, {
     method: "DELETE",
