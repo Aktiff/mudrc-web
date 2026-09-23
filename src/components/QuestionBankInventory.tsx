@@ -10,11 +10,22 @@ import {
 } from "@/components/BankMediaEditDialogs";
 import EditCustomBankQuestionDialog from "@/components/EditCustomBankQuestionDialog";
 import {
+  countTextBankSources,
+  filterTextBankBySource,
+  getFullTextBankQuestions,
+  type TextBankSourceFilter,
+} from "@/lib/quiz-bank-text";
+import {
   fetchCustomBankQuestionsFromServer,
   isCustomBankQuestionId,
+  isGeneratedBankQuestion,
   removeCustomBankQuestionAsync,
   type CustomBankQuestion,
 } from "@/lib/quiz-custom-bank";
+import {
+  readHiddenBankQuestionIds,
+  writeHiddenBankQuestionIds,
+} from "@/lib/quiz-question-bank";
 import { formatMusicBankTagsLabel, type MusicBankItem } from "@/lib/music-bank";
 import {
   EMPTY_MUSIC_BANK_TAG_FILTERS,
@@ -54,6 +65,24 @@ export default function QuestionBankInventory({ refreshKey = 0, onChanged, fillH
   const [editMusic, setEditMusic] = useState<MusicBankItem | null>(null);
   const [musicFilters, setMusicFilters] = useState(EMPTY_MUSIC_BANK_TAG_FILTERS);
   const [refreshingTagId, setRefreshingTagId] = useState<string | null>(null);
+  const [hiddenIds, setHiddenIds] = useState<string[]>([]);
+  const [questionSourceFilter, setQuestionSourceFilter] = useState<TextBankSourceFilter>("all");
+
+  useEffect(() => {
+    setHiddenIds(readHiddenBankQuestionIds());
+  }, []);
+
+  const fullTextBank = useMemo(
+    () => getFullTextBankQuestions(questions, hiddenIds),
+    [questions, hiddenIds]
+  );
+
+  const textBankCounts = useMemo(() => countTextBankSources(fullTextBank), [fullTextBank]);
+
+  const visibleTextQuestions = useMemo(
+    () => filterTextBankBySource(fullTextBank, questionSourceFilter),
+    [fullTextBank, questionSourceFilter]
+  );
 
   const filteredMusic = useMemo(
     () => filterMusicBankTracks(music, musicFilters),
@@ -80,7 +109,7 @@ export default function QuestionBankInventory({ refreshKey = 0, onChanged, fillH
   }, [load, refreshKey]);
 
   const tabs: { id: Tab; label: string; count: number }[] = [
-    { id: "questions", label: "Otázky", count: questions.length },
+    { id: "questions", label: "Otázky", count: textBankCounts.all },
     { id: "sound", label: "Zvuk", count: sound.length },
     { id: "video", label: "Video", count: video.length },
     { id: "music", label: "Hudba", count: music.length },
@@ -95,6 +124,13 @@ export default function QuestionBankInventory({ refreshKey = 0, onChanged, fillH
     if (!window.confirm("Odstrániť otázku z banky?")) return;
     await removeCustomBankQuestionAsync(id);
     afterEdit();
+  };
+
+  const hideGeneratedQuestion = (bankId: string) => {
+    if (!window.confirm("Skryť túto vygenerovanú otázku v banke? (Zmizne aj pri vkladaní kvízu.)")) return;
+    const next = Array.from(new Set([...hiddenIds, bankId]));
+    setHiddenIds(next);
+    writeHiddenBankQuestionIds(next);
   };
 
   const removeSound = async (id: string) => {
@@ -165,6 +201,33 @@ export default function QuestionBankInventory({ refreshKey = 0, onChanged, fillH
         ))}
       </div>
 
+      {tab === "questions" && textBankCounts.all > 0 && (
+        <div className="px-4 sm:px-5 py-3 border-b border-brand-border bg-brand-warm/20 shrink-0 space-y-2">
+          <div className="flex flex-wrap gap-1.5">
+            {(
+              [
+                ["all", "Všetky", textBankCounts.all],
+                ["custom", "Moje otázky", textBankCounts.custom],
+                ["generated", "Vygenerované", textBankCounts.generated],
+              ] as const
+            ).map(([key, label, count]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setQuestionSourceFilter(key)}
+                className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors ${
+                  questionSourceFilter === key
+                    ? "bg-brand-orange text-brand-btn-fg border-brand-orange"
+                    : "border-brand-border text-brand-muted hover:border-brand-orange"
+                }`}
+              >
+                {label} ({count})
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {tab === "music" && music.length > 0 && (
         <div className="px-4 sm:px-5 py-3 border-b border-brand-border bg-brand-warm/20 shrink-0 space-y-2">
           <MusicBankTagFilters tracks={music} value={musicFilters} onChange={setMusicFilters} />
@@ -184,12 +247,29 @@ export default function QuestionBankInventory({ refreshKey = 0, onChanged, fillH
         {loading ? (
           <p className="text-sm text-brand-muted text-center py-8">Načítavam…</p>
         ) : tab === "questions" ? (
-          questions.length === 0 ? (
-            <p className="text-sm text-brand-muted text-center py-8">Zatiaľ žiadne vlastné otázky.</p>
+          textBankCounts.all === 0 ? (
+            <p className="text-sm text-brand-muted text-center py-8">V banke zatiaľ nie sú textové otázky.</p>
+          ) : visibleTextQuestions.length === 0 ? (
+            <p className="text-sm text-brand-muted text-center py-8">V tomto filtri nie sú otázky.</p>
           ) : (
             <ul className="space-y-3">
-              {questions.map((q) => (
+              {visibleTextQuestions.map((q) => {
+                const isCustom = isCustomBankQuestionId(q.id);
+                const isGenerated = isGeneratedBankQuestion(q);
+                return (
                 <li key={q.id} className="rounded-xl border border-brand-border bg-brand-surface/50 p-3 space-y-2">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {isCustom && (
+                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-brand-orange/15 text-brand-orange-readable border border-brand-orange/40">
+                        moja otázka
+                      </span>
+                    )}
+                    {isGenerated && (
+                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full border border-brand-border bg-brand-card text-brand-muted">
+                        vygenerovaná
+                      </span>
+                    )}
+                  </div>
                   <p className="text-sm font-semibold text-brand-text leading-snug">{q.body}</p>
                   {q.tags.length > 0 && (
                     <p className="text-[11px] text-brand-muted">{q.tags.join(" · ")}</p>
@@ -197,24 +277,37 @@ export default function QuestionBankInventory({ refreshKey = 0, onChanged, fillH
                   <p className="text-xs text-brand-muted">
                     {q.isOpenQuestion ? `Odpoveď: ${q.answer}` : `Správne: ${q.options[q.correctIndex] || q.answer}`}
                   </p>
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setEditQuestion(q)}
-                      className="btn-outline text-xs py-1.5 px-2 inline-flex items-center gap-1"
-                    >
-                      <Pencil className="w-3 h-3" /> Upraviť
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void removeQuestion(q.id)}
-                      className="btn-outline text-xs py-1.5 px-2 text-red-600 border-red-200 inline-flex items-center gap-1"
-                    >
-                      <Trash2 className="w-3 h-3" /> Vymazať
-                    </button>
+                  <div className="flex flex-wrap gap-2">
+                    {isCustom ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => setEditQuestion(q as CustomBankQuestion)}
+                          className="btn-outline text-xs py-1.5 px-2 inline-flex items-center gap-1"
+                        >
+                          <Pencil className="w-3 h-3" /> Upraviť
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void removeQuestion(q.id)}
+                          className="btn-outline text-xs py-1.5 px-2 text-red-600 border-red-200 inline-flex items-center gap-1"
+                        >
+                          <Trash2 className="w-3 h-3" /> Vymazať
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => hideGeneratedQuestion(q.id)}
+                        className="btn-outline text-xs py-1.5 px-2 text-red-600 border-red-200 inline-flex items-center gap-1"
+                      >
+                        <Trash2 className="w-3 h-3" /> Skryť
+                      </button>
+                    )}
                   </div>
                 </li>
-              ))}
+                );
+              })}
             </ul>
           )
         ) : tab === "sound" ? (

@@ -25,12 +25,16 @@ import {
   sortBankQuestionsByTagBalance,
 } from "@/lib/quiz-question-tags";
 import {
-  filterVisibleBankQuestions,
   formatBankQuestionBody,
   readHiddenBankQuestionIds,
   writeHiddenBankQuestionIds,
   type QuizBankQuestion,
 } from "@/lib/quiz-question-bank";
+import {
+  countTextBankSources,
+  getFullTextBankQuestions,
+  getInsertableTextBankQuestions,
+} from "@/lib/quiz-bank-text";
 import {
   fetchCustomBankQuestionsFromServer,
   isCustomBankQuestionId,
@@ -230,14 +234,20 @@ export default function QuizQuestionBankPanel({
     [customBankQuestions]
   );
 
+  const fullTextBank = useMemo(
+    () => getFullTextBankQuestions(customBankQuestions, hiddenIds),
+    [customBankQuestions, hiddenIds]
+  );
+
   const availableQuestions = useMemo(
-    () => filterVisibleBankQuestions(usedBankQuestionIds, hiddenIds, customBankQuestions),
+    () => getInsertableTextBankQuestions(customBankQuestions, usedBankQuestionIds, hiddenIds),
     [usedBankQuestionIds, hiddenIds, customBankQuestions]
   );
 
   const sourceCounts = useMemo(() => {
-    const custom = availableQuestions.filter((q) => isCustomBankQuestionId(q.id)).length;
-    const generated = availableQuestions.filter((q) => isGeneratedBankQuestion(q)).length;
+    const text = countTextBankSources(fullTextBank);
+    const custom = text.custom;
+    const generated = text.generated;
     const musicInSoundBank = musicBankTracks.filter(
       (t) => isMusicBankId(t.id) && !usedBankQuestionIds.includes(t.id)
     ).length;
@@ -250,10 +260,10 @@ export default function QuizQuestionBankPanel({
       (t) => isVideoBankId(t.id) && !usedBankQuestionIds.includes(t.id)
     ).length;
     const videoTotal = videoBankClips.length;
-    return { all: availableQuestions.length, custom, generated, sound, soundTotal, video, videoTotal };
-  }, [availableQuestions, musicBankTracks, soundBankClips, videoBankClips, usedBankQuestionIds]);
+    return { all: text.all, custom, generated, sound, soundTotal, video, videoTotal };
+  }, [fullTextBank, musicBankTracks, soundBankClips, videoBankClips, usedBankQuestionIds]);
 
-  const bankTags = useMemo(() => collectTagsFromBank(availableQuestions), [availableQuestions]);
+  const bankTags = useMemo(() => collectTagsFromBank(fullTextBank), [fullTextBank]);
 
   /** Všetky sloty v kole — vrátane konca 4. kola (bývalá hudba). */
   const bankTargetSlots = useMemo(
@@ -568,7 +578,11 @@ export default function QuizQuestionBankPanel({
                 ? `${visibleSoundClips.length + visibleMusicTracks.length} zvukových ukážok · vlož do ľubovoľného slotu v kole (vrátane konca 4. kola)`
                 : sourceFilter === "video"
                   ? `${visibleVideoClips.length} video ukážok · vlož do ľubovoľného slotu v kole`
-                  : `${visibleQuestions.length} textových otázok k dispozícii`}
+                  : `${sourceCounts.all} textových otázok v banke${
+                      visibleQuestions.length < sourceCounts.all
+                        ? ` · ${visibleQuestions.length} na vloženie v tomto kvíze`
+                        : ""
+                    }`}
               {sourceFilter !== "all" && !MEDIA_FILTERS.has(sourceFilter)
                 ? ` · filter: ${sourceFilter === "custom" ? "moje" : "vygenerované"}`
                 : ""}
