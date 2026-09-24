@@ -15,7 +15,11 @@ import {
 import { findCorrectOptionIndex, getQuestionBodyText, getQuestionOptions, optionLetter } from "@/lib/quiz-question-options";
 import {
   defaultNextQuizDate,
-  formatNextQuizLine,
+  defaultNextQuizDateAfter,
+  eventToDatetimeLocalValue,
+  formatNextQuizLines,
+  getUpcomingQuizEvents,
+  MAX_NEXT_QUIZ_LINES,
   parseDatetimeLocalValue,
   toDatetimeLocalValue,
 } from "@/lib/next-quiz-presentation";
@@ -284,12 +288,12 @@ function PresentationView({
   slide,
   eventRules,
   venueName,
-  nextQuizLine,
+  nextQuizLines,
 }: {
   slide: PresentationSlide;
   eventRules: string[];
   venueName: string;
-  nextQuizLine: string;
+  nextQuizLines: string[];
 }) {
   if (slide.type === "rules") {
     const rules = eventRules.length ? eventRules : ["Pravidlá nastav v admin → Udalosť → Pravidlá."];
@@ -311,14 +315,27 @@ function PresentationView({
         <p className="font-display text-7xl sm:text-9xl text-[#f0c800] tracking-wide mb-12 sm:mb-16 md:mb-20">
           Opravovanie
         </p>
-        {nextQuizLine ? (
+        {nextQuizLines.length > 0 ? (
           <div className="space-y-6 sm:space-y-8 md:space-y-10">
             <p className="text-3xl sm:text-5xl md:text-6xl text-white/60 font-semibold tracking-wide">
-              Najbližší kvíz:
+              {nextQuizLines.length === 1 ? "Najbližší kvíz:" : "Najbližšie kvízy:"}
             </p>
-            <p className="font-display text-4xl sm:text-6xl md:text-7xl lg:text-8xl text-white leading-tight tracking-wide px-2">
-              {nextQuizLine}
-            </p>
+            <ul className="space-y-4 sm:space-y-6 md:space-y-8 px-2">
+              {nextQuizLines.map((line) => (
+                <li
+                  key={line}
+                  className={`font-display text-white leading-tight tracking-wide ${
+                    nextQuizLines.length >= 4
+                      ? "text-2xl sm:text-4xl md:text-5xl"
+                      : nextQuizLines.length >= 2
+                        ? "text-3xl sm:text-5xl md:text-6xl lg:text-7xl"
+                        : "text-4xl sm:text-6xl md:text-7xl lg:text-8xl"
+                  }`}
+                >
+                  {line}
+                </li>
+              ))}
+            </ul>
           </div>
         ) : null}
       </div>
@@ -374,9 +391,14 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
   const [loading, setLoading] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showNextQuizModal, setShowNextQuizModal] = useState(false);
-  const [nextQuizVenue, setNextQuizVenue] = useState("");
-  const [nextQuizAtLocal, setNextQuizAtLocal] = useState(() => toDatetimeLocalValue(defaultNextQuizDate()));
-  const [nextQuizLine, setNextQuizLine] = useState("");
+  const [nextQuizLines, setNextQuizLines] = useState<string[]>([]);
+  const [nextQuizWizardIndex, setNextQuizWizardIndex] = useState(0);
+  const [nextQuizDraftVenue, setNextQuizDraftVenue] = useState("");
+  const [nextQuizDraftAtLocal, setNextQuizDraftAtLocal] = useState(() =>
+    toDatetimeLocalValue(defaultNextQuizDate())
+  );
+  const [upcomingEventHints, setUpcomingEventHints] = useState<QuizEvent[]>([]);
+  const [savedNextQuizSteps, setSavedNextQuizSteps] = useState<{ venue: string; atLocal: string }[]>([]);
   const [aspectMode, setAspectMode] = useState<PresentationAspectMode>("tv-16:9");
 
   useEffect(() => {
@@ -453,19 +475,93 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
     return () => window.clearInterval(interval);
   }, [slideTimerKey, started]);
 
+  const applyWizardStepPrefill = useCallback(
+    (stepIndex: number, hints: QuizEvent[], saved: { venue: string; atLocal: string }[]) => {
+      const hint = hints[stepIndex];
+      if (hint) {
+        setNextQuizDraftVenue(hint.venue);
+        const local = eventToDatetimeLocalValue(hint);
+        setNextQuizDraftAtLocal(local ?? toDatetimeLocalValue(defaultNextQuizDate()));
+        return;
+      }
+      const lastSaved = saved[saved.length - 1];
+      const prevAt = lastSaved
+        ? parseDatetimeLocalValue(lastSaved.atLocal) ?? defaultNextQuizDate()
+        : defaultNextQuizDate();
+      setNextQuizDraftVenue("");
+      setNextQuizDraftAtLocal(toDatetimeLocalValue(defaultNextQuizDateAfter(prevAt, 1)));
+    },
+    []
+  );
+
+  const stepsToFormattedLines = useCallback((steps: { venue: string; atLocal: string }[]) => {
+    return formatNextQuizLines(
+      steps
+        .filter((row) => row.venue.trim())
+        .map((row) => ({
+          venue: row.venue,
+          at: parseDatetimeLocalValue(row.atLocal) ?? defaultNextQuizDate(),
+        }))
+    );
+  }, []);
+
+  const finishNextQuizWizard = useCallback(
+    (steps: { venue: string; atLocal: string }[]) => {
+      setNextQuizLines(stepsToFormattedLines(steps));
+      setShowNextQuizModal(false);
+      setSavedNextQuizSteps([]);
+      setNextQuizWizardIndex(0);
+      setStarted(true);
+    },
+    [stepsToFormattedLines]
+  );
+
   const openNextQuizModal = useCallback(() => {
-    const ev = events.find((event) => event.slug === eventSlug);
-    setNextQuizVenue(ev?.venue ?? "");
-    setNextQuizAtLocal(toDatetimeLocalValue(defaultNextQuizDate()));
+    const hints = getUpcomingQuizEvents(events, MAX_NEXT_QUIZ_LINES);
+    setUpcomingEventHints(hints);
+    setSavedNextQuizSteps([]);
+    setNextQuizWizardIndex(0);
+    if (hints.length > 0) {
+      applyWizardStepPrefill(0, hints, []);
+    } else {
+      const current = events.find((event) => event.slug === eventSlug);
+      setNextQuizDraftVenue(current?.venue ?? "");
+      const local = current ? eventToDatetimeLocalValue(current) : null;
+      setNextQuizDraftAtLocal(local ?? toDatetimeLocalValue(defaultNextQuizDate()));
+    }
     setShowNextQuizModal(true);
-  }, [events, eventSlug]);
+  }, [applyWizardStepPrefill, events, eventSlug]);
 
   const confirmStartPresentation = useCallback(() => {
-    const at = parseDatetimeLocalValue(nextQuizAtLocal) ?? defaultNextQuizDate();
-    setNextQuizLine(formatNextQuizLine(nextQuizVenue, at));
-    setShowNextQuizModal(false);
-    setStarted(true);
-  }, [nextQuizAtLocal, nextQuizVenue]);
+    const steps = [...savedNextQuizSteps];
+    if (nextQuizDraftVenue.trim()) {
+      steps.push({ venue: nextQuizDraftVenue.trim(), atLocal: nextQuizDraftAtLocal });
+    }
+    finishNextQuizWizard(steps);
+  }, [finishNextQuizWizard, nextQuizDraftAtLocal, nextQuizDraftVenue, savedNextQuizSteps]);
+
+  const goNextQuizWizardStep = useCallback(() => {
+    if (!nextQuizDraftVenue.trim()) return;
+    const nextSaved = [
+      ...savedNextQuizSteps,
+      { venue: nextQuizDraftVenue.trim(), atLocal: nextQuizDraftAtLocal },
+    ];
+    if (nextSaved.length >= MAX_NEXT_QUIZ_LINES) {
+      finishNextQuizWizard(nextSaved);
+      return;
+    }
+    setSavedNextQuizSteps(nextSaved);
+    const nextIndex = nextSaved.length;
+    setNextQuizWizardIndex(nextIndex);
+    applyWizardStepPrefill(nextIndex, upcomingEventHints, nextSaved);
+  }, [
+    applyWizardStepPrefill,
+    finishNextQuizWizard,
+    nextQuizDraftAtLocal,
+    nextQuizDraftVenue,
+    savedNextQuizSteps,
+    upcomingEventHints,
+  ]);
 
   const goNext = useCallback(() => {
     setIndex((i) => Math.min(slides.length - 1, i + 1));
@@ -605,17 +701,28 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
             >
               <div>
                 <p className="text-[#f0c800]/80 text-xs uppercase tracking-[0.25em] mb-2">Pred projekciou</p>
-                <h2 className="font-display text-2xl tracking-wide">Najbližší kvíz</h2>
+                <h2 className="font-display text-2xl tracking-wide">Najbližšie kvízy</h2>
                 <p className="text-white/50 text-sm mt-2">
-                  Zobrazí sa na slidoch „Opravovanie“. Termín je predvyplnený o 2 týždne — môžeš ho upraviť.
+                  Zobrazia sa na slidoch „Opravovanie“. Môžeš pridať až {MAX_NEXT_QUIZ_LINES} termínov — každý
+                  potvrď „Ďalší termín“, na záver „Spustiť projekciu“.
+                </p>
+                <p className="text-[#f0c800]/90 text-xs font-semibold mt-3">
+                  Termín {Math.min(nextQuizWizardIndex + 1, MAX_NEXT_QUIZ_LINES)} / {MAX_NEXT_QUIZ_LINES}
                 </p>
               </div>
+              {savedNextQuizSteps.length > 0 && (
+                <ul className="text-xs text-white/55 space-y-1 rounded-xl bg-white/5 border border-white/10 px-3 py-2">
+                  {stepsToFormattedLines(savedNextQuizSteps).map((line) => (
+                    <li key={line}>✓ {line}</li>
+                  ))}
+                </ul>
+              )}
               <label className="block space-y-2">
                 <span className="text-sm text-white/70">Podnik / miesto</span>
                 <input
                   type="text"
-                  value={nextQuizVenue}
-                  onChange={(e) => setNextQuizVenue(e.target.value)}
+                  value={nextQuizDraftVenue}
+                  onChange={(e) => setNextQuizDraftVenue(e.target.value)}
                   placeholder="napr. Alipub"
                   className="w-full rounded-xl bg-white/10 border border-white/20 px-4 py-3 text-white placeholder:text-white/35"
                 />
@@ -624,25 +731,37 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
                 <span className="text-sm text-white/70">Dátum a čas</span>
                 <input
                   type="datetime-local"
-                  value={nextQuizAtLocal}
-                  onChange={(e) => setNextQuizAtLocal(e.target.value)}
+                  value={nextQuizDraftAtLocal}
+                  onChange={(e) => setNextQuizDraftAtLocal(e.target.value)}
                   className="w-full rounded-xl bg-white/10 border border-white/20 px-4 py-3 text-white [color-scheme:dark]"
                 />
               </label>
-              <div className="flex gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowNextQuizModal(false)}
-                  className="flex-1 rounded-xl border border-white/20 py-3 text-white/80 hover:bg-white/10 transition-colors"
-                >
-                  Zrušiť
-                </button>
+              <div className="flex flex-col gap-2 pt-2">
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowNextQuizModal(false)}
+                    className="flex-1 rounded-xl border border-white/20 py-3 text-white/80 hover:bg-white/10 transition-colors"
+                  >
+                    Zrušiť
+                  </button>
+                  {savedNextQuizSteps.length + 1 < MAX_NEXT_QUIZ_LINES ? (
+                    <button
+                      type="button"
+                      disabled={!nextQuizDraftVenue.trim()}
+                      onClick={goNextQuizWizardStep}
+                      className="flex-1 rounded-xl border border-[#f0c800]/50 py-3 text-[#f0c800] font-semibold hover:bg-[#f0c800]/10 transition-colors disabled:opacity-40"
+                    >
+                      Ďalší termín
+                    </button>
+                  ) : null}
+                </div>
                 <button
                   type="button"
                   onClick={confirmStartPresentation}
-                  className="flex-1 rounded-xl bg-[#f0c800] text-black font-bold py-3 hover:bg-[#ffd54f] transition-colors"
+                  className="w-full rounded-xl bg-[#f0c800] text-black font-bold py-3 hover:bg-[#ffd54f] transition-colors"
                 >
-                  Spustiť
+                  Spustiť projekciu
                 </button>
               </div>
             </div>
@@ -745,7 +864,7 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
                 slide={slide}
                 eventRules={eventRules}
                 venueName={venueName}
-                nextQuizLine={nextQuizLine}
+                nextQuizLines={nextQuizLines}
               />
             </div>
           )}
