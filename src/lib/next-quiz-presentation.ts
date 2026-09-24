@@ -25,14 +25,29 @@ export function parseDatetimeLocalValue(value: string): Date | null {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
-/** Napr. „Alipub - sobota 26.9. o 20:00“ */
+/** Ak je názov celý VEĽKÝMI, zobrazí sa v normálnom tvare (Ratatouille Food…). */
+export function normalizeShoutingVenue(venue: string): string {
+  const t = venue.trim();
+  if (!t) return t;
+  const hasLower = /[a-záäčďéíľĺňóôřšťúýž]/.test(t);
+  const hasUpper = /[A-ZÁÄČĎÉÍĽĹŇÓÔŘŠŤÚÝŽ]/.test(t);
+  if (hasUpper && !hasLower) {
+    return t
+      .toLocaleLowerCase("sk-SK")
+      .replace(/(^|[\s\-–—])([^\s\-–—])/g, (_, sep, ch: string) => sep + ch.toUpperCase());
+  }
+  return t;
+}
+
+/** Napr. „Alipub – piatok 26.9. o 20:00“ */
 export function formatNextQuizLine(venue: string, date: Date): string {
-  const place = venue.trim() || "—";
-  const weekday = date.toLocaleDateString("sk-SK", { weekday: "long" });
+  const place = normalizeShoutingVenue(venue.trim()) || "—";
+  const weekdayRaw = date.toLocaleDateString("sk-SK", { weekday: "long" });
+  const weekday = weekdayRaw.charAt(0).toUpperCase() + weekdayRaw.slice(1);
   const day = date.getDate();
   const month = date.getMonth() + 1;
   const time = date.toLocaleTimeString("sk-SK", { hour: "2-digit", minute: "2-digit" });
-  return `${place} - ${weekday} ${day}.${month}. o ${time}`;
+  return `${place} – ${weekday} ${day}.${month}. o ${time}`;
 }
 
 export function formatNextQuizLines(entries: { venue: string; at: Date }[]): string[] {

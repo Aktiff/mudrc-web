@@ -1,7 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type MouseEvent,
+  type RefObject,
+} from "react";
 import { Maximize2, X } from "lucide-react";
 import type { QuizEvent } from "@/lib/data";
 import type { QuizLibraryItem, QuizQuestionItem } from "@/lib/quiz-library";
@@ -179,9 +188,11 @@ function OptionsGrid({
 function QuestionContent({
   question,
   phase,
+  presentationAudioRef,
 }: {
   question: QuizQuestionItem;
   phase: "question" | "answer";
+  presentationAudioRef?: RefObject<HTMLAudioElement>;
 }) {
   const showImage =
     phase === "question" ? shouldShowImageInQuestionPhase(question) : shouldShowImageInAnswerPhase(question);
@@ -205,11 +216,13 @@ function QuestionContent({
     >
       {(question.kind === "music" || question.kind === "sound") && question.audioUrl?.trim() && (
         <audio
+          ref={presentationAudioRef}
           controls
           src={question.audioUrl}
           className="w-full max-w-xl"
           onClick={(e) => e.stopPropagation()}
           onContextMenu={(e) => e.stopPropagation()}
+          onAuxClick={(e) => e.stopPropagation()}
         />
       )}
 
@@ -289,11 +302,13 @@ function PresentationView({
   eventRules,
   venueName,
   nextQuizLines,
+  presentationAudioRef,
 }: {
   slide: PresentationSlide;
   eventRules: string[];
   venueName: string;
   nextQuizLines: string[];
+  presentationAudioRef?: RefObject<HTMLAudioElement>;
 }) {
   if (slide.type === "rules") {
     const rules = eventRules.length ? eventRules : ["Pravidlá nastav v admin → Udalosť → Pravidlá."];
@@ -310,27 +325,27 @@ function PresentationView({
     );
   }
   if (slide.type === "correction") {
+    const lineSizeClass =
+      nextQuizLines.length >= 4
+        ? "text-[clamp(1rem,2.4vw,2.25rem)]"
+        : nextQuizLines.length >= 2
+          ? "text-[clamp(1.15rem,2.85vw,2.85rem)]"
+          : "text-[clamp(1.35rem,3.5vw,3.5rem)]";
     return (
-      <div className="text-center px-6 sm:px-10 max-w-6xl w-full mx-auto">
+      <div className="text-center px-1 sm:px-3 w-full max-w-[min(98vw,1680px)] mx-auto">
         <p className="font-display text-7xl sm:text-9xl text-[#f0c800] tracking-wide mb-12 sm:mb-16 md:mb-20">
           Opravovanie
         </p>
         {nextQuizLines.length > 0 ? (
-          <div className="space-y-6 sm:space-y-8 md:space-y-10">
-            <p className="text-3xl sm:text-5xl md:text-6xl text-white/60 font-semibold tracking-wide">
+          <div className="space-y-5 sm:space-y-7 md:space-y-9 w-full">
+            <p className="text-2xl sm:text-4xl md:text-5xl text-white/60 font-semibold tracking-normal normal-case">
               {nextQuizLines.length === 1 ? "Najbližší kvíz:" : "Najbližšie kvízy:"}
             </p>
-            <ul className="space-y-4 sm:space-y-6 md:space-y-8 px-2">
+            <ul className="space-y-3 sm:space-y-4 w-full max-w-full">
               {nextQuizLines.map((line) => (
                 <li
                   key={line}
-                  className={`font-display text-white leading-tight tracking-wide ${
-                    nextQuizLines.length >= 4
-                      ? "text-2xl sm:text-4xl md:text-5xl"
-                      : nextQuizLines.length >= 2
-                        ? "text-3xl sm:text-5xl md:text-6xl lg:text-7xl"
-                        : "text-4xl sm:text-6xl md:text-7xl lg:text-8xl"
-                  }`}
+                  className={`font-sans font-semibold text-white normal-case tracking-normal leading-none whitespace-nowrap ${lineSizeClass}`}
                 >
                   {line}
                 </li>
@@ -359,7 +374,11 @@ function PresentationView({
   if (slide.type === "question_phase") {
     return (
       <div className="w-full max-h-full min-h-0 flex flex-col items-center justify-center overflow-visible">
-        <QuestionContent question={slide.question} phase="question" />
+        <QuestionContent
+          question={slide.question}
+          phase="question"
+          presentationAudioRef={presentationAudioRef}
+        />
       </div>
     );
   }
@@ -373,7 +392,11 @@ function PresentationView({
   if (slide.type === "answer_phase") {
     return (
       <div className="w-full max-h-full min-h-0 flex flex-col items-center justify-center overflow-visible">
-        <QuestionContent question={slide.question} phase="answer" />
+        <QuestionContent
+          question={slide.question}
+          phase="answer"
+          presentationAudioRef={presentationAudioRef}
+        />
       </div>
     );
   }
@@ -383,6 +406,7 @@ function PresentationView({
 
 export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props) {
   const rootRef = useRef<HTMLDivElement>(null);
+  const presentationAudioRef = useRef<HTMLAudioElement>(null);
   const [quiz, setQuiz] = useState<QuizLibraryItem | null>(null);
   const [events, setEvents] = useState<QuizEvent[]>([]);
   const [eventSlug, setEventSlug] = useState(initialEventSlug);
@@ -580,6 +604,24 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
       else goNext();
     },
     [goNext, goPrev]
+  );
+
+  const togglePresentationAudio = useCallback(() => {
+    const audio = presentationAudioRef.current;
+    if (!audio) return;
+    if (audio.paused) void audio.play().catch(() => {});
+    else audio.pause();
+  }, []);
+
+  const handleStageAuxClick = useCallback(
+    (e: MouseEvent<HTMLDivElement>) => {
+      if (e.button !== 1) return;
+      if (!presentationAudioRef.current) return;
+      e.preventDefault();
+      e.stopPropagation();
+      togglePresentationAudio();
+    },
+    [togglePresentationAudio]
   );
 
   const toggleFullscreen = useCallback(async () => {
@@ -856,6 +898,7 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
         className="relative z-[2] flex-1 flex min-h-0 w-full"
         innerClassName="min-h-0"
         onBackgroundClick={handleStageClick}
+        onMiddleClick={handleStageAuxClick}
       >
         <PresentationStageAutoFit enabled={questionAutoFit} slideKey={slideKey} className={SLIDE_SAFE_AREA_CLASS}>
           {slide && (
@@ -865,6 +908,7 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
                 eventRules={eventRules}
                 venueName={venueName}
                 nextQuizLines={nextQuizLines}
+                presentationAudioRef={presentationAudioRef}
               />
             </div>
           )}

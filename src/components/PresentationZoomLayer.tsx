@@ -26,6 +26,8 @@ type Props = {
   innerClassName?: string;
   children: ReactNode;
   onBackgroundClick?: (e: MouseEvent<HTMLDivElement>) => void;
+  /** Stredné tlačidlo myši (napr. play/pause audia na slide). */
+  onMiddleClick?: (e: MouseEvent<HTMLDivElement>) => void;
 };
 
 export default function PresentationZoomLayer({
@@ -34,6 +36,7 @@ export default function PresentationZoomLayer({
   innerClassName = "",
   children,
   onBackgroundClick,
+  onMiddleClick,
 }: Props) {
   const [transform, setTransform] = useState({ scale: 1, x: 0, y: 0 });
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -129,6 +132,14 @@ export default function PresentationZoomLayer({
     [onBackgroundClick]
   );
 
+  const onAuxClick = useCallback(
+    (e: MouseEvent<HTMLDivElement>) => {
+      if (e.button !== 1) return;
+      onMiddleClick?.(e);
+    },
+    [onMiddleClick]
+  );
+
   const innerStyle: CSSProperties = {
     transform: `translate3d(${transform.x}px, ${transform.y}px, 0) scale(${transform.scale})`,
     transformOrigin: "center center",
@@ -141,6 +152,7 @@ export default function PresentationZoomLayer({
       ref={viewportRef}
       className={`overflow-hidden touch-none box-border ${isZoomed ? "cursor-grab active:cursor-grabbing" : ""} ${className}`}
       onClick={onClick}
+      onAuxClick={onAuxClick}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={endDrag}
