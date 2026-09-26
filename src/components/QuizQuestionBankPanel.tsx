@@ -42,7 +42,7 @@ import {
   removeCustomBankQuestionAsync,
   type CustomBankQuestion,
 } from "@/lib/quiz-custom-bank";
-import { shuffleQuestionOptionsRandom } from "@/lib/quiz-question-options";
+import { findRawBankQuestionById } from "@/lib/quiz-question-bank";
 import {
   DEFAULT_MUSIC_QUESTION_BODY,
   formatMusicBankHostNote,
@@ -502,33 +502,22 @@ export default function QuizQuestionBankPanel({
       return;
     }
 
-    const activeOptions = item.options.map((option) => option.trim()).filter(Boolean);
-    const activeSourceIndices = item.options
-      .map((option, index) => (option.trim() ? index : -1))
-      .filter((index) => index >= 0);
-    let correctIndex = activeSourceIndices.indexOf(item.correctIndex);
-    if (correctIndex < 0) correctIndex = 0;
-
-    const mixed = shuffleQuestionOptionsRandom({
-      ...item,
-      options: activeOptions as QuizBankQuestion["options"],
-      correctIndex,
-      answer: activeOptions[correctIndex] ?? item.answer,
-    });
-    const optionList = mixed.options.map((option) => option.trim()).filter(Boolean);
+    const raw =
+      findRawBankQuestionById(item.id, customBankQuestions) ?? item;
+    const optionList = raw.options.map((option) => option.trim()).filter(Boolean);
     const suggestedImageUrl =
-      "suggestedImageUrl" in item && typeof item.suggestedImageUrl === "string"
-        ? item.suggestedImageUrl
+      "suggestedImageUrl" in raw && typeof raw.suggestedImageUrl === "string"
+        ? raw.suggestedImageUrl
         : undefined;
     onInsert(
-      mixed.id,
+      raw.id,
       targetId,
-      mixed.body,
-      mixed.answer,
+      raw.body,
+      raw.answer,
       optionList,
-      [...mixed.tags],
-      mixed.isImageQuestion,
-      mixed.note,
+      [...raw.tags],
+      raw.isImageQuestion,
+      raw.note,
       suggestedImageUrl
     );
     afterBankQuestionInserted(item.id);

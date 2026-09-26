@@ -11,7 +11,8 @@ import {
   type QuizQuestionItem,
   type QuizQuestionKind,
 } from "@/lib/quiz-library";
-import { findBankQuestionById } from "@/lib/quiz-question-bank";
+import { findBankQuestionById, findRawBankQuestionById } from "@/lib/quiz-question-bank";
+import { shuffleQuestionOptionsForBankInsert } from "@/lib/quiz-question-options";
 import {
   addCustomBankQuestionAsync,
   fetchCustomBankQuestionsFromServer,
@@ -292,6 +293,26 @@ export default function QuizLibraryEditor({ quizId }: Props) {
     if (!target) return;
     const displacedBankId = target.bankQuestionId;
 
+    let finalBody = body;
+    let finalAnswer = answer;
+    let finalOptions = options;
+    let optionsShuffledFromBank = false;
+
+    const rawBank = findRawBankQuestionById(bankId, customBankQuestions);
+    const sourceOptions = rawBank?.options?.length ? [...rawBank.options] : options;
+    const hasChoices = sourceOptions.some((o) => o.trim());
+    if (rawBank && hasChoices && !rawBank.isOpenQuestion) {
+      const shuffled = shuffleQuestionOptionsForBankInsert({
+        options: sourceOptions,
+        correctIndex: rawBank.correctIndex,
+        answer: rawBank.answer,
+      });
+      finalBody = rawBank.body;
+      finalAnswer = shuffled.answer;
+      finalOptions = shuffled.options;
+      optionsShuffledFromBank = shuffled.options.length >= 2;
+    }
+
     setQuiz((prev) => {
       if (!prev) return prev;
 
@@ -310,9 +331,10 @@ export default function QuizLibraryEditor({ quizId }: Props) {
             ? {
                 ...q,
                 kind: nextKind,
-                body,
-                answer,
-                options: options.length ? options : undefined,
+                body: finalBody,
+                answer: finalAnswer,
+                options: finalOptions.length ? finalOptions : undefined,
+                optionsShuffledFromBank: optionsShuffledFromBank || undefined,
                 bankQuestionId: bankId,
                 tags: tags.length ? tags : undefined,
                 hostNote: hostNote?.trim() || undefined,

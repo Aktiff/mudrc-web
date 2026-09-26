@@ -135,3 +135,43 @@ export function shuffleQuestionOptionsRandom<T extends { options: string[]; corr
     answer,
   };
 }
+
+/** Jednorazové premiešanie možností pri vkladaní z banky do slotu kvízu. */
+export function shuffleQuestionOptionsForBankInsert(input: {
+  options: string[];
+  correctIndex: number;
+  answer: string;
+}): { options: string[]; answer: string } {
+  const padded = [...input.options];
+  while (padded.length < 6) padded.push("");
+
+  const activeOptions = padded.map((o) => o.trim()).filter(Boolean);
+  if (activeOptions.length < 2) {
+    return { options: activeOptions, answer: input.answer.trim() };
+  }
+
+  const activeSourceIndices = padded
+    .map((option, index) => (option.trim() ? index : -1))
+    .filter((index) => index >= 0);
+  let correctIndex = activeSourceIndices.indexOf(input.correctIndex);
+  if (correctIndex < 0) {
+    correctIndex = activeOptions.findIndex(
+      (o) => o.trim().toLowerCase() === input.answer.trim().toLowerCase()
+    );
+  }
+  if (correctIndex < 0) correctIndex = 0;
+
+  const six: string[] = [...activeOptions];
+  while (six.length < 6) six.push("");
+
+  const mixed = shuffleQuestionOptionsRandom({
+    options: six as string[] & { length: 6 },
+    correctIndex,
+    answer: activeOptions[correctIndex] ?? input.answer,
+  });
+
+  return {
+    options: mixed.options.map((o) => o.trim()).filter(Boolean),
+    answer: mixed.answer.trim(),
+  };
+}

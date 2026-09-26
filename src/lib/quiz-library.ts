@@ -23,6 +23,8 @@ export type QuizQuestionItem = {
   musicTitle?: string;
   /** Voliteľné možnosti A–F (zobrazené v dvoch stĺpcoch pri projekcii) */
   options?: string[];
+  /** true = možnosti boli raz premiešané pri vložení z banky (nemeň pri načítaní) */
+  optionsShuffledFromBank?: boolean;
   /** ID otázky z banky vloženej do tohto slotu */
   bankQuestionId?: string;
   imageUrl?: string;
@@ -124,6 +126,8 @@ function normalizeQuestion(input: Partial<QuizQuestionItem>): QuizQuestionItem |
     musicArtist: input.musicArtist?.trim() || undefined,
     musicTitle: input.musicTitle?.trim() || undefined,
     options,
+    optionsShuffledFromBank:
+      input.optionsShuffledFromBank === true ? true : undefined,
     bankQuestionId: input.bankQuestionId?.trim() || undefined,
     imageUrl: input.imageUrl?.trim() || undefined,
     audioUrl: input.audioUrl?.trim() || undefined,

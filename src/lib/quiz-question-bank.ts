@@ -148,9 +148,12 @@ export const PUB_QUIZ_BANK: QuizBankQuestion[] = [
   ...PUB_QUIZ_BANK_EXTRA_3,
 ];
 
-/** Všetky otázky v banke — foto otázky + textové (možnosti premiešané podľa id, nie vždy A). */
-export const QUIZ_QUESTION_BANK: QuizBankQuestion[] = [...IMAGE_QUIZ_BANK, ...PUB_QUIZ_BANK].map(
-  (item) => shuffleQuestionOptionsDeterministic(item, item.id)
+/** Pôvodné poradie možností (správna odpoveď podľa correctIndex v dátach). */
+export const QUIZ_QUESTION_BANK_RAW: QuizBankQuestion[] = [...IMAGE_QUIZ_BANK, ...PUB_QUIZ_BANK];
+
+/** Zobrazenie v paneli banky — deterministické premiešanie, aby nebolo vždy A. */
+export const QUIZ_QUESTION_BANK: QuizBankQuestion[] = QUIZ_QUESTION_BANK_RAW.map((item) =>
+  shuffleQuestionOptionsDeterministic(item, item.id)
 );
 
 /** Sloty 5 a 10 v kole — otázka s fotkou (15. nie). */
@@ -214,4 +217,14 @@ export function findBankQuestionById(
   extraQuestions: QuizBankQuestion[] = []
 ): QuizBankQuestion | undefined {
   return extraQuestions.find((item) => item.id === id) ?? QUIZ_QUESTION_BANK.find((item) => item.id === id);
+}
+
+/** Na vloženie do kvízu — vlastné otázky alebo nespremiešané vygenerované. */
+export function findRawBankQuestionById(
+  id: string,
+  extraQuestions: QuizBankQuestion[] = []
+): QuizBankQuestion | undefined {
+  const custom = extraQuestions.find((item) => item.id === id);
+  if (custom) return custom;
+  return QUIZ_QUESTION_BANK_RAW.find((item) => item.id === id);
 }
