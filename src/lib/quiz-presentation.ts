@@ -55,7 +55,13 @@ export function buildPresentationSlides(questions: QuizQuestionItem[]): Presenta
     });
 
     for (const question of roundQuestions) {
+      if (shouldShowImageBeforeAnswer(question)) {
+        slides.push({ type: "image_slide", question });
+      }
       slides.push({ type: "answer_phase", question });
+      if (shouldShowImageAfterAnswer(question)) {
+        slides.push({ type: "image_slide", question });
+      }
     }
   }
 
@@ -113,20 +119,31 @@ export function findSlideIndexForQuestionInRound(
   preferAnswerPhase = false
 ): number | null {
   let firstMatch: number | null = null;
-  let answerMatch: number | null = null;
+  let answerBlockFirst: number | null = null;
+  let inRoundAnswerBlock = false;
 
   for (let i = 0; i < slides.length; i += 1) {
     const slide = slides[i];
+    if (slide.type === "answers_intro" && slide.roundNumber === roundNumber) {
+      inRoundAnswerBlock = true;
+      continue;
+    }
+    if (slide.type === "round" && slide.roundNumber > roundNumber) {
+      inRoundAnswerBlock = false;
+    }
+    if (slide.type === "scores") {
+      inRoundAnswerBlock = false;
+    }
     if (slide.type !== "question_phase" && slide.type !== "image_slide" && slide.type !== "answer_phase") {
       continue;
     }
     const { roundNumber: r, questionNumber: qn } = slide.question;
     if (r !== roundNumber || qn !== questionNumber) continue;
-    if (firstMatch == null) firstMatch = i;
-    if (slide.type === "answer_phase") answerMatch = i;
+    if (!inRoundAnswerBlock && firstMatch == null) firstMatch = i;
+    if (inRoundAnswerBlock && answerBlockFirst == null) answerBlockFirst = i;
   }
 
-  if (preferAnswerPhase && answerMatch != null) return answerMatch;
+  if (preferAnswerPhase && answerBlockFirst != null) return answerBlockFirst;
   return firstMatch;
 }
 
@@ -160,6 +177,14 @@ export function shouldShowImageInAnswerPhase(question: QuizQuestionItem): boolea
 
 export function shouldShowImageOnNextSlide(question: QuizQuestionItem): boolean {
   return Boolean(question.imageUrl?.trim() && question.imageOnNextSlide);
+}
+
+export function shouldShowImageBeforeAnswer(question: QuizQuestionItem): boolean {
+  return Boolean(question.imageUrl?.trim() && question.imageBeforeAnswer);
+}
+
+export function shouldShowImageAfterAnswer(question: QuizQuestionItem): boolean {
+  return Boolean(question.imageUrl?.trim() && question.imageAfterAnswer);
 }
 
 /** Wikimedia thumb URL → plné rozlíšenie (inak ponechá pôvodnú URL). */

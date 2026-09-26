@@ -1209,6 +1209,43 @@ export default function QuizLibraryEditor({ quizId }: Props) {
                   />
                   Pri správnej odpovedi (automaticky zapnuté ak je fotka pri otázke)
                 </label>
+                <p className="text-xs font-semibold text-brand-muted uppercase tracking-wider pt-2">
+                  Pri správnych odpovediach (separátne fullscreen)
+                </p>
+                <label className="flex items-center gap-2 text-sm text-brand-text cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(question.imageBeforeAnswer)}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      updateQuestion(question.id, {
+                        imageBeforeAnswer: checked,
+                        ...(checked && !question.imageDuringQuestion
+                          ? { imageOnAnswerSlide: false }
+                          : {}),
+                      });
+                    }}
+                    className="rounded border-brand-border"
+                  />
+                  Slide pred správnou odpoveďou (fullscreen fotka)
+                </label>
+                <label className="flex items-center gap-2 text-sm text-brand-text cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(question.imageAfterAnswer)}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      updateQuestion(question.id, {
+                        imageAfterAnswer: checked,
+                        ...(checked && !question.imageDuringQuestion
+                          ? { imageOnAnswerSlide: false }
+                          : {}),
+                      });
+                    }}
+                    className="rounded border-brand-border"
+                  />
+                  Slide po správnej odpovedi (fullscreen fotka)
+                </label>
               </div>
             )}
             {(question.body.trim() || question.answer.trim() || question.hostNote || question.bankQuestionId) && (

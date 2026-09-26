@@ -40,6 +40,10 @@ export type QuizQuestionItem = {
   imageOnNextSlide?: boolean;
   /** true = obrázok pri slide so správnou odpoveďou */
   imageOnAnswerSlide?: boolean;
+  /** true = fullscreen slide s fotkou pred slide so správnou odpoveďou */
+  imageBeforeAnswer?: boolean;
+  /** true = fullscreen slide s fotkou hneď po slide so správnou odpoveďou */
+  imageAfterAnswer?: boolean;
   /** Tématické tagy pre vyváženie kvízu (napr. história, geografia) */
   tags?: string[];
   /** Poznámka pre kvízmistra — len admin, nie na projektore */
@@ -142,8 +146,13 @@ function normalizeQuestion(input: Partial<QuizQuestionItem>): QuizQuestionItem |
         : Boolean(
             input.imageUrl?.trim() &&
               (input.imageDuringQuestion ||
-                (!input.imageOnNextSlide && !input.imageBeforeQuestion))
+                (!input.imageOnNextSlide &&
+                  !input.imageBeforeQuestion &&
+                  !input.imageBeforeAnswer &&
+                  !input.imageAfterAnswer))
           ),
+    imageBeforeAnswer: Boolean(input.imageBeforeAnswer),
+    imageAfterAnswer: Boolean(input.imageAfterAnswer),
     tags: normalizeTags(input.tags),
     hostNote: input.hostNote?.trim() || undefined,
   };
