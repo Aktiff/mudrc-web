@@ -245,7 +245,7 @@ export default function QuizQuestionBankPanel({
   );
 
   const sourceCounts = useMemo(() => {
-    const text = countTextBankSources(fullTextBank);
+    const text = countTextBankSources(availableQuestions);
     const custom = text.custom;
     const generated = text.generated;
     const musicInSoundBank = musicBankTracks.filter(
@@ -255,13 +255,11 @@ export default function QuizQuestionBankPanel({
       (t) => isSoundBankId(t.id) && !usedBankQuestionIds.includes(t.id)
     ).length;
     const sound = soundOnly + musicInSoundBank;
-    const soundTotal = soundBankClips.length + musicBankTracks.length;
     const video = videoBankClips.filter(
       (t) => isVideoBankId(t.id) && !usedBankQuestionIds.includes(t.id)
     ).length;
-    const videoTotal = videoBankClips.length;
-    return { all: text.all, custom, generated, sound, soundTotal, video, videoTotal };
-  }, [fullTextBank, musicBankTracks, soundBankClips, videoBankClips, usedBankQuestionIds]);
+    return { all: text.all, custom, generated, sound, video };
+  }, [availableQuestions, musicBankTracks, soundBankClips, videoBankClips, usedBankQuestionIds]);
 
   const bankTags = useMemo(() => collectTagsFromBank(fullTextBank), [fullTextBank]);
 
@@ -567,9 +565,9 @@ export default function QuizQuestionBankPanel({
                 ? `${visibleSoundClips.length + visibleMusicTracks.length} zvukových ukážok · vlož do ľubovoľného slotu v kole (vrátane konca 4. kola)`
                 : sourceFilter === "video"
                   ? `${visibleVideoClips.length} video ukážok · vlož do ľubovoľného slotu v kole`
-                  : `${sourceCounts.all} textových otázok v banke${
-                      visibleQuestions.length < sourceCounts.all
-                        ? ` · ${visibleQuestions.length} na vloženie v tomto kvíze`
+                  : `${sourceCounts.all} textových otázok na vloženie${
+                      excludedTags.length && visibleQuestions.length < sourceCounts.all
+                        ? ` · ${visibleQuestions.length} po filtri tagov`
                         : ""
                     }`}
               {sourceFilter !== "all" && !MEDIA_FILTERS.has(sourceFilter)
@@ -603,8 +601,8 @@ export default function QuizQuestionBankPanel({
               ["all", "Všetky", sourceCounts.all],
               ["custom", "Moje otázky", sourceCounts.custom],
               ["generated", "Vygenerované", sourceCounts.generated],
-              ["sound", "Zvukové ukážky", sourceCounts.soundTotal],
-              ["video", "Video", sourceCounts.videoTotal],
+              ["sound", "Zvukové ukážky", sourceCounts.sound],
+              ["video", "Video", sourceCounts.video],
             ] as const
           ).map(([key, label, count]) => (
             <button
