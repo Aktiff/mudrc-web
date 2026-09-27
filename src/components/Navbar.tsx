@@ -16,10 +16,25 @@ export default function Navbar() {
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
-    const updateScroll = () => setScrolled(window.scrollY > 20);
-    updateScroll();
-    window.addEventListener("scroll", updateScroll, { passive: true });
-    return () => window.removeEventListener("scroll", updateScroll);
+    let detach: (() => void) | undefined;
+    const attach = () => {
+      const updateScroll = () => setScrolled(window.scrollY > 20);
+      updateScroll();
+      window.addEventListener("scroll", updateScroll, { passive: true });
+      detach = () => window.removeEventListener("scroll", updateScroll);
+    };
+    const idle = window.requestIdleCallback?.(attach, { timeout: 2000 });
+    if (idle !== undefined) {
+      return () => {
+        window.cancelIdleCallback?.(idle);
+        detach?.();
+      };
+    }
+    const t = window.setTimeout(attach, 300);
+    return () => {
+      window.clearTimeout(t);
+      detach?.();
+    };
   }, []);
 
   return (

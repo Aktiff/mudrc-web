@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useState } from "react";
 import Link from "next/link";
 import { Calendar, MapPin, Clock, ArrowRight, Users, Timer } from "lucide-react";
@@ -13,12 +14,27 @@ import {
 } from "@/lib/data";
 import { eventPath } from "@/lib/regions";
 import RegistrationAction from "./RegistrationAction";
-import RegistrationModal from "./RegistrationModal";
+const RegistrationModal = dynamic(() => import("./RegistrationModal"), { ssr: false });
 
-function EventCoverImage({ src, alt }: { src: string; alt: string }) {
+function EventCoverImage({
+  src,
+  alt,
+  priority,
+}: {
+  src: string;
+  alt: string;
+  priority?: boolean;
+}) {
   return (
     // eslint-disable-next-line @next/next/no-img-element
-    <img src={src} alt={alt} className="absolute inset-0 w-full h-full object-cover" loading="lazy" />
+    <img
+      src={src}
+      alt={alt}
+      className="absolute inset-0 w-full h-full object-cover"
+      loading={priority ? "eager" : "lazy"}
+      decoding="async"
+      fetchPriority={priority ? "high" : "auto"}
+    />
   );
 }
 
@@ -35,11 +51,20 @@ export default function QuizEventCards({ events }: { events: QuizEvent[] }) {
   return (
     <>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {sortedEvents.map((event) => (
-          <Link key={event.slug} href={eventPath(event)} className="card group cursor-pointer block">
+        {sortedEvents.map((event, eventIndex) => (
+          <Link
+            key={event.slug}
+            href={eventPath(event)}
+            prefetch={false}
+            className="card group cursor-pointer block"
+          >
             <div className="relative w-full aspect-video bg-brand-warm overflow-hidden flex items-center justify-center">
               {event.imageUrl ? (
-                <EventCoverImage src={event.imageUrl} alt={`Kvíz ${event.venue}, ${event.city}`} />
+                <EventCoverImage
+                  src={event.imageUrl}
+                  alt={`Kvíz ${event.venue}, ${event.city}`}
+                  priority={eventIndex === 0}
+                />
               ) : (
                 <span className="text-7xl opacity-10">🎉</span>
               )}

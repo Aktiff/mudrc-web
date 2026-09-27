@@ -33,7 +33,7 @@ const steps = [
 
 export default function HowItWorksSection() {
   return (
-    <section id="ako-to-funguje" className="bg-brand-warm py-16 sm:py-24 border-y border-brand-border">
+    <section id="ako-to-funguje" className="section-deferred-paint bg-brand-warm py-16 sm:py-24 border-y border-brand-border">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-10 sm:mb-16">
           <span className="text-brand-orange-readable text-sm font-semibold uppercase tracking-wider">Jednoduchý postup</span>

@@ -3,13 +3,13 @@ import { Poppins, Bebas_Neue } from "next/font/google";
 import "./globals.css";
 import SiteChrome from "@/components/SiteChrome";
 import ThemeSync from "@/components/ThemeSync";
-import CookieNotice from "@/components/CookieNotice";
+import DeferredCookieNotice from "@/components/DeferredCookieNotice";
 import GoogleConsentMode from "@/components/GoogleConsentMode";
 import GoogleTagManager, { GoogleTagManagerNoScript } from "@/components/GoogleTagManager";
 import VercelAnalyticsWithConsent from "@/components/VercelAnalyticsWithConsent";
 import { defaultSiteMetadata } from "@/lib/site-metadata";
 
-const poppins = Poppins({ subsets: ["latin"], weight: ["400","500","600","700"], variable: "--font-poppins", display: "swap" });
+const poppins = Poppins({ subsets: ["latin"], weight: ["400", "500", "600", "700"], variable: "--font-poppins", display: "swap" });
 const bebasNeue = Bebas_Neue({ subsets: ["latin"], weight: "400", variable: "--font-bebas", display: "swap" });
 
 export const metadata: Metadata = defaultSiteMetadata;
@@ -29,7 +29,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
         <ThemeSync />
         <SiteChrome>{children}</SiteChrome>
-        <CookieNotice />
+        <DeferredCookieNotice />
         <VercelAnalyticsWithConsent />
       </body>
     </html>

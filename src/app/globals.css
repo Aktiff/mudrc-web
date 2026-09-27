@@ -111,6 +111,23 @@
     @apply bg-clip-text text-transparent;
     background-image: linear-gradient(135deg, var(--grad-a) 0%, var(--grad-b) 100%);
   }
+  /** Pod hero — prehliadač môže oneskoriť layout/paint mimo viewportu. */
+  .section-deferred-paint {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 720px;
+  }
+}
+
+@media (hover: none) and (pointer: coarse) {
+  .card {
+    transition: none !important;
+  }
+  .card:hover {
+    box-shadow: none !important;
+  }
+  html {
+    scroll-behavior: auto;
+  }
 }
 
 @media print {

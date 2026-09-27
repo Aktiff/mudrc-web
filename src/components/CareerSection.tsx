@@ -13,7 +13,7 @@ const roles = [
 
 export default function CareerSection() {
   return (
-    <section id="kariera" className="bg-brand-warm border-t border-brand-border py-24">
+    <section id="kariera" className="section-deferred-paint bg-brand-warm border-t border-brand-border py-24">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-start">
           <div>

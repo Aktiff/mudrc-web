@@ -11,7 +11,7 @@ export default async function QuizzesSection() {
   const regions = getRegionsWithVisibleEvents(events);
 
   return (
-    <section id="kvizy" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24">
+    <section id="kvizy" className="section-deferred-paint max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12">
         <div>
           <span className="text-brand-orange-readable text-sm font-semibold uppercase tracking-wider">
