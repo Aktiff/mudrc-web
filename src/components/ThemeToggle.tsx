@@ -10,9 +10,7 @@ export default function ThemeToggle() {
 
   useEffect(() => {
     setMounted(true);
-    const stored = getStoredTheme();
-    setPreference(stored);
-    applyTheme(stored);
+    setPreference(getStoredTheme());
   }, []);
 
   const toggle = () => {
@@ -20,6 +18,7 @@ export default function ThemeToggle() {
     const next: ThemePreference = currentlyDark ? "light" : "dark";
     setPreference(next);
     storeTheme(next);
+    document.body.classList.add("theme-transition");
     applyTheme(next);
   };
 

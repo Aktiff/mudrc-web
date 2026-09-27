@@ -24,10 +24,8 @@ export default function Navbar() {
 
   return (
     <nav
-      className={`fixed top-0 inset-x-0 z-[100] isolate transition-all duration-300 ${
-        scrolled
-          ? "nav-scrolled"
-          : "bg-brand-bg/90 backdrop-blur-md border-b border-brand-border/50"
+      className={`fixed top-0 inset-x-0 z-[100] isolate transition-[background-color,box-shadow,border-color] duration-300 ${
+        scrolled ? "nav-scrolled" : "bg-brand-bg border-b border-brand-border/50"
       }`}
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
