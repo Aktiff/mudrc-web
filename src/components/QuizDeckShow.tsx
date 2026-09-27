@@ -152,10 +152,7 @@ export default function QuizDeckShow({ eventSlug }: Props) {
 
   const handleStageClick = (e: MouseEvent<HTMLDivElement>) => {
     if (e.button !== 0) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    if (x < rect.width / 2) goPrev();
-    else goNext();
+    goNext();
   };
 
   return (

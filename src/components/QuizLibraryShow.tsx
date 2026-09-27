@@ -598,12 +598,9 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
   const handleStageClick = useCallback(
     (e: MouseEvent<HTMLDivElement>) => {
       if (e.button !== 0) return;
-      const rect = e.currentTarget.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      if (x < rect.width / 2) goPrev();
-      else goNext();
+      goNext();
     },
-    [goNext, goPrev]
+    [goNext]
   );
 
   const togglePresentationAudio = useCallback(() => {
