@@ -20,7 +20,9 @@ import {
   type PollVote,
 } from "@/lib/poll";
 import {
+  canUseSupabaseStorage,
   hasSupabaseStorage,
+  isSupabaseRestrictedMessage,
   supabaseFetchPollConfigs,
   supabaseFetchPollVotes,
   supabaseSetPollConfigs,
@@ -99,16 +101,26 @@ function getPollStorageMode(): PollAdminData["storage"] {
 }
 
 async function loadStoredPollConfigs(): Promise<PollConfig[]> {
-  if (hasSupabaseStorage()) {
+  if (canUseSupabaseStorage()) {
     const result = await supabaseFetchPollConfigs();
     if (result.status === "ok") {
       return ((result.value.configs ?? []) as PollConfig[]).map(normalizeStoredConfig);
     }
     if (result.status === "error") {
-      throw new Error(`Nepodarilo sa načítať ankety zo Supabase: ${result.message}`);
+      console.error(`Poll configs Supabase chyba (${result.message}) — fallback local.`);
+      if (!isSupabaseRestrictedMessage(result.message)) {
+        return readLocalPollConfigs();
+      }
+      return readLocalPollConfigs();
     }
     const local = readLocalPollConfigs();
-    if (local.length) await supabaseSetPollConfigs({ configs: local });
+    if (local.length) {
+      try {
+        await supabaseSetPollConfigs({ configs: local });
+      } catch (error) {
+        console.error("Poll configs bootstrap to Supabase failed:", error);
+      }
+    }
     return local;
   }
   return readLocalPollConfigs();
@@ -125,17 +137,22 @@ async function persistPollConfigs(configs: PollConfig[]): Promise<void> {
 }
 
 async function loadPollVotes(): Promise<PollVote[]> {
-  if (hasSupabaseStorage()) {
+  if (canUseSupabaseStorage()) {
     const result = await supabaseFetchPollVotes();
     if (result.status === "ok") {
       return ((result.value.votes ?? []) as LegacyPollVote[]).map(normalizePollVote);
     }
     if (result.status === "error") {
-      throw new Error(`Nepodarilo sa načítať hlasy zo Supabase: ${result.message}`);
+      console.error(`Poll votes Supabase chyba (${result.message}) — fallback local.`);
+      return readLocalPollVotes();
     }
     const local = readLocalPollVotes();
     if (local.length) {
-      await supabaseSetPollVotes({ votes: local });
+      try {
+        await supabaseSetPollVotes({ votes: local });
+      } catch (error) {
+        console.error("Poll votes bootstrap to Supabase failed:", error);
+      }
     }
     return local;
   }

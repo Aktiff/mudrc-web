@@ -6,7 +6,9 @@ import { createLibraryQuizId, defaultLibraryQuiz, normalizeLibraryQuiz } from "@
 import { readQuizLibraryBackup, writeQuizLibraryBackup } from "@/lib/quiz-library-backup";
 import { readAllQuizDecks } from "@/lib/quiz-deck-storage";
 import {
+  canUseSupabaseStorage,
   hasSupabaseStorage,
+  isSupabaseRestrictedMessage,
   supabaseDeleteQuizLibraryItem,
   supabaseFetchQuizLibrary,
   supabaseFetchQuizLibraryIndex,
@@ -111,17 +113,25 @@ async function migrateLegacyDecks(existing: QuizLibraryItem[]): Promise<QuizLibr
 }
 
 async function readIndex(): Promise<LibraryIndex> {
-  if (hasSupabaseStorage()) {
+  if (canUseSupabaseStorage()) {
     let result = await supabaseFetchQuizLibraryIndex();
     if (result.status === "missing") {
-      await migrateLegacyMonolithicStore();
+      try {
+        await migrateLegacyMonolithicStore();
+      } catch (error) {
+        console.error("migrateLegacyMonolithicStore failed:", error);
+      }
       result = await supabaseFetchQuizLibraryIndex();
     }
     if (result.status === "ok") {
       return { items: (result.value.items ?? []) as QuizLibraryIndexEntry[] };
     }
     if (result.status === "error") {
-      throw new Error(`Nepodarilo sa načítať index kvízov: ${result.message}`);
+      console.error(`Quiz library index Supabase chyba (${result.message}) — fallback local.`);
+      if (isSupabaseRestrictedMessage(result.message)) {
+        return readLocalIndex();
+      }
+      return readLocalIndex();
     }
     return { items: [] };
   }
@@ -129,11 +139,12 @@ async function readIndex(): Promise<LibraryIndex> {
 }
 
 async function readQuizById(id: string): Promise<QuizLibraryItem | null> {
-  if (hasSupabaseStorage()) {
+  if (canUseSupabaseStorage()) {
     const result = await supabaseFetchQuizLibraryItem(id);
     if (result.status === "ok") return result.value as QuizLibraryItem;
     if (result.status === "error") {
-      throw new Error(`Nepodarilo sa načítať kvíz ${id}: ${result.message}`);
+      console.error(`Quiz library item Supabase chyba (${result.message}) — fallback local.`);
+      return readLocalItem(id);
     }
     return null;
   }

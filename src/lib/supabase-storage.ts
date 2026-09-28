@@ -40,6 +40,22 @@ export function hasSupabaseStorage(): boolean {
   return getConfig() !== null;
 }
 
+export function isSupabaseRestrictedMessage(message: string): boolean {
+  const m = message.toLowerCase();
+  return (
+    m.includes("exceed") ||
+    m.includes("egress") ||
+    m.includes("spend cap") ||
+    (m.includes("restricted") && m.includes("violations"))
+  );
+}
+
+/** Vypni Supabase úložisko (napr. pri exceed_cached_egress_quota) cez STORAGE_DISABLE_SUPABASE=1. */
+export function canUseSupabaseStorage(): boolean {
+  if (process.env.STORAGE_DISABLE_SUPABASE === "1") return false;
+  return hasSupabaseStorage();
+}
+
 function getSupabase(): SupabaseClient {
   const config = getConfig();
   if (!config) throw new Error("SUPABASE_NOT_CONFIGURED");

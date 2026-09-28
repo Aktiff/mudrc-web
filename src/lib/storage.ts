@@ -5,9 +5,12 @@ import type { QuizEvent, LeagueEntry, PastResult, PastResultTeam } from "@/lib/d
 import { sortEventsByDate, sortLeagueTable } from "@/lib/data";
 import { isValidStoredEvent } from "@/lib/event-normalize";
 import { rebuildLeagueFromPastResults } from "@/lib/league-rebuild";
+import seedEventsBundle from "@/data/events.json";
 import {
+  canUseSupabaseStorage,
   getSupabaseStorageDiagnostics,
   hasSupabaseStorage,
+  isSupabaseRestrictedMessage,
   supabaseFetchEventLeague,
   supabaseFetchEvents,
   supabaseFetchQuizzes,
@@ -338,6 +341,8 @@ async function listRegistrationBlobIds(): Promise<string[]> {
 }
 
 function readBundledSeedEvents(): QuizEvent[] {
+  const imported = (seedEventsBundle as { events?: QuizEvent[] }).events;
+  if (imported?.length) return imported;
   try {
     return readLocalEvents().events;
   } catch (error) {
@@ -354,7 +359,7 @@ async function loadEventsFromFallbackSources(): Promise<QuizEvent[]> {
 
 async function bootstrapEventsToSupabase(): Promise<QuizEvent[]> {
   const events = await loadEventsFromFallbackSources();
-  if (events.length && hasSupabaseStorage()) {
+  if (events.length && canUseSupabaseStorage()) {
     try {
       await persistEvents(events);
     } catch (error) {
@@ -432,7 +437,7 @@ export async function rebuildLeagueTableForEvent(event: QuizEvent): Promise<{
 }
 
 async function loadQuizzesRaw(): Promise<StoredQuiz[]> {
-  if (hasSupabaseStorage()) {
+  if (canUseSupabaseStorage()) {
     const result = await supabaseFetchQuizzes();
     if (result.status === "ok") {
       return ((result.value.quizzes ?? []) as StoredQuiz[]).map(normalizeStoredQuiz);
@@ -457,12 +462,18 @@ async function loadQuizzesRaw(): Promise<StoredQuiz[]> {
 }
 
 async function persistQuizzes(quizzes: StoredQuiz[]): Promise<void> {
-  if (hasSupabaseStorage()) {
-    await supabaseSetQuizzes({ quizzes });
-    return;
+  if (canUseSupabaseStorage()) {
+    try {
+      await supabaseSetQuizzes({ quizzes });
+      return;
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      console.error("persistQuizzes Supabase failed:", msg);
+      if (!isSupabaseRestrictedMessage(msg)) throw error;
+    }
   }
   if (isVercel) {
-    throw new Error("STORAGE_NOT_CONFIGURED");
+    return;
   }
   // lokálne: kvízy zostávajú v events.local.json cez updateEvents
 }
@@ -478,7 +489,7 @@ async function migrateQuizzesFromLegacy(events: QuizEvent[]): Promise<StoredQuiz
     }
   }
 
-  if (hasSupabaseStorage() && extracted.length === 0) {
+  if (canUseSupabaseStorage() && extracted.length === 0) {
     for (const event of events) {
       const league = await supabaseFetchEventLeague(event.slug);
       if (league.status !== "ok") continue;
@@ -491,7 +502,11 @@ async function migrateQuizzesFromLegacy(events: QuizEvent[]): Promise<StoredQuiz
   }
 
   if (extracted.length > 0) {
-    await persistQuizzes(extracted);
+    try {
+      await persistQuizzes(extracted);
+    } catch (error) {
+      console.error("migrateQuizzesFromLegacy persist error:", error);
+    }
   }
   return extracted;
 }
@@ -500,7 +515,7 @@ async function loadQuizzes(): Promise<StoredQuiz[]> {
   let quizzes = await loadQuizzesRaw();
   if (quizzes.length > 0) return quizzes;
 
-  if (hasSupabaseStorage()) {
+  if (canUseSupabaseStorage()) {
     const eventsResult = await supabaseFetchEvents();
     if (eventsResult.status === "ok") {
       const events = (eventsResult.value.events ?? []) as QuizEvent[];
@@ -593,7 +608,7 @@ export async function hasQuizForDate(eventSlug: string, date: string): Promise<b
 }
 
 async function loadEventsBase(): Promise<QuizEvent[]> {
-  if (hasSupabaseStorage()) {
+  if (canUseSupabaseStorage()) {
     const result = await supabaseFetchEvents();
     if (result.status === "ok") {
       const events = (result.value.events ?? []) as QuizEvent[];
@@ -612,16 +627,24 @@ async function loadEventsBase(): Promise<QuizEvent[]> {
 }
 
 async function persistEvents(events: QuizEvent[]): Promise<void> {
-  if (hasSupabaseStorage()) {
-    await supabaseSetEvents({ events });
-    return;
+  if (canUseSupabaseStorage()) {
+    try {
+      await supabaseSetEvents({ events });
+      return;
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      console.error("persistEvents Supabase failed:", msg);
+      if (!isSupabaseRestrictedMessage(msg)) throw error;
+    }
   }
   if (shouldWriteBlob()) {
     await writeBlob(LEGACY_EVENTS_KEY, { events });
     return;
   }
   if (isVercel) {
-    throw new Error("STORAGE_NOT_CONFIGURED");
+    throw new Error(
+      "Supabase je nedostupný (kvóta). Pridaj BLOB_READ_WRITE_TOKEN vo Verceli alebo obnov Supabase plán."
+    );
   }
   writeLocalEvents(events);
 }
@@ -668,9 +691,15 @@ async function persistRegistrationsBlob(registrations: Registration[]): Promise<
 }
 
 async function persistRegistrations(registrations: Registration[]): Promise<void> {
-  if (hasSupabaseStorage()) {
-    await supabaseSetRegistrations({ registrations });
-    return;
+  if (canUseSupabaseStorage()) {
+    try {
+      await supabaseSetRegistrations({ registrations });
+      return;
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      console.error("persistRegistrations Supabase failed:", msg);
+      if (!isSupabaseRestrictedMessage(msg)) throw error;
+    }
   }
   if (shouldWriteBlob()) {
     await persistRegistrationsBlob(registrations);
@@ -683,18 +712,24 @@ async function persistRegistrations(registrations: Registration[]): Promise<void
 }
 
 async function loadRegistrations(): Promise<Registration[]> {
-  if (hasSupabaseStorage()) {
+  if (canUseSupabaseStorage()) {
     const result = await supabaseFetchRegistrations();
     if (result.status === "ok") {
       return ((result.value.registrations ?? []) as Registration[]).map(normalizeRegistration);
     }
     if (result.status === "error") {
-      throw new Error(`Nepodarilo sa nacitat registracie zo Supabase: ${result.message}`);
+      console.error(`Supabase registrations chyba (${result.message}) — fallback blob / local.`);
+      const fromBlob = shouldReadBlob() ? await loadRegsFromBlob() : [];
+      return fromBlob.length ? fromBlob : readLocalRegistrations().registrations;
     }
 
     const fromBlob = shouldReadBlob() ? await loadRegsFromBlob() : [];
     const registrations = fromBlob.length ? fromBlob : readLocalRegistrations().registrations;
-    await supabaseSetRegistrations({ registrations });
+    try {
+      await supabaseSetRegistrations({ registrations });
+    } catch (error) {
+      console.error("loadRegistrations bootstrap to Supabase failed:", error);
+    }
     return registrations;
   }
 
