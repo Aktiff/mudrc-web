@@ -19,6 +19,7 @@ export async function GET(_req: Request, context: RouteContext) {
   try {
     const result = await get(pathname, {
       access: blobStoreAccess(),
+      useCache: false,
       ...blobAuthOptions(),
     });
 

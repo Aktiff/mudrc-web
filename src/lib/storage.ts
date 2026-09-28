@@ -179,6 +179,7 @@ async function readBlobJsonViaGet<T>(pathname: string): Promise<T | null> {
   const auth = blobAuthOptions();
   const result = await get(pathname, {
     access: blobStoreAccess(),
+    useCache: false,
     ...auth,
   });
   if (!result) return null;

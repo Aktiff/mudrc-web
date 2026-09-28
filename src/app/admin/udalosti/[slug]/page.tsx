@@ -8,6 +8,7 @@ import { eventTeamNameSuggestions, sortLeagueTable } from "@/lib/data";
 import { hasSeedLeagueBackup } from "@/lib/league-seed";
 import { formatPollOptionLabel, pollOptionsMatch } from "@/lib/poll";
 import { findQuizResult, mergePastResults, normalizeDateKey, quizResultKey } from "@/lib/quiz-result-key";
+import { mediaUrlForBrowser } from "@/lib/media-url";
 import { REGION_OPTIONS } from "@/lib/regions";
 import { parseRegistrationPlayerCount } from "@/lib/registration-utils";
 import { AdminDatePicker, AdminTimePicker } from "@/components/AdminDatePicker";
@@ -574,11 +575,19 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
           router.push(`/admin/udalosti/${saved.slug}`);
           return;
         }
+        const savedEvent = normalizeEvent(saved as QuizEvent);
         const fresh = await loadEventFromServer(params.slug);
         if (fresh) {
-          setForm(normalizeEvent(fresh));
+          const fromServer = normalizeEvent(fresh);
+          setForm(
+            normalizeEvent({
+              ...fromServer,
+              ...savedEvent,
+              imageUrl: savedEvent.imageUrl || fromServer.imageUrl,
+            })
+          );
         } else {
-          setForm(normalizeEvent(saved));
+          setForm(savedEvent);
         }
         setMsg({ text: "Uložené!", ok: true });
       } else {
@@ -1037,10 +1046,14 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
           <div>
             <label className="label">Fotka podniku</label>
             <div className="flex items-center gap-4">
-              {form.imageUrl ? (
+              {mediaUrlForBrowser(form.imageUrl) ? (
                 <div className="relative w-24 h-16 rounded-xl overflow-hidden border border-brand-border shrink-0">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={form.imageUrl} alt="" className="w-full h-full object-cover" />
+                  <img
+                    src={mediaUrlForBrowser(form.imageUrl)!}
+                    alt=""
+                    className="w-full h-full object-cover"
+                  />
                 </div>
               ) : (
                 <div className="w-24 h-16 rounded-xl border-2 border-dashed border-brand-border flex items-center justify-center shrink-0">
