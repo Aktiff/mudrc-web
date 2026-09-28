@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import type { QuizEvent } from "@/lib/data";
 import { writeAppStorageBlob } from "@/lib/blob-app-storage";
-import { hasBlobStorage, shouldWriteBlob, writeBlob } from "@/lib/storage";
+import { hasBlobStorage, persistEvents, shouldWriteBlob, writeBlob } from "@/lib/storage";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -83,7 +84,12 @@ export async function POST(req: NextRequest) {
     try {
       const { target, blobName } = normalizeImportKey(key);
       if (target === "legacy-events") {
-        await writeBlob(LEGACY_EVENTS_KEY, value);
+        const bundle = value as { events?: unknown[] };
+        if (bundle?.events?.length) {
+          await persistEvents(bundle.events as QuizEvent[]);
+        } else {
+          await writeBlob(LEGACY_EVENTS_KEY, value);
+        }
       } else if (target === "legacy-regs") {
         await writeBlob(LEGACY_REGS_KEY, value);
       } else {

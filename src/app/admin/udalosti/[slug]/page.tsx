@@ -76,6 +76,11 @@ function mergeFormWithServer(local: QuizEvent, server: QuizEvent): QuizEvent {
   merged.pastResults = mergePastResults(local.pastResults ?? [], server.pastResults ?? []);
   merged.leagueActive = server.leagueActive;
   merged.active = server.active;
+  if (local.imageUrl?.trim()) {
+    merged.imageUrl = local.imageUrl;
+  } else if (server.imageUrl?.trim()) {
+    merged.imageUrl = server.imageUrl;
+  }
   return normalizeEvent(merged);
 }
 
@@ -575,20 +580,7 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
           router.push(`/admin/udalosti/${saved.slug}`);
           return;
         }
-        const savedEvent = normalizeEvent(saved as QuizEvent);
-        const fresh = await loadEventFromServer(params.slug);
-        if (fresh) {
-          const fromServer = normalizeEvent(fresh);
-          setForm(
-            normalizeEvent({
-              ...fromServer,
-              ...savedEvent,
-              imageUrl: savedEvent.imageUrl || fromServer.imageUrl,
-            })
-          );
-        } else {
-          setForm(savedEvent);
-        }
+        setForm(normalizeEvent(saved as QuizEvent));
         setMsg({ text: "Uložené!", ok: true });
       } else {
         const err = await res.json();
@@ -898,6 +890,20 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
       }
       if (data.url) {
         set("imageUrl", data.url);
+        if (!isNew) {
+          const saveRes = await fetch(`/api/admin/events/${params.slug}`, {
+            method: "PUT",
+            credentials: "same-origin",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ imageUrl: data.url }),
+          });
+          const saved = await saveRes.json().catch(() => null);
+          if (saveRes.ok && saved) {
+            setForm(normalizeEvent(saved as QuizEvent));
+            setMsg({ text: "Fotka nahraná a uložená.", ok: true });
+            return;
+          }
+        }
         setMsg({ text: "Fotka nahraná. Klikni Uložiť zmeny.", ok: true });
       }
     } catch {

@@ -321,26 +321,43 @@ function assertRegsNotRegressed(before: Registration[], after: Registration[], d
   }
 }
 
-async function loadEventsFromSplitOptional(): Promise<QuizEvent[]> {
-  const manifest = await optionalReadBlob<EventsManifest>(EVENTS_MANIFEST_KEY);
-  if (!manifest?.slugs?.length) return [];
-
-  const events = await Promise.all(
-    manifest.slugs.map(async (slug) => optionalReadBlob<QuizEvent>(eventBlobKey(slug)))
-  );
-  return events.filter((event): event is QuizEvent => !!event);
-}
-
+/** Per-slug súbory majú prednosť pred monolitom — pri paralelnom ukladaní podnikov sa nestratia fotky. */
 async function loadEventsFromBlobOptional(): Promise<QuizEvent[] | null> {
   if (!shouldReadBlob()) return null;
 
   const legacy = await optionalReadBlob<{ events?: QuizEvent[] }>(LEGACY_EVENTS_KEY);
-  if (legacy?.events?.length) return legacy.events;
+  const manifest = await optionalReadBlob<EventsManifest>(EVENTS_MANIFEST_KEY);
 
-  const fromSplit = await loadEventsFromSplitOptional();
-  if (fromSplit.length) return fromSplit;
+  const splitEvents: QuizEvent[] = [];
+  if (manifest?.slugs?.length) {
+    const loaded = await Promise.all(
+      manifest.slugs.map(async (slug) => optionalReadBlob<QuizEvent>(eventBlobKey(slug)))
+    );
+    for (const event of loaded) {
+      if (event?.slug) splitEvents.push(event);
+    }
+  }
 
-  return null;
+  const bySlug = new Map<string, QuizEvent>();
+  for (const event of legacy?.events ?? []) {
+    if (event.slug) bySlug.set(event.slug, event);
+  }
+  for (const event of splitEvents) {
+    bySlug.set(event.slug, event);
+  }
+
+  if (bySlug.size === 0) return null;
+  return Array.from(bySlug.values());
+}
+
+async function persistEventsBlob(events: QuizEvent[]): Promise<void> {
+  const prepared = events.map(eventForEventsKey);
+  const slugs = prepared.map((event) => event.slug).filter(Boolean);
+
+  await Promise.all(prepared.map((event) => writeBlob(eventBlobKey(event.slug), event)));
+
+  await writeBlob(EVENTS_MANIFEST_KEY, { slugs });
+  await writeBlob(LEGACY_EVENTS_KEY, { events: prepared });
 }
 
 async function listRegistrationBlobIds(): Promise<string[]> {
@@ -653,7 +670,7 @@ async function loadEventsBase(): Promise<QuizEvent[]> {
   return loadEventsFromFallbackSources();
 }
 
-async function persistEvents(events: QuizEvent[]): Promise<void> {
+export async function persistEvents(events: QuizEvent[]): Promise<void> {
   if (canUseSupabaseStorage()) {
     try {
       await supabaseSetEvents({ events });
@@ -665,7 +682,7 @@ async function persistEvents(events: QuizEvent[]): Promise<void> {
     }
   }
   if (shouldWriteBlob()) {
-    await writeBlob(LEGACY_EVENTS_KEY, { events });
+    await persistEventsBlob(events);
     return;
   }
   if (isVercel) {
@@ -853,14 +870,16 @@ export async function patchEvent(
     next[idx] = eventForEventsKey(updated);
 
     try {
+      const eventOnDisk = eventForEventsKey(updated);
+      await writeBlob(eventBlobKey(slug), eventOnDisk);
       await persistEvents(next);
       const quizzes = await loadQuizzes();
       const result = enrichEventsWithQuizzes(next, quizzes).find((event) => event.slug === slug);
       if (!result) throw new Error("NOT_FOUND");
-      return result;
+      return { ...result, imageUrl: updated.imageUrl ?? result.imageUrl };
     } catch (error) {
       if (attempt === 4) throw error;
-      await sleep(250 * (attempt + 1));
+      await sleep(400 * (attempt + 1));
     }
   }
 
