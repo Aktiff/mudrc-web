@@ -8,13 +8,11 @@ import {
   type SeatPlan,
   type SeatTeamInput,
 } from "@/lib/seat-plan";
-import {
-  hasSupabaseStorage,
-  supabaseFetchSeatPlans,
-  supabaseSetSeatPlans,
-} from "@/lib/supabase-storage";
+import { readAppStorageWithFallback, writeAppStorageWithFallback } from "@/lib/app-storage-fallback";
+import { supabaseFetchSeatPlans, supabaseSetSeatPlans } from "@/lib/supabase-storage";
 
 const localPath = path.join(process.cwd(), "src/data/seat-plans.local.json");
+const BLOB_NAME = "seat-plans";
 
 type SeatPlanStore = { plans: SeatPlan[] };
 
@@ -38,27 +36,27 @@ function writeLocalPlans(store: SeatPlanStore): void {
 }
 
 async function loadAllPlans(): Promise<SeatPlan[]> {
-  if (hasSupabaseStorage()) {
-    const result = await supabaseFetchSeatPlans();
-    if (result.status === "ok") {
-      return (result.value.plans ?? [])
-        .map(normalizeSeatPlan)
-        .filter((plan): plan is SeatPlan => plan !== null);
-    }
-    if (result.status === "error") {
-      throw new Error(`Nepodarilo sa načítať zasadacie poriadky: ${result.message}`);
-    }
-    return [];
-  }
-  return readLocalPlans().plans;
+  const data = await readAppStorageWithFallback({
+    label: "seat-plans",
+    blobName: BLOB_NAME,
+    fetchSupabase: supabaseFetchSeatPlans,
+    readLocal: readLocalPlans,
+    empty: { plans: [] },
+  });
+  return (data.plans ?? [])
+    .map(normalizeSeatPlan)
+    .filter((plan): plan is SeatPlan => plan !== null);
 }
 
 async function persistAllPlans(plans: SeatPlan[]): Promise<void> {
-  if (hasSupabaseStorage()) {
-    await supabaseSetSeatPlans({ plans });
-    return;
-  }
-  writeLocalPlans({ plans });
+  const payload = { plans };
+  await writeAppStorageWithFallback({
+    label: "seat-plans",
+    blobName: BLOB_NAME,
+    payload,
+    writeSupabase: () => supabaseSetSeatPlans(payload),
+    writeLocal: () => writeLocalPlans(payload),
+  });
 }
 
 export async function readAllSeatPlans(): Promise<SeatPlan[]> {

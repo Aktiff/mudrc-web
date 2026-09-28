@@ -2,7 +2,6 @@ import fs from "fs";
 import path from "path";
 import {
   createSoundBankItem,
-  normalizeSoundBankItem,
   parseSoundBankList,
   soundClipKey,
   soundIdentityFromQuestionFields,
@@ -12,9 +11,11 @@ import {
   type SoundClipDuplicateConflict,
 } from "@/lib/sound-bank";
 import { readAllLibraryQuizzes } from "@/lib/quiz-library-storage";
-import { hasSupabaseStorage, supabaseFetchSoundBank, supabaseSetSoundBank } from "@/lib/supabase-storage";
+import { readAppStorageWithFallback, writeAppStorageWithFallback } from "@/lib/app-storage-fallback";
+import { supabaseFetchSoundBank, supabaseSetSoundBank } from "@/lib/supabase-storage";
 
 const localPath = path.join(process.cwd(), "src/data/sound-bank.local.json");
+const BLOB_NAME = "sound-bank";
 
 function readLocalSoundBank(): SoundBankItem[] {
   try {
@@ -32,22 +33,26 @@ function writeLocalSoundBank(clips: SoundBankItem[]): void {
 }
 
 export async function readStoredSoundBank(): Promise<SoundBankItem[]> {
-  if (hasSupabaseStorage()) {
-    const result = await supabaseFetchSoundBank();
-    if (result.status === "error") throw new Error(result.message);
-    if (result.status === "missing") return [];
-    return parseSoundBankList(result.value.clips).sort((a, b) => b.createdAt - a.createdAt);
-  }
-  return readLocalSoundBank();
+  const data = await readAppStorageWithFallback({
+    label: "sound-bank",
+    blobName: BLOB_NAME,
+    fetchSupabase: supabaseFetchSoundBank,
+    readLocal: () => ({ clips: readLocalSoundBank() }),
+    empty: { clips: [] },
+  });
+  return parseSoundBankList(data.clips).sort((a, b) => b.createdAt - a.createdAt);
 }
 
 export async function writeStoredSoundBank(clips: SoundBankItem[]): Promise<void> {
   const sorted = [...clips].sort((a, b) => b.createdAt - a.createdAt);
-  if (hasSupabaseStorage()) {
-    await supabaseSetSoundBank({ clips: sorted });
-    return;
-  }
-  writeLocalSoundBank(sorted);
+  const payload = { clips: sorted };
+  await writeAppStorageWithFallback({
+    label: "sound-bank",
+    blobName: BLOB_NAME,
+    payload,
+    writeSupabase: () => supabaseSetSoundBank(payload),
+    writeLocal: () => writeLocalSoundBank(sorted),
+  });
 }
 
 export async function findSoundClipConflict(

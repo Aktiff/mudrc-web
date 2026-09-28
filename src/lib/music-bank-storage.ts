@@ -5,7 +5,6 @@ import {
   musicIdentityFromQuestionFields,
   musicTrackKey,
   MusicTrackDuplicateError,
-  normalizeMusicBankItem,
   parseMusicBankList,
   type MusicBankItem,
   type MusicTrackDuplicateConflict,
@@ -13,9 +12,11 @@ import {
 } from "@/lib/music-bank";
 import { enrichMusicTrackAutoTags, lookupMusicTrackAutoTags } from "@/lib/music-track-metadata";
 import { readAllLibraryQuizzes } from "@/lib/quiz-library-storage";
-import { hasSupabaseStorage, supabaseFetchMusicBank, supabaseSetMusicBank } from "@/lib/supabase-storage";
+import { readAppStorageWithFallback, writeAppStorageWithFallback } from "@/lib/app-storage-fallback";
+import { supabaseFetchMusicBank, supabaseSetMusicBank } from "@/lib/supabase-storage";
 
 const localPath = path.join(process.cwd(), "src/data/music-bank.local.json");
+const BLOB_NAME = "music-bank";
 
 function readLocalMusicBank(): MusicBankItem[] {
   try {
@@ -33,22 +34,26 @@ function writeLocalMusicBank(tracks: MusicBankItem[]): void {
 }
 
 export async function readStoredMusicBank(): Promise<MusicBankItem[]> {
-  if (hasSupabaseStorage()) {
-    const result = await supabaseFetchMusicBank();
-    if (result.status === "error") throw new Error(result.message);
-    if (result.status === "missing") return [];
-    return parseMusicBankList(result.value.tracks).sort((a, b) => b.createdAt - a.createdAt);
-  }
-  return readLocalMusicBank();
+  const data = await readAppStorageWithFallback({
+    label: "music-bank",
+    blobName: BLOB_NAME,
+    fetchSupabase: supabaseFetchMusicBank,
+    readLocal: () => ({ tracks: readLocalMusicBank() }),
+    empty: { tracks: [] },
+  });
+  return parseMusicBankList(data.tracks).sort((a, b) => b.createdAt - a.createdAt);
 }
 
 export async function writeStoredMusicBank(tracks: MusicBankItem[]): Promise<void> {
   const sorted = [...tracks].sort((a, b) => b.createdAt - a.createdAt);
-  if (hasSupabaseStorage()) {
-    await supabaseSetMusicBank({ tracks: sorted });
-    return;
-  }
-  writeLocalMusicBank(sorted);
+  const payload = { tracks: sorted };
+  await writeAppStorageWithFallback({
+    label: "music-bank",
+    blobName: BLOB_NAME,
+    payload,
+    writeSupabase: () => supabaseSetMusicBank(payload),
+    writeLocal: () => writeLocalMusicBank(sorted),
+  });
 }
 
 export async function findMusicTrackConflict(

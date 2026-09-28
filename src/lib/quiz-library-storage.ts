@@ -5,9 +5,10 @@ import type { QuizLibraryItem } from "@/lib/quiz-library";
 import { createLibraryQuizId, defaultLibraryQuiz, normalizeLibraryQuiz } from "@/lib/quiz-library";
 import { readQuizLibraryBackup, writeQuizLibraryBackup } from "@/lib/quiz-library-backup";
 import { readAllQuizDecks } from "@/lib/quiz-deck-storage";
+import { deleteAppStorageBlob, readAppStorageBlob, writeAppStorageBlob } from "@/lib/blob-app-storage";
+import { shouldWriteBlob } from "@/lib/storage";
 import {
   canUseSupabaseStorage,
-  hasSupabaseStorage,
   isSupabaseRestrictedMessage,
   supabaseDeleteQuizLibraryItem,
   supabaseFetchQuizLibrary,
@@ -16,6 +17,9 @@ import {
   supabaseSetQuizLibraryIndex,
   supabaseSetQuizLibraryItem,
 } from "@/lib/supabase-storage";
+
+const QUIZ_LIBRARY_INDEX_BLOB = "quiz-library-index";
+const quizLibraryItemBlobName = (id: string) => `quiz-library-item-${id}`;
 
 const localIndexPath = path.join(process.cwd(), "src/data/quiz-library-index.local.json");
 const localItemPath = (id: string) => path.join(process.cwd(), `src/data/quiz-library-${id}.local.json`);
@@ -89,15 +93,41 @@ function deckToLibraryItem(deck: QuizDeck): QuizLibraryItem {
 }
 
 async function migrateLegacyMonolithicStore(): Promise<QuizLibraryItem[]> {
-  if (!hasSupabaseStorage()) return [];
-  const legacy = await supabaseFetchQuizLibrary();
-  if (legacy.status !== "ok") return [];
-  const quizzes = (legacy.value.quizzes ?? []) as QuizLibraryItem[];
-  if (!quizzes.length) return [];
-  for (const quiz of quizzes) {
-    await supabaseSetQuizLibraryItem(quiz.id, quiz);
+  let quizzes: QuizLibraryItem[] = [];
+
+  if (canUseSupabaseStorage()) {
+    const legacy = await supabaseFetchQuizLibrary();
+    if (legacy.status === "ok") {
+      quizzes = (legacy.value.quizzes ?? []) as QuizLibraryItem[];
+    }
   }
-  await supabaseSetQuizLibraryIndex({ items: quizzes.map(toIndexEntry) });
+
+  if (!quizzes.length) {
+    const monolithic = await readAppStorageBlob<{ quizzes?: QuizLibraryItem[] }>("quiz-library");
+    quizzes = monolithic?.quizzes ?? [];
+  }
+
+  if (!quizzes.length) return [];
+
+  const items = quizzes.map(toIndexEntry);
+  for (const quiz of quizzes) {
+    const normalized = normalizeLibraryQuiz(quiz);
+    if (canUseSupabaseStorage()) {
+      try {
+        await supabaseSetQuizLibraryItem(normalized.id, normalized);
+        continue;
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        if (!isSupabaseRestrictedMessage(msg)) throw error;
+      }
+    }
+    if (shouldWriteBlob()) {
+      await writeAppStorageBlob(quizLibraryItemBlobName(normalized.id), normalized);
+    } else {
+      writeLocalItem(normalized);
+    }
+  }
+  await persistQuizIndexItems(items);
   return quizzes;
 }
 
@@ -110,6 +140,12 @@ async function migrateLegacyDecks(existing: QuizLibraryItem[]): Promise<QuizLibr
     await persistQuiz(quiz);
   }
   return migrated;
+}
+
+async function readIndexFromBlobOrLocal(): Promise<LibraryIndex> {
+  const fromBlob = await readAppStorageBlob<LibraryIndex>(QUIZ_LIBRARY_INDEX_BLOB);
+  if (fromBlob?.items?.length) return fromBlob;
+  return readLocalIndex();
 }
 
 async function readIndex(): Promise<LibraryIndex> {
@@ -127,15 +163,18 @@ async function readIndex(): Promise<LibraryIndex> {
       return { items: (result.value.items ?? []) as QuizLibraryIndexEntry[] };
     }
     if (result.status === "error") {
-      console.error(`Quiz library index Supabase chyba (${result.message}) — fallback local.`);
-      if (isSupabaseRestrictedMessage(result.message)) {
-        return readLocalIndex();
-      }
-      return readLocalIndex();
+      console.error(`Quiz library index Supabase chyba (${result.message}) — fallback Blob/local.`);
     }
-    return { items: [] };
   }
-  return readLocalIndex();
+  const index = await readIndexFromBlobOrLocal();
+  if (index.items.length) return index;
+  try {
+    const migrated = await migrateLegacyMonolithicStore();
+    if (migrated.length) return { items: migrated.map(toIndexEntry) };
+  } catch (error) {
+    console.error("migrateLegacyMonolithicStore from blob/local failed:", error);
+  }
+  return index;
 }
 
 async function readQuizById(id: string): Promise<QuizLibraryItem | null> {
@@ -143,24 +182,57 @@ async function readQuizById(id: string): Promise<QuizLibraryItem | null> {
     const result = await supabaseFetchQuizLibraryItem(id);
     if (result.status === "ok") return result.value as QuizLibraryItem;
     if (result.status === "error") {
-      console.error(`Quiz library item Supabase chyba (${result.message}) — fallback local.`);
-      return readLocalItem(id);
+      console.error(`Quiz library item Supabase chyba (${result.message}) — fallback Blob/local.`);
+    } else {
+      return null;
     }
-    return null;
   }
+  const fromBlob = await readAppStorageBlob<QuizLibraryItem>(quizLibraryItemBlobName(id));
+  if (fromBlob) return fromBlob;
   return readLocalItem(id);
+}
+
+async function persistQuizIndexItems(items: QuizLibraryIndexEntry[]): Promise<void> {
+  const sorted = [...items].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  if (canUseSupabaseStorage()) {
+    try {
+      await supabaseSetQuizLibraryIndex({ items: sorted });
+      return;
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      if (!isSupabaseRestrictedMessage(msg)) throw error;
+      console.error("persistQuizIndexItems Supabase failed:", msg);
+    }
+  }
+  if (shouldWriteBlob()) {
+    await writeAppStorageBlob(QUIZ_LIBRARY_INDEX_BLOB, { items: sorted });
+    return;
+  }
+  writeLocalIndex({ items: sorted });
 }
 
 async function persistQuiz(quiz: QuizLibraryItem): Promise<void> {
   const normalized = normalizeLibraryQuiz(quiz);
-  if (hasSupabaseStorage()) {
-    await supabaseSetQuizLibraryItem(normalized.id, normalized);
+  if (canUseSupabaseStorage()) {
+    try {
+      await supabaseSetQuizLibraryItem(normalized.id, normalized);
+      const index = await readIndex();
+      const entry = toIndexEntry(normalized);
+      const items = [...index.items.filter((item) => item.id !== normalized.id), entry];
+      await persistQuizIndexItems(items);
+      return;
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      if (!isSupabaseRestrictedMessage(msg)) throw error;
+      console.error("persistQuiz Supabase failed:", msg);
+    }
+  }
+  if (shouldWriteBlob()) {
+    await writeAppStorageBlob(quizLibraryItemBlobName(normalized.id), normalized);
     const index = await readIndex();
     const entry = toIndexEntry(normalized);
-    const items = [...index.items.filter((item) => item.id !== normalized.id), entry].sort((a, b) =>
-      b.updatedAt.localeCompare(a.updatedAt)
-    );
-    await supabaseSetQuizLibraryIndex({ items });
+    const items = [...index.items.filter((item) => item.id !== normalized.id), entry];
+    await persistQuizIndexItems(items);
     return;
   }
   writeLocalItem(normalized);
@@ -245,14 +317,23 @@ export async function deleteLibraryQuiz(id: string): Promise<boolean> {
   const existing = await readQuizById(id);
   if (!existing) return false;
 
-  if (hasSupabaseStorage()) {
-    await supabaseDeleteQuizLibraryItem(id);
-    const index = await readIndex();
-    await supabaseSetQuizLibraryIndex({ items: index.items.filter((item) => item.id !== id) });
+  if (canUseSupabaseStorage()) {
+    try {
+      await supabaseDeleteQuizLibraryItem(id);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      if (!isSupabaseRestrictedMessage(msg)) throw error;
+      console.error("deleteLibraryQuiz Supabase failed:", msg);
+    }
+  }
+
+  if (shouldWriteBlob()) {
+    await deleteAppStorageBlob(quizLibraryItemBlobName(id));
   } else {
     deleteLocalItem(id);
-    const index = readLocalIndex();
-    writeLocalIndex({ items: index.items.filter((item) => item.id !== id) });
   }
+
+  const index = await readIndex();
+  await persistQuizIndexItems(index.items.filter((item) => item.id !== id));
   return true;
 }

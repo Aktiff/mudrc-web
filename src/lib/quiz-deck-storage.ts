@@ -2,13 +2,11 @@ import fs from "fs";
 import path from "path";
 import type { QuizDeck } from "@/lib/quiz-deck";
 import { defaultDeck, normalizeQuizDeck } from "@/lib/quiz-deck";
-import {
-  hasSupabaseStorage,
-  supabaseFetchQuizDecks,
-  supabaseSetQuizDecks,
-} from "@/lib/supabase-storage";
+import { readAppStorageWithFallback, writeAppStorageWithFallback } from "@/lib/app-storage-fallback";
+import { supabaseFetchQuizDecks, supabaseSetQuizDecks } from "@/lib/supabase-storage";
 
 const localPath = path.join(process.cwd(), "src/data/quiz-decks.local.json");
+const BLOB_NAME = "quiz-decks";
 
 type DeckStore = { decks: QuizDeck[] };
 
@@ -29,25 +27,25 @@ function writeLocalDecks(store: DeckStore): void {
 }
 
 async function loadAllDecks(): Promise<QuizDeck[]> {
-  if (hasSupabaseStorage()) {
-    const result = await supabaseFetchQuizDecks();
-    if (result.status === "ok") {
-      return (result.value.decks ?? []) as QuizDeck[];
-    }
-    if (result.status === "error") {
-      throw new Error(`Nepodarilo sa načítať prezentácie: ${result.message}`);
-    }
-    return [];
-  }
-  return readLocalDecks().decks;
+  const data = await readAppStorageWithFallback({
+    label: "quiz-decks",
+    blobName: BLOB_NAME,
+    fetchSupabase: supabaseFetchQuizDecks,
+    readLocal: readLocalDecks,
+    empty: { decks: [] },
+  });
+  return (data.decks ?? []) as QuizDeck[];
 }
 
 async function persistAllDecks(decks: QuizDeck[]): Promise<void> {
-  if (hasSupabaseStorage()) {
-    await supabaseSetQuizDecks({ decks });
-    return;
-  }
-  writeLocalDecks({ decks });
+  const payload = { decks };
+  await writeAppStorageWithFallback({
+    label: "quiz-decks",
+    blobName: BLOB_NAME,
+    payload,
+    writeSupabase: () => supabaseSetQuizDecks(payload),
+    writeLocal: () => writeLocalDecks(payload),
+  });
 }
 
 export async function readAllQuizDecks(): Promise<QuizDeck[]> {

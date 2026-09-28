@@ -2,7 +2,6 @@ import fs from "fs";
 import path from "path";
 import {
   createVideoBankItem,
-  normalizeVideoBankItem,
   parseVideoBankList,
   videoClipKey,
   videoIdentityFromQuestionFields,
@@ -12,9 +11,11 @@ import {
   type VideoClipDuplicateConflict,
 } from "@/lib/video-bank";
 import { readAllLibraryQuizzes } from "@/lib/quiz-library-storage";
-import { hasSupabaseStorage, supabaseFetchVideoBank, supabaseSetVideoBank } from "@/lib/supabase-storage";
+import { readAppStorageWithFallback, writeAppStorageWithFallback } from "@/lib/app-storage-fallback";
+import { supabaseFetchVideoBank, supabaseSetVideoBank } from "@/lib/supabase-storage";
 
 const localPath = path.join(process.cwd(), "src/data/video-bank.local.json");
+const BLOB_NAME = "video-bank";
 
 function readLocalVideoBank(): VideoBankItem[] {
   try {
@@ -32,22 +33,26 @@ function writeLocalVideoBank(clips: VideoBankItem[]): void {
 }
 
 export async function readStoredVideoBank(): Promise<VideoBankItem[]> {
-  if (hasSupabaseStorage()) {
-    const result = await supabaseFetchVideoBank();
-    if (result.status === "error") throw new Error(result.message);
-    if (result.status === "missing") return [];
-    return parseVideoBankList(result.value.clips).sort((a, b) => b.createdAt - a.createdAt);
-  }
-  return readLocalVideoBank();
+  const data = await readAppStorageWithFallback({
+    label: "video-bank",
+    blobName: BLOB_NAME,
+    fetchSupabase: supabaseFetchVideoBank,
+    readLocal: () => ({ clips: readLocalVideoBank() }),
+    empty: { clips: [] },
+  });
+  return parseVideoBankList(data.clips).sort((a, b) => b.createdAt - a.createdAt);
 }
 
 export async function writeStoredVideoBank(clips: VideoBankItem[]): Promise<void> {
   const sorted = [...clips].sort((a, b) => b.createdAt - a.createdAt);
-  if (hasSupabaseStorage()) {
-    await supabaseSetVideoBank({ clips: sorted });
-    return;
-  }
-  writeLocalVideoBank(sorted);
+  const payload = { clips: sorted };
+  await writeAppStorageWithFallback({
+    label: "video-bank",
+    blobName: BLOB_NAME,
+    payload,
+    writeSupabase: () => supabaseSetVideoBank(payload),
+    writeLocal: () => writeLocalVideoBank(sorted),
+  });
 }
 
 export async function findVideoClipConflict(

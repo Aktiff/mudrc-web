@@ -8,13 +8,11 @@ import {
   type CustomBankQuestion,
   type NewCustomBankQuestionInput,
 } from "@/lib/quiz-custom-bank";
-import {
-  hasSupabaseStorage,
-  supabaseFetchCustomBank,
-  supabaseSetCustomBank,
-} from "@/lib/supabase-storage";
+import { readAppStorageWithFallback, writeAppStorageWithFallback } from "@/lib/app-storage-fallback";
+import { supabaseFetchCustomBank, supabaseSetCustomBank } from "@/lib/supabase-storage";
 
 const localPath = path.join(process.cwd(), "src/data/custom-bank.local.json");
+const BLOB_NAME = "custom-bank-questions";
 
 function readLocalCustomBank(): CustomBankQuestion[] {
   try {
@@ -35,27 +33,35 @@ function writeLocalCustomBank(questions: CustomBankQuestion[]): void {
   fs.writeFileSync(localPath, JSON.stringify({ questions }, null, 2), "utf-8");
 }
 
+function parseCustomBankPayload(data: { questions?: unknown[] }): CustomBankQuestion[] {
+  const list = Array.isArray(data.questions) ? data.questions : [];
+  return list
+    .map(normalizeStoredCustomQuestion)
+    .filter((item): item is CustomBankQuestion => item !== null)
+    .sort((a, b) => b.createdAt - a.createdAt);
+}
+
 export async function readStoredCustomBankQuestions(): Promise<CustomBankQuestion[]> {
-  if (hasSupabaseStorage()) {
-    const result = await supabaseFetchCustomBank();
-    if (result.status === "error") throw new Error(result.message);
-    if (result.status === "missing") return [];
-    const list = Array.isArray(result.value.questions) ? result.value.questions : [];
-    return list
-      .map(normalizeStoredCustomQuestion)
-      .filter((item): item is CustomBankQuestion => item !== null)
-      .sort((a, b) => b.createdAt - a.createdAt);
-  }
-  return readLocalCustomBank();
+  const data = await readAppStorageWithFallback({
+    label: "custom-bank",
+    blobName: BLOB_NAME,
+    fetchSupabase: supabaseFetchCustomBank,
+    readLocal: () => ({ questions: readLocalCustomBank() }),
+    empty: { questions: [] },
+  });
+  return parseCustomBankPayload(data);
 }
 
 export async function writeStoredCustomBankQuestions(questions: CustomBankQuestion[]): Promise<void> {
   const sorted = [...questions].sort((a, b) => b.createdAt - a.createdAt);
-  if (hasSupabaseStorage()) {
-    await supabaseSetCustomBank({ questions: sorted });
-    return;
-  }
-  writeLocalCustomBank(sorted);
+  const payload = { questions: sorted };
+  await writeAppStorageWithFallback({
+    label: "custom-bank",
+    blobName: BLOB_NAME,
+    payload,
+    writeSupabase: () => supabaseSetCustomBank(payload),
+    writeLocal: () => writeLocalCustomBank(sorted),
+  });
 }
 
 export async function addStoredCustomBankQuestion(
@@ -79,8 +85,9 @@ export async function updateStoredCustomBankQuestion(
   if (!current) throw new Error("NOT_FOUND");
 
   const updated = applyCustomBankQuestionUpdate(current, input);
-  const next = existing.map((q) => (q.id === id ? updated : q));
-  await writeStoredCustomBankQuestions(next);
+  await writeStoredCustomBankQuestions(
+    existing.map((q) => (q.id === id ? updated : q))
+  );
   return updated;
 }
 

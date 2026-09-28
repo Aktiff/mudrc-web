@@ -19,7 +19,10 @@ import {
   supabaseSetQuizzes,
   supabaseSetRegistrations,
 } from "@/lib/supabase-storage";
+import { writeAppStorageBlob, readAppStorageBlob } from "@/lib/blob-app-storage";
 import { findQuizResult, mergePastResults, normalizeDateKey, quizResultKey } from "@/lib/quiz-result-key";
+
+const QUIZZES_APP_BLOB = "quizzes";
 
 const LEGACY_EVENTS_KEY = "mudrc/events.json";
 const LEGACY_REGS_KEY = "mudrc/registrations.json";
@@ -46,7 +49,7 @@ function shouldReadBlob(): boolean {
   return hasBlobStorage();
 }
 
-function shouldWriteBlob(): boolean {
+export function shouldWriteBlob(): boolean {
   return hasBlobStorage();
 }
 
@@ -209,7 +212,7 @@ async function readBlob<T>(key: string): Promise<T | null> {
   throw lastError instanceof Error ? lastError : new Error("Blob read failed");
 }
 
-async function optionalReadBlob<T>(key: string): Promise<T | null> {
+export async function optionalReadBlob<T>(key: string): Promise<T | null> {
   try {
     return await readBlobOnce<T>(key);
   } catch {
@@ -217,7 +220,7 @@ async function optionalReadBlob<T>(key: string): Promise<T | null> {
   }
 }
 
-async function writeBlob(key: string, data: unknown): Promise<void> {
+export async function writeBlob(key: string, data: unknown): Promise<void> {
   if (!shouldWriteBlob()) {
     throw new Error("BLOB_NOT_CONFIGURED");
   }
@@ -440,13 +443,16 @@ async function loadQuizzesRaw(): Promise<StoredQuiz[]> {
   if (canUseSupabaseStorage()) {
     const result = await supabaseFetchQuizzes();
     if (result.status === "ok") {
-      return ((result.value.quizzes ?? []) as StoredQuiz[]).map(normalizeStoredQuiz);
+      const fromSupabase = ((result.value.quizzes ?? []) as StoredQuiz[]).map(normalizeStoredQuiz);
+      if (fromSupabase.length > 0) return fromSupabase;
+    } else if (result.status === "error") {
+      console.error(`Supabase quizzes chyba (${result.message}) — fallback Blob / events.json.`);
     }
-    if (result.status === "error") {
-      console.error(`Supabase quizzes chyba (${result.message}) — pokracujem bez kvizov v ulozisku.`);
-      return [];
-    }
-    return [];
+  }
+
+  const fromBlob = await readAppStorageBlob<{ quizzes?: StoredQuiz[] }>(QUIZZES_APP_BLOB);
+  if (fromBlob?.quizzes?.length) {
+    return fromBlob.quizzes.map(normalizeStoredQuiz);
   }
 
   const events = readBundledSeedEvents();
@@ -472,8 +478,14 @@ async function persistQuizzes(quizzes: StoredQuiz[]): Promise<void> {
       if (!isSupabaseRestrictedMessage(msg)) throw error;
     }
   }
-  if (isVercel) {
+  if (shouldWriteBlob()) {
+    await writeAppStorageBlob(QUIZZES_APP_BLOB, { quizzes });
     return;
+  }
+  if (isVercel) {
+    throw new Error(
+      "Supabase je nedostupný (kvóta). Pridaj BLOB_READ_WRITE_TOKEN vo Verceli alebo obnov Supabase plán."
+    );
   }
   // lokálne: kvízy zostávajú v events.local.json cez updateEvents
 }
