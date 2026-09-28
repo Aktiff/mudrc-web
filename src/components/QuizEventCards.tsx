@@ -33,7 +33,6 @@ function EventCoverImage({
       className="absolute inset-0 w-full h-full object-cover"
       loading={priority ? "eager" : "lazy"}
       decoding="async"
-      fetchPriority={priority ? "high" : "auto"}
     />
   );
 }

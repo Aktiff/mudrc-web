@@ -872,6 +872,10 @@ export async function readEvents(): Promise<{ events: QuizEvent[] }> {
     if (!hasSupabaseStorage() && !isVercel) {
       return { events: sortEventsByDate(readLocalEvents().events.filter(isValidStoredEvent)) };
     }
+    if (isVercel) {
+      // Verejný web nesmie spadnúť kvôli dočasnej chybe úložiska — admin uvidí prázdny zoznam a log.
+      return { events: [] };
+    }
     throw error instanceof Error ? error : new Error("Nepodarilo sa nacitat udalosti.");
   }
 }
