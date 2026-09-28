@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { Calendar, Plus, PauseCircle } from "lucide-react";
 import { formatEventDateLabel, sortEventsForAdminOverview } from "@/lib/data";
-import { readEvents } from "@/lib/storage";
+import { formatSkPlayerCountTotal, registrationTotalsForEvent } from "@/lib/registration-utils";
+import { readEvents, readRegistrations } from "@/lib/storage";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminDashboard() {
-  const { events } = await readEvents();
+  const [{ events }, { registrations }] = await Promise.all([readEvents(), readRegistrations()]);
   const sortedEvents = sortEventsForAdminOverview(events);
 
   return (
@@ -41,7 +42,9 @@ export default async function AdminDashboard() {
       </div>
 
       <div className="space-y-3">
-        {sortedEvents.map((e) => (
+        {sortedEvents.map((e) => {
+          const regTotals = registrationTotalsForEvent(registrations, e.slug, e.venue);
+          return (
           <Link
             key={e.slug}
             href={`/admin/udalosti/${e.slug}`}
@@ -71,12 +74,20 @@ export default async function AdminDashboard() {
                   </div>
                 </div>
               </div>
-              <div className="text-sm text-brand-muted shrink-0">
-                {e.leagueTable.length} tímov · {e.pastResults.length} kvízov
+              <div className="text-sm text-brand-muted shrink-0 text-right">
+                <div>
+                  {regTotals.teams}{" "}
+                  {regTotals.teams === 1 ? "reg. tím" : "reg. tímov"} ·{" "}
+                  {formatSkPlayerCountTotal(regTotals.players)}
+                </div>
+                <div className="text-brand-muted-light text-xs mt-0.5">
+                  {e.leagueTable.length} v lige · {e.pastResults.length} kvízov
+                </div>
               </div>
             </div>
           </Link>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

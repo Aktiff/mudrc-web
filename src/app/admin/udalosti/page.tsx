@@ -4,12 +4,17 @@ import { RestoreMissingEvents } from "@/components/admin/RestoreMissingEvents";
 import { formatEventDateLabel, sortEventsForAdminOverview } from "@/lib/data";
 import { isValidStoredEvent } from "@/lib/event-normalize";
 import { getPollActiveFlagsBySlug } from "@/lib/poll-storage";
-import { listMissingSeedEvents, readAllEventsRaw } from "@/lib/storage";
+import { formatSkPlayerCountTotal, registrationTotalsForEvent } from "@/lib/registration-utils";
+import { listMissingSeedEvents, readAllEventsRaw, readRegistrations } from "@/lib/storage";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminUdalostitPage() {
-  const [{ events }, missing] = await Promise.all([readAllEventsRaw(), listMissingSeedEvents()]);
+  const [{ events }, missing, { registrations }] = await Promise.all([
+    readAllEventsRaw(),
+    listMissingSeedEvents(),
+    readRegistrations(),
+  ]);
   const pollActiveBySlug = await getPollActiveFlagsBySlug(events.map((event) => event.slug));
   const sortedEvents = sortEventsForAdminOverview(events);
 
@@ -30,6 +35,7 @@ export default async function AdminUdalostitPage() {
       <div className="space-y-4">
         {sortedEvents.map((e) => {
           const invalid = !isValidStoredEvent(e);
+          const regTotals = registrationTotalsForEvent(registrations, e.slug, e.venue);
           return (
           <Link
             key={e.slug}
@@ -89,10 +95,16 @@ export default async function AdminUdalostitPage() {
                 )}
               </div>
 
-              <div className="flex items-center gap-4 text-sm text-brand-muted shrink-0 lg:min-w-[11rem] lg:justify-end">
+              <div className="flex items-center gap-4 text-sm text-brand-muted shrink-0 lg:min-w-[13rem] lg:justify-end">
                 <div className="flex flex-col sm:flex-row lg:flex-col gap-0.5 sm:gap-3 lg:gap-1 lg:text-right">
-                  <span>{e.leagueTable.length} tímov v lige</span>
-                  <span>{e.pastResults.length} výsledkov</span>
+                  <span>
+                    {regTotals.teams}{" "}
+                    {regTotals.teams === 1 ? "registrovaný tím" : "registrovaných tímov"}
+                  </span>
+                  <span>{formatSkPlayerCountTotal(regTotals.players)} celkom</span>
+                  <span className="text-brand-muted-light">
+                    {e.leagueTable.length} v lige · {e.pastResults.length} výsledkov
+                  </span>
                 </div>
                 <ChevronRight className="w-5 h-5 text-brand-muted-light group-hover:text-brand-orange transition-colors shrink-0" />
               </div>
