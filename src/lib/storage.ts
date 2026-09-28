@@ -248,6 +248,7 @@ export async function writeBlob(key: string, data: unknown): Promise<void> {
     await put(key, payload, {
       access: blobStoreAccess(),
       addRandomSuffix: false,
+      allowOverwrite: true,
       contentType: "application/json",
       ...auth,
     });

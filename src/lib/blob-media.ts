@@ -36,6 +36,7 @@ export async function uploadBlobMedia(
   await put(pathname, data, {
     access: blobStoreAccess(),
     addRandomSuffix: false,
+    allowOverwrite: true,
     contentType,
     ...auth,
   });
