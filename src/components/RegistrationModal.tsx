@@ -28,7 +28,23 @@ export default function RegistrationModal({
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<{ team?: string; phone?: string }>({});
   const [mounted, setMounted] = useState(false);
+
+  function validateForm(): boolean {
+    const next: { team?: string; phone?: string } = {};
+    if (!teamName.trim()) {
+      next.team = "Zadaj názov tímu.";
+    }
+    const phoneDigits = phone.replace(/\D/g, "");
+    if (!phone.trim()) {
+      next.phone = "Zadaj telefónne číslo.";
+    } else if (phoneDigits.length < 9) {
+      next.phone = "Telefónne číslo musí mať aspoň 9 číslic.";
+    }
+    setFieldErrors(next);
+    return Object.keys(next).length === 0;
+  }
 
   useEffect(() => {
     setMounted(true);
@@ -41,8 +57,10 @@ export default function RegistrationModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
     setError("");
+    if (!validateForm()) return;
+
+    setLoading(true);
     try {
       const res = await fetch("/api/register", {
         method: "POST",
@@ -58,7 +76,11 @@ export default function RegistrationModal({
         setSubmitted(true);
       } else {
         const data = await res.json().catch(() => ({}));
-        setError(data.detail ?? data.message ?? data.error ?? "Chyba pri registrácii. Skús znova.");
+        const msg =
+          (typeof data.error === "string" && data.error) ||
+          (typeof data.message === "string" && data.message) ||
+          "Chyba pri registrácii. Skús znova.";
+        setError(msg);
       }
     } catch {
       setError("Sieťová chyba. Skús znova.");
@@ -83,35 +105,48 @@ export default function RegistrationModal({
         {submitted ? (
           <div className="text-center py-8">
             <div className="text-6xl mb-4">&#127881;</div>
-            <h3 className="font-display text-3xl text-brand-text mb-2">{"Hotovo!"}</h3>
+            <h3 className="font-display text-3xl text-brand-text mb-2">Hotovo!</h3>
             <p className="text-brand-muted">
-              {"T\u00edm "}<strong>{teamName}</strong>{" bol zaregistrovan\u00fd na kv\u00edz v "}
-              <strong>{venue}</strong>{". Uvidíme sa tam!"}
+              Tím <strong>{teamName}</strong> bol zaregistrovaný na kvíz v <strong>{venue}</strong>. Uvidíme sa
+              tam!
             </p>
             <button onClick={onClose} className="btn-primary mt-6 px-8 py-3">
-              {"Zatvori\u0165"}
+              Zatvoriť
             </button>
           </div>
         ) : (
           <>
             <h3 id="registration-modal-title" className="font-display text-3xl text-brand-text mb-1">
-              {"Registrácia"}
+              Registrácia
             </h3>
             <p className="text-brand-muted text-sm mb-6">{venue}</p>
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} noValidate className="space-y-4" lang="sk">
               <div>
-                <label className="block text-sm font-medium text-brand-text mb-1.5">{"Názov tímu"}</label>
+                <label className="block text-sm font-medium text-brand-text mb-1.5" htmlFor="reg-team-name">
+                  Názov tímu
+                </label>
                 <TeamAutocomplete
+                  id="reg-team-name"
                   value={teamName}
-                  onChange={setTeamName}
+                  onChange={(value) => {
+                    setTeamName(value);
+                    if (fieldErrors.team) setFieldErrors((prev) => ({ ...prev, team: undefined }));
+                  }}
                   suggestions={teamSuggestions}
                   placeholder="napr. Mudrc"
-                  required
-                  className="w-full border border-brand-border rounded-xl px-4 py-3 text-brand-text bg-brand-surface placeholder:text-brand-muted-light focus:outline-none focus:border-brand-orange transition-colors"
+                  ariaInvalid={!!fieldErrors.team}
+                  className={`w-full border rounded-xl px-4 py-3 text-brand-text bg-brand-surface placeholder:text-brand-muted-light focus:outline-none focus:border-brand-orange transition-colors ${
+                    fieldErrors.team ? "border-red-500" : "border-brand-border"
+                  }`}
                 />
+                {fieldErrors.team && (
+                  <p className="text-red-500 text-sm mt-1.5" role="alert">
+                    {fieldErrors.team}
+                  </p>
+                )}
               </div>
               <div>
-                <label className="block text-sm font-medium text-brand-text mb-1.5">{"Po\u010det hr\u00e1\u010dov"}</label>
+                <label className="block text-sm font-medium text-brand-text mb-1.5">Počet hráčov</label>
                 <select
                   value={players}
                   onChange={(e) => setPlayers(e.target.value)}
@@ -123,19 +158,35 @@ export default function RegistrationModal({
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-brand-text mb-1.5">{"Telef\u00f3nne \u010d\u00edslo"}</label>
+                <label className="block text-sm font-medium text-brand-text mb-1.5" htmlFor="reg-phone">
+                  Telefónne číslo
+                </label>
                 <input
+                  id="reg-phone"
                   type="tel"
-                  required
+                  inputMode="tel"
+                  autoComplete="tel"
+                  aria-required="true"
+                  aria-invalid={!!fieldErrors.phone}
                   value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder="+421 9XX XXX XXX"
-                  className="w-full border border-brand-border rounded-xl px-4 py-3 text-brand-text bg-brand-surface placeholder:text-brand-muted-light focus:outline-none focus:border-brand-orange transition-colors"
+                  onChange={(e) => {
+                    setPhone(e.target.value);
+                    if (fieldErrors.phone) setFieldErrors((prev) => ({ ...prev, phone: undefined }));
+                  }}
+                  placeholder="+421 912 345 678"
+                  className={`w-full border rounded-xl px-4 py-3 text-brand-text bg-brand-surface placeholder:text-brand-muted-light focus:outline-none focus:border-brand-orange transition-colors ${
+                    fieldErrors.phone ? "border-red-500" : "border-brand-border"
+                  }`}
                 />
+                {fieldErrors.phone && (
+                  <p className="text-red-500 text-sm mt-1.5" role="alert">
+                    {fieldErrors.phone}
+                  </p>
+                )}
               </div>
               {error && <p className="text-red-500 text-sm">{error}</p>}
               <button type="submit" disabled={loading} className="btn-primary w-full justify-center py-3.5 mt-2">
-                {loading ? "Registrujem..." : "Zaregistrova\u0165 t\u00edm"}
+                {loading ? "Registrujem..." : "Zaregistrovať tím"}
               </button>
             </form>
           </>

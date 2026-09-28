@@ -2,6 +2,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 
 interface Props {
+  id?: string;
   value: string;
   onChange: (v: string) => void;
   suggestions: string[];
@@ -9,6 +10,7 @@ interface Props {
   className?: string;
   onEnter?: () => void;
   required?: boolean;
+  ariaInvalid?: boolean;
 }
 
 function normalizeSearch(text: string): string {
@@ -30,6 +32,7 @@ function matchesSuggestion(query: string, suggestion: string): boolean {
 }
 
 export function TeamAutocomplete({
+  id,
   value,
   onChange,
   suggestions,
@@ -37,6 +40,7 @@ export function TeamAutocomplete({
   className,
   onEnter,
   required,
+  ariaInvalid,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [highlighted, setHighlighted] = useState(0);
@@ -106,6 +110,7 @@ export function TeamAutocomplete({
     <div className="relative" ref={ref}>
       <input
         ref={inputRef}
+        id={id}
         className={className ?? "input"}
         value={value}
         onChange={(e) => {
@@ -117,7 +122,9 @@ export function TeamAutocomplete({
         placeholder={placeholder}
         autoComplete="off"
         spellCheck={false}
-        required={required}
+        aria-required={required ? true : undefined}
+        aria-invalid={ariaInvalid || undefined}
+        lang="sk"
       />
       {showDropdown && (
         <ul className="absolute z-50 top-full mt-1 left-0 right-0 bg-brand-card border border-brand-border rounded-xl shadow-lg overflow-hidden max-h-56 overflow-y-auto">
