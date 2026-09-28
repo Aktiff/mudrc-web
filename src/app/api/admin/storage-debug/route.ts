@@ -77,7 +77,7 @@ export async function GET(req: Request) {
     return NextResponse.json(
       {
         ok: true,
-        storageVersion: "2026-09-28-events-per-slug-blob",
+        storageVersion: "2026-09-28-regs-blob-manifest",
         diagnostics,
         storageBackend: {
           supabaseConfigured: hasSupabaseStorage(),

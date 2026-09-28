@@ -26,6 +26,7 @@ const QUIZZES_APP_BLOB = "quizzes";
 
 const LEGACY_EVENTS_KEY = "mudrc/events.json";
 const LEGACY_REGS_KEY = "mudrc/registrations.json";
+const REGS_MANIFEST_KEY = "mudrc/registrations/_manifest.json";
 const EVENTS_MANIFEST_KEY = "mudrc/events/_manifest.json";
 const eventBlobKey = (slug: string) => `mudrc/events/${slug}.json`;
 const regBlobKey = (id: string) => `mudrc/registrations/${id}.json`;
@@ -716,25 +717,39 @@ async function loadRegsFromSplitFiles(): Promise<Registration[]> {
 async function loadRegsFromBlob(): Promise<Registration[]> {
   if (!shouldReadBlob()) return [];
 
+  const manifest = await optionalReadBlob<{ ids: string[] }>(REGS_MANIFEST_KEY);
+  if (manifest?.ids?.length) {
+    const loaded = await Promise.all(
+      manifest.ids.map(async (id) => optionalReadBlob<Registration>(regBlobKey(id)))
+    );
+    return loaded.filter((reg): reg is Registration => !!reg).map(normalizeRegistration);
+  }
+
   const monolithic = await optionalReadBlob<{ registrations?: Registration[] }>(LEGACY_REGS_KEY);
-  const fromMonolithic = (monolithic?.registrations ?? []).map(normalizeRegistration);
+  if (monolithic?.registrations?.length) {
+    return monolithic.registrations.map(normalizeRegistration);
+  }
 
-  const fromSplit = await loadRegsFromSplitFiles();
-  if (fromMonolithic.length === 0) return fromSplit;
-
-  if (fromSplit.length === 0) return fromMonolithic;
-
-  const byId = new Map<string, Registration>();
-  for (const reg of fromMonolithic) byId.set(reg.id, reg);
-  for (const reg of fromSplit) byId.set(reg.id, reg);
-  return Array.from(byId.values());
+  return loadRegsFromSplitFiles();
 }
 
 async function persistRegistrationsBlob(registrations: Registration[]): Promise<void> {
-  await writeBlob(LEGACY_REGS_KEY, { registrations });
+  const normalized = registrations.map(normalizeRegistration);
+  const ids = normalized.map((reg) => reg.id).filter(Boolean);
+  const idSet = new Set(ids);
+
+  const existingIds = await listRegistrationBlobIds();
+  await Promise.all(
+    existingIds.filter((id) => !idSet.has(id)).map((id) => deleteBlob(regBlobKey(id)))
+  );
+
+  await Promise.all(normalized.map((reg) => writeBlob(regBlobKey(reg.id), reg)));
+
+  await writeBlob(REGS_MANIFEST_KEY, { ids });
+  await writeBlob(LEGACY_REGS_KEY, { registrations: normalized });
 }
 
-async function persistRegistrations(registrations: Registration[]): Promise<void> {
+export async function persistRegistrations(registrations: Registration[]): Promise<void> {
   if (canUseSupabaseStorage()) {
     try {
       await supabaseSetRegistrations({ registrations });

@@ -439,12 +439,17 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
     if (!confirm(`Naozaj zmazať registráciu tímu „${teamName}"?`)) return;
     setDeletingRegId(id);
     try {
-      const res = await fetch(`/api/admin/registrations?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+      const res = await fetch(`/api/admin/registrations?id=${encodeURIComponent(id)}`, {
+        method: "DELETE",
+        credentials: "same-origin",
+      });
+      const data = await res.json().catch(() => ({}));
       if (res.ok) {
+        setRegistrations((prev) => prev.filter((entry) => entry.id !== id));
         loadRegistrations();
         setMsg({ text: "Registrácia zmazaná", ok: true });
       } else {
-        setMsg({ text: "Chyba pri mazaní registrácie", ok: false });
+        setMsg({ text: data.error ?? "Chyba pri mazaní registrácie", ok: false });
       }
     } finally {
       setDeletingRegId(null);
@@ -538,13 +543,21 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
     try {
       const res = await fetch(
         `/api/admin/registrations?slug=${encodeURIComponent(params.slug)}&venue=${encodeURIComponent(form.venue)}`,
-        { method: "DELETE" }
+        { method: "DELETE", credentials: "same-origin" }
       );
+      const data = await res.json().catch(() => ({}));
       if (res.ok) {
+        setRegistrations([]);
         loadRegistrations();
-        setMsg({ text: "Všetky registrácie vymazané", ok: true });
+        setMsg({
+          text:
+            (data.removed ?? 0) > 0
+              ? `Vymazané registrácie: ${data.removed}`
+              : "Žiadne registrácie na vymazanie (už boli prázdne).",
+          ok: true,
+        });
       } else {
-        setMsg({ text: "Chyba pri mazaní registrácií", ok: false });
+        setMsg({ text: data.error ?? "Chyba pri mazaní registrácií", ok: false });
       }
     } finally {
       setClearingRegs(false);
