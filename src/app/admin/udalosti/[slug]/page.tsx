@@ -150,9 +150,13 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
     setRegsLoading(true);
     fetch(`/api/register?slug=${params.slug}&venue=${encodeURIComponent(form.venue)}&_=${Date.now()}`, {
       cache: "no-store",
+      credentials: "same-origin",
     })
       .then((r) => r.json())
-      .then((d) => setRegistrations(d.registrations ?? []))
+      .then((d) => {
+        const list = (d.registrations ?? []) as EventRegistration[];
+        setRegistrations(list);
+      })
       .finally(() => setRegsLoading(false));
   };
 
@@ -506,13 +510,14 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
       const res = await fetch("/api/admin/registrations", {
         method: "POST",
         cache: "no-store",
+        credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           eventSlug: params.slug,
           venue: form.venue,
           teamName,
           players: clamped,
-          phone: newRegPhone.trim(),
+          phone: newRegPhone.trim() || "—",
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -523,7 +528,15 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
       setNewRegTeamName("");
       setNewRegPhone("");
       setNewRegPlayers("");
-      loadRegistrations();
+      const created = data.registration as EventRegistration | undefined;
+      if (created?.id) {
+        setRegistrations((prev) => {
+          if (prev.some((entry) => entry.id === created.id)) return prev;
+          return [...prev, created];
+        });
+      } else {
+        loadRegistrations();
+      }
       setMsg({ text: `Tím „${teamName}" pridaný do registrácií.`, ok: true });
     } finally {
       setAddingReg(false);
