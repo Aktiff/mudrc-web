@@ -1,5 +1,6 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { trackRegistrationComplete } from "@/lib/analytics";
 import { TeamAutocomplete } from "@/components/TeamAutocomplete";
@@ -27,6 +28,16 @@ export default function RegistrationModal({
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prevOverflow;
+    };
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -55,10 +66,17 @@ export default function RegistrationModal({
     setLoading(false);
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-brand-card rounded-3xl shadow-2xl w-full max-w-md p-8 border border-brand-border">
+  if (!mounted) return null;
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[120] flex items-center justify-center p-4 sm:p-6"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="registration-modal-title"
+    >
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} aria-hidden />
+      <div className="relative bg-brand-card rounded-3xl shadow-2xl w-full max-w-md max-h-[min(90dvh,640px)] overflow-y-auto p-8 border border-brand-border">
         <button onClick={onClose} className="absolute top-5 right-5 text-brand-muted hover:text-brand-text transition-colors">
           <X className="w-5 h-5" />
         </button>
@@ -76,7 +94,9 @@ export default function RegistrationModal({
           </div>
         ) : (
           <>
-            <h3 className="font-display text-3xl text-brand-text mb-1">{"Registrácia"}</h3>
+            <h3 id="registration-modal-title" className="font-display text-3xl text-brand-text mb-1">
+              {"Registrácia"}
+            </h3>
             <p className="text-brand-muted text-sm mb-6">{venue}</p>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
@@ -121,6 +141,7 @@ export default function RegistrationModal({
           </>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
