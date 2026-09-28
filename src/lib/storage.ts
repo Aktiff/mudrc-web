@@ -96,6 +96,13 @@ function blobAuthOptions(): BlobAuthOptions {
   return {};
 }
 
+/** Private stores (default on Vercel) require access: "private"; public store → BLOB_ACCESS=public */
+function blobPutAccess(): "public" | "private" {
+  const raw = process.env.BLOB_ACCESS?.trim().toLowerCase();
+  if (raw === "public") return "public";
+  return "private";
+}
+
 export type Registration = {
   id: string;
   eventSlug: string;
@@ -233,7 +240,7 @@ export async function writeBlob(key: string, data: unknown): Promise<void> {
   const payload = JSON.stringify(data, null, 2);
   try {
     await put(key, payload, {
-      access: "public",
+      access: blobPutAccess(),
       addRandomSuffix: false,
       contentType: "application/json",
       ...auth,
