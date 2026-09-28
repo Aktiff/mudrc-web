@@ -337,10 +337,30 @@ async function listRegistrationBlobIds(): Promise<string[]> {
   }
 }
 
-async function bootstrapEventsToSupabase(): Promise<QuizEvent[]> {
+function readBundledSeedEvents(): QuizEvent[] {
+  try {
+    return readLocalEvents().events;
+  } catch (error) {
+    console.error("readBundledSeedEvents error:", error);
+    return [];
+  }
+}
+
+async function loadEventsFromFallbackSources(): Promise<QuizEvent[]> {
   const fromBlob = await loadEventsFromBlobOptional();
-  const events = fromBlob?.length ? fromBlob : readLocalEvents().events;
-  await persistEvents(events);
+  if (fromBlob?.length) return fromBlob;
+  return readBundledSeedEvents();
+}
+
+async function bootstrapEventsToSupabase(): Promise<QuizEvent[]> {
+  const events = await loadEventsFromFallbackSources();
+  if (events.length && hasSupabaseStorage()) {
+    try {
+      await persistEvents(events);
+    } catch (error) {
+      console.error("bootstrapEventsToSupabase persist error:", error);
+    }
+  }
   return events;
 }
 
@@ -418,12 +438,13 @@ async function loadQuizzesRaw(): Promise<StoredQuiz[]> {
       return ((result.value.quizzes ?? []) as StoredQuiz[]).map(normalizeStoredQuiz);
     }
     if (result.status === "error") {
-      throw new Error(`Nepodarilo sa nacitat kvízy zo Supabase: ${result.message}`);
+      console.error(`Supabase quizzes chyba (${result.message}) — pokracujem bez kvizov v ulozisku.`);
+      return [];
     }
     return [];
   }
 
-  const events = readLocalEvents().events;
+  const events = readBundledSeedEvents();
   const extracted: StoredQuiz[] = [];
   for (const event of events) {
     for (const result of event.pastResults ?? []) {
@@ -575,18 +596,19 @@ async function loadEventsBase(): Promise<QuizEvent[]> {
   if (hasSupabaseStorage()) {
     const result = await supabaseFetchEvents();
     if (result.status === "ok") {
-      return (result.value.events ?? []) as QuizEvent[];
+      const events = (result.value.events ?? []) as QuizEvent[];
+      if (events.length > 0) return events;
+      console.warn("Supabase events prazdne — obnovujem zo zalohy (blob / events.json).");
+      return bootstrapEventsToSupabase();
     }
     if (result.status === "error") {
-      throw new Error(`Nepodarilo sa nacitat udalosti zo Supabase: ${result.message}`);
+      console.error(`Supabase events chyba (${result.message}) — fallback blob / events.json.`);
+      return loadEventsFromFallbackSources();
     }
     return bootstrapEventsToSupabase();
   }
 
-  const fromBlob = await loadEventsFromBlobOptional();
-  if (fromBlob?.length) return fromBlob;
-
-  return readLocalEvents().events;
+  return loadEventsFromFallbackSources();
 }
 
 async function persistEvents(events: QuizEvent[]): Promise<void> {
@@ -869,13 +891,8 @@ export async function readEvents(): Promise<{ events: QuizEvent[] }> {
     return { events: loaded.filter(isValidStoredEvent) };
   } catch (error) {
     console.error("readEvents error:", error);
-    if (!hasSupabaseStorage() && !isVercel) {
-      return { events: sortEventsByDate(readLocalEvents().events.filter(isValidStoredEvent)) };
-    }
-    if (isVercel) {
-      // Verejný web nesmie spadnúť kvôli dočasnej chybe úložiska — admin uvidí prázdny zoznam a log.
-      return { events: [] };
-    }
+    const fallback = sortEventsByDate(readBundledSeedEvents().filter(isValidStoredEvent));
+    if (fallback.length) return { events: fallback };
     throw error instanceof Error ? error : new Error("Nepodarilo sa nacitat udalosti.");
   }
 }
@@ -886,9 +903,8 @@ export async function readAllEventsRaw(): Promise<{ events: QuizEvent[] }> {
     return { events: sortEventsByDate(await loadEvents()) };
   } catch (error) {
     console.error("readAllEventsRaw error:", error);
-    if (!hasSupabaseStorage() && !isVercel) {
-      return { events: sortEventsByDate(readLocalEvents().events) };
-    }
+    const fallback = sortEventsByDate(readBundledSeedEvents());
+    if (fallback.length) return { events: fallback };
     throw error instanceof Error ? error : new Error("Nepodarilo sa nacitat udalosti.");
   }
 }
