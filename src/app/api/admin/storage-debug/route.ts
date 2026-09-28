@@ -77,7 +77,7 @@ export async function GET(req: Request) {
     return NextResponse.json(
       {
         ok: true,
-        storageVersion: "2026-09-28-blob-fallback",
+        storageVersion: "2026-09-28-blob-private-read",
         diagnostics,
         storageBackend: {
           supabaseConfigured: hasSupabaseStorage(),

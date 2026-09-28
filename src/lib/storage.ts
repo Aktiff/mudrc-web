@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { del, head, list, put } from "@vercel/blob";
+import { del, get, list, put } from "@vercel/blob";
 import type { QuizEvent, LeagueEntry, PastResult, PastResultTeam } from "@/lib/data";
 import { sortEventsByDate, sortLeagueTable } from "@/lib/data";
 import { isValidStoredEvent } from "@/lib/event-normalize";
@@ -84,7 +84,7 @@ type BlobAuthOptions = {
   oidcToken?: string;
 };
 
-function blobAuthOptions(): BlobAuthOptions {
+export function blobAuthOptions(): BlobAuthOptions {
   const token = process.env.BLOB_READ_WRITE_TOKEN || process.env.VERCEL_BLOB_READ_WRITE_TOKEN;
   if (token) return { token };
 
@@ -97,7 +97,7 @@ function blobAuthOptions(): BlobAuthOptions {
 }
 
 /** Private stores (default on Vercel) require access: "private"; public store → BLOB_ACCESS=public */
-function blobPutAccess(): "public" | "private" {
+function blobStoreAccess(): "public" | "private" {
   const raw = process.env.BLOB_ACCESS?.trim().toLowerCase();
   if (raw === "public") return "public";
   return "private";
@@ -175,13 +175,19 @@ function writeLocalRegistrations(registrations: Registration[]) {
   fs.writeFileSync(regsLocalPath, JSON.stringify({ registrations }, null, 2), "utf-8");
 }
 
-async function downloadJson<T>(downloadUrl: string): Promise<T> {
-  const res = await fetch(`${downloadUrl}?v=${Date.now()}`, {
-    cache: "no-store",
-    headers: { "Cache-Control": "no-cache, no-store, must-revalidate" },
+async function readBlobJsonViaGet<T>(pathname: string): Promise<T | null> {
+  const auth = blobAuthOptions();
+  const result = await get(pathname, {
+    access: blobStoreAccess(),
+    ...auth,
   });
-  if (!res.ok) throw new Error(`Blob download failed (${res.status})`);
-  return (await res.json()) as T;
+  if (!result) return null;
+  if (result.statusCode === 304) return null;
+  if (result.statusCode === 200 && result.stream) {
+    const raw = await new Response(result.stream).text();
+    return JSON.parse(raw) as T;
+  }
+  throw new Error(`Blob get failed (${pathname}): unexpected blob response`);
 }
 
 async function readBlobOnce<T>(key: string): Promise<T | null> {
@@ -189,8 +195,8 @@ async function readBlobOnce<T>(key: string): Promise<T | null> {
   const auth = blobAuthOptions();
 
   try {
-    const meta = await head(key, auth);
-    return downloadJson<T>(meta.downloadUrl);
+    const direct = await readBlobJsonViaGet<T>(key);
+    if (direct !== null) return direct;
   } catch (error) {
     if (!isBlobNotFound(error)) throw error;
   }
@@ -199,7 +205,7 @@ async function readBlobOnce<T>(key: string): Promise<T | null> {
     const result = await list({ prefix: key, limit: 10, ...auth });
     const blob = result.blobs.find((entry) => entry.pathname === key);
     if (!blob) return null;
-    return downloadJson<T>(blob.downloadUrl);
+    return readBlobJsonViaGet<T>(blob.pathname);
   } catch (error) {
     if (isBlobNotFound(error)) return null;
     throw error;
@@ -240,7 +246,7 @@ export async function writeBlob(key: string, data: unknown): Promise<void> {
   const payload = JSON.stringify(data, null, 2);
   try {
     await put(key, payload, {
-      access: blobPutAccess(),
+      access: blobStoreAccess(),
       addRandomSuffix: false,
       contentType: "application/json",
       ...auth,
