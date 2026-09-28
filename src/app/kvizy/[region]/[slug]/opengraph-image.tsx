@@ -1,4 +1,5 @@
 import { OG_CONTENT_TYPE, OG_SIZE, renderBrandOgFallback, renderVenueOgImage } from "@/lib/og-image";
+import { absoluteMediaUrl } from "@/lib/media-url";
 import { getPublicEvent } from "@/lib/public-events";
 import { isRegionSlug } from "@/lib/regions";
 
@@ -19,8 +20,9 @@ export default async function EventOpenGraphImage({ params }: Props) {
     return renderBrandOgFallback();
   }
 
-  if (event.imageUrl) {
-    return renderVenueOgImage(event.imageUrl);
+  const imageUrl = absoluteMediaUrl(event.imageUrl);
+  if (imageUrl) {
+    return renderVenueOgImage(imageUrl);
   }
 
   return renderBrandOgFallback();

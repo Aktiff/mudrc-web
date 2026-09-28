@@ -97,7 +97,7 @@ export function blobAuthOptions(): BlobAuthOptions {
 }
 
 /** Private stores (default on Vercel) require access: "private"; public store → BLOB_ACCESS=public */
-function blobStoreAccess(): "public" | "private" {
+export function blobStoreAccess(): "public" | "private" {
   const raw = process.env.BLOB_ACCESS?.trim().toLowerCase();
   if (raw === "public") return "public";
   return "private";

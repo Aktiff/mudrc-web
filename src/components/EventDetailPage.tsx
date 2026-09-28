@@ -17,6 +17,7 @@ import type { QuizEvent } from "@/lib/data";
 import { formatDuration, formatEventDateLabel, isRegistrationOpen, leagueTeamNameSuggestions } from "@/lib/data";
 import type { RegionSlug } from "@/lib/regions";
 import { getRegion } from "@/lib/regions";
+import { mediaUrlForBrowser } from "@/lib/media-url";
 import Breadcrumbs from "@/components/Breadcrumbs";
 import RegistrationAction from "@/components/RegistrationAction";
 import RegistrationModal from "./RegistrationModal";
@@ -69,11 +70,15 @@ export default function EventDetailPage({ event, region, pollHref }: EventDetail
           </div>
         </section>
 
-        {event.imageUrl && (
+        {mediaUrlForBrowser(event.imageUrl) && (
           <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
             <div className="relative w-full aspect-video rounded-2xl overflow-hidden border border-brand-border">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={event.imageUrl} alt={`Kvíz ${event.venue}, ${event.city}`} className="absolute inset-0 w-full h-full object-cover" />
+              <img
+                src={mediaUrlForBrowser(event.imageUrl)!}
+                alt={`Kvíz ${event.venue}, ${event.city}`}
+                className="absolute inset-0 w-full h-full object-cover"
+              />
             </div>
           </div>
         )}

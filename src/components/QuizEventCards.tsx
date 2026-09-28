@@ -13,6 +13,7 @@ import {
   sortEventsByDate,
 } from "@/lib/data";
 import { eventPath } from "@/lib/regions";
+import { mediaUrlForBrowser } from "@/lib/media-url";
 import RegistrationAction from "./RegistrationAction";
 const RegistrationModal = dynamic(() => import("./RegistrationModal"), { ssr: false });
 
@@ -25,14 +26,22 @@ function EventCoverImage({
   alt: string;
   priority?: boolean;
 }) {
+  const [failed, setFailed] = useState(false);
+  const resolved = mediaUrlForBrowser(src);
+
+  if (!resolved || failed) {
+    return <span className="text-7xl opacity-10">🎉</span>;
+  }
+
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      src={src}
+      src={resolved}
       alt={alt}
       className="absolute inset-0 w-full h-full object-cover"
       loading={priority ? "eager" : "lazy"}
       decoding="async"
+      onError={() => setFailed(true)}
     />
   );
 }

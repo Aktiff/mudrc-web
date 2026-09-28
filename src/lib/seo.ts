@@ -3,6 +3,7 @@ import type { QuizEvent } from "@/lib/data";
 import { formatEventDateLabel } from "@/lib/data";
 import { eventPath, getEventRegionSlug, getRegion, type RegionSlug } from "@/lib/regions";
 import { OG_IMAGE_VERSION } from "@/lib/og-image";
+import { absoluteMediaUrl } from "@/lib/media-url";
 import { SITE_URL, absoluteUrl } from "@/lib/site-url";
 
 export { SITE_URL, absoluteUrl };
@@ -95,6 +96,7 @@ export function buildEventJsonLd(event: QuizEvent, region: RegionSlug) {
   const startDate = parseSkDateTime(event.date, event.time);
   const url = absoluteUrl(eventPath(event));
   const seoDescription = `Vedomostný pub kvíz v podniku ${event.venue} (${event.city}, ${regionConfig.name}). Termín ${event.date} o ${event.time}, vstupné ${event.entryFee} € / hráč. Registruj tím online.`;
+  const eventImage = absoluteMediaUrl(event.imageUrl);
 
   return {
     "@context": "https://schema.org",
@@ -127,7 +129,7 @@ export function buildEventJsonLd(event: QuizEvent, region: RegionSlug) {
       availability: "https://schema.org/InStock",
     },
     url,
-    ...(event.imageUrl ? { image: [event.imageUrl] } : {}),
+    ...(eventImage ? { image: [eventImage] } : {}),
   };
 }
 

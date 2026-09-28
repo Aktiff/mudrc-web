@@ -15,7 +15,14 @@ import {
   MAX_VIDEO_BYTES,
   MAX_VIDEO_SERVER_BYTES,
 } from "@/lib/video-upload";
-import { hasSupabaseStorage, supabaseUploadPublicFile, supabaseUploadPublicImage } from "@/lib/supabase-storage";
+import { uploadEventImageToBlob } from "@/lib/blob-media";
+import { shouldWriteBlob } from "@/lib/storage";
+import {
+  canUseSupabaseStorage,
+  hasSupabaseStorage,
+  supabaseUploadPublicFile,
+  supabaseUploadPublicImage,
+} from "@/lib/supabase-storage";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -135,8 +142,13 @@ export async function POST(req: NextRequest) {
     const ext = file.name.split(".").pop()?.toLowerCase() ?? "jpg";
     const buffer = Buffer.from(await file.arrayBuffer());
 
-    if (hasSupabaseStorage()) {
+    if (canUseSupabaseStorage()) {
       const url = await supabaseUploadPublicImage(`${Date.now()}.${ext}`, buffer, file.type || "image/jpeg");
+      return NextResponse.json({ url });
+    }
+
+    if (shouldWriteBlob()) {
+      const url = await uploadEventImageToBlob(buffer, file.type || "image/jpeg", ext);
       return NextResponse.json({ url });
     }
 
@@ -144,7 +156,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           error:
-            "Upload na produkcii vyžaduje Supabase. V SQL Editore spusti scripts/supabase.sql (bucket uploads) a skontroluj SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY.",
+            "Upload na produkcii vyžaduje Supabase Storage alebo Vercel Blob (BLOB_STORE_ID / token).",
         },
         { status: 500 }
       );
