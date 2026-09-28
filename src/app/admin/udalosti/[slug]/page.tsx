@@ -441,7 +441,10 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
 
   const deleteRegistration = async (id: string, teamName: string) => {
     if (!confirm(`Naozaj zmazať registráciu tímu „${teamName}"?`)) return;
+    const previous = registrations;
+    setRegistrations((prev) => prev.filter((entry) => entry.id !== id));
     setDeletingRegId(id);
+    setMsg(null);
     try {
       const res = await fetch(`/api/admin/registrations?id=${encodeURIComponent(id)}`, {
         method: "DELETE",
@@ -449,12 +452,14 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        setRegistrations((prev) => prev.filter((entry) => entry.id !== id));
-        loadRegistrations();
         setMsg({ text: "Registrácia zmazaná", ok: true });
       } else {
+        setRegistrations(previous);
         setMsg({ text: data.error ?? "Chyba pri mazaní registrácie", ok: false });
       }
+    } catch {
+      setRegistrations(previous);
+      setMsg({ text: "Sieťová chyba pri mazaní registrácie", ok: false });
     } finally {
       setDeletingRegId(null);
     }
@@ -552,7 +557,10 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
     ) {
       return;
     }
+    const previous = registrations;
+    setRegistrations([]);
     setClearingRegs(true);
+    setMsg(null);
     try {
       const res = await fetch(
         `/api/admin/registrations?slug=${encodeURIComponent(params.slug)}&venue=${encodeURIComponent(form.venue)}`,
@@ -560,8 +568,6 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
       );
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        setRegistrations([]);
-        loadRegistrations();
         setMsg({
           text:
             (data.removed ?? 0) > 0
@@ -570,8 +576,12 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
           ok: true,
         });
       } else {
+        setRegistrations(previous);
         setMsg({ text: data.error ?? "Chyba pri mazaní registrácií", ok: false });
       }
+    } catch {
+      setRegistrations(previous);
+      setMsg({ text: "Sieťová chyba pri mazaní registrácií", ok: false });
     } finally {
       setClearingRegs(false);
     }

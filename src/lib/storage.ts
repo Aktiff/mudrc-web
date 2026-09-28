@@ -718,7 +718,8 @@ async function loadRegsFromBlob(): Promise<Registration[]> {
   if (!shouldReadBlob()) return [];
 
   const manifest = await optionalReadBlob<{ ids: string[] }>(REGS_MANIFEST_KEY);
-  if (manifest?.ids?.length) {
+  if (manifest && Array.isArray(manifest.ids)) {
+    if (manifest.ids.length === 0) return [];
     const loaded = await Promise.all(
       manifest.ids.map(async (id) => optionalReadBlob<Registration>(regBlobKey(id)))
     );
@@ -1070,11 +1071,22 @@ export async function addRegistration(reg: Registration): Promise<void> {
 
 export async function deleteRegistrationById(id: string): Promise<boolean> {
   let removed = false;
-  await updateRegistrations((regs) => {
-    const next = regs.filter((reg) => reg.id !== id);
-    removed = next.length !== regs.length;
-    return next;
-  }, { destructive: true });
+  for (let attempt = 0; attempt < 5; attempt++) {
+    try {
+      await updateRegistrations((regs) => {
+        const next = regs.filter((reg) => reg.id !== id);
+        removed = next.length !== regs.length;
+        return next;
+      }, { destructive: true });
+      if (removed && shouldWriteBlob()) {
+        await deleteBlob(regBlobKey(id));
+      }
+      return removed;
+    } catch (error) {
+      if (attempt === 4) throw error;
+      await sleep(400 * (attempt + 1));
+    }
+  }
   return removed;
 }
 
