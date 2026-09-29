@@ -28,3 +28,17 @@ export function supabaseUploadsObjectPath(url: string): string | null {
 export function isSupabaseUploadsUrl(url: string): boolean {
   return url.includes(".supabase.co/storage/") && url.includes("/uploads/");
 }
+
+/** URL pre `<audio>` / `<video>` — Supabase verejné linky idú cez proxy (402 / STORAGE_DISABLE). */
+export function playbackMediaSrc(storedUrl: string | undefined): string | undefined {
+  const trimmed = storedUrl?.trim();
+  if (!trimmed) return undefined;
+  if (trimmed.startsWith("/api/media/") || trimmed.startsWith("/uploads/")) return trimmed;
+  if (isSupabaseUploadsUrl(trimmed)) {
+    const objectPath = supabaseUploadsObjectPath(trimmed);
+    if (objectPath) {
+      return `/api/media/supabase/${objectPath.split("/").map(encodeURIComponent).join("/")}`;
+    }
+  }
+  return trimmed;
+}

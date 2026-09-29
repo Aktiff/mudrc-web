@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Upload, X } from "lucide-react";
+import { playbackMediaSrc } from "@/lib/media-url";
 import { uploadVideoFileClient } from "@/lib/upload-video-client";
 
 type Props = {
@@ -75,7 +76,12 @@ export default function VideoUrlField({
         MP4 alebo WEBM do Supabase Storage. Krátke filmové ukážky (~30–90 s) odporúčané.
       </p>
       {value.trim() && (
-        <video controls src={value} className="w-full max-w-xl mt-2 rounded-xl border border-brand-border" preload="metadata" />
+        <video
+          controls
+          src={playbackMediaSrc(value)}
+          className="w-full max-w-xl mt-2 rounded-xl border border-brand-border"
+          preload="metadata"
+        />
       )}
     </div>
   );

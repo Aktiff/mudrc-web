@@ -13,6 +13,7 @@ import {
 } from "react";
 import { Maximize2, X } from "lucide-react";
 import type { QuizEvent } from "@/lib/data";
+import { playbackMediaSrc } from "@/lib/media-url";
 import type { QuizLibraryItem, QuizQuestionItem } from "@/lib/quiz-library";
 import {
   bestPresentationImageUrl,
@@ -218,7 +219,7 @@ function QuestionContent({
         <audio
           ref={presentationAudioRef}
           controls
-          src={question.audioUrl}
+          src={playbackMediaSrc(question.audioUrl)}
           className="w-full max-w-xl"
           onClick={(e) => e.stopPropagation()}
           onContextMenu={(e) => e.stopPropagation()}
@@ -230,7 +231,7 @@ function QuestionContent({
         <video
           controls
           playsInline
-          src={question.videoUrl}
+          src={playbackMediaSrc(question.videoUrl)}
           className="w-full max-w-4xl max-h-[50vh] rounded-xl border border-white/10 bg-black"
           onClick={(e) => e.stopPropagation()}
           onContextMenu={(e) => e.stopPropagation()}

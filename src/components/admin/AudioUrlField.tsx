@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Upload, X } from "lucide-react";
+import { playbackMediaSrc } from "@/lib/media-url";
 import { uploadAudioFileClient } from "@/lib/upload-audio-client";
 
 type Props = {
@@ -72,10 +73,10 @@ export default function AudioUrlField({
         )}
       </div>
       <p className="text-brand-muted text-xs mt-1.5">
-        Súbor ide do Supabase Storage (bucket uploads) — rovnaké úložisko ako fotky podnikov. Odporúčaná dĺžka ~30 s.
+        Upload ide do Blob (alebo Supabase ak je zapnutý). Odporúčaná dĺžka ukážky ~30 s.
       </p>
       {value.trim() && (
-        <audio controls src={value} className="w-full max-w-md mt-2" preload="metadata" />
+        <audio controls src={playbackMediaSrc(value)} className="w-full max-w-md mt-2" preload="metadata" />
       )}
     </div>
   );

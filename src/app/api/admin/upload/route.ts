@@ -15,11 +15,10 @@ import {
   MAX_VIDEO_BYTES,
   MAX_VIDEO_SERVER_BYTES,
 } from "@/lib/video-upload";
-import { uploadEventImageToBlob } from "@/lib/blob-media";
+import { uploadBlobMedia, uploadEventImageToBlob } from "@/lib/blob-media";
 import { shouldWriteBlob } from "@/lib/storage";
 import {
   canUseSupabaseStorage,
-  hasSupabaseStorage,
   supabaseUploadPublicFile,
   supabaseUploadPublicImage,
 } from "@/lib/supabase-storage";
@@ -38,7 +37,7 @@ async function uploadMediaBuffer(
 ): Promise<string> {
   const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, "-") || `clip.${fallbackExt}`;
 
-  if (hasSupabaseStorage()) {
+  if (canUseSupabaseStorage()) {
     const ext = safeName.split(".").pop()?.toLowerCase() ?? fallbackExt;
     try {
       return await supabaseUploadPublicFile(folder, `${Date.now()}.${ext}`, buffer, contentType);
@@ -50,9 +49,15 @@ async function uploadMediaBuffer(
     }
   }
 
+  if (shouldWriteBlob()) {
+    const fileName = `${Date.now()}.${safeName.split(".").pop() ?? fallbackExt}`;
+    const { url } = await uploadBlobMedia(folder, fileName, buffer, contentType);
+    return url;
+  }
+
   if (process.env.VERCEL) {
     throw new Error(
-      "Upload na produkcii vyžaduje Supabase Storage (bucket uploads) — rovnako ako fotky v admin sekcii."
+      "Upload na produkcii vyžaduje Supabase Storage alebo Vercel Blob (BLOB_STORE_ID / token)."
     );
   }
 

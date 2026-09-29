@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { playbackMediaSrc } from "@/lib/media-url";
 import { BookOpen, Check, ClipboardCopy, Pencil, Shuffle, Trash2 } from "lucide-react";
 import {
   EditMusicTrackDialog,
@@ -697,7 +698,9 @@ export default function QuizQuestionBankPanel({
                     <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-sky-100 text-sky-900 border border-sky-200">zvuk</span>
                     <p className="text-sm font-semibold text-brand-text">{clip.label}</p>
                     <p className="text-sm text-brand-muted">Odpoveď: {clip.answer}</p>
-                    {clip.audioUrl && <audio controls src={clip.audioUrl} className="w-full max-w-md" preload="metadata" />}
+                    {clip.audioUrl && (
+                      <audio controls src={playbackMediaSrc(clip.audioUrl)} className="w-full max-w-md" preload="metadata" />
+                    )}
                     <p className="text-xs text-brand-muted">{formatSoundBankHostNote(clip)}</p>
                     {bankTargetSlots.length > 0 && onInsertSound ? (
                       <div className="flex gap-2">
@@ -743,7 +746,9 @@ export default function QuizQuestionBankPanel({
                   <div key={track.id} className="rounded-xl border border-sky-200 dark:border-sky-900 bg-brand-surface/50 p-3 space-y-2.5">
                     <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-sky-100 text-sky-900 border border-sky-200">zvuk</span>
                     <p className="text-sm font-semibold text-brand-text">{track.artist} — {track.title}</p>
-                    {track.audioUrl && <audio controls src={track.audioUrl} className="w-full max-w-md" preload="metadata" />}
+                    {track.audioUrl && (
+                      <audio controls src={playbackMediaSrc(track.audioUrl)} className="w-full max-w-md" preload="metadata" />
+                    )}
                     <p className="text-xs text-brand-muted">{formatMusicBankHostNote(track)}</p>
                     {track.tags && track.tags.length > 0 && (
                       <p className="text-[11px] text-violet-800 dark:text-violet-200 font-medium">
@@ -801,7 +806,12 @@ export default function QuizQuestionBankPanel({
                   <p className="text-sm font-semibold text-brand-text">{clip.label}</p>
                   <p className="text-sm text-brand-muted">Odpoveď: {clip.answer}</p>
                   {clip.videoUrl && (
-                    <video controls src={clip.videoUrl} className="w-full max-w-md rounded-lg border border-brand-border" preload="metadata" />
+                    <video
+                      controls
+                      src={playbackMediaSrc(clip.videoUrl)}
+                      className="w-full max-w-md rounded-lg border border-brand-border"
+                      preload="metadata"
+                    />
                   )}
                   <p className="text-xs text-brand-muted">{formatVideoBankHostNote(clip)}</p>
                   {bankTargetSlots.length > 0 && onInsertVideo ? (
