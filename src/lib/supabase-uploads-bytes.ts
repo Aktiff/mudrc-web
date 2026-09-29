@@ -59,12 +59,49 @@ export async function fetchSupabaseUploadsBytes(
 
   try {
     const supabase = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
+
+    const { data: signed, error: signError } = await supabase.storage
+      .from("uploads")
+      .createSignedUrl(normalized, 60 * 60);
+    if (!signError && signed?.signedUrl) {
+      try {
+        const res = await fetch(signed.signedUrl, { cache: "no-store" });
+        if (res.ok) {
+          return {
+            buffer: Buffer.from(await res.arrayBuffer()),
+            contentType: res.headers.get("content-type") || guessContentType(normalized),
+          };
+        }
+      } catch {
+        /* fall through to download */
+      }
+    }
+
     const { data, error } = await supabase.storage.from("uploads").download(normalized);
     if (error || !data) return null;
     return {
       buffer: Buffer.from(await data.arrayBuffer()),
       contentType: guessContentType(normalized),
     };
+  } catch {
+    return null;
+  }
+}
+
+/** Krátkodobá signed URL — vhodné pre presmerovanie prehrávača. */
+export async function createSupabaseUploadsSignedUrl(objectPath: string): Promise<string | null> {
+  const normalized = objectPath.replace(/^\/+/, "").trim();
+  if (!normalized || normalized.includes("..") || !hasSupabaseStorage()) return null;
+
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!supabaseUrl || !serviceKey) return null;
+
+  try {
+    const supabase = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
+    const { data, error } = await supabase.storage.from("uploads").createSignedUrl(normalized, 60 * 60);
+    if (error || !data?.signedUrl) return null;
+    return data.signedUrl;
   } catch {
     return null;
   }

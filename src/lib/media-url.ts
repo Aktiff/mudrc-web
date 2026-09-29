@@ -16,7 +16,7 @@ export function absoluteMediaUrl(storedUrl: string | undefined): string | undefi
 }
 
 export function supabaseUploadsObjectPath(url: string): string | null {
-  const match = url.match(/\/storage\/v1\/object\/public\/uploads\/(.+)$/i);
+  const match = url.match(/\/storage\/v1\/object\/(?:public|sign|authenticated)\/uploads\/([^?#]+)/i);
   if (!match?.[1]) return null;
   try {
     return decodeURIComponent(match[1]);

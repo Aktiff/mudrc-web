@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { deleteLibraryQuiz, readLibraryQuiz, saveLibraryQuiz } from "@/lib/quiz-library-storage";
 import { getQuizUsages } from "@/lib/quiz-library-usage";
 import { collectPlayedTeamNames, collectUsedBankQuestionIdsFromQuiz, normalizeLibraryQuiz } from "@/lib/quiz-library";
+import { hydrateQuizMediaForPlayback } from "@/lib/quiz-media-resolve";
 import { readAllEventsRaw, readAllStoredQuizzes } from "@/lib/storage";
 
 export const runtime = "nodejs";
@@ -20,8 +21,9 @@ export async function GET(_req: NextRequest, { params }: RouteContext) {
 
     const usages = getQuizUsages(params.id, storedQuizzes, events);
     const normalized = normalizeLibraryQuiz(quiz);
+    const hydrated = await hydrateQuizMediaForPlayback(normalized);
     return NextResponse.json({
-      ...normalized,
+      ...hydrated,
       usages,
       playedTeamNames: collectPlayedTeamNames(usages),
       usageCount: usages.length,
