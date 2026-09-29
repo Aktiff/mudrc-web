@@ -6,7 +6,6 @@ import { readAppStorageBlob, writeAppStorageBlob } from "@/lib/blob-app-storage"
 import { shouldWriteBlob } from "@/lib/storage";
 import {
   hasSupabaseStorage,
-  isSupabaseRestrictedMessage,
   supabaseFetchQuizLibraryBackup,
   supabaseSetQuizLibraryBackup,
 } from "@/lib/supabase-storage";
@@ -23,8 +22,7 @@ export async function writeQuizLibraryBackup(quiz: QuizLibraryItem): Promise<voi
     try {
       await supabaseSetQuizLibraryBackup(quiz.id, payload);
     } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error);
-      if (!isSupabaseRestrictedMessage(msg)) throw error;
+      console.error("writeQuizLibraryBackup Supabase failed:", error);
     }
   }
   if (shouldWriteBlob()) {

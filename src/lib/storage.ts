@@ -473,6 +473,11 @@ export async function rebuildLeagueTableForEvent(event: QuizEvent): Promise<{
 }
 
 async function loadQuizzesRaw(): Promise<StoredQuiz[]> {
+  const fromBlob = await readAppStorageBlob<{ quizzes?: StoredQuiz[] }>(QUIZZES_APP_BLOB);
+  if (fromBlob?.quizzes?.length) {
+    return fromBlob.quizzes.map(normalizeStoredQuiz);
+  }
+
   if (canUseSupabaseStorage()) {
     const result = await supabaseFetchQuizzes();
     if (result.status === "ok") {
@@ -481,11 +486,6 @@ async function loadQuizzesRaw(): Promise<StoredQuiz[]> {
     } else if (result.status === "error") {
       console.error(`Supabase quizzes chyba (${result.message}) — fallback Blob / events.json.`);
     }
-  }
-
-  const fromBlob = await readAppStorageBlob<{ quizzes?: StoredQuiz[] }>(QUIZZES_APP_BLOB);
-  if (fromBlob?.quizzes?.length) {
-    return fromBlob.quizzes.map(normalizeStoredQuiz);
   }
 
   const events = readBundledSeedEvents();
@@ -501,23 +501,29 @@ async function loadQuizzesRaw(): Promise<StoredQuiz[]> {
 }
 
 async function persistQuizzes(quizzes: StoredQuiz[]): Promise<void> {
+  if (shouldWriteBlob()) {
+    await writeAppStorageBlob(QUIZZES_APP_BLOB, { quizzes });
+    if (canUseSupabaseStorage()) {
+      try {
+        await supabaseSetQuizzes({ quizzes });
+      } catch (error) {
+        console.error("persistQuizzes Supabase mirror failed (Blob uložené):", error);
+      }
+    }
+    return;
+  }
   if (canUseSupabaseStorage()) {
     try {
       await supabaseSetQuizzes({ quizzes });
       return;
     } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error);
-      console.error("persistQuizzes Supabase failed:", msg);
-      if (!isSupabaseRestrictedMessage(msg)) throw error;
+      console.error("persistQuizzes Supabase failed:", error);
+      throw new Error("Nepodarilo sa uložiť výsledky kvízu — nastav Blob vo Verceli alebo obnov Supabase.");
     }
-  }
-  if (shouldWriteBlob()) {
-    await writeAppStorageBlob(QUIZZES_APP_BLOB, { quizzes });
-    return;
   }
   if (isVercel) {
     throw new Error(
-      "Supabase je nedostupný (kvóta). Pridaj BLOB_READ_WRITE_TOKEN vo Verceli alebo obnov Supabase plán."
+      "Úložisko nie je dostupné. Vo Verceli nastav BLOB_STORE_ID / token alebo obnov Supabase."
     );
   }
   // lokálne: kvízy zostávajú v events.local.json cez updateEvents
