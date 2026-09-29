@@ -1,29 +1,9 @@
 import { isMusicBankId, musicTrackKey, type MusicBankItem } from "@/lib/music-bank";
 import { isSoundBankId, type SoundBankItem } from "@/lib/sound-bank";
-import { playbackMediaSrc } from "@/lib/media-url";
+import { rewriteStoredMediaUrl } from "@/lib/media-url";
 import type { QuizLibraryItem, QuizQuestionItem } from "@/lib/quiz-library";
 import { readStoredMusicBank } from "@/lib/music-bank-storage";
 import { readStoredSoundBank } from "@/lib/sound-bank-storage";
-
-export function rewriteStoredMediaUrl(url: string | undefined): string | undefined {
-  const trimmed = url?.trim();
-  if (!trimmed) return undefined;
-
-  if (trimmed.startsWith("/api/media/") || trimmed.startsWith("/uploads/")) {
-    if (trimmed.startsWith("/uploads/audio/") || trimmed.startsWith("/uploads/video/")) {
-      const sub = trimmed.replace(/^\/uploads\//, "");
-      return `/api/media/supabase/${sub.split("/").map(encodeURIComponent).join("/")}`;
-    }
-    return trimmed;
-  }
-
-  if (/^(audio|video)\/[^/]+/.test(trimmed)) {
-    return `/api/media/supabase/${trimmed.split("/").map(encodeURIComponent).join("/")}`;
-  }
-
-  const proxied = playbackMediaSrc(trimmed);
-  return proxied ?? trimmed;
-}
 
 function pickBankAudio(
   question: QuizQuestionItem,

@@ -1,3 +1,4 @@
+import { resolveMediaSrc } from "@/lib/media-url";
 import type { QuizQuestionItem } from "@/lib/quiz-library";
 import { compareQuizQuestions, roundLabels } from "@/lib/quiz-template";
 
@@ -189,7 +190,7 @@ export function shouldShowImageAfterAnswer(question: QuizQuestionItem): boolean 
 
 /** Wikimedia thumb URL → plné rozlíšenie (inak ponechá pôvodnú URL). */
 export function bestPresentationImageUrl(url: string): string {
-  const trimmed = url.trim();
+  const trimmed = resolveMediaSrc(url.trim()) ?? url.trim();
   if (!trimmed) return trimmed;
 
   const wikiThumb = trimmed.match(

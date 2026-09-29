@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Upload, X } from "lucide-react";
+import { resolveMediaSrc } from "@/lib/media-url";
 
 type Props = {
   label?: string;
@@ -87,7 +88,7 @@ export default function ImageUrlField({
       {value.trim() && (
         <div className="mt-2 w-full max-w-sm h-36 rounded-xl overflow-hidden border border-brand-border bg-brand-warm">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={value} alt="" className="w-full h-full object-contain" />
+          <img src={resolveMediaSrc(value)} alt="" className="w-full h-full object-contain" />
         </div>
       )}
     </div>
