@@ -110,7 +110,11 @@ export async function uploadAudioFileClient(file: File): Promise<string> {
 
   try {
     return await uploadViaServer(file);
-  } catch {
-    return uploadViaSupabaseStorage(file);
+  } catch (serverErr) {
+    try {
+      return await uploadViaSupabaseStorage(file);
+    } catch {
+      throw serverErr instanceof Error ? serverErr : new Error("Nepodarilo sa nahrať audio.");
+    }
   }
 }
