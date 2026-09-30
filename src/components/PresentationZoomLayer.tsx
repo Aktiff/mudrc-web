@@ -20,6 +20,14 @@ function manualZoomLimits() {
   };
 }
 
+/** Pri zoom pan nechceme ťahať obrázok — audio/video/tlačidlá nechaj interaktívne. */
+function isPanBlockedTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof Element)) return false;
+  return !!target.closest(
+    "audio, video, button, input, select, textarea, a, label, [data-zoom-pan-block]"
+  );
+}
+
 type Props = {
   slideKey: string;
   className?: string;
@@ -92,6 +100,8 @@ export default function PresentationZoomLayer({
 
   const onPointerDown = useCallback((e: PointerEvent<HTMLDivElement>) => {
     if (e.button !== 0 || scaleRef.current <= 1) return;
+    if (isPanBlockedTarget(e.target)) return;
+    e.preventDefault();
     dragRef.current = {
       startX: e.clientX,
       startY: e.clientY,
@@ -153,14 +163,15 @@ export default function PresentationZoomLayer({
       className={`overflow-hidden touch-none box-border ${isZoomed ? "cursor-grab active:cursor-grabbing" : ""} ${className}`}
       onClick={onClick}
       onAuxClick={onAuxClick}
-      onPointerDown={onPointerDown}
+      onPointerDownCapture={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={endDrag}
       onPointerCancel={endDrag}
+      onLostPointerCapture={endDrag}
       role="presentation"
     >
       <div
-        className={`w-full h-full min-h-0 max-h-full flex items-center justify-center will-change-transform ${innerClassName}`}
+        className={`w-full h-full min-h-0 max-h-full flex items-center justify-center will-change-transform ${isZoomed ? "[&_img]:pointer-events-none" : ""} ${innerClassName}`}
         style={innerStyle}
       >
         {children}

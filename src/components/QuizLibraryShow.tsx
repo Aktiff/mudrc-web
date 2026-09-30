@@ -137,7 +137,14 @@ function PresentationImage({
 
   return (
     // eslint-disable-next-line @next/next/no-img-element
-    <img src={resolved} alt="" className={className} decoding="async" />
+    <img
+      src={resolved}
+      alt=""
+      draggable={false}
+      className={`${className} select-none`}
+      decoding="async"
+      onDragStart={(e) => e.preventDefault()}
+    />
   );
 }
 
