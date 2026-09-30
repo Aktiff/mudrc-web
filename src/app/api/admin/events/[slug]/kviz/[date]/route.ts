@@ -32,7 +32,7 @@ export const dynamic = "force-dynamic";
 
 
 
-type TeamEntry = { name: string; scores: number[]; total?: number };
+type TeamEntry = { name: string; scores: number[]; total?: number; players?: number };
 
 
 
@@ -81,6 +81,7 @@ export async function PUT(req: NextRequest, { params }: { params: { slug: string
 
 
   const { sorted, teamsDetail, winnerTeam, winnerTotal } = buildQuizTeamsDetail(validTeams);
+  const playerCount = teamsDetail.reduce((sum, team) => sum + (team.players ?? 0), 0);
 
   const quizId = existing.result.id ?? normalizeDateKey(existing.result.date);
 
@@ -181,6 +182,7 @@ export async function PUT(req: NextRequest, { params }: { params: { slug: string
         teams: teamsDetail,
         leagueSynced: true,
         libraryQuizId: existing.result.libraryQuizId,
+        ...(playerCount > 0 ? { playerCount } : {}),
       };
 
 

@@ -6,7 +6,7 @@ import { AdminDatePicker } from "@/components/AdminDatePicker";
 import { TeamAutocomplete } from "@/components/TeamAutocomplete";
 import { CANVAS_LIBRARY_QUIZ_ID, isCanvasLibraryQuiz } from "@/lib/quiz-result-library";
 
-export type QuizTeamRow = { name: string; scores: number[] };
+export type QuizTeamRow = { name: string; scores: number[]; players: number };
 
 type QuizOption = {
   id: string;
@@ -67,11 +67,15 @@ export default function QuizResultsEntryForm({
   const selectedQuiz = quizzes.find((quiz) => quiz.id === libraryQuizId);
   const activeTeamNames = quizTeams.map((team) => team.name.trim()).filter(Boolean);
 
-  const updateTeam = (index: number, field: "name" | number, value: string | number) => {
+  const updateTeam = (index: number, field: "name" | "players" | number, value: string | number) => {
     onQuizTeamsChange(
       quizTeams.map((team, idx) => {
         if (idx !== index) return team;
         if (field === "name") return { ...team, name: value as string };
+        if (field === "players") {
+          const players = parseInt(String(value), 10);
+          return { ...team, players: Number.isFinite(players) && players > 0 ? players : 0 };
+        }
         const scores = [...team.scores];
         scores[field as number] = Number(value);
         return { ...team, scores };
@@ -80,7 +84,7 @@ export default function QuizResultsEntryForm({
   };
 
   const addTeam = () => {
-    onQuizTeamsChange([...quizTeams, { name: "", scores: Array(rounds).fill(0) }]);
+    onQuizTeamsChange([...quizTeams, { name: "", scores: Array(rounds).fill(0), players: 0 }]);
   };
 
   const removeTeam = (index: number) => {
@@ -154,7 +158,7 @@ export default function QuizResultsEntryForm({
       </div>
 
       <div className="overflow-x-auto -mx-2 px-2 pb-1">
-        <div className="grid gap-3 mb-2 pr-9 min-w-[640px]" style={{ gridTemplateColumns: `minmax(10rem, 1fr) repeat(${rounds}, 4.5rem) 4rem` }}>
+        <div className="grid gap-3 mb-2 pr-9 min-w-[720px]" style={{ gridTemplateColumns: `minmax(10rem, 1fr) repeat(${rounds}, 4.5rem) 4rem 4.5rem` }}>
           <span className="text-xs text-brand-muted uppercase tracking-wider font-medium">Tím</span>
           {Array.from({ length: rounds }, (_, index) => (
             <span key={index} className="text-xs text-brand-muted uppercase tracking-wider font-medium text-center">
@@ -162,13 +166,14 @@ export default function QuizResultsEntryForm({
             </span>
           ))}
           <span className="text-xs text-brand-orange uppercase tracking-wider font-semibold text-center">Body</span>
+          <span className="text-xs text-brand-muted uppercase tracking-wider font-medium text-center">Hráči</span>
         </div>
-        <div className="space-y-2 min-w-[640px]">
+        <div className="space-y-2 min-w-[720px]">
           {quizTeams.map((team, index) => (
             <div
               key={index}
               className="grid gap-3 items-center"
-              style={{ gridTemplateColumns: `minmax(10rem, 1fr) repeat(${rounds}, 4.5rem) 4rem 2rem` }}
+              style={{ gridTemplateColumns: `minmax(10rem, 1fr) repeat(${rounds}, 4.5rem) 4rem 4.5rem 2rem` }}
             >
               <TeamAutocomplete
                 className="input py-2.5"
@@ -191,6 +196,15 @@ export default function QuizResultsEntryForm({
               <div className="text-center">
                 <span className="font-display text-2xl text-brand-orange">{getTotal(team.scores)}</span>
               </div>
+              <input
+                className="input py-2.5 text-center"
+                type="number"
+                min="0"
+                max="99"
+                value={team.players || ""}
+                placeholder="0"
+                onChange={(e) => updateTeam(index, "players", e.target.value)}
+              />
               <button
                 type="button"
                 onClick={() => removeTeam(index)}
@@ -263,9 +277,10 @@ export function teamsFromNames(names: string[], rounds: number, rowCount = 10): 
   const rows: QuizTeamRow[] = Array.from({ length: Math.max(rowCount, names.length) }, () => ({
     name: "",
     scores: Array(rounds).fill(0),
+    players: 0,
   }));
   names.forEach((name, index) => {
-    rows[index] = { name, scores: Array(rounds).fill(0) };
+    rows[index] = { name, scores: Array(rounds).fill(0), players: 0 };
   });
   return rows;
 }

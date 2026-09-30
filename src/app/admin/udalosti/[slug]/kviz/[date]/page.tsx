@@ -16,7 +16,7 @@ type ResultDetail = {
   libraryQuizId?: string;
 };
 
-type EditRow = { name: string; scores: number[] };
+type EditRow = { name: string; scores: number[]; players: number };
 
 async function loadQuizDetail(slug: string, quizParam: string) {
   const res = await fetch(
@@ -70,23 +70,31 @@ export default function AdminQuizDetailPage({ params }: { params: { slug: string
     setEditTeams(
       [...result.teams]
         .sort((a, b) => b.total - a.total)
-        .map((t) => ({ name: t.teamName, scores: t.rounds?.length ? [...t.rounds] : Array(rounds).fill(0) }))
+        .map((t) => ({
+          name: t.teamName,
+          scores: t.rounds?.length ? [...t.rounds] : Array(rounds).fill(0),
+          players: t.players && t.players > 0 ? t.players : 0,
+        }))
     );
     setEditing(true);
   };
 
   const getTotal = (scores: number[]) => scores.reduce((a, b) => a + (Number(b) || 0), 0);
 
-  const updateRow = (i: number, field: "name" | number, val: string | number) =>
+  const updateRow = (i: number, field: "name" | "players" | number, val: string | number) =>
     setEditTeams((rows) => rows.map((r, idx) => {
       if (idx !== i) return r;
       if (field === "name") return { ...r, name: val as string };
+      if (field === "players") {
+        const players = parseInt(String(val), 10);
+        return { ...r, players: Number.isFinite(players) && players > 0 ? players : 0 };
+      }
       const scores = [...r.scores];
       scores[field as number] = Number(val);
       return { ...r, scores };
     }));
 
-  const addRow = () => setEditTeams((r) => [...r, { name: "", scores: Array(rounds).fill(0) }]);
+  const addRow = () => setEditTeams((r) => [...r, { name: "", scores: Array(rounds).fill(0), players: 0 }]);
   const removeRow = (i: number) => setEditTeams((r) => r.filter((_, idx) => idx !== i));
 
   const saveEdit = async () => {
@@ -221,6 +229,7 @@ export default function AdminQuizDetailPage({ params }: { params: { slug: string
                     <th key={i} className="text-center pb-2 px-2 font-medium w-16">K{i + 1}</th>
                   ))}
                   <th className="text-center pb-2 px-2 font-medium w-20 text-brand-orange">Celkovo</th>
+                  <th className="text-center pb-2 px-2 font-medium w-16">Hráči</th>
                   <th className="w-6" />
                 </tr>
               </thead>
@@ -248,6 +257,16 @@ export default function AdminQuizDetailPage({ params }: { params: { slug: string
                     ))}
                     <td className="py-2 px-2 text-center">
                       <span className="font-display text-xl text-brand-orange">{getTotal(team.scores)}</span>
+                    </td>
+                    <td className="py-2 px-2">
+                      <input
+                        className="input text-sm py-1.5 text-center w-16"
+                        type="number"
+                        min="0"
+                        max="99"
+                        value={team.players || ""}
+                        onChange={(e) => updateRow(i, "players", e.target.value)}
+                      />
                     </td>
                     <td className="py-2 pl-1">
                       <button onClick={() => removeRow(i)} className="text-brand-muted-light hover:text-red-400 transition-colors">

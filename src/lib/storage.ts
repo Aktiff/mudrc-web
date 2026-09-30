@@ -849,6 +849,7 @@ function eventForEventsKey(event: QuizEvent): QuizEvent {
       date: r.date,
       winnerTeam: r.winnerTeam,
       points: r.points,
+      ...(typeof r.playerCount === "number" && r.playerCount > 0 ? { playerCount: r.playerCount } : {}),
     })),
   };
 }

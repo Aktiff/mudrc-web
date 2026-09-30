@@ -24,7 +24,7 @@ import {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-type TeamEntry = { name: string; scores: number[]; total?: number };
+type TeamEntry = { name: string; scores: number[]; total?: number; players?: number };
 
 export async function POST(req: NextRequest, { params }: { params: { slug: string } }) {
   const { date, teams, libraryQuizId }: { date: string; teams: TeamEntry[]; libraryQuizId?: string } =
@@ -41,6 +41,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   }
 
   const { sorted, teamsDetail, winnerTeam, winnerTotal, responseLigaPoints } = buildQuizTeamsDetail(teams);
+  const playerCount = teamsDetail.reduce((sum, team) => sum + (team.players ?? 0), 0);
   const resultId = normalizeDateKey(date);
 
   if (isAssignedLibraryQuiz(normalizedLibraryQuizId)) {
@@ -104,7 +105,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
       const sortedTable = sortLeagueTable(table);
       const pastResults = [
         ...(event.pastResults ?? []).filter((r) => normalizeDateKey(r.date) !== resultId && r.id !== resultId),
-        { id: resultId, date, winnerTeam, points: winnerTotal, teams: teamsDetail, leagueSynced: true, libraryQuizId: normalizedLibraryQuizId },
+        { id: resultId, date, winnerTeam, points: winnerTotal, teams: teamsDetail, leagueSynced: true, libraryQuizId: normalizedLibraryQuizId, ...(playerCount > 0 ? { playerCount } : {}) },
       ];
 
       events[idx] = { ...event, leagueTable: sortedTable, pastResults, leagueActive: true };

@@ -44,13 +44,22 @@ export function promoChecksForEvent(event: { date: string; promoChecklist?: Even
 }
 
 export type LeagueEntry = { rank: number; teamName: string; points: number; quizzesPlayed: number };
-export type PastResultTeam = { teamName: string; rounds: number[]; total: number; ligaPoints: number };
+export type PastResultTeam = {
+  teamName: string;
+  rounds: number[];
+  total: number;
+  ligaPoints: number;
+  /** Počet hráčov v tíme na tomto kvíze. */
+  players?: number;
+};
 export type PastResult = {
   id: string;
   date: string;
   winnerTeam: string;
   points: number;
   teams?: PastResultTeam[];
+  /** Súčet hráčov, keď nie je rozpísaný po tímoch. */
+  playerCount?: number;
   /** Detailný kvíz už započítaný v leagueTable (aby sa pri obnove / prepočte nezdvojil). */
   leagueSynced?: boolean;
   /** Odkaz na hotový kvíz z knižnice (recyklácia otázok). */

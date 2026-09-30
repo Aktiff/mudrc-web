@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Armchair, Calendar, ClipboardList, LayoutDashboard, LogOut, MonitorPlay, Users } from "lucide-react";
+import { Armchair, BarChart3, Calendar, ClipboardList, LayoutDashboard, LogOut, MonitorPlay, Users } from "lucide-react";
 
 const navItems = [
   { href: "/admin", label: "Prehľad", icon: LayoutDashboard, exact: true },
@@ -20,6 +20,7 @@ const navItems = [
     exact: false,
     isActive: (pathname: string) => pathname.startsWith("/admin/hotove-kvizy"),
   },
+  { href: "/admin/statistiky", label: "Štatistiky", icon: BarChart3, exact: false },
   { href: "/admin/registracie", label: "Registrácie", icon: ClipboardList, exact: false },
   { href: "/admin/timy", label: "Tímy", icon: Users, exact: false },
   {

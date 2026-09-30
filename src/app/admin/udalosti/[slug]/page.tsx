@@ -10,7 +10,7 @@ import { formatPollOptionLabel, pollOptionsMatch } from "@/lib/poll";
 import { findQuizResult, mergePastResults, normalizeDateKey, quizResultKey } from "@/lib/quiz-result-key";
 import { mediaUrlForBrowser } from "@/lib/media-url";
 import { REGION_OPTIONS } from "@/lib/regions";
-import { parseRegistrationPlayerCount } from "@/lib/registration-utils";
+import { estimatedEntryRevenue, formatEuroAmount, parseRegistrationPlayerCount } from "@/lib/registration-utils";
 import { AdminDatePicker, AdminTimePicker } from "@/components/AdminDatePicker";
 import { PollAdminMultiDatePicker } from "@/components/PollAdminMultiDatePicker";
 import { TeamAutocomplete } from "@/components/TeamAutocomplete";
@@ -105,8 +105,8 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
     const d = new Date();
     return `${String(d.getDate()).padStart(2,"0")}.${String(d.getMonth()+1).padStart(2,"0")}.${d.getFullYear()}`;
   });
-  type QuizTeamRow = { name: string; scores: number[] };
-  const emptyRow = (): QuizTeamRow => ({ name: "", scores: Array(4).fill(0) });
+  type QuizTeamRow = { name: string; scores: number[]; players: number };
+  const emptyRow = (): QuizTeamRow => ({ name: "", scores: Array(4).fill(0), players: 0 });
   const [quizTeams, setQuizTeams] = useState<QuizTeamRow[]>(Array.from({ length: 10 }, emptyRow));
   const [quizResult, setQuizResult] = useState<{ winnerTeam: string; ligaPoints: {name:string;total:number;liga:number}[] } | null>(null);
   const [quizSubmitting, setQuizSubmitting] = useState(false);
@@ -166,11 +166,12 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
 
   const addQuizTeam = () => setQuizTeams((t) => [...t, emptyRow()]);
   const removeQuizTeam = (i: number) => setQuizTeams((t) => t.filter((_, idx) => idx !== i));
-  const updateQuizTeam = (i: number, field: "name" | number, val: string | number) =>
+  const updateQuizTeam = (i: number, field: "name" | "players" | number, val: string | number) =>
     setQuizTeams((teams) =>
       teams.map((t, idx) => {
         if (idx !== i) return t;
         if (field === "name") return { ...t, name: val as string };
+        if (field === "players") return { ...t, players: parseRegistrationPlayerCount(val) };
         const scores = [...t.scores];
         scores[field as number] = Number(val);
         return { ...t, scores };
@@ -1229,16 +1230,17 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
               <AdminDatePicker value={quizDate} onChange={setQuizDate} />
             </div>
           </div>
-          <div className="grid gap-3 mb-2 pr-9" style={{ gridTemplateColumns: `1fr repeat(${form.rounds || 4}, 5rem) 4.5rem` }}>
+          <div className="grid gap-3 mb-2 pr-9" style={{ gridTemplateColumns: `1fr repeat(${form.rounds || 4}, 5rem) 4.5rem 4.5rem` }}>
             <span className="text-xs text-brand-muted uppercase tracking-wider font-medium">Tím</span>
             {Array.from({ length: form.rounds || 4 }, (_, i) => (
               <span key={i} className="text-xs text-brand-muted uppercase tracking-wider font-medium text-center">K{i + 1}</span>
             ))}
             <span className="text-xs text-brand-orange uppercase tracking-wider font-semibold text-center">Body</span>
+            <span className="text-xs text-brand-muted uppercase tracking-wider font-medium text-center">Hráči</span>
           </div>
           <div className="space-y-2 mb-6">
             {quizTeams.map((team, i) => (
-              <div key={i} className="grid gap-3 items-center" style={{ gridTemplateColumns: `1fr repeat(${form.rounds || 4}, 5rem) 4.5rem 2rem` }}>
+              <div key={i} className="grid gap-3 items-center" style={{ gridTemplateColumns: `1fr repeat(${form.rounds || 4}, 5rem) 4.5rem 4.5rem 2rem` }}>
                 <TeamAutocomplete
                   className="input py-2.5"
                   value={team.name}
@@ -1258,12 +1260,30 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
                 <div className="text-center">
                   <span className="font-display text-2xl text-brand-orange">{getTotal(team.scores)}</span>
                 </div>
+                <input
+                  className="input py-2.5 text-center"
+                  type="number"
+                  min="0"
+                  max="99"
+                  value={team.players || ""}
+                  placeholder="0"
+                  onChange={(e) => updateQuizTeam(i, "players", e.target.value)}
+                />
                 <button onClick={() => removeQuizTeam(i)} className="text-brand-muted-light hover:text-red-400 transition-colors flex justify-center">
                   <Trash2 className="w-4 h-4" />
                 </button>
               </div>
             ))}
           </div>
+          {(() => {
+            const quizPlayers = quizTeams.reduce((sum, team) => sum + (team.name.trim() ? team.players : 0), 0);
+            if (!quizPlayers) return null;
+            return (
+              <p className="text-sm text-brand-muted mb-4">
+                Hráčov celkom {quizPlayers} · príjem {formatEuroAmount(estimatedEntryRevenue(form.entryFee, quizPlayers))}
+              </p>
+            );
+          })()}
           <div className="flex gap-3 mb-4 flex-wrap">
             <button onClick={addQuizTeam} className="btn-outline text-sm py-2.5 px-5">
               <Plus className="w-4 h-4" /> Pridať tím
@@ -1276,22 +1296,21 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
                   { cache: "no-store" }
                 );
                 const data = await res.json();
-                const names = (data.registrations ?? [])
-                  .map((r: EventRegistration) => r.teamName)
-                  .filter(Boolean);
-                if (!names.length) {
+                const regs = ((data.registrations ?? []) as EventRegistration[]).filter((reg) => reg.teamName?.trim());
+                if (!regs.length) {
                   setQuizMsg({ text: "Žiadne registrácie — pridaj tímy ručne.", ok: false });
                   return;
                 }
                 setQuizTeams((rows) => {
                   const next = [...rows];
-                  names.forEach((name: string, index: number) => {
-                    if (index < next.length) next[index] = { ...next[index], name };
-                    else next.push({ name, scores: Array(form.rounds || 4).fill(0) });
+                  regs.forEach((reg, index) => {
+                    const players = parseRegistrationPlayerCount(reg.players);
+                    if (index < next.length) next[index] = { ...next[index], name: reg.teamName, players };
+                    else next.push({ name: reg.teamName, scores: Array(form.rounds || 4).fill(0), players });
                   });
                   return next;
                 });
-                setQuizMsg({ text: `Načítaných ${names.length} tímov z registrácií.`, ok: true });
+                setQuizMsg({ text: `Načítaných ${regs.length} tímov z registrácií.`, ok: true });
               }}
               className="btn-outline text-sm py-2.5 px-5"
             >

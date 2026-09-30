@@ -1,12 +1,19 @@
 import type { PastResultTeam } from "@/lib/data";
 import { calcLigaPointsForTotals, roundQuizTotal } from "@/lib/league-points";
 
-type TeamEntry = { name: string; scores: number[]; total?: number };
+type TeamEntry = { name: string; scores: number[]; total?: number; players?: number };
+
+function teamPlayerCount(value: unknown): number | undefined {
+  const n = typeof value === "number" ? value : parseInt(String(value ?? ""), 10);
+  if (!Number.isFinite(n) || n <= 0) return undefined;
+  return Math.min(99, Math.round(n));
+}
 
 export function buildQuizTeamsDetail(teams: TeamEntry[]) {
   const withTotals = teams.map((team) => ({
     name: team.name.trim(),
     scores: team.scores.map((score) => Number(score) || 0),
+    players: teamPlayerCount(team.players),
     total:
       team.total !== undefined
         ? roundQuizTotal(Number(team.total))
@@ -26,6 +33,7 @@ export function buildQuizTeamsDetail(teams: TeamEntry[]) {
     rounds: team.scores,
     total: team.total,
     ligaPoints: ligaPointsMap.get(team.name) ?? 0,
+    ...(team.players ? { players: team.players } : {}),
   }));
 
   const winnerTeam = sorted[0]?.name ?? "";

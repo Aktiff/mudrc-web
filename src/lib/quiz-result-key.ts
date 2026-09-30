@@ -58,6 +58,7 @@ export function mergePastResults(local: PastResult[], server: PastResult[]): Pas
       ...existing,
       ...r,
       teams: pickTeams(existing, r),
+      playerCount: r.playerCount ?? existing.playerCount,
     });
   };
 
