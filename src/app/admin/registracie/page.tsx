@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Calendar, ChevronRight, MapPin, Trash2 } from "lucide-react";
+import { ArrowLeft, Calendar, ChevronRight, MapPin, Trash2 } from "lucide-react";
 import type { QuizEvent } from "@/lib/data";
-import { formatEventDateLabel, sortEventsForAdminOverview } from "@/lib/data";
+import { formatEventDateLabel, parseSkEventDateTime, sortEventsForAdminOverview } from "@/lib/data";
 import {
   formatSkPlayerCountTotal,
   parseRegistrationPlayerCount,
@@ -23,6 +23,18 @@ function sortRegsNewestFirst(list: AdminRegistration[]): AdminRegistration[] {
   return list.slice().reverse();
 }
 
+function teamCountLabel(count: number): string {
+  if (count === 1) return "1 tím";
+  if (count >= 2 && count <= 4) return `${count} tímy`;
+  return `${count} tímov`;
+}
+
+function isUpcomingEvent(event: QuizEvent): boolean {
+  const at = parseSkEventDateTime(event.date, event.time)?.getTime();
+  if (at == null) return false;
+  return at >= Date.now();
+}
+
 export default function RegistraciaPage() {
   const [regs, setRegs] = useState<AdminRegistration[]>([]);
   const [events, setEvents] = useState<QuizEvent[]>([]);
@@ -32,6 +44,7 @@ export default function RegistraciaPage() {
   const [clearingVenueSlug, setClearingVenueSlug] = useState<string | null>(null);
   const [updatingPlayersId, setUpdatingPlayersId] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
+  const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -95,7 +108,26 @@ export default function RegistraciaPage() {
     return { sections, orphans };
   }, [sortedEvents, filteredRegs, filter]);
 
-  const totalShown = filteredRegs.length;
+  const upcomingTotals = useMemo(() => {
+    const counted = new Set<string>();
+    let teams = 0;
+    let players = 0;
+    for (const event of sortedEvents) {
+      if (!isUpcomingEvent(event)) continue;
+      for (const reg of registrationsForEvent(regs, event.slug, event.venue) as AdminRegistration[]) {
+        if (counted.has(reg.id)) continue;
+        counted.add(reg.id);
+        teams += 1;
+        players += parseRegistrationPlayerCount(reg.players);
+      }
+    }
+    return { teams, players };
+  }, [sortedEvents, regs]);
+
+  const selectedEvent = selectedSlug ? sortedEvents.find((event) => event.slug === selectedSlug) ?? null : null;
+  const selectedList = selectedEvent
+    ? sortRegsNewestFirst(registrationsForEvent(regs, selectedEvent.slug, selectedEvent.venue) as AdminRegistration[])
+    : [];
 
   const adjustPlayers = async (reg: AdminRegistration, delta: number) => {
     const { min, max } = limitsFor(reg);
@@ -158,23 +190,94 @@ export default function RegistraciaPage() {
     }
   };
 
+  const listEvents = grouped.sections.filter(({ event, list }) => isUpcomingEvent(event) || list.length > 0);
+
+  if (selectedEvent) {
+    const event = selectedEvent;
+    const list = selectedList;
+    const totals = registrationTotalsForEvent(regs, event.slug, event.venue);
+    const min = Math.max(1, event.minPlayers ?? 2);
+    const max = Math.max(min, event.maxPlayers ?? 8, 20);
+
+    return (
+      <div className="w-full min-w-0">
+        <button
+          type="button"
+          onClick={() => setSelectedSlug(null)}
+          className="inline-flex items-center gap-2 text-sm font-semibold text-brand-muted hover:text-brand-text mb-4"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Všetky podniky
+        </button>
+        <h1 className="font-display text-4xl text-brand-text tracking-wide mb-1">{event.venue}</h1>
+        <p className="text-brand-muted text-sm mb-2 flex flex-wrap items-center gap-x-2">
+          <span className="inline-flex items-center gap-1">
+            <MapPin className="w-3.5 h-3.5 text-brand-orange" />
+            {event.city}
+          </span>
+          <span>
+            {formatEventDateLabel(event.date)} o {event.time}
+          </span>
+        </p>
+        <p className="text-brand-text text-sm font-semibold mb-6">
+          {teamCountLabel(totals.teams)} · {formatSkPlayerCountTotal(totals.players)}
+        </p>
+        {msg && <p className={`text-sm mb-4 ${msg.ok ? "text-green-600" : "text-red-500"}`}>{msg.text}</p>}
+        <div className="flex flex-wrap items-center gap-3 mb-6">
+          <Link href={`/admin/udalosti/${event.slug}?tab=registracie`} className="text-sm font-semibold text-brand-orange-readable hover:underline">
+            Otvoriť v udalosti
+          </Link>
+          {list.length > 0 && (
+            <button
+              type="button"
+              onClick={() => clearVenue(event, list.length)}
+              disabled={clearingVenueSlug === event.slug}
+              className="ml-auto flex items-center gap-2 text-sm font-semibold px-3 py-2 rounded-xl border border-red-200 dark:border-red-900 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 disabled:opacity-50"
+            >
+              <Trash2 className="w-4 h-4" />
+              {clearingVenueSlug === event.slug ? "Mažem…" : "Vymazať všetky"}
+            </button>
+          )}
+        </div>
+        {list.length === 0 ? (
+          <div className="bg-brand-card rounded-2xl border border-brand-border p-12 text-center">
+            <p className="text-brand-muted">Zatiaľ žiadne registrácie pre tento podnik.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {list.map((r) => (
+              <AdminRegistrationRow
+                key={r.id}
+                reg={r}
+                minPlayers={min}
+                maxPlayers={max}
+                busy={updatingPlayersId === r.id}
+                deleting={deletingId === r.id}
+                onAdjust={(delta) => adjustPlayers(r, delta)}
+                onDelete={() => deleteOne(r.id, r.teamName)}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="w-full min-w-0">
       <h1 className="font-display text-4xl text-brand-text tracking-wide mb-1">Registrácie</h1>
-      <p className="text-brand-muted text-sm mb-2">Podľa podnikov v rovnakom poradí ako v Udalostiach</p>
-      <p className="text-brand-muted text-xs mb-6">
-        Počet hráčov upravíš tlačidlami <strong className="text-brand-text">− / +</strong> (uloží sa hneď). Pri
-        prepnutí späť do adminu sa zoznam obnoví.
+      <p className="text-brand-text text-lg font-semibold mb-1">
+        Nadchádzajúce: {teamCountLabel(upcomingTotals.teams)} · {formatSkPlayerCountTotal(upcomingTotals.players)}
       </p>
+      <p className="text-brand-muted text-xs mb-6">Súčet tímov a ľudí vo všetkých budúcich kvízoch, ktoré majú prihlášky.</p>
       {msg && <p className={`text-sm mb-4 ${msg.ok ? "text-green-600" : "text-red-500"}`}>{msg.text}</p>}
       <div className="flex flex-wrap items-center gap-3 mb-8">
         <input
           className="input text-sm max-w-xs"
-          placeholder="Hľadať podnik alebo tím..."
+          placeholder="Hľadať podnik..."
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
         />
-        <span className="text-brand-muted text-sm">{totalShown} záznamov</span>
         <button
           type="button"
           onClick={() => load()}
@@ -186,119 +289,79 @@ export default function RegistraciaPage() {
 
       {loading && <p className="text-brand-muted text-sm">Načítavam...</p>}
 
-      {!loading && totalShown === 0 && (
+      {!loading && listEvents.length === 0 && (
         <div className="bg-brand-card rounded-2xl border border-brand-border p-12 text-center">
-          <p className="text-brand-muted">Zatiaľ žiadne registrácie{filter.trim() ? " pre tento filter" : ""}.</p>
+          <p className="text-brand-muted">Žiadne podniky{filter.trim() ? " pre tento filter" : ""}.</p>
         </div>
       )}
 
-      <div className="space-y-8">
-        {grouped.sections.map(({ event, list }) => {
+      <div className="space-y-3">
+        {listEvents.map(({ event, list }) => {
           const totals = registrationTotalsForEvent(regs, event.slug, event.venue);
-          const { min, max } = {
-            min: Math.max(1, event.minPlayers ?? 2),
-            max: Math.max(Math.max(1, event.minPlayers ?? 2), event.maxPlayers ?? 8, 20),
-          };
-
           return (
-            <section
+            <button
               key={event.slug}
-              className="bg-brand-card rounded-2xl border border-brand-border overflow-hidden"
+              type="button"
+              onClick={() => {
+                setFilter("");
+                setSelectedSlug(event.slug);
+              }}
+              className="w-full text-left bg-brand-card rounded-2xl border border-brand-border px-6 sm:px-8 py-5 hover:border-brand-orange hover:bg-brand-warm transition-colors group"
             >
-              <div className="px-6 sm:px-8 py-5 sm:py-6 border-b border-brand-border bg-brand-warm/40">
-                <div className="flex flex-col lg:flex-row lg:items-center gap-4 lg:gap-6">
-                  <Link
-                    href={`/admin/udalosti/${event.slug}?tab=registracie`}
-                    className="flex items-start gap-4 min-w-0 flex-1 group"
-                  >
-                    <div className="w-11 h-11 rounded-xl bg-brand-tint flex items-center justify-center shrink-0">
-                      <Calendar className="w-5 h-5 text-brand-orange" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="font-semibold text-lg text-brand-text group-hover:text-brand-orange-readable transition-colors flex items-center gap-2">
-                        {event.venue}
-                        <ChevronRight className="w-4 h-4 opacity-40 group-hover:opacity-100" />
-                      </div>
-                      <div className="text-brand-muted text-sm mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
-                        <span className="inline-flex items-center gap-1">
-                          <MapPin className="w-3.5 h-3.5 text-brand-orange" />
-                          {event.city}
-                        </span>
-                        <span>
-                          {formatEventDateLabel(event.date)} o {event.time}
-                        </span>
-                      </div>
-                    </div>
-                  </Link>
-                  <div className="flex flex-wrap items-center gap-3 lg:justify-end shrink-0">
-                    <span className="text-sm text-brand-muted">
-                      <span className="font-semibold text-brand-text">{totals.teams}</span>{" "}
-                      {totals.teams === 1 ? "tím" : totals.teams >= 2 && totals.teams <= 4 ? "tímy" : "tímov"}
-                      {" · "}
-                      <span className="font-semibold text-brand-text">{formatSkPlayerCountTotal(totals.players)}</span>
+              <div className="flex items-center gap-4">
+                <div className="w-11 h-11 rounded-xl bg-brand-tint flex items-center justify-center shrink-0">
+                  <Calendar className="w-5 h-5 text-brand-orange" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="font-semibold text-lg text-brand-text group-hover:text-brand-orange-readable flex items-center gap-2">
+                    {event.venue}
+                    <ChevronRight className="w-4 h-4 opacity-40 group-hover:opacity-100" />
+                  </div>
+                  <div className="text-brand-muted text-sm mt-1 flex flex-wrap items-center gap-x-2">
+                    <span className="inline-flex items-center gap-1">
+                      <MapPin className="w-3.5 h-3.5 text-brand-orange" />
+                      {event.city}
                     </span>
-                    {list.length > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => clearVenue(event, list.length)}
-                        disabled={clearingVenueSlug === event.slug}
-                        className="flex items-center gap-2 text-sm font-semibold px-3 py-2 rounded-xl border border-red-200 dark:border-red-900 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors disabled:opacity-50"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                        {clearingVenueSlug === event.slug ? "Mažem…" : "Vymazať všetky"}
-                      </button>
-                    )}
+                    <span>
+                      {formatEventDateLabel(event.date)} o {event.time}
+                    </span>
                   </div>
                 </div>
+                <div className="text-sm text-brand-muted text-right shrink-0">
+                  <div className="font-semibold text-brand-text">{teamCountLabel(totals.teams)}</div>
+                  <div>{formatSkPlayerCountTotal(totals.players)}</div>
+                </div>
               </div>
-              <div className="p-4 sm:p-6 space-y-3">
-                {list.length === 0 ? (
-                  <p className="text-brand-muted text-sm py-4 text-center">Zatiaľ žiadne registrácie pre tento podnik.</p>
-                ) : (
-                  list.map((r) => (
-                    <AdminRegistrationRow
-                      key={r.id}
-                      reg={r}
-                      minPlayers={min}
-                      maxPlayers={max}
-                      busy={updatingPlayersId === r.id}
-                      deleting={deletingId === r.id}
-                      onAdjust={(delta) => adjustPlayers(r, delta)}
-                      onDelete={() => deleteOne(r.id, r.teamName)}
-                    />
-                  ))
-                )}
-              </div>
-            </section>
+            </button>
           );
         })}
-
-        {grouped.orphans.length > 0 && (
-          <section className="bg-brand-card rounded-2xl border border-amber-300/50 overflow-hidden">
-            <div className="px-6 py-4 border-b border-brand-border bg-amber-50/80 dark:bg-amber-950/20">
-              <h2 className="font-semibold text-brand-text">Iné / nepriradené</h2>
-              <p className="text-brand-muted text-xs mt-1">Registrácie bez zodpovedajúcej udalosti v zozname</p>
-            </div>
-            <div className="p-4 sm:p-6 space-y-3">
-              {grouped.orphans.map((r) => {
-                const { min, max } = limitsFor(r);
-                return (
-                  <AdminRegistrationRow
-                    key={r.id}
-                    reg={r}
-                    minPlayers={min}
-                    maxPlayers={max}
-                    busy={updatingPlayersId === r.id}
-                    deleting={deletingId === r.id}
-                    onAdjust={(delta) => adjustPlayers(r, delta)}
-                    onDelete={() => deleteOne(r.id, r.teamName)}
-                  />
-                );
-              })}
-            </div>
-          </section>
-        )}
       </div>
+
+      {grouped.orphans.length > 0 && (
+        <section className="mt-8 bg-brand-card rounded-2xl border border-amber-300/50 overflow-hidden">
+          <div className="px-6 py-4 border-b border-brand-border bg-amber-50/80 dark:bg-amber-950/20">
+            <h2 className="font-semibold text-brand-text">Iné / nepriradené</h2>
+            <p className="text-brand-muted text-xs mt-1">Registrácie bez zodpovedajúcej udalosti</p>
+          </div>
+          <div className="p-4 sm:p-6 space-y-3">
+            {grouped.orphans.map((r) => {
+              const { min, max } = limitsFor(r);
+              return (
+                <AdminRegistrationRow
+                  key={r.id}
+                  reg={r}
+                  minPlayers={min}
+                  maxPlayers={max}
+                  busy={updatingPlayersId === r.id}
+                  deleting={deletingId === r.id}
+                  onAdjust={(delta) => adjustPlayers(r, delta)}
+                  onDelete={() => deleteOne(r.id, r.teamName)}
+                />
+              );
+            })}
+          </div>
+        </section>
+      )}
     </div>
   );
 }
