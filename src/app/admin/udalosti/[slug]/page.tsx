@@ -155,8 +155,9 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
         credentials: "same-origin",
       }
     )
-      .then((r) => r.json())
-      .then((d) => {
+      .then(async (r) => {
+        if (!r.ok) return;
+        const d = await r.json();
         const list = (d.registrations ?? []) as EventRegistration[];
         setRegistrations(list);
       })
@@ -456,6 +457,7 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
         setMsg({ text: "Registrácia zmazaná", ok: true });
+        loadRegistrations();
       } else {
         setRegistrations(previous);
         setMsg({ text: data.error ?? "Chyba pri mazaní registrácie", ok: false });
@@ -578,6 +580,7 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
               : "Žiadne registrácie na vymazanie (už boli prázdne).",
           ok: true,
         });
+        loadRegistrations();
       } else {
         setRegistrations(previous);
         setMsg({ text: data.error ?? "Chyba pri mazaní registrácií", ok: false });

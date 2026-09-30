@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import { randomUUID } from "crypto";
 import { del, get, list, put } from "@vercel/blob";
 import type { QuizEvent, LeagueEntry, PastResult, PastResultTeam } from "@/lib/data";
 import { sortEventsByDate, sortLeagueTable } from "@/lib/data";
@@ -17,6 +18,7 @@ const REGS_MANIFEST_KEY = "mudrc/registrations/_manifest.json";
 const EVENTS_MANIFEST_KEY = "mudrc/events/_manifest.json";
 const eventBlobKey = (slug: string) => `mudrc/events/${slug}.json`;
 const regBlobKey = (id: string) => `mudrc/registrations/${id}.json`;
+const REGS_VERSION_PREFIX = "mudrc/registrations/versions/";
 
 const eventsPath = path.join(process.cwd(), "src/data/events.json");
 const eventsLocalPath = path.join(process.cwd(), "src/data/events.local.json");
@@ -177,7 +179,9 @@ async function readBlobJsonViaGet<T>(pathname: string): Promise<T | null> {
     ...auth,
   });
   if (!result) return null;
-  if (result.statusCode === 304) return null;
+  if (result.statusCode !== 200 || !result.stream) {
+    throw new Error(`Blob get failed (${pathname}): incomplete response`);
+  }
   if (result.statusCode === 200 && result.stream) {
     const raw = await new Response(result.stream).text();
     return JSON.parse(raw) as T;
@@ -244,6 +248,7 @@ export async function writeBlob(key: string, data: unknown): Promise<void> {
       access: blobStoreAccess(),
       addRandomSuffix: false,
       allowOverwrite: true,
+      cacheControlMaxAge: 60,
       contentType: "application/json",
       ...auth,
     });
@@ -623,11 +628,108 @@ async function loadRegsFromSplitFiles(): Promise<Registration[]> {
   return regs.filter((reg): reg is Registration => !!reg).map(normalizeRegistration);
 }
 
+async function listBlobsByPrefix(prefix: string): Promise<{ pathname: string; uploadedAt: number; url: string }[]> {
+  if (!shouldReadBlob()) return [];
+  const all: { pathname: string; uploadedAt: number; url: string }[] = [];
+  let cursor: string | undefined;
+  try {
+    do {
+      const result = await list({ prefix, limit: 1000, cursor, ...blobAuthOptions() });
+      for (const blob of result.blobs) {
+        const uploadedAt = new Date(blob.uploadedAt).getTime();
+        all.push({
+          pathname: blob.pathname,
+          url: blob.url,
+          uploadedAt: Number.isFinite(uploadedAt) ? uploadedAt : 0,
+        });
+      }
+      cursor = result.hasMore ? result.cursor : undefined;
+    } while (cursor);
+  } catch {
+    return all;
+  }
+  return all;
+}
+
+async function fetchBlobJson<T>(urlOrPathname: string, pathname: string): Promise<T | null> {
+  const result = await get(urlOrPathname, {
+    access: blobStoreAccess(),
+    headers: { "cache-control": "no-cache", pragma: "no-cache" },
+    ...blobAuthOptions(),
+  });
+  if (!result) return null;
+  if (result.statusCode !== 200 || !result.stream) {
+    throw new Error(`Blob get failed (${pathname}): incomplete response`);
+  }
+  const raw = await new Response(result.stream).text();
+  return JSON.parse(raw) as T;
+}
+
+async function readListedBlobJson<T>(blob: { pathname: string; url: string }): Promise<T | null> {
+  const freshUrl = `${blob.url}${blob.url.includes("?") ? "&" : "?"}v=${Date.now()}`;
+  try {
+    const fresh = await fetchBlobJson<T>(freshUrl, blob.pathname);
+    if (fresh !== null) return fresh;
+  } catch {
+    // cache-bust URL sa niekedy nepodarí, skúsime pôvodnú adresu
+  }
+  return fetchBlobJson<T>(blob.url, blob.pathname);
+}
+
+async function latestRegistrationVersion(): Promise<{ pathname: string; uploadedAt: number; url: string } | null> {
+  const blobs = await listBlobsByPrefix(REGS_VERSION_PREFIX);
+  if (!blobs.length) return null;
+  blobs.sort((a, b) => b.uploadedAt - a.uploadedAt || b.pathname.localeCompare(a.pathname));
+  return blobs[0];
+}
+
+/** Nový súbor pri každom zápise. Prepísaný pathname ostáva v cache a po refreshi by vrátil zmazané registrácie. */
+async function loadVersionedRegistrations(): Promise<Registration[] | null> {
+  const latest = await latestRegistrationVersion();
+  if (!latest) return null;
+
+  for (let attempt = 0; attempt < 5; attempt++) {
+    try {
+      const data = await readListedBlobJson<{ registrations?: Registration[] }>(latest);
+      if (data && Array.isArray(data.registrations)) {
+        return data.registrations.map(normalizeRegistration);
+      }
+    } catch {
+      // nový súbor ešte nemusí byť na prvý pokus čitateľný
+    }
+    await sleep(200);
+  }
+  throw new Error("Registrácie sa nepodarilo načítať. Skús obnoviť stránku.");
+}
+
+async function readPathFresh<T>(pathname: string): Promise<T | null> {
+  const blobs = await listBlobsByPrefix(pathname);
+  const exact = blobs.find((blob) => blob.pathname === pathname);
+  if (!exact) return null;
+  try {
+    return await readListedBlobJson<T>(exact);
+  } catch {
+    return null;
+  }
+}
+
+async function pruneOldRegistrationVersions(keepKey: string): Promise<void> {
+  const blobs = await listBlobsByPrefix(REGS_VERSION_PREFIX);
+  const stale = blobs
+    .filter((blob) => blob.pathname !== keepKey)
+    .sort((a, b) => b.uploadedAt - a.uploadedAt)
+    .slice(1);
+  await Promise.all(stale.map((blob) => deleteBlob(blob.pathname)));
+}
+
 /** `null` = v Blobe ešte nie je úložisko registrácií. Prázdne pole = zámerne žiadne registrácie. */
 async function loadRegsFromBlob(): Promise<Registration[] | null> {
   if (!shouldReadBlob()) return null;
 
-  const manifest = await optionalReadBlob<{ ids: string[] }>(REGS_MANIFEST_KEY);
+  const versioned = await loadVersionedRegistrations();
+  if (versioned !== null) return versioned;
+
+  const manifest = await readPathFresh<{ ids: string[] }>(REGS_MANIFEST_KEY);
   if (manifest && Array.isArray(manifest.ids)) {
     if (manifest.ids.length === 0) return [];
     const loaded = await Promise.all(
@@ -636,7 +738,7 @@ async function loadRegsFromBlob(): Promise<Registration[] | null> {
     return loaded.filter((reg): reg is Registration => !!reg).map(normalizeRegistration);
   }
 
-  const monolithic = await optionalReadBlob<{ registrations?: Registration[] }>(LEGACY_REGS_KEY);
+  const monolithic = await readPathFresh<{ registrations?: Registration[] }>(LEGACY_REGS_KEY);
   if (monolithic && Array.isArray(monolithic.registrations)) {
     return monolithic.registrations.map(normalizeRegistration);
   }
@@ -647,18 +749,19 @@ async function loadRegsFromBlob(): Promise<Registration[] | null> {
 
 async function persistRegistrationsBlob(registrations: Registration[]): Promise<void> {
   const normalized = registrations.map(normalizeRegistration);
-  const ids = normalized.map((reg) => reg.id).filter(Boolean);
-  const idSet = new Set(ids);
+  const key = `${REGS_VERSION_PREFIX}${Date.now()}-${randomUUID()}.json`;
+  await writeBlob(key, { registrations: normalized });
 
-  const existingIds = await listRegistrationBlobIds();
-  await Promise.all(
-    existingIds.filter((id) => !idSet.has(id)).map((id) => deleteBlob(regBlobKey(id)))
-  );
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const latest = await latestRegistrationVersion();
+    if (latest?.pathname === key) {
+      void pruneOldRegistrationVersions(key);
+      return;
+    }
+    await sleep(200);
+  }
 
-  await Promise.all(normalized.map((reg) => writeBlob(regBlobKey(reg.id), reg)));
-
-  await writeBlob(REGS_MANIFEST_KEY, { ids });
-  await writeBlob(LEGACY_REGS_KEY, { registrations: normalized });
+  throw new Error("Registrácie sa nepodarilo hneď uložiť. Skús znova.");
 }
 
 export async function persistRegistrations(registrations: Registration[]): Promise<void> {
