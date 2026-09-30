@@ -14,7 +14,6 @@ import {
 import { Maximize2, X } from "lucide-react";
 import type { QuizEvent } from "@/lib/data";
 import { playbackMediaSrc } from "@/lib/media-url";
-import PresentationAudioBlock from "@/components/PresentationAudioBlock";
 import type { QuizLibraryItem, QuizQuestionItem } from "@/lib/quiz-library";
 import {
   bestPresentationImageUrl,
@@ -216,14 +215,10 @@ function QuestionContent({
   question,
   phase,
   presentationAudioRef,
-  localAudioUrl,
-  onLocalAudioOverride,
 }: {
   question: QuizQuestionItem;
   phase: "question" | "answer";
   presentationAudioRef?: RefObject<HTMLAudioElement>;
-  localAudioUrl?: string;
-  onLocalAudioOverride?: (questionId: string, objectUrl: string | null) => void;
 }) {
   const showImage =
     phase === "question" ? shouldShowImageInQuestionPhase(question) : shouldShowImageInAnswerPhase(question);
@@ -239,14 +234,14 @@ function QuestionContent({
     "shrink-0 px-6 sm:px-10 py-5 sm:py-6 rounded-2xl bg-gradient-to-br from-[#f0c800] to-[#e6b800] text-black text-center w-full max-w-full shadow-[0_20px_60px_rgba(240,200,0,0.25)]";
 
   const audioBlock =
-    question.kind === "music" || question.kind === "sound" ? (
-      <PresentationAudioBlock
-        questionId={question.id}
-        storedUrl={question.audioUrl}
-        localOverrideUrl={localAudioUrl}
-        onLocalOverride={onLocalAudioOverride}
-        presentationAudioRef={presentationAudioRef}
-        theme="presentation"
+    (question.kind === "music" || question.kind === "sound") && question.audioUrl?.trim() ? (
+      <audio
+        ref={presentationAudioRef}
+        controls
+        src={playbackMediaSrc(question.audioUrl)}
+        className="w-full max-w-xl shrink-0"
+        onClick={(e) => e.stopPropagation()}
+        onContextMenu={(e) => e.stopPropagation()}
       />
     ) : null;
 
@@ -356,16 +351,12 @@ function PresentationView({
   venueName,
   nextQuizLines,
   presentationAudioRef,
-  localAudioByQuestionId,
-  onLocalAudioOverride,
 }: {
   slide: PresentationSlide;
   eventRules: string[];
   venueName: string;
   nextQuizLines: string[];
   presentationAudioRef?: RefObject<HTMLAudioElement>;
-  localAudioByQuestionId: Record<string, string>;
-  onLocalAudioOverride: (questionId: string, objectUrl: string | null) => void;
 }) {
   if (slide.type === "rules") {
     const rules = eventRules.length ? eventRules : ["Pravidlá nastav v admin → Udalosť → Pravidlá."];
@@ -435,8 +426,6 @@ function PresentationView({
           question={slide.question}
           phase="question"
           presentationAudioRef={presentationAudioRef}
-          localAudioUrl={localAudioByQuestionId[slide.question.id]}
-          onLocalAudioOverride={onLocalAudioOverride}
         />
       </div>
     );
@@ -455,8 +444,6 @@ function PresentationView({
           question={slide.question}
           phase="answer"
           presentationAudioRef={presentationAudioRef}
-          localAudioUrl={localAudioByQuestionId[slide.question.id]}
-          onLocalAudioOverride={onLocalAudioOverride}
         />
       </div>
     );
@@ -485,25 +472,6 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
   const [upcomingEventHints, setUpcomingEventHints] = useState<QuizEvent[]>([]);
   const [savedNextQuizSteps, setSavedNextQuizSteps] = useState<{ venue: string; atLocal: string }[]>([]);
   const [aspectMode, setAspectMode] = useState<PresentationAspectMode>("tv-16:9");
-  const [localAudioByQuestionId, setLocalAudioByQuestionId] = useState<Record<string, string>>({});
-
-  const handleLocalAudioOverride = useCallback((questionId: string, objectUrl: string | null) => {
-    setLocalAudioByQuestionId((prev) => {
-      const next = { ...prev };
-      const old = next[questionId];
-      if (old && old.startsWith("blob:")) {
-        try {
-          URL.revokeObjectURL(old);
-        } catch {
-          /* ignore */
-        }
-      }
-      if (objectUrl) next[questionId] = objectUrl;
-      else delete next[questionId];
-      return next;
-    });
-  }, []);
-
   useEffect(() => {
     Promise.all([
       fetch(`/api/admin/quiz-library/${quizId}?_=${Date.now()}`, { cache: "no-store" }).then((r) =>
@@ -985,8 +953,6 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
                 venueName={venueName}
                 nextQuizLines={nextQuizLines}
                 presentationAudioRef={presentationAudioRef}
-                localAudioByQuestionId={localAudioByQuestionId}
-                onLocalAudioOverride={handleLocalAudioOverride}
               />
             </div>
           )}
