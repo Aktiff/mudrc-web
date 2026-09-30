@@ -135,6 +135,16 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+async function archiveRegistrationContacts(regs: Registration[]): Promise<void> {
+  if (!regs.length) return;
+  try {
+    const { rememberTeamsFromRegistrations } = await import("@/lib/venue-teams");
+    await rememberTeamsFromRegistrations(regs);
+  } catch (error) {
+    console.error("venue team archive failed:", error);
+  }
+}
+
 function isBlobNotFound(error: unknown): boolean {
   if (!error || typeof error !== "object") return false;
   const err = error as { name?: string; status?: number; message?: string };
@@ -1087,6 +1097,7 @@ export async function addRegistration(reg: Registration): Promise<void> {
 
     try {
       await persistRegistrations(next);
+      await archiveRegistrationContacts([normalized]);
       return;
     } catch (error) {
       if (attempt === 4) throw error;
@@ -1099,7 +1110,9 @@ export async function deleteRegistrationById(id: string): Promise<boolean> {
   let removed = false;
   for (let attempt = 0; attempt < 5; attempt++) {
     try {
-      await updateRegistrations((regs) => {
+      await updateRegistrations(async (regs) => {
+        const dropping = regs.filter((reg) => reg.id === id);
+        await archiveRegistrationContacts(dropping);
         const next = regs.filter((reg) => reg.id !== id);
         removed = next.length !== regs.length;
         return next;
@@ -1136,15 +1149,17 @@ export async function deleteRegistrationsForEvent(slug: string, venue?: string):
   const venueLower = venue?.trim().toLowerCase();
   let removed = 0;
 
-  await updateRegistrations((regs) => {
-    const next = regs.filter((reg) => {
+  await updateRegistrations(async (regs) => {
+    const dropping = regs.filter((reg) => {
       if (slug && reg.eventSlug === slug) {
-        if (venueLower && reg.venue.trim().toLowerCase() !== venueLower) return true;
-        return false;
+        if (venueLower && reg.venue.trim().toLowerCase() !== venueLower) return false;
+        return true;
       }
-      if (!slug && venueLower && reg.venue.trim().toLowerCase() === venueLower) return false;
-      return true;
+      if (!slug && venueLower && reg.venue.trim().toLowerCase() === venueLower) return true;
+      return false;
     });
+    await archiveRegistrationContacts(dropping);
+    const next = regs.filter((reg) => !dropping.includes(reg));
     removed = regs.length - next.length;
     return next;
   }, { destructive: true });
@@ -1157,7 +1172,9 @@ export async function deleteRegistrationsByIds(ids: string[]): Promise<number> {
   if (idSet.size === 0) return 0;
 
   let removed = 0;
-  await updateRegistrations((regs) => {
+  await updateRegistrations(async (regs) => {
+    const dropping = regs.filter((reg) => idSet.has(reg.id));
+    await archiveRegistrationContacts(dropping);
     const next = regs.filter((reg) => !idSet.has(reg.id));
     removed = regs.length - next.length;
     return next;

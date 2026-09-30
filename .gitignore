@@ -38,6 +38,7 @@ next-env.d.ts
 # local runtime data (test quizzes saved locally — never commit)
 src/data/events.local.json
 src/data/registrations.local.json
+src/data/venue-teams.local.json
 src/data/poll-votes.local.json
 src/data/poll-configs.local.json
 src/data/seat-plans.local.json
