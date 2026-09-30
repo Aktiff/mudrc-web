@@ -42,3 +42,16 @@ export function formatSkPlayerCountTotal(count: number): string {
   if (count >= 2 && count <= 4) return `${count} hráči`;
   return `${count} hráčov`;
 }
+
+/** Vstupné za hráča × počet prihlásených hráčov. */
+export function estimatedEntryRevenue(entryFee: number, players: number): number {
+  const fee = Number(entryFee);
+  if (!Number.isFinite(fee) || fee <= 0 || players <= 0) return 0;
+  return Math.round(fee * players * 100) / 100;
+}
+
+export function formatEuroAmount(amount: number): string {
+  const rounded = Math.round(amount * 100) / 100;
+  const text = Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(2).replace(".", ",");
+  return `${text} €`;
+}
