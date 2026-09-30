@@ -36,7 +36,12 @@ export default function EventPromoChecks({
           groupsShared: next.groupsShared,
         }),
       });
-      if (!res.ok) setChecks(previous);
+      const data = (await res.json().catch(() => null)) as QuizEvent | { error?: string } | null;
+      if (!res.ok || !data || !("slug" in data)) {
+        setChecks(previous);
+        return;
+      }
+      setChecks(promoChecksForEvent(data));
     } catch {
       setChecks(previous);
     } finally {

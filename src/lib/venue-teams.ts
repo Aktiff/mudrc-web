@@ -5,14 +5,15 @@ import {
   optionalReadBlob,
   readRegistrations,
   shouldWriteBlob,
-  writeBlob,
   type Registration,
 } from "@/lib/storage";
+import { readAppStorageBlob, writeAppStorageBlob } from "@/lib/blob-app-storage";
 import { extractTeamPhones, type VenueTeam } from "@/lib/venue-team-contact";
 
 export type { VenueTeam } from "@/lib/venue-team-contact";
 
-const BLOB_KEY = "mudrc/venue-teams.json";
+const BLOB_NAME = "venue-teams";
+const LEGACY_BLOB_KEY = "mudrc/venue-teams.json";
 const localPath = path.join(process.cwd(), "src/data/venue-teams.local.json");
 
 type Store = { teams: VenueTeam[] };
@@ -37,14 +38,16 @@ function writeLocal(store: Store) {
 }
 
 async function loadStore(): Promise<Store> {
-  const fromBlob = await optionalReadBlob<Store>(BLOB_KEY);
+  const fromBlob = await readAppStorageBlob<Store>(BLOB_NAME);
   if (fromBlob && Array.isArray(fromBlob.teams)) return { teams: fromBlob.teams };
+  const legacy = await optionalReadBlob<Store>(LEGACY_BLOB_KEY);
+  if (legacy && Array.isArray(legacy.teams)) return { teams: legacy.teams };
   return readLocal();
 }
 
 async function saveStore(store: Store): Promise<void> {
   if (shouldWriteBlob()) {
-    await writeBlob(BLOB_KEY, store);
+    await writeAppStorageBlob(BLOB_NAME, store);
     return;
   }
   if (process.env.VERCEL) {

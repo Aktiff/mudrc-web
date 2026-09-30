@@ -19,6 +19,7 @@ const EVENTS_MANIFEST_KEY = "mudrc/events/_manifest.json";
 const eventBlobKey = (slug: string) => `mudrc/events/${slug}.json`;
 const regBlobKey = (id: string) => `mudrc/registrations/${id}.json`;
 const REGS_VERSION_PREFIX = "mudrc/registrations/versions/";
+const EVENTS_VERSION_PREFIX = "mudrc/events/versions/";
 
 const eventsPath = path.join(process.cwd(), "src/data/events.json");
 const eventsLocalPath = path.join(process.cwd(), "src/data/events.local.json");
@@ -321,16 +322,16 @@ function assertRegsNotRegressed(before: Registration[], after: Registration[], d
 }
 
 /** Per-slug súbory majú prednosť pred monolitom — pri paralelnom ukladaní podnikov sa nestratia fotky. */
-async function loadEventsFromBlobOptional(): Promise<QuizEvent[] | null> {
+async function loadLegacyEventsFromBlob(): Promise<QuizEvent[] | null> {
   if (!shouldReadBlob()) return null;
 
-  const legacy = await optionalReadBlob<{ events?: QuizEvent[] }>(LEGACY_EVENTS_KEY);
-  const manifest = await optionalReadBlob<EventsManifest>(EVENTS_MANIFEST_KEY);
+  const legacy = await readPathFresh<{ events?: QuizEvent[] }>(LEGACY_EVENTS_KEY);
+  const manifest = await readPathFresh<EventsManifest>(EVENTS_MANIFEST_KEY);
 
   const splitEvents: QuizEvent[] = [];
   if (manifest?.slugs?.length) {
     const loaded = await Promise.all(
-      manifest.slugs.map(async (slug) => optionalReadBlob<QuizEvent>(eventBlobKey(slug)))
+      manifest.slugs.map(async (slug) => readPathFresh<QuizEvent>(eventBlobKey(slug)))
     );
     for (const event of loaded) {
       if (event?.slug) splitEvents.push(event);
@@ -349,14 +350,61 @@ async function loadEventsFromBlobOptional(): Promise<QuizEvent[] | null> {
   return Array.from(bySlug.values());
 }
 
+async function latestEventsVersion(): Promise<{ pathname: string; uploadedAt: number; url: string } | null> {
+  const blobs = await listBlobsByPrefix(EVENTS_VERSION_PREFIX);
+  if (!blobs.length) return null;
+  blobs.sort((a, b) => b.uploadedAt - a.uploadedAt || b.pathname.localeCompare(a.pathname));
+  return blobs[0];
+}
+
+/** Nový súbor pri každom zápise. Prepísaná cesta ostáva v cache a po refreshi vráti starý checklist. */
+async function loadVersionedEvents(): Promise<QuizEvent[] | null> {
+  const latest = await latestEventsVersion();
+  if (!latest) return null;
+
+  for (let attempt = 0; attempt < 5; attempt++) {
+    try {
+      const data = await readListedBlobJson<{ events?: QuizEvent[] }>(latest);
+      if (data && Array.isArray(data.events)) return data.events;
+    } catch {
+      // nový súbor ešte nemusí byť na prvý pokus čitateľný
+    }
+    await sleep(200);
+  }
+  throw new Error("Udalosti sa nepodarilo načítať. Skús obnoviť stránku.");
+}
+
+async function pruneOldEventVersions(keepKey: string): Promise<void> {
+  const blobs = await listBlobsByPrefix(EVENTS_VERSION_PREFIX);
+  const stale = blobs
+    .filter((blob) => blob.pathname !== keepKey)
+    .sort((a, b) => b.uploadedAt - a.uploadedAt)
+    .slice(1);
+  await Promise.all(stale.map((blob) => deleteBlob(blob.pathname)));
+}
+
+async function loadEventsFromBlobOptional(): Promise<QuizEvent[] | null> {
+  if (!shouldReadBlob()) return null;
+  const versioned = await loadVersionedEvents();
+  if (versioned !== null) return versioned;
+  return loadLegacyEventsFromBlob();
+}
+
 async function persistEventsBlob(events: QuizEvent[]): Promise<void> {
   const prepared = events.map(eventForEventsKey);
-  const slugs = prepared.map((event) => event.slug).filter(Boolean);
+  const key = `${EVENTS_VERSION_PREFIX}${Date.now()}-${randomUUID()}.json`;
+  await writeBlob(key, { events: prepared });
 
-  await Promise.all(prepared.map((event) => writeBlob(eventBlobKey(event.slug), event)));
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const latest = await latestEventsVersion();
+    if (latest?.pathname === key) {
+      void pruneOldEventVersions(key);
+      return;
+    }
+    await sleep(200);
+  }
 
-  await writeBlob(EVENTS_MANIFEST_KEY, { slugs });
-  await writeBlob(LEGACY_EVENTS_KEY, { events: prepared });
+  throw new Error("Udalosti sa nepodarilo hneď uložiť. Skús znova.");
 }
 
 async function listRegistrationBlobIds(): Promise<string[]> {
@@ -387,7 +435,7 @@ function readBundledSeedEvents(): QuizEvent[] {
 
 async function loadEventsFromFallbackSources(): Promise<QuizEvent[]> {
   const fromBlob = await loadEventsFromBlobOptional();
-  if (fromBlob?.length) return fromBlob;
+  if (fromBlob !== null) return fromBlob;
   return readBundledSeedEvents();
 }
 
@@ -460,7 +508,7 @@ export async function rebuildLeagueTableForEvent(event: QuizEvent): Promise<{
 
 async function loadQuizzesRaw(): Promise<StoredQuiz[]> {
   const fromBlob = await readAppStorageBlob<{ quizzes?: StoredQuiz[] }>(QUIZZES_APP_BLOB);
-  if (fromBlob?.quizzes?.length) {
+  if (fromBlob && Array.isArray(fromBlob.quizzes)) {
     return fromBlob.quizzes.map(normalizeStoredQuiz);
   }
 
@@ -870,8 +918,6 @@ export async function patchEvent(
     next[idx] = eventForEventsKey(updated);
 
     try {
-      const eventOnDisk = eventForEventsKey(updated);
-      await writeBlob(eventBlobKey(slug), eventOnDisk);
       await persistEvents(next);
       const quizzes = await loadQuizzes();
       const result = enrichEventsWithQuizzes(next, quizzes).find((event) => event.slug === slug);
