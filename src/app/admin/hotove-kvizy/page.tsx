@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { BookOpen } from "lucide-react";
+import MediaRepairButton from "@/components/admin/MediaRepairButton";
 import HotoveKvizyList from "@/components/HotoveKvizyList";
 
 export const dynamic = "force-dynamic";
@@ -15,13 +16,16 @@ export default function HotoveKvizyPage() {
             tímy do tabuľky a ulož body. Systém si pamätá kde, kedy a s kým kvíz hral.
           </p>
         </div>
-        <Link
-          href="/admin/hotove-kvizy/banka"
-          className="btn-primary text-sm py-2.5 px-5 inline-flex items-center gap-2 shrink-0 self-start sm:mt-1"
-        >
-          <BookOpen className="w-4 h-4" />
-          Banka otázok
-        </Link>
+        <div className="flex flex-col gap-3 shrink-0 self-start sm:mt-1">
+          <Link
+            href="/admin/hotove-kvizy/banka"
+            className="btn-primary text-sm py-2.5 px-5 inline-flex items-center gap-2"
+          >
+            <BookOpen className="w-4 h-4" />
+            Banka otázok
+          </Link>
+          <MediaRepairButton />
+        </div>
       </div>
       <HotoveKvizyList />
     </div>
