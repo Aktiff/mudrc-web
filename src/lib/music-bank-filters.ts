@@ -75,6 +75,19 @@ export function filterMusicBankTracks(
   return tracks.filter((t) => musicTrackMatchesTagFilters(t, filters));
 }
 
+export function musicTrackMetaFields(tags: string[] | undefined): {
+  language: string;
+  style: string;
+  decade: string;
+} {
+  const buckets = parseMusicBankTagBuckets(tags ?? []);
+  return {
+    language: buckets.language || "nezistený",
+    style: buckets.style || "nezistený",
+    decade: buckets.decade || "nezistená",
+  };
+}
+
 export function musicTagFiltersActive(filters: MusicBankTagFilters): boolean {
   return Boolean(filters.language || filters.style || filters.decade);
 }

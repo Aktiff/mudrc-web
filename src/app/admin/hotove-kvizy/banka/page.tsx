@@ -6,7 +6,6 @@ import { BookOpen, ChevronLeft } from "lucide-react";
 import CustomBankQuestionForm from "@/components/CustomBankQuestionForm";
 import MusicBankQuestionForm from "@/components/MusicBankQuestionForm";
 import QuestionBankInventory from "@/components/QuestionBankInventory";
-import SoundBankQuestionForm from "@/components/SoundBankQuestionForm";
 import VideoBankQuestionForm from "@/components/VideoBankQuestionForm";
 
 export default function HotoveKvizyBankaPage() {
@@ -20,7 +19,6 @@ export default function HotoveKvizyBankaPage() {
       <h2 className="font-display text-xl text-brand-text tracking-wide">Pridať do banky</h2>
       <CustomBankQuestionForm onAdded={bump} />
       <MusicBankQuestionForm onAdded={bump} onMessage={(text, ok) => setMsg({ text, ok })} />
-      <SoundBankQuestionForm onAdded={bump} onMessage={(text, ok) => setMsg({ text, ok })} />
       <VideoBankQuestionForm onAdded={bump} onMessage={(text, ok) => setMsg({ text, ok })} />
     </div>
   );

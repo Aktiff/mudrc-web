@@ -10,7 +10,11 @@ import {
   musicTrackKey,
   parseMusicTrackFromFileName,
 } from "@/lib/music-bank";
+import { addSoundBankItemAsync, findSoundClipConflictAsync } from "@/lib/sound-bank-client";
+import { formatSoundClipDuplicateMessage, parseSoundClipFromFileName, soundClipKey } from "@/lib/sound-bank";
 import { uploadAudioFileClient } from "@/lib/upload-audio-client";
+
+type AudioKind = "music" | "other";
 
 type Props = {
   onAdded?: () => void;
@@ -29,6 +33,7 @@ const AUDIO_ACCEPT =
 
 export default function MusicBankQuestionForm({ onAdded, onMessage }: Props) {
   const [open, setOpen] = useState(false);
+  const [kind, setKind] = useState<AudioKind>("music");
   const [artist, setArtist] = useState("");
   const [title, setTitle] = useState("");
   const [audioUrl, setAudioUrl] = useState("");
@@ -54,6 +59,20 @@ export default function MusicBankQuestionForm({ onAdded, onMessage }: Props) {
 
     const rows: BulkPreviewRow[] = [];
     for (const file of Array.from(files)) {
+      if (kind === "other") {
+        const parsed = parseSoundClipFromFileName(file.name);
+        if (!parsed) {
+          rows.push({
+            file,
+            artist: "",
+            title: "",
+            parseError: "Očakávam „Popis - Odpoveď.mp3“ alebo „Názov.mp3“",
+          });
+        } else {
+          rows.push({ file, artist: parsed.label, title: parsed.answer });
+        }
+        continue;
+      }
       const parsed = parseMusicTrackFromFileName(file.name);
       if (!parsed) {
         rows.push({
@@ -89,9 +108,10 @@ export default function MusicBankQuestionForm({ onAdded, onMessage }: Props) {
 
     for (let i = 0; i < valid.length; i += 1) {
       const row = valid[i];
-      const batchKey = musicTrackKey(row.artist, row.title);
+      const batchKey =
+        kind === "other" ? soundClipKey(row.artist, row.title) : musicTrackKey(row.artist, row.title);
       if (seenInBatch.has(batchKey)) {
-        failures.push(`${row.file.name}: Rovnaká skladba je vo výbere viackrát.`);
+        failures.push(`${row.file.name}: Rovnaká ukážka je vo výbere viackrát.`);
         continue;
       }
       seenInBatch.add(batchKey);
@@ -102,19 +122,33 @@ export default function MusicBankQuestionForm({ onAdded, onMessage }: Props) {
       });
 
       try {
-        const conflict = await findMusicTrackConflictAsync(row.artist, row.title);
-        if (conflict) {
-          failures.push(`${row.file.name}: ${formatMusicTrackDuplicateMessage(conflict)}`);
-          continue;
+        if (kind === "other") {
+          const conflict = await findSoundClipConflictAsync(row.artist, row.title);
+          if (conflict) {
+            failures.push(`${row.file.name}: ${formatSoundClipDuplicateMessage(conflict)}`);
+            continue;
+          }
+          const url = await uploadAudioFileClient(row.file);
+          await addSoundBankItemAsync({
+            label: row.artist,
+            answer: row.title,
+            audioUrl: url,
+            note: note.trim() || undefined,
+          });
+        } else {
+          const conflict = await findMusicTrackConflictAsync(row.artist, row.title);
+          if (conflict) {
+            failures.push(`${row.file.name}: ${formatMusicTrackDuplicateMessage(conflict)}`);
+            continue;
+          }
+          const url = await uploadAudioFileClient(row.file);
+          await addMusicBankItemAsync({
+            artist: row.artist,
+            title: row.title,
+            audioUrl: url,
+            note: note.trim() || undefined,
+          });
         }
-
-        const url = await uploadAudioFileClient(row.file);
-        await addMusicBankItemAsync({
-          artist: row.artist,
-          title: row.title,
-          audioUrl: url,
-          note: note.trim() || undefined,
-        });
         okCount += 1;
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Upload zlyhal";
@@ -134,8 +168,10 @@ export default function MusicBankQuestionForm({ onAdded, onMessage }: Props) {
       onAdded?.();
       onMessage?.(
         failures.length
-          ? `Pridaných ${okCount}/${valid.length} skladieb. Skontroluj chyby nižšie.`
-          : `Pridaných ${okCount} skladieb do banky hudby.`,
+          ? `Pridaných ${okCount}/${valid.length}. Skontroluj chyby nižšie.`
+          : kind === "other"
+            ? `Pridaných ${okCount} iných ukážok.`
+            : `Pridaných ${okCount} hudobných ukážok.`,
         !failures.length
       );
     } else {
@@ -146,7 +182,7 @@ export default function MusicBankQuestionForm({ onAdded, onMessage }: Props) {
   const handleSubmit = async () => {
     setError("");
     if (!artist.trim() || !title.trim()) {
-      setError("Vyplň interpreta a názov skladby.");
+      setError(kind === "other" ? "Vyplň popis a správnu odpoveď." : "Vyplň interpreta a názov skladby.");
       return;
     }
     if (!audioUrl.trim()) {
@@ -156,21 +192,31 @@ export default function MusicBankQuestionForm({ onAdded, onMessage }: Props) {
 
     setSubmitting(true);
     try {
-      const saved = await addMusicBankItemAsync({
-        artist: artist.trim(),
-        title: title.trim(),
-        audioUrl: audioUrl.trim(),
-        note: note.trim() || undefined,
-      });
+      if (kind === "other") {
+        await addSoundBankItemAsync({
+          label: artist.trim(),
+          answer: title.trim(),
+          audioUrl: audioUrl.trim(),
+          note: note.trim() || undefined,
+        });
+        onMessage?.("Iná ukážka pridaná. Bez jazyka, štýlu a dekády.", true);
+      } else {
+        const saved = await addMusicBankItemAsync({
+          artist: artist.trim(),
+          title: title.trim(),
+          audioUrl: audioUrl.trim(),
+          note: note.trim() || undefined,
+        });
+        const tagLine = formatMusicBankTagsLabel(saved.tags);
+        onMessage?.(
+          tagLine ? `Skladba pridaná. ${tagLine}` : "Skladba pridaná (jazyk, štýl alebo dekáda sa nepodarili zistiť).",
+          true
+        );
+      }
       setArtist("");
       setTitle("");
       setAudioUrl("");
       setNote("");
-      const tagLine = formatMusicBankTagsLabel(saved.tags);
-      onMessage?.(
-        tagLine ? `Skladba pridaná. Tagy: ${tagLine}` : "Skladba pridaná (tagy sa nepodarilo zistiť).",
-        true
-      );
       onAdded?.();
     } catch (err) {
       const text = err instanceof Error ? err.message : "Uloženie zlyhalo.";
@@ -189,9 +235,9 @@ export default function MusicBankQuestionForm({ onAdded, onMessage }: Props) {
         className="w-full flex items-center justify-between gap-3 px-5 py-4 sm:px-6 sm:py-5 text-left hover:bg-brand-warm/50 transition-colors"
       >
         <div>
-          <p className="font-semibold text-brand-text text-sm">Pridať skladbu do banky hudby</p>
+          <p className="font-semibold text-brand-text text-sm">Pridať audio do banky</p>
           <p className="text-brand-muted text-xs mt-0.5">
-            Hromadný upload · tagy (jazyk, štýl, dekáda) z MusicBrainz · 1+1 bod · 4. kolo
+            Predvolene hudobné ukážky. Iné ukážky sú bez jazyka, štýlu a dekády.
           </p>
         </div>
         {open ? <ChevronUp className="w-5 h-5 text-brand-muted shrink-0" /> : <ChevronDown className="w-5 h-5 text-brand-muted shrink-0" />}
@@ -199,14 +245,58 @@ export default function MusicBankQuestionForm({ onAdded, onMessage }: Props) {
 
       {open && (
         <div className="px-5 py-5 sm:px-6 sm:py-6 space-y-5 border-t border-brand-border">
+          <div className="flex flex-wrap gap-2">
+            {(
+              [
+                ["music", "Hudobné ukážky"],
+                ["other", "Iné ukážky"],
+              ] as const
+            ).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                aria-pressed={kind === key}
+                onClick={() => {
+                  setKind(key);
+                  setBulkRows([]);
+                  setBulkErrors([]);
+                  setError("");
+                }}
+                className={`text-xs font-semibold px-3 py-2 rounded-lg border transition-colors ${
+                  kind === key
+                    ? "bg-sky-700 text-white border-sky-700"
+                    : "border-brand-border text-brand-muted hover:border-sky-400"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {kind === "other" ? (
+            <p className="text-xs text-brand-muted">
+              Hlas, hláška alebo iná nahrávka. Jazyk, štýl ani dekáda sa sem nedávajú.
+            </p>
+          ) : (
+            <p className="text-xs text-brand-muted">
+              Pieseň. Jazyk, štýl a dekáda sa doplnia automaticky.
+            </p>
+          )}
           <div className="rounded-xl border border-dashed border-violet-300/60 dark:border-violet-700 bg-brand-warm/40 p-4 space-y-3">
             <div>
               <p className="text-sm font-semibold text-brand-text">Hromadné nahratie</p>
               <p className="text-brand-muted text-xs mt-1 leading-relaxed">
-                Pomenuj súbory ako pri kvíze:{" "}
-                <span className="font-mono text-[11px]">The Beatles - Help!.mp3</span>,{" "}
-                <span className="font-mono text-[11px]">Kryštof, Tomáš Klus - Cesta.mp3</span> — vždy{" "}
-                <strong>interpret, medzera, pomlčka, medzera, názov</strong>.
+                {kind === "other" ? (
+                  <>
+                    Pomenuj súbor ako <span className="font-mono text-[11px]">Popis - Odpoveď.mp3</span> alebo{" "}
+                    <span className="font-mono text-[11px]">Dočolomanský.mp3</span>.
+                  </>
+                ) : (
+                  <>
+                    Pomenuj súbory ako{" "}
+                    <span className="font-mono text-[11px]">The Beatles - Help!.mp3</span> —{" "}
+                    <strong>interpret, medzera, pomlčka, medzera, názov</strong>.
+                  </>
+                )}
               </p>
             </div>
             <label className="btn-primary text-sm py-2.5 px-5 inline-flex items-center gap-2 cursor-pointer">
@@ -264,7 +354,9 @@ export default function MusicBankQuestionForm({ onAdded, onMessage }: Props) {
               >
                 {bulkUploading
                   ? "Pridávam do banky…"
-                  : `Nahrať a pridať ${bulkReadyCount} skladieb`}
+                  : kind === "other"
+                    ? `Nahrať a pridať ${bulkReadyCount} ukážok`
+                    : `Nahrať a pridať ${bulkReadyCount} skladieb`}
               </button>
             )}
 
@@ -282,18 +374,28 @@ export default function MusicBankQuestionForm({ onAdded, onMessage }: Props) {
               <div className="w-full border-t border-brand-border" />
             </div>
             <p className="relative text-center text-[11px] uppercase tracking-wider text-brand-muted bg-brand-card px-2 mx-auto w-fit">
-              alebo jedna skladba ručne
+              {kind === "other" ? "alebo jedna ukážka ručne" : "alebo jedna skladba ručne"}
             </p>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label className="label">Interpret</label>
-              <input className="input text-sm py-2" value={artist} onChange={(e) => setArtist(e.target.value)} placeholder="napr. Queen" />
+              <label className="label">{kind === "other" ? "Popis" : "Interpret"}</label>
+              <input
+                className="input text-sm py-2"
+                value={artist}
+                onChange={(e) => setArtist(e.target.value)}
+                placeholder={kind === "other" ? "napr. Hlas Dočolomanského" : "napr. Queen"}
+              />
             </div>
             <div>
-              <label className="label">Názov skladby</label>
-              <input className="input text-sm py-2" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="napr. Bohemian Rhapsody" />
+              <label className="label">{kind === "other" ? "Správna odpoveď" : "Názov skladby"}</label>
+              <input
+                className="input text-sm py-2"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder={kind === "other" ? "napr. Dočolomanský" : "napr. Bohemian Rhapsody"}
+              />
             </div>
           </div>
           <AudioUrlField
@@ -314,7 +416,7 @@ export default function MusicBankQuestionForm({ onAdded, onMessage }: Props) {
             className="btn-primary text-sm py-2.5 px-5 inline-flex items-center gap-2 disabled:opacity-60"
           >
             <Plus className="w-4 h-4" />
-            {submitting ? "Ukladám…" : "Pridať jednu skladbu"}
+            {submitting ? "Ukladám…" : kind === "other" ? "Pridať inú ukážku" : "Pridať hudobnú ukážku"}
           </button>
         </div>
       )}

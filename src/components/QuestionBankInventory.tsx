@@ -26,11 +26,12 @@ import {
   readHiddenBankQuestionIds,
   writeHiddenBankQuestionIds,
 } from "@/lib/quiz-question-bank";
-import { formatMusicBankTagsLabel, type MusicBankItem } from "@/lib/music-bank";
+import { type MusicBankItem } from "@/lib/music-bank";
 import {
   EMPTY_MUSIC_BANK_TAG_FILTERS,
   filterMusicBankTracks,
   musicTagFiltersActive,
+  musicTrackMetaFields,
 } from "@/lib/music-bank-filters";
 import {
   fetchMusicBankFromServer,
@@ -110,9 +111,9 @@ export default function QuestionBankInventory({ refreshKey = 0, onChanged, fillH
 
   const tabs: { id: Tab; label: string; count: number }[] = [
     { id: "questions", label: "Otázky", count: textBankCounts.all },
-    { id: "sound", label: "Zvuk", count: sound.length },
+    { id: "sound", label: "Iné ukážky", count: sound.length },
     { id: "video", label: "Video", count: video.length },
-    { id: "music", label: "Hudba", count: music.length },
+    { id: "music", label: "Hudobné ukážky", count: music.length },
   ];
 
   const afterEdit = () => {
@@ -312,7 +313,7 @@ export default function QuestionBankInventory({ refreshKey = 0, onChanged, fillH
           )
         ) : tab === "sound" ? (
           sound.length === 0 ? (
-            <p className="text-sm text-brand-muted text-center py-8">Zatiaľ žiadny zvuk.</p>
+            <p className="text-sm text-brand-muted text-center py-8">Zatiaľ žiadne iné ukážky.</p>
           ) : (
             <ul className="space-y-3">
               {sound.map((clip) => (
@@ -353,21 +354,25 @@ export default function QuestionBankInventory({ refreshKey = 0, onChanged, fillH
             </ul>
           )
         ) : music.length === 0 ? (
-          <p className="text-sm text-brand-muted text-center py-8">Zatiaľ žiadna hudba.</p>
+          <p className="text-sm text-brand-muted text-center py-8">Zatiaľ žiadna hudobná ukážka.</p>
         ) : filteredMusic.length === 0 ? (
           <p className="text-sm text-brand-muted text-center py-8">Žiadna skladba nevyhovuje filtrom.</p>
         ) : (
           <ul className="space-y-3">
-            {filteredMusic.map((track) => (
+            {filteredMusic.map((track) => {
+              const meta = musicTrackMetaFields(track.tags);
+              return (
               <li key={track.id} className="rounded-xl border border-brand-border p-3 space-y-2">
                 <p className="text-sm font-semibold">
                   {track.artist} — {track.title}
                 </p>
-                {track.tags?.length ? (
-                  <p className="text-[11px] text-violet-800 dark:text-violet-200">{formatMusicBankTagsLabel(track.tags)}</p>
-                ) : (
-                  <p className="text-[11px] text-amber-700 dark:text-amber-300">Tagy chýbajú alebo sú neúplné</p>
-                )}
+                <p className="text-xs text-brand-muted">
+                  Jazyk: <span className="text-brand-text">{meta.language}</span>
+                  {" · "}
+                  Štýl: <span className="text-brand-text">{meta.style}</span>
+                  {" · "}
+                  Dekáda: <span className="text-brand-text">{meta.decade}</span>
+                </p>
                 <div className="flex flex-wrap gap-2">
                   <button
                     type="button"
@@ -387,7 +392,8 @@ export default function QuestionBankInventory({ refreshKey = 0, onChanged, fillH
                   </button>
                 </div>
               </li>
-            ))}
+              );
+            })}
           </ul>
         )}
       </div>

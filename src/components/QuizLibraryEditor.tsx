@@ -33,7 +33,7 @@ import {
 import { buildPresentationSlides } from "@/lib/quiz-presentation";
 import QuizQuestionBankPanel from "@/components/QuizQuestionBankPanel";
 import CustomBankQuestionForm from "@/components/CustomBankQuestionForm";
-import SoundBankQuestionForm from "@/components/SoundBankQuestionForm";
+import MusicBankQuestionForm from "@/components/MusicBankQuestionForm";
 import VideoBankQuestionForm from "@/components/VideoBankQuestionForm";
 import AudioUrlField from "@/components/admin/AudioUrlField";
 import VideoUrlField from "@/components/admin/VideoUrlField";
@@ -854,7 +854,13 @@ export default function QuizLibraryEditor({ quizId }: Props) {
       </div>
 
       <CustomBankQuestionForm onAdded={refreshCustomBank} />
-      <SoundBankQuestionForm onAdded={refreshSoundBank} onMessage={(text, ok) => setMsg({ text, ok })} />
+      <MusicBankQuestionForm
+        onAdded={() => {
+          void refreshMusicBank();
+          void refreshSoundBank();
+        }}
+        onMessage={(text, ok) => setMsg({ text, ok })}
+      />
       <VideoBankQuestionForm onAdded={refreshVideoBank} onMessage={(text, ok) => setMsg({ text, ok })} />
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>

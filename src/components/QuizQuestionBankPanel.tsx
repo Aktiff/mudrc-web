@@ -47,7 +47,6 @@ import { findRawBankQuestionById } from "@/lib/quiz-question-bank";
 import {
   DEFAULT_MUSIC_QUESTION_BODY,
   formatMusicBankHostNote,
-  formatMusicBankTagsLabel,
   isMusicBankId,
   type MusicBankItem,
 } from "@/lib/music-bank";
@@ -55,6 +54,7 @@ import {
   EMPTY_MUSIC_BANK_TAG_FILTERS,
   filterMusicBankTracks,
   musicTagFiltersActive,
+  musicTrackMetaFields,
 } from "@/lib/music-bank-filters";
 import { fetchMusicBankFromServer, removeMusicBankItemAsync } from "@/lib/music-bank-client";
 import {
@@ -190,6 +190,7 @@ export default function QuizQuestionBankPanel({
   const [localSound, setLocalSound] = useState<SoundBankItem[]>([]);
   const [localVideo, setLocalVideo] = useState<VideoBankItem[]>([]);
   const [musicTagFilters, setMusicTagFilters] = useState(EMPTY_MUSIC_BANK_TAG_FILTERS);
+  const [soundKind, setSoundKind] = useState<"music" | "other">("music");
 
   const customBankQuestions = customBankQuestionsProp ?? localCustom;
   const musicBankTracks = musicBankTracksProp ?? localMusic;
@@ -563,7 +564,7 @@ export default function QuizQuestionBankPanel({
             <p className="font-semibold text-brand-text text-sm leading-snug">Banka otázok</p>
             <p className="text-brand-muted text-xs mt-0.5 leading-relaxed">
               {sourceFilter === "sound"
-                ? `${visibleSoundClips.length + visibleMusicTracks.length} zvukových ukážok · vlož do ľubovoľného slotu v kole (vrátane konca 4. kola)`
+                ? `${visibleSoundClips.length + visibleMusicTracks.length} zvukových ukážok`
                 : sourceFilter === "video"
                   ? `${visibleVideoClips.length} video ukážok · vlož do ľubovoľného slotu v kole`
                   : `${sourceCounts.all} textových otázok na vloženie${
@@ -623,13 +624,31 @@ export default function QuizQuestionBankPanel({
 
         {sourceFilter === "sound" && (
           <>
-            <p className="text-xs font-semibold text-sky-800 dark:text-sky-200 bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800 rounded-lg px-3 py-2 leading-relaxed">
-              Zvuková ukážka môže ísť kamkoľvek v aktuálnom kole — aj do slotov „Zvuk · koniec kola“ na konci 4. kola.
-            </p>
-            {visibleMusicTracks.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {(
+                [
+                  ["music", "Hudobné ukážky", visibleMusicTracks.length],
+                  ["other", "Iné ukážky", visibleSoundClips.length],
+                ] as const
+              ).map(([key, label, count]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setSoundKind(key)}
+                  className={`text-xs font-semibold px-2.5 py-1.5 rounded-lg border transition-colors ${
+                    soundKind === key
+                      ? "bg-sky-700 text-white border-sky-700"
+                      : "border-brand-border text-brand-muted hover:border-sky-400"
+                  }`}
+                >
+                  {label} ({count})
+                </button>
+              ))}
+            </div>
+            {soundKind === "music" && visibleMusicTracks.length > 0 && (
               <div className="space-y-1.5">
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-brand-muted">
-                  Filter skladieb v banke hudby
+                  Filter skladieb
                 </p>
                 <MusicBankTagFilters
                   tracks={visibleMusicTracks}
@@ -685,23 +704,23 @@ export default function QuizQuestionBankPanel({
 
       <div className="flex-1 overflow-y-auto overscroll-y-contain px-5 py-4 sm:px-6 space-y-3 min-h-0">
         {sourceFilter === "sound" ? (
-          visibleSoundClips.length === 0 && filteredMusicTracks.length === 0 && visibleMusicTracks.length === 0 ? (
-            <p className="text-brand-muted text-sm text-center py-8">
-              Banka zvukových ukážok je prázdna. Nahraj cez „Pridať zvukovú ukážku do banky“ hore v editore.
-            </p>
-          ) : (
-            <>
-              {visibleSoundClips.map((clip) => {
+          soundKind === "other" ? (
+            visibleSoundClips.length === 0 ? (
+              <p className="text-brand-muted text-sm text-center py-8">
+                Žiadne iné ukážky. Pri nahrávaní audia zaškrtni „Iné ukážky“.
+              </p>
+            ) : (
+              visibleSoundClips.map((clip) => {
                 const targetId = getSoundTargetId(clip.id);
                 return (
                   <div key={clip.id} className="rounded-xl border border-sky-200 dark:border-sky-900 bg-brand-surface/50 p-3 space-y-2.5">
-                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-sky-100 text-sky-900 border border-sky-200">zvuk</span>
+                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-sky-100 text-sky-900 border border-sky-200">iné</span>
                     <p className="text-sm font-semibold text-brand-text">{clip.label}</p>
                     <p className="text-sm text-brand-muted">Odpoveď: {clip.answer}</p>
                     {clip.audioUrl && (
                       <audio controls src={playbackMediaSrc(clip.audioUrl)} className="w-full max-w-md" preload="metadata" />
                     )}
-                    <p className="text-xs text-brand-muted">{formatSoundBankHostNote(clip)}</p>
+                    {clip.note ? <p className="text-xs text-brand-muted">{clip.note}</p> : null}
                     {bankTargetSlots.length > 0 && onInsertSound ? (
                       <div className="flex gap-2">
                         <select
@@ -736,25 +755,34 @@ export default function QuizQuestionBankPanel({
                     </div>
                   </div>
                 );
-              })}
-              {filteredMusicTracks.length === 0 && visibleMusicTracks.length > 0 && visibleSoundClips.length === 0 ? (
+              })
+            )
+          ) : visibleMusicTracks.length === 0 ? (
+            <p className="text-brand-muted text-sm text-center py-8">
+              Banka hudobných ukážok je prázdna. Nahraj audio — predvolene ide medzi piesne.
+            </p>
+          ) : (
+            <>
+              {filteredMusicTracks.length === 0 ? (
                 <p className="text-brand-muted text-sm text-center py-6">Žiadna skladba nevyhovuje filtrom.</p>
               ) : null}
               {filteredMusicTracks.map((track) => {
                 const targetId = getSoundTargetId(track.id);
+                const meta = musicTrackMetaFields(track.tags);
                 return (
                   <div key={track.id} className="rounded-xl border border-sky-200 dark:border-sky-900 bg-brand-surface/50 p-3 space-y-2.5">
-                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-sky-100 text-sky-900 border border-sky-200">zvuk</span>
+                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-sky-100 text-sky-900 border border-sky-200">hudba</span>
                     <p className="text-sm font-semibold text-brand-text">{track.artist} — {track.title}</p>
                     {track.audioUrl && (
                       <audio controls src={playbackMediaSrc(track.audioUrl)} className="w-full max-w-md" preload="metadata" />
                     )}
-                    <p className="text-xs text-brand-muted">{formatMusicBankHostNote(track)}</p>
-                    {track.tags && track.tags.length > 0 && (
-                      <p className="text-[11px] text-violet-800 dark:text-violet-200 font-medium">
-                        {formatMusicBankTagsLabel(track.tags)}
-                      </p>
-                    )}
+                    <p className="text-xs text-brand-muted">
+                      Jazyk: <span className="text-brand-text">{meta.language}</span>
+                      {" · "}
+                      Štýl: <span className="text-brand-text">{meta.style}</span>
+                      {" · "}
+                      Dekáda: <span className="text-brand-text">{meta.decade}</span>
+                    </p>
                     {bankTargetSlots.length > 0 && onInsertSound ? (
                       <div className="flex gap-2">
                         <select
