@@ -1,19 +1,17 @@
 import Link from "next/link";
 import { Plus, Calendar, ChevronRight } from "lucide-react";
 import EventPromoChecks from "@/components/admin/EventPromoChecks";
-import { RestoreMissingEvents } from "@/components/admin/RestoreMissingEvents";
 import { formatEventDateLabel, sortEventsForAdminOverview } from "@/lib/data";
 import { isValidStoredEvent } from "@/lib/event-normalize";
 import { getPollActiveFlagsBySlug } from "@/lib/poll-storage";
 import { estimatedEntryRevenue, formatEuroAmount, formatSkPlayerCountTotal, registrationTotalsForEvent } from "@/lib/registration-utils";
-import { listMissingSeedEvents, readAllEventsRaw, readRegistrations } from "@/lib/storage";
+import { readAllEventsRaw, readRegistrations } from "@/lib/storage";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminUdalostitPage() {
-  const [{ events }, missing, { registrations }] = await Promise.all([
+  const [{ events }, { registrations }] = await Promise.all([
     readAllEventsRaw(),
-    listMissingSeedEvents(),
     readRegistrations(),
   ]);
   const pollActiveBySlug = await getPollActiveFlagsBySlug(events.map((event) => event.slug));
@@ -30,9 +28,6 @@ export default async function AdminUdalostitPage() {
           <Plus className="w-4 h-4" /> Nová udalosť
         </Link>
       </div>
-      <RestoreMissingEvents
-        missing={missing.map((event) => ({ slug: event.slug, venue: event.venue, city: event.city }))}
-      />
       <div className="space-y-4">
         {sortedEvents.map((e) => {
           const invalid = !isValidStoredEvent(e);

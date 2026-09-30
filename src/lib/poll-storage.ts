@@ -336,6 +336,13 @@ export async function resetPollVotes(eventSlug: string, venue?: string): Promise
   return 0;
 }
 
+export async function deletePollDataForEvent(eventSlug: string): Promise<void> {
+  const configs = (await loadStoredPollConfigs()).filter((entry) => entry.eventSlug !== eventSlug);
+  await persistPollConfigs(configs);
+  const votes = (await loadPollVotes()).filter((vote) => vote.eventSlug !== eventSlug);
+  await persistPollVotes(votes);
+}
+
 export async function deletePollTeamVote(eventSlug: string, voteId: string): Promise<boolean> {
   requirePollStorage();
   const trimmedId = voteId.trim();

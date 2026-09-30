@@ -860,7 +860,7 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
   const deleteEvent = async () => {
     if (
       !confirm(
-        "Naozaj navždy zmazať celú udalosť vrátane ligy a výsledkov? Toto nie je reset hlasov ankety."
+        `Naozaj navždy zmazať ${form.venue}? Zmizne podnik aj celá jeho história: registrácie, tímy, liga, výsledky, anketa a zasadací poriadok.`
       )
     ) {
       return;

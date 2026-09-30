@@ -586,6 +586,14 @@ export async function upsertStoredQuiz(quiz: StoredQuiz): Promise<void> {
   }
 }
 
+export async function deleteStoredQuizzesForEvent(eventSlug: string): Promise<number> {
+  const current = await loadQuizzes();
+  const next = current.filter((quiz) => quiz.eventSlug !== eventSlug);
+  const removed = current.length - next.length;
+  if (removed > 0) await persistQuizzes(next);
+  return removed;
+}
+
 export async function deleteStoredQuiz(eventSlug: string, quizParam: string): Promise<boolean> {
   const key = normalizeDateKey(quizParam);
   let removed = false;
@@ -1131,6 +1139,23 @@ export async function updateRegistrationById(
     return next;
   }, { destructive: true });
   return updated;
+}
+
+export async function purgeRegistrationsForPlace(slug: string, venue?: string): Promise<number> {
+  const venueLower = venue?.trim().toLowerCase();
+  let removed = 0;
+
+  await updateRegistrations((regs) => {
+    const next = regs.filter((reg) => {
+      if (slug && reg.eventSlug === slug) return false;
+      if (venueLower && (reg.venue ?? "").trim().toLowerCase() === venueLower) return false;
+      return true;
+    });
+    removed = regs.length - next.length;
+    return next;
+  }, { destructive: true });
+
+  return removed;
 }
 
 export async function deleteRegistrationsForEvent(slug: string, venue?: string): Promise<number> {

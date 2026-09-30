@@ -118,6 +118,19 @@ export async function readVenueTeams(): Promise<VenueTeam[]> {
   return store.teams.sort((a, b) => a.teamName.localeCompare(b.teamName, "sk"));
 }
 
+export async function deleteVenueTeamsForPlace(eventSlug: string, venue: string): Promise<number> {
+  const venueLower = venue.trim().toLowerCase();
+  const store = await loadStore();
+  const next = store.teams.filter((team) => {
+    if (eventSlug && team.eventSlug === eventSlug) return false;
+    if (venueLower && team.venue.trim().toLowerCase() === venueLower) return false;
+    return true;
+  });
+  const removed = store.teams.length - next.length;
+  if (removed > 0) await saveStore({ teams: next });
+  return removed;
+}
+
 export async function deleteVenueTeam(id: string): Promise<boolean> {
   const store = await loadStore();
   const next = store.teams.filter((team) => team.id !== id);

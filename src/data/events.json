@@ -1,38 +1,6 @@
 {
   "events": [
     {
-      "slug": "hradok-novaky",
-      "venue": "Hrádok ",
-      "city": "Nováky",
-      "regionSlug": "prievidza",
-      "address": "Vymyslená ulica 15/4",
-      "date": "27.06.2026",
-      "time": "18:00",
-      "entryFee": 4,
-      "maxPlayers": 10,
-      "minPlayers": 2,
-      "rounds": 4,
-      "questions": 55,
-      "durationMinutes": 120,
-      "active": false,
-      "imageUrl": "",
-      "rules": [
-        "Každý tím môže mať od 2 do 10 hráčov.",
-        "Na účasť je potrebné sa vopred zaregistrovať.",
-        "Kvíz je zaradený do ligy. Za každý porazený tím získate 1 bod.",
-        "Vstupné je 4 EUR na každého hráča.",
-        "Kvíz pozostáva z 55 všeobecných otázok rozdelených do 4 kôl.",
-        "Po každom kole sa pozbierajú odpovede a nasleduje krátka prestávka.",
-        "V prípade rovnakého počtu bodov nasleduje bonusová otázka.",
-        "Pre víťazné tímy sú pripravené rôzne ceny.",
-        "Počas kvízu sa v podniku nefajčí.",
-        "Je zakázané používať akékoľvek technológie počas kôl.",
-        "A najdôležitejšie — zabaviť sa!"
-      ],
-      "leagueTable": [],
-      "pastResults": []
-    },
-    {
       "slug": "lili-cafe",
       "venue": "Lili Cafe",
       "city": "Oslany",

@@ -4,7 +4,19 @@ import { sortLeagueTable } from "@/lib/data";
 import { rebuildLeagueFromPastResults } from "@/lib/league-rebuild";
 import { mergePastResults } from "@/lib/quiz-result-key";
 import { revalidatePublicEventPaths } from "@/lib/revalidate-public";
-import { patchEvent, readEvents, rebuildLeagueTableForEvent, updateEvents } from "@/lib/storage";
+import { deletePollDataForEvent } from "@/lib/poll-storage";
+import { deleteQuizDecksForEvent } from "@/lib/quiz-deck-storage";
+import { deleteSeatPlansForPlace } from "@/lib/seat-plan-storage";
+import {
+  deleteStoredQuizzesForEvent,
+  patchEvent,
+  purgeRegistrationsForPlace,
+  readAllEventsRaw,
+  readEvents,
+  rebuildLeagueTableForEvent,
+  updateEvents,
+} from "@/lib/storage";
+import { deleteVenueTeamsForPlace } from "@/lib/venue-teams";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -238,10 +250,21 @@ export async function PUT(req: NextRequest, { params }: { params: { slug: string
 
 export async function DELETE(_req: NextRequest, { params }: { params: { slug: string } }) {
   try {
-    await updateEvents((events) => events.filter((e) => e.slug !== params.slug), { destructive: true });
+    const { events } = await readAllEventsRaw();
+    const event = events.find((entry) => entry.slug === params.slug);
+    const venue = event?.venue ?? "";
+
+    await purgeRegistrationsForPlace(params.slug, venue);
+    await deleteStoredQuizzesForEvent(params.slug);
+    await deleteVenueTeamsForPlace(params.slug, venue);
+    await deletePollDataForEvent(params.slug);
+    await deleteSeatPlansForPlace(params.slug, venue);
+    await deleteQuizDecksForEvent(params.slug);
+    await updateEvents((list) => list.filter((entry) => entry.slug !== params.slug), { destructive: true });
     await revalidatePublicEventPaths(params.slug);
     return NextResponse.json({ ok: true });
-  } catch {
-    return NextResponse.json({ error: "Chyba pri mazani" }, { status: 500 });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Chyba pri mazani";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

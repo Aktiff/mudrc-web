@@ -123,6 +123,19 @@ export async function duplicateStoredSeatPlan(id: string, clearReservations: boo
   return copy;
 }
 
+export async function deleteSeatPlansForPlace(eventSlug: string, venue: string): Promise<number> {
+  const venueLower = venue.trim().toLowerCase();
+  const plans = await loadAllPlans();
+  const next = plans.filter((plan) => {
+    if (eventSlug && plan.eventSlug === eventSlug) return false;
+    if (venueLower && plan.venue.trim().toLowerCase() === venueLower) return false;
+    return true;
+  });
+  const removed = plans.length - next.length;
+  if (removed > 0) await persistAllPlans(next);
+  return removed;
+}
+
 export async function deleteSeatPlan(id: string): Promise<boolean> {
   const plans = await loadAllPlans();
   const next = plans.filter((plan) => plan.id !== id);

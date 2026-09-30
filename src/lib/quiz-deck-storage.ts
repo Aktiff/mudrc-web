@@ -49,6 +49,14 @@ export async function readAllQuizDecks(): Promise<QuizDeck[]> {
   return loadAllDecks();
 }
 
+export async function deleteQuizDecksForEvent(eventSlug: string): Promise<number> {
+  const decks = await loadAllDecks();
+  const next = decks.filter((deck) => deck.eventSlug !== eventSlug);
+  const removed = decks.length - next.length;
+  if (removed > 0) await persistAllDecks(next);
+  return removed;
+}
+
 export async function readQuizDeck(eventSlug: string, venueTitle: string): Promise<QuizDeck> {
   const decks = await loadAllDecks();
   const found = decks.find((deck) => deck.eventSlug === eventSlug);
