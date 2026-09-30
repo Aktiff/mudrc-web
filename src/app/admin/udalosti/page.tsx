@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Plus, Calendar, ChevronRight } from "lucide-react";
+import EventPromoChecks from "@/components/admin/EventPromoChecks";
 import { RestoreMissingEvents } from "@/components/admin/RestoreMissingEvents";
 import { formatEventDateLabel, sortEventsForAdminOverview } from "@/lib/data";
 import { isValidStoredEvent } from "@/lib/event-normalize";
@@ -37,15 +38,14 @@ export default async function AdminUdalostitPage() {
           const invalid = !isValidStoredEvent(e);
           const regTotals = registrationTotalsForEvent(registrations, e.slug, e.venue);
           return (
-          <Link
+          <article
             key={e.slug}
-            href={`/admin/udalosti/${e.slug}`}
-            className={`block bg-brand-card rounded-2xl border px-6 sm:px-8 py-5 sm:py-6 hover:border-brand-orange hover:bg-brand-warm transition-colors group ${
+            className={`bg-brand-card rounded-2xl border px-6 sm:px-8 py-5 sm:py-6 ${
               invalid ? "border-red-400/60" : "border-brand-border"
             }`}
           >
             <div className="flex flex-col lg:flex-row lg:items-center gap-4 lg:gap-8">
-              <div className="flex items-start gap-4 min-w-0 flex-1">
+              <Link href={`/admin/udalosti/${e.slug}`} className="flex items-start gap-4 min-w-0 flex-1 group">
                 <div className="w-11 h-11 rounded-xl bg-brand-tint flex items-center justify-center shrink-0">
                   <Calendar className="w-5 h-5 text-brand-orange" />
                 </div>
@@ -58,7 +58,7 @@ export default async function AdminUdalostitPage() {
                   </div>
                   <div className="text-brand-muted-light text-xs mt-1 font-mono">/{e.slug}{invalid ? " · neúplný záznam" : ""}</div>
                 </div>
-              </div>
+              </Link>
 
               <div className="flex flex-wrap items-center gap-2 lg:max-w-md xl:max-w-lg">
                 <span
@@ -106,10 +106,15 @@ export default async function AdminUdalostitPage() {
                     {e.leagueTable.length} v lige · {e.pastResults.length} výsledkov
                   </span>
                 </div>
-                <ChevronRight className="w-5 h-5 text-brand-muted-light group-hover:text-brand-orange transition-colors shrink-0" />
+                <Link href={`/admin/udalosti/${e.slug}`} aria-label={`Otvoriť ${e.venue}`} className="text-brand-muted-light hover:text-brand-orange">
+                  <ChevronRight className="w-5 h-5 shrink-0" />
+                </Link>
               </div>
             </div>
-          </Link>
+            <div className="mt-4 sm:pl-[3.75rem]">
+              <EventPromoChecks event={e} />
+            </div>
+          </article>
           );
         })}
       </div>

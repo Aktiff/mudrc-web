@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Calendar, Plus, PauseCircle } from "lucide-react";
+import EventPromoChecks from "@/components/admin/EventPromoChecks";
 import { formatEventDateLabel, sortEventsForAdminOverview } from "@/lib/data";
 import { formatSkPlayerCountTotal, registrationTotalsForEvent } from "@/lib/registration-utils";
 import { readEvents, readRegistrations } from "@/lib/storage";
@@ -45,13 +46,12 @@ export default async function AdminDashboard() {
         {sortedEvents.map((e) => {
           const regTotals = registrationTotalsForEvent(registrations, e.slug, e.venue);
           return (
-          <Link
+          <article
             key={e.slug}
-            href={`/admin/udalosti/${e.slug}`}
-            className="block bg-brand-card rounded-2xl border border-brand-border px-6 py-5 hover:border-brand-orange transition-colors"
+            className="bg-brand-card rounded-2xl border border-brand-border px-6 py-5"
           >
             <div className="flex items-center justify-between gap-4">
-              <div className="flex items-center gap-4">
+              <Link href={`/admin/udalosti/${e.slug}`} className="flex items-center gap-4 min-w-0 hover:text-brand-orange-readable">
                 <div className="w-10 h-10 rounded-xl bg-brand-tint flex items-center justify-center shrink-0">
                   <Calendar className="w-5 h-5 text-brand-orange" />
                 </div>
@@ -73,7 +73,7 @@ export default async function AdminDashboard() {
                     {e.city} &mdash; {formatEventDateLabel(e.date)} o {e.time}
                   </div>
                 </div>
-              </div>
+              </Link>
               <div className="text-sm text-brand-muted shrink-0 text-right">
                 <div>
                   {regTotals.teams}{" "}
@@ -85,7 +85,10 @@ export default async function AdminDashboard() {
                 </div>
               </div>
             </div>
-          </Link>
+            <div className="mt-4 sm:pl-14">
+              <EventPromoChecks event={e} />
+            </div>
+          </article>
           );
         })}
       </div>

@@ -4,7 +4,7 @@ import { sortLeagueTable } from "@/lib/data";
 import { rebuildLeagueFromPastResults } from "@/lib/league-rebuild";
 import { mergePastResults } from "@/lib/quiz-result-key";
 import { revalidatePublicEventPaths } from "@/lib/revalidate-public";
-import { patchEvent, rebuildLeagueTableForEvent, updateEvents } from "@/lib/storage";
+import { patchEvent, readEvents, rebuildLeagueTableForEvent, updateEvents } from "@/lib/storage";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -77,6 +77,7 @@ export async function PUT(req: NextRequest, { params }: { params: { slug: string
   const registrationToggle = body._registrationToggle === true;
   const includeLeagueData = body._includeLeagueData === true;
   const recalculateLeague = body._recalculateLeague === true;
+  const promoChecklistToggle = body._promoChecklist === true;
   const {
     _resetLeague: _r,
     _leagueToggle: _lt,
@@ -84,10 +85,26 @@ export async function PUT(req: NextRequest, { params }: { params: { slug: string
     _registrationToggle: _rt,
     _includeLeagueData: _ild,
     _recalculateLeague: _rl,
+    _promoChecklist: _pcFlag,
     ...incoming
   } = body;
 
   try {
+    if (promoChecklistToggle) {
+      const { events } = await readEvents();
+      const event = events.find((entry) => entry.slug === params.slug);
+      if (!event) return NextResponse.json({ error: "Not found" }, { status: 404 });
+      const updated = await patchEvent(params.slug, {
+        promoChecklist: {
+          date: event.date,
+          flyerSent: body.flyerSent === true,
+          groupPosted: body.groupPosted === true,
+          groupsShared: body.groupsShared === true,
+        },
+      });
+      return NextResponse.json(updated);
+    }
+
     if (registrationToggle && typeof incoming.registrationOpen === "boolean") {
       const updated = await patchEvent(params.slug, { registrationOpen: incoming.registrationOpen });
       await revalidatePublicEventPaths(params.slug);
@@ -195,9 +212,11 @@ export async function PUT(req: NextRequest, { params }: { params: { slug: string
       return NextResponse.json(updated);
     }
 
-    const { leagueTable: _lt2, pastResults: _pr, leagueActive: _la, ...fields } = incoming;
+    const { leagueTable: _lt2, pastResults: _pr, leagueActive: _la, promoChecklist: _pc, ...fields } = incoming;
+    const leaguePayload = { ...incoming } as Partial<QuizEvent>;
+    delete leaguePayload.promoChecklist;
     const updated = includeLeagueData
-      ? await patchEvent(params.slug, incoming, { includeLeagueData: true })
+      ? await patchEvent(params.slug, leaguePayload, { includeLeagueData: true })
       : await patchEvent(params.slug, fields);
 
     await revalidatePublicEventPaths(params.slug);

@@ -16,11 +16,33 @@ export type QuizEvent = {
   leagueActive?: boolean;
   /** false = podnik plný, registrácia na webe vypnutá */
   registrationOpen?: boolean;
+  /** Propagačný checklist viazaný na dátum tejto udalosti. */
+  promoChecklist?: EventPromoChecklist;
   imageUrl?: string;
   rules?: string[];
   leagueTable: LeagueEntry[];
   pastResults: PastResult[];
 };
+export type EventPromoChecklist = {
+  date: string;
+  flyerSent: boolean;
+  groupPosted: boolean;
+  groupsShared: boolean;
+};
+
+export function promoChecksForEvent(event: { date: string; promoChecklist?: EventPromoChecklist }): EventPromoChecklist {
+  const stored = event.promoChecklist;
+  if (!stored || stored.date !== event.date) {
+    return { date: event.date, flyerSent: false, groupPosted: false, groupsShared: false };
+  }
+  return {
+    date: event.date,
+    flyerSent: stored.flyerSent === true,
+    groupPosted: stored.groupPosted === true,
+    groupsShared: stored.groupsShared === true,
+  };
+}
+
 export type LeagueEntry = { rank: number; teamName: string; points: number; quizzesPlayed: number };
 export type PastResultTeam = { teamName: string; rounds: number[]; total: number; ligaPoints: number };
 export type PastResult = {
