@@ -19,16 +19,8 @@ import {
   type PollPublicData,
   type PollVote,
 } from "@/lib/poll";
-import {
-  canUseSupabaseStorage,
-  hasSupabaseStorage,
-  isSupabaseRestrictedMessage,
-  supabaseFetchPollConfigs,
-  supabaseFetchPollVotes,
-  supabaseSetPollConfigs,
-  supabaseSetPollVotes,
-} from "@/lib/supabase-storage";
-import { readEvents } from "@/lib/storage";
+import { readAppStorageBlob, writeAppStorageBlob } from "@/lib/blob-app-storage";
+import { readEvents, shouldWriteBlob } from "@/lib/storage";
 
 const pollVotesPath = path.join(process.cwd(), "src/data/poll-votes.json");
 const pollVotesLocalPath = path.join(process.cwd(), "src/data/poll-votes.local.json");
@@ -39,7 +31,7 @@ const isVercel = !!process.env.VERCEL;
 export type PollAdminData = {
   config: PollConfig | null;
   storedInDatabase: boolean;
-  storage: "supabase" | "local" | "unconfigured";
+  storage: "blob" | "local" | "unconfigured";
   votes: PollVote[];
   teamCount: number;
   upcomingOptions: string[];
@@ -48,7 +40,7 @@ export type PollAdminData = {
 };
 
 function requirePollStorage(): void {
-  if (isVercel && !hasSupabaseStorage()) {
+  if (isVercel && !shouldWriteBlob()) {
     throw new Error("STORAGE_NOT_CONFIGURED");
   }
 }
@@ -95,34 +87,14 @@ function writeLocalPollConfigs(configs: PollConfig[]) {
 }
 
 function getPollStorageMode(): PollAdminData["storage"] {
-  if (hasSupabaseStorage()) return "supabase";
+  if (shouldWriteBlob()) return "blob";
   if (isVercel) return "unconfigured";
   return "local";
 }
 
 async function loadStoredPollConfigs(): Promise<PollConfig[]> {
-  if (canUseSupabaseStorage()) {
-    const result = await supabaseFetchPollConfigs();
-    if (result.status === "ok") {
-      return ((result.value.configs ?? []) as PollConfig[]).map(normalizeStoredConfig);
-    }
-    if (result.status === "error") {
-      console.error(`Poll configs Supabase chyba (${result.message}) — fallback local.`);
-      if (!isSupabaseRestrictedMessage(result.message)) {
-        return readLocalPollConfigs();
-      }
-      return readLocalPollConfigs();
-    }
-    const local = readLocalPollConfigs();
-    if (local.length) {
-      try {
-        await supabaseSetPollConfigs({ configs: local });
-      } catch (error) {
-        console.error("Poll configs bootstrap to Supabase failed:", error);
-      }
-    }
-    return local;
-  }
+  const fromBlob = await readAppStorageBlob<{ configs?: PollConfig[] }>("poll-configs");
+  if (fromBlob?.configs) return fromBlob.configs.map(normalizeStoredConfig);
   return readLocalPollConfigs();
 }
 
@@ -133,14 +105,14 @@ async function persistPollConfigs(
   const requireWritable = options.requireWritable !== false;
   const normalized = configs.map(normalizeStoredConfig);
 
-  if (canUseSupabaseStorage()) {
-    await supabaseSetPollConfigs({ configs: normalized });
+  if (shouldWriteBlob()) {
+    await writeAppStorageBlob("poll-configs", { configs: normalized });
     return;
   }
 
   if (isVercel) {
     if (requireWritable) requirePollStorage();
-    console.warn("Poll configs not persisted (Vercel without Supabase storage).");
+    console.warn("Poll configs not persisted (Vercel without Blob).");
     return;
   }
 
@@ -148,33 +120,16 @@ async function persistPollConfigs(
 }
 
 async function loadPollVotes(): Promise<PollVote[]> {
-  if (canUseSupabaseStorage()) {
-    const result = await supabaseFetchPollVotes();
-    if (result.status === "ok") {
-      return ((result.value.votes ?? []) as LegacyPollVote[]).map(normalizePollVote);
-    }
-    if (result.status === "error") {
-      console.error(`Poll votes Supabase chyba (${result.message}) — fallback local.`);
-      return readLocalPollVotes();
-    }
-    const local = readLocalPollVotes();
-    if (local.length) {
-      try {
-        await supabaseSetPollVotes({ votes: local });
-      } catch (error) {
-        console.error("Poll votes bootstrap to Supabase failed:", error);
-      }
-    }
-    return local;
-  }
+  const fromBlob = await readAppStorageBlob<{ votes?: LegacyPollVote[] }>("poll-votes");
+  if (fromBlob?.votes) return fromBlob.votes.map(normalizePollVote);
   return readLocalPollVotes();
 }
 
 async function persistPollVotes(votes: PollVote[]): Promise<void> {
   requirePollStorage();
   const normalized = votes.map(normalizePollVote);
-  if (hasSupabaseStorage()) {
-    await supabaseSetPollVotes({ votes: normalized });
+  if (shouldWriteBlob()) {
+    await writeAppStorageBlob("poll-votes", { votes: normalized });
     return;
   }
   writeLocalPollVotes(normalized);
@@ -198,7 +153,7 @@ async function resolveVenue(eventSlug: string, fallbackVenue?: string): Promise<
   return events.find((event) => event.slug === eventSlug)?.venue ?? eventSlug;
 }
 
-/** Zapíše default/code config do Supabase, ak ešte neexistuje — len pre podniky s defaultom v kóde. */
+/** Zapíše default/code config do Blob, ak ešte neexistuje — len pre podniky s defaultom v kóde. */
 async function ensurePollConfigPersisted(eventSlug: string, venue?: string): Promise<PollConfig | null> {
   const stored = (await loadStoredPollConfigs()).find((entry) => entry.eventSlug === eventSlug);
   if (stored) return stored;
@@ -497,14 +452,14 @@ export async function isPollActive(eventSlug: string, venue?: string): Promise<b
 }
 
 export async function getPollStorageSummary() {
-  const configsResult = hasSupabaseStorage() ? await supabaseFetchPollConfigs() : null;
-  const votesResult = hasSupabaseStorage() ? await supabaseFetchPollVotes() : null;
+  const configs = await loadStoredPollConfigs();
+  const votes = await loadPollVotes();
   return {
     mode: getPollStorageMode(),
-    supabaseConfigured: hasSupabaseStorage(),
-    configsInDatabase: configsResult?.status === "ok" ? (configsResult.value.configs ?? []).length : 0,
-    votesInDatabase: votesResult?.status === "ok" ? (votesResult.value.votes ?? []).length : 0,
-    configsMissing: configsResult?.status === "missing",
-    votesMissing: votesResult?.status === "missing",
+    blobConfigured: shouldWriteBlob(),
+    configsInDatabase: configs.length,
+    votesInDatabase: votes.length,
+    configsMissing: configs.length === 0,
+    votesMissing: votes.length === 0,
   };
 }

@@ -16,7 +16,7 @@ export default function MediaRepairButton({ className }: Props) {
     if (running) return;
     if (
       !window.confirm(
-        "Opraví fotky podnikov a ukážky vo všetkých hotových kvízochn (skopíruje zo Supabase do Blob, ak to ešte ide). Pokračovať?"
+        "Skontroluje fotky a ukážky. Staré súbory, ktoré už nie sú v úložisku, treba nahrať znova. Pokračovať?"
       )
     ) {
       return;

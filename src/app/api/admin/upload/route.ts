@@ -2,14 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
 import {
-  formatSupabaseAudioUploadError,
   guessAudioContentType,
   isAllowedAudioFile,
   MAX_AUDIO_BYTES,
   MAX_AUDIO_SERVER_BYTES,
 } from "@/lib/audio-upload";
 import {
-  formatSupabaseVideoUploadError,
   guessVideoContentType,
   isAllowedVideoFile,
   MAX_VIDEO_BYTES,
@@ -17,11 +15,6 @@ import {
 } from "@/lib/video-upload";
 import { uploadBlobMedia, uploadEventImageToBlob } from "@/lib/blob-media";
 import { shouldWriteBlob } from "@/lib/storage";
-import {
-  canUseSupabaseStorage,
-  supabaseUploadPublicFile,
-  supabaseUploadPublicImage,
-} from "@/lib/supabase-storage";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -37,28 +30,14 @@ async function uploadMediaBuffer(
 ): Promise<string> {
   const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, "-") || `clip.${fallbackExt}`;
 
-  if (canUseSupabaseStorage()) {
-    const ext = safeName.split(".").pop()?.toLowerCase() ?? fallbackExt;
-    try {
-      return await supabaseUploadPublicFile(folder, `${Date.now()}.${ext}`, buffer, contentType);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Upload failed";
-      throw new Error(
-        folder === "video" ? formatSupabaseVideoUploadError(message) : formatSupabaseAudioUploadError(message)
-      );
-    }
-  }
-
   if (shouldWriteBlob()) {
-    const fileName = `${Date.now()}.${safeName.split(".").pop() ?? fallbackExt}`;
-    const { url } = await uploadBlobMedia(folder, fileName, buffer, contentType);
+    const storedName = `${Date.now()}.${safeName.split(".").pop() ?? fallbackExt}`;
+    const { url } = await uploadBlobMedia(folder, storedName, buffer, contentType);
     return url;
   }
 
   if (process.env.VERCEL) {
-    throw new Error(
-      "Upload na produkcii vyžaduje Supabase Storage alebo Vercel Blob (BLOB_STORE_ID / token)."
-    );
+    throw new Error("Upload na produkcii vyžaduje Vercel Blob (BLOB_STORE_ID / token).");
   }
 
   const uploadDir = path.join(process.cwd(), `public/uploads/${folder}`);
@@ -95,8 +74,7 @@ export async function POST(req: NextRequest) {
       if (process.env.VERCEL && file.size > MAX_VIDEO_SERVER_BYTES) {
         return NextResponse.json(
           {
-            error:
-              "Súbor je príliš veľký na upload cez server. Editor použije priamy upload do Supabase — skús znova Nahrať.",
+            error: "Súbor je príliš veľký na upload cez server. Skráť video alebo nahraj menší súbor.",
           },
           { status: 413 }
         );
@@ -121,8 +99,7 @@ export async function POST(req: NextRequest) {
       if (process.env.VERCEL && file.size > MAX_AUDIO_SERVER_BYTES) {
         return NextResponse.json(
           {
-            error:
-              "Súbor je príliš veľký na upload cez server (max ~3,5 MB). Editor použije priamy upload do Supabase — skús znova Nahrať.",
+            error: "Súbor je príliš veľký na upload cez server (max ~3,5 MB). Skráť audio ukážku.",
           },
           { status: 413 }
         );
@@ -147,11 +124,6 @@ export async function POST(req: NextRequest) {
     const ext = file.name.split(".").pop()?.toLowerCase() ?? "jpg";
     const buffer = Buffer.from(await file.arrayBuffer());
 
-    if (canUseSupabaseStorage()) {
-      const url = await supabaseUploadPublicImage(`${Date.now()}.${ext}`, buffer, file.type || "image/jpeg");
-      return NextResponse.json({ url });
-    }
-
     if (shouldWriteBlob()) {
       const url = await uploadEventImageToBlob(buffer, file.type || "image/jpeg", ext);
       return NextResponse.json({ url });
@@ -159,10 +131,7 @@ export async function POST(req: NextRequest) {
 
     if (process.env.VERCEL) {
       return NextResponse.json(
-        {
-          error:
-            "Upload na produkcii vyžaduje Supabase Storage alebo Vercel Blob (BLOB_STORE_ID / token).",
-        },
+        { error: "Upload na produkcii vyžaduje Vercel Blob (BLOB_STORE_ID / token)." },
         { status: 500 }
       );
     }

@@ -127,6 +127,6 @@ export async function runFullMediaRepair() {
     hint:
       allFailed.length === 0
         ? "Hotovo — obnov stránky (Ctrl+F5). Ukážky a fotky by mali ísť z Blob."
-        : "Čo ostalo v „failed“, Supabase už nevracia — pri tej otázke znova Nahraj MP3/fotku v editore.",
+        : "Čo ostalo v „failed“, už nie je v úložisku — pri tej otázke znova nahraj MP3 alebo fotku v editore.",
   };
 }

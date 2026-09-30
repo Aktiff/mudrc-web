@@ -33,7 +33,7 @@ function pickBankAudio(
   return undefined;
 }
 
-/** Doplní chýbajúce audioUrl z banky a prepíše Supabase URL na proxy. */
+/** Doplní chýbajúce audioUrl z banky a prepíše staré URL na interný odkaz. */
 export async function hydrateQuizMediaForPlayback(quiz: QuizLibraryItem): Promise<QuizLibraryItem> {
   const [musicBank, soundBank] = await Promise.all([readStoredMusicBank(), readStoredSoundBank()]);
   const musicById = new Map(musicBank.map((t) => [t.id, t]));

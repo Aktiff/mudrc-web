@@ -1,15 +1,5 @@
-import { uploadBlobMedia } from "@/lib/blob-media";
 import { isSupabaseUploadsUrl, supabaseUploadsObjectPath } from "@/lib/media-url";
-import { fetchSupabaseUploadsBytes } from "@/lib/supabase-uploads-bytes";
 import { readEvents, shouldWriteBlob, writeEvents } from "@/lib/storage";
-
-function guessImageContentType(fileName: string): string {
-  const ext = fileName.split(".").pop()?.toLowerCase();
-  if (ext === "png") return "image/png";
-  if (ext === "webp") return "image/webp";
-  if (ext === "gif") return "image/gif";
-  return "image/jpeg";
-}
 
 export async function migrateEventImagesToBlob() {
   if (!shouldWriteBlob()) {
@@ -50,24 +40,10 @@ export async function migrateEventImagesToBlob() {
       continue;
     }
 
-    const fileName = objectPath.split("/").pop() ?? `${event.slug}.jpg`;
-    const file = await fetchSupabaseUploadsBytes(objectPath);
-    if (!file?.buffer.length) {
-      failed.push({
-        slug: event.slug,
-        reason: "Supabase storage nedostupný — nahraj fotku znova v admin → Udalosti.",
-      });
-      continue;
-    }
-
-    try {
-      const { url } = await uploadBlobMedia("events", fileName, file.buffer, guessImageContentType(fileName));
-      event.imageUrl = url;
-      migrated.push(event.slug);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      failed.push({ slug: event.slug, reason: message });
-    }
+    failed.push({
+      slug: event.slug,
+      reason: "Stará fotka už nie je v úložisku. Nahraj ju znova v admin → Udalosti.",
+    });
   }
 
   if (migrated.length > 0) {

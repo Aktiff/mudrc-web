@@ -73,7 +73,7 @@ export default function AudioUrlField({
         )}
       </div>
       <p className="text-brand-muted text-xs mt-1.5">
-        Upload ide do Blob (alebo Supabase ak je zapnutý). Odporúčaná dĺžka ukážky ~30 s.
+        Upload ide do Vercel Blob. Odporúčaná dĺžka ukážky ~30 s.
       </p>
       {value.trim() && (
         <audio controls src={playbackMediaSrc(value)} className="w-full max-w-md mt-2" preload="metadata" />

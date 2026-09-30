@@ -13,7 +13,6 @@ import {
 import { enrichMusicTrackAutoTags, lookupMusicTrackAutoTags } from "@/lib/music-track-metadata";
 import { readAllLibraryQuizzes } from "@/lib/quiz-library-storage";
 import { readAppStorageWithFallback, writeAppStorageWithFallback } from "@/lib/app-storage-fallback";
-import { supabaseFetchMusicBank, supabaseSetMusicBank } from "@/lib/supabase-storage";
 
 const localPath = path.join(process.cwd(), "src/data/music-bank.local.json");
 const BLOB_NAME = "music-bank";
@@ -37,7 +36,6 @@ export async function readStoredMusicBank(): Promise<MusicBankItem[]> {
   const data = await readAppStorageWithFallback({
     label: "music-bank",
     blobName: BLOB_NAME,
-    fetchSupabase: supabaseFetchMusicBank,
     readLocal: () => ({ tracks: readLocalMusicBank() }),
     empty: { tracks: [] },
   });
@@ -51,7 +49,6 @@ export async function writeStoredMusicBank(tracks: MusicBankItem[]): Promise<voi
     label: "music-bank",
     blobName: BLOB_NAME,
     payload,
-    writeSupabase: () => supabaseSetMusicBank(payload),
     writeLocal: () => writeLocalMusicBank(sorted),
   });
 }

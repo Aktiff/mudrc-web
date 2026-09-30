@@ -19,14 +19,3 @@ export function isAllowedVideoFile(fileName: string, fileType: string): boolean 
   if (fileType === "application/octet-stream") return /\.(mp4|webm|mov|m4v)$/i.test(fileName);
   return /\.(mp4|webm|mov|m4v)$/i.test(fileName);
 }
-
-export function formatSupabaseVideoUploadError(message: string): string {
-  const lower = message.toLowerCase();
-  if (lower.includes("mime") || lower.includes("content type") || lower.includes("invalid")) {
-    return (
-      "Supabase bucket „uploads“ neakceptuje video. Skontroluj povolené MIME typy v Storage → uploads " +
-      "(mp4, webm) alebo spusti scripts/supabase.sql."
-    );
-  }
-  return `Supabase upload failed: ${message}`;
-}

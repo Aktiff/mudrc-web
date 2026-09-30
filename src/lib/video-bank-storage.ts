@@ -12,7 +12,6 @@ import {
 } from "@/lib/video-bank";
 import { readAllLibraryQuizzes } from "@/lib/quiz-library-storage";
 import { readAppStorageWithFallback, writeAppStorageWithFallback } from "@/lib/app-storage-fallback";
-import { supabaseFetchVideoBank, supabaseSetVideoBank } from "@/lib/supabase-storage";
 
 const localPath = path.join(process.cwd(), "src/data/video-bank.local.json");
 const BLOB_NAME = "video-bank";
@@ -36,7 +35,6 @@ export async function readStoredVideoBank(): Promise<VideoBankItem[]> {
   const data = await readAppStorageWithFallback({
     label: "video-bank",
     blobName: BLOB_NAME,
-    fetchSupabase: supabaseFetchVideoBank,
     readLocal: () => ({ clips: readLocalVideoBank() }),
     empty: { clips: [] },
   });
@@ -50,7 +48,6 @@ export async function writeStoredVideoBank(clips: VideoBankItem[]): Promise<void
     label: "video-bank",
     blobName: BLOB_NAME,
     payload,
-    writeSupabase: () => supabaseSetVideoBank(payload),
     writeLocal: () => writeLocalVideoBank(sorted),
   });
 }

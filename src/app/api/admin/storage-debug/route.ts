@@ -11,12 +11,6 @@ import {
   readStoredQuiz,
 } from "@/lib/storage";
 import { getRegistrationEmailDiagnostics } from "@/lib/registration-email";
-import {
-  canUseSupabaseStorage,
-  hasSupabaseStorage,
-  supabaseFetchEvents,
-  supabaseFetchQuizzes,
-} from "@/lib/supabase-storage";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -29,26 +23,7 @@ export async function GET(req: Request) {
   try {
     const { events } = await readEvents();
     const diagnostics = getStorageDiagnostics();
-
-    let supabaseEventsCount: number | null = null;
-    let supabaseQuizzesCount: number | null = null;
-    if (hasSupabaseStorage()) {
-      const eventsResult = await supabaseFetchEvents();
-      if (eventsResult.status === "ok") {
-        supabaseEventsCount = eventsResult.value.events?.length ?? 0;
-      }
-      const quizzesResult = await supabaseFetchQuizzes();
-      if (quizzesResult.status === "ok") {
-        supabaseQuizzesCount = quizzesResult.value.quizzes?.length ?? 0;
-      }
-    }
-
-    let quizzesCount = supabaseQuizzesCount ?? 0;
-    if (!canUseSupabaseStorage() || supabaseQuizzesCount === null) {
-      const stored = await readAllStoredQuizzes();
-      quizzesCount = stored.length;
-    }
-
+    const stored = await readAllStoredQuizzes();
     const { registrations } = await readRegistrations();
     const appStorageBlobKeys = await countAppStorageBlobKeys();
 
@@ -62,13 +37,13 @@ export async function GET(req: Request) {
 
     let quizLookup = null;
     if (slug && quizDate) {
-      const stored = await readStoredQuiz(slug, normalizeDateKey(quizDate));
+      const quiz = await readStoredQuiz(slug, normalizeDateKey(quizDate));
       quizLookup = {
         slug,
         date: quizDate,
-        found: !!stored,
-        teams: stored?.teams?.length ?? 0,
-        storage: stored ? "quizzes" : "missing",
+        found: !!quiz,
+        teams: quiz?.teams?.length ?? 0,
+        storage: quiz ? "blob" : "missing",
       };
     }
 
@@ -77,22 +52,17 @@ export async function GET(req: Request) {
     return NextResponse.json(
       {
         ok: true,
-        storageVersion: "2026-09-28-regs-blob-manifest",
+        storageVersion: "2026-09-30-blob-only",
         diagnostics,
         storageBackend: {
-          supabaseConfigured: hasSupabaseStorage(),
-          supabaseActive: canUseSupabaseStorage(),
-          supabaseDisabled: process.env.STORAGE_DISABLE_SUPABASE === "1",
           blobConfigured: hasBlobStorage(),
-          supabaseEventsCount,
-          supabaseQuizzesCount,
           liveEventsCount: events.length,
           liveRegistrationsCount: registrations.length,
-          liveQuizzesCount: quizzesCount,
+          liveQuizzesCount: stored.length,
           appStorageBlobKeyCount: appStorageBlobKeys,
         },
         email: getRegistrationEmailDiagnostics(),
-        quizzesCount,
+        quizzesCount: stored.length,
         poll,
         events: summary,
         quizLookup,

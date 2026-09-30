@@ -121,7 +121,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   const savedQuiz = await readStoredQuiz(params.slug, resultId);
   if (!savedQuiz?.teams?.length) {
     return NextResponse.json(
-      { error: "Kvíz sa nepodarilo uložiť do databázy. Skontroluj Supabase pripojenie." },
+      { error: "Kvíz sa nepodarilo uložiť. Skús znova o chvíľu." },
       { status: 500 }
     );
   }

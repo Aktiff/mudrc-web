@@ -20,7 +20,7 @@ export function isSupabaseUploadsUrl(url: string): boolean {
 
 /**
  * Uložená URL → src pre img/audio/video.
- * Supabase a legacy /uploads/ idú cez /api/media/supabase/… (402, STORAGE_DISABLE).
+ * Staré odkazy na cudzie úložisko a legacy /uploads/ idú cez /api/media/supabase/… (410, súbor treba nahrať znova).
  */
 export function resolveMediaSrc(storedUrl: string | undefined): string | undefined {
   const trimmed = storedUrl?.trim();

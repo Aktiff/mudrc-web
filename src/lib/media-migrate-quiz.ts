@@ -1,18 +1,10 @@
-import { uploadBlobMedia } from "@/lib/blob-media";
 import { isSupabaseUploadsUrl, supabaseUploadsObjectPath } from "@/lib/media-url";
 import { readStoredMusicBank, writeStoredMusicBank } from "@/lib/music-bank-storage";
 import { readAllLibraryQuizzes, saveLibraryQuiz } from "@/lib/quiz-library-storage";
 import { readStoredSoundBank, writeStoredSoundBank } from "@/lib/sound-bank-storage";
 import { shouldWriteBlob } from "@/lib/storage";
-import { fetchSupabaseUploadsBytes } from "@/lib/supabase-uploads-bytes";
 import { readStoredVideoBank, writeStoredVideoBank } from "@/lib/video-bank-storage";
 import type { QuizLibraryItem } from "@/lib/quiz-library";
-
-function mediaFolder(objectPath: string): "audio" | "video" | "images" {
-  if (objectPath.startsWith("video/")) return "video";
-  if (objectPath.startsWith("audio/")) return "audio";
-  return "images";
-}
 
 function objectPathFromStoredUrl(url: string): string | null {
   const trimmed = url.trim();
@@ -41,24 +33,11 @@ async function migrateMediaUrl(url: string): Promise<{ next: string; migrated: b
     return { next: trimmed, migrated: false };
   }
 
-  const file = await fetchSupabaseUploadsBytes(objectPath);
-  if (!file?.buffer.length) {
-    return {
-      next: trimmed,
-      migrated: false,
-      error: "Súbor sa nepodarilo stiahnuť zo Supabase.",
-    };
-  }
-
-  const fileName = objectPath.split("/").pop() ?? `clip-${Date.now()}.bin`;
-  try {
-    const folder = mediaFolder(objectPath);
-    const { url: blobUrl } = await uploadBlobMedia(folder, fileName, file.buffer, file.contentType);
-    return { next: blobUrl, migrated: true };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return { next: trimmed, migrated: false, error: message };
-  }
+  return {
+    next: trimmed,
+    migrated: false,
+    error: "Starý súbor už nie je dostupný. Nahraj ho znova v editore.",
+  };
 }
 
 async function migrateQuiz(quiz: QuizLibraryItem) {

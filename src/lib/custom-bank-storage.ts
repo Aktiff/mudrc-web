@@ -9,7 +9,6 @@ import {
   type NewCustomBankQuestionInput,
 } from "@/lib/quiz-custom-bank";
 import { readAppStorageWithFallback, writeAppStorageWithFallback } from "@/lib/app-storage-fallback";
-import { supabaseFetchCustomBank, supabaseSetCustomBank } from "@/lib/supabase-storage";
 
 const localPath = path.join(process.cwd(), "src/data/custom-bank.local.json");
 const BLOB_NAME = "custom-bank-questions";
@@ -45,7 +44,6 @@ export async function readStoredCustomBankQuestions(): Promise<CustomBankQuestio
   const data = await readAppStorageWithFallback({
     label: "custom-bank",
     blobName: BLOB_NAME,
-    fetchSupabase: supabaseFetchCustomBank,
     readLocal: () => ({ questions: readLocalCustomBank() }),
     empty: { questions: [] },
   });
@@ -59,7 +57,6 @@ export async function writeStoredCustomBankQuestions(questions: CustomBankQuesti
     label: "custom-bank",
     blobName: BLOB_NAME,
     payload,
-    writeSupabase: () => supabaseSetCustomBank(payload),
     writeLocal: () => writeLocalCustomBank(sorted),
   });
 }

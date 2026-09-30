@@ -73,7 +73,7 @@ export default function VideoUrlField({
         )}
       </div>
       <p className="text-brand-muted text-xs mt-1.5">
-        MP4 alebo WEBM do Supabase Storage. Krátke filmové ukážky (~30–90 s) odporúčané.
+        MP4 alebo WEBM do úložiska. Krátke filmové ukážky (~30–90 s) odporúčané.
       </p>
       {value.trim() && (
         <video

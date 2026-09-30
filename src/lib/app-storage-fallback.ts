@@ -1,27 +1,13 @@
 import { writeAppStorageBlob, readAppStorageBlob } from "@/lib/blob-app-storage";
 import { shouldWriteBlob } from "@/lib/storage";
-import {
-  canUseSupabaseStorage,
-  isSupabaseRestrictedMessage,
-  type SupabaseFetchResult,
-} from "@/lib/supabase-storage";
 
 export async function readAppStorageWithFallback<T>(options: {
   label: string;
   blobName: string;
-  fetchSupabase: () => Promise<SupabaseFetchResult<T>>;
   readLocal: () => T;
   empty: T;
 }): Promise<T> {
-  const { label, blobName, fetchSupabase, readLocal, empty } = options;
-
-  if (canUseSupabaseStorage()) {
-    const result = await fetchSupabase();
-    if (result.status === "ok") return result.value;
-    if (result.status === "error") {
-      console.error(`${label} Supabase chyba (${result.message}) — skúšam Blob / local.`);
-    }
-  }
+  const { blobName, readLocal, empty } = options;
 
   const fromBlob = await readAppStorageBlob<T>(blobName);
   if (fromBlob !== null && fromBlob !== undefined) {
@@ -50,21 +36,9 @@ export async function writeAppStorageWithFallback(options: {
   label: string;
   blobName: string;
   payload: unknown;
-  writeSupabase: () => Promise<void>;
   writeLocal?: () => void;
 }): Promise<void> {
-  const { label, blobName, payload, writeSupabase, writeLocal } = options;
-
-  if (canUseSupabaseStorage()) {
-    try {
-      await writeSupabase();
-      return;
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error);
-      console.error(`${label} Supabase zápis zlyhal:`, msg);
-      if (!isSupabaseRestrictedMessage(msg)) throw error;
-    }
-  }
+  const { label, blobName, payload, writeLocal } = options;
 
   if (shouldWriteBlob()) {
     await writeAppStorageBlob(blobName, payload);
@@ -76,7 +50,5 @@ export async function writeAppStorageWithFallback(options: {
     return;
   }
 
-  throw new Error(
-    `${label}: Supabase je vypnutý a BLOB_READ_WRITE_TOKEN vo Verceli chýba — zápis nie je možný.`
-  );
+  throw new Error(`${label}: chýba Vercel Blob — zápis nie je možný.`);
 }

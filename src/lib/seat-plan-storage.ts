@@ -9,7 +9,6 @@ import {
   type SeatTeamInput,
 } from "@/lib/seat-plan";
 import { readAppStorageWithFallback, writeAppStorageWithFallback } from "@/lib/app-storage-fallback";
-import { supabaseFetchSeatPlans, supabaseSetSeatPlans } from "@/lib/supabase-storage";
 
 const localPath = path.join(process.cwd(), "src/data/seat-plans.local.json");
 const BLOB_NAME = "seat-plans";
@@ -39,7 +38,6 @@ async function loadAllPlans(): Promise<SeatPlan[]> {
   const data = await readAppStorageWithFallback({
     label: "seat-plans",
     blobName: BLOB_NAME,
-    fetchSupabase: supabaseFetchSeatPlans,
     readLocal: readLocalPlans,
     empty: { plans: [] },
   });
@@ -54,7 +52,6 @@ async function persistAllPlans(plans: SeatPlan[]): Promise<void> {
     label: "seat-plans",
     blobName: BLOB_NAME,
     payload,
-    writeSupabase: () => supabaseSetSeatPlans(payload),
     writeLocal: () => writeLocalPlans(payload),
   });
 }

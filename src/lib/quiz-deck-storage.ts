@@ -3,7 +3,6 @@ import path from "path";
 import type { QuizDeck } from "@/lib/quiz-deck";
 import { defaultDeck, normalizeQuizDeck } from "@/lib/quiz-deck";
 import { readAppStorageWithFallback, writeAppStorageWithFallback } from "@/lib/app-storage-fallback";
-import { supabaseFetchQuizDecks, supabaseSetQuizDecks } from "@/lib/supabase-storage";
 
 const localPath = path.join(process.cwd(), "src/data/quiz-decks.local.json");
 const BLOB_NAME = "quiz-decks";
@@ -30,7 +29,6 @@ async function loadAllDecks(): Promise<QuizDeck[]> {
   const data = await readAppStorageWithFallback({
     label: "quiz-decks",
     blobName: BLOB_NAME,
-    fetchSupabase: supabaseFetchQuizDecks,
     readLocal: readLocalDecks,
     empty: { decks: [] },
   });
@@ -43,7 +41,6 @@ async function persistAllDecks(decks: QuizDeck[]): Promise<void> {
     label: "quiz-decks",
     blobName: BLOB_NAME,
     payload,
-    writeSupabase: () => supabaseSetQuizDecks(payload),
     writeLocal: () => writeLocalDecks(payload),
   });
 }

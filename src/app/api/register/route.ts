@@ -35,8 +35,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         error: "Registráciu sa nepodarilo uložiť.",
-        detail:
-          "Chýba úložisko. Zdarma: supabase.com → New project → SQL Editor (spusti scripts/supabase.sql) → Settings → API → skopíruj URL a service_role key → vo Verceli pridaj SUPABASE_URL a SUPABASE_SERVICE_ROLE_KEY → Redeploy.",
+        detail: "Chýba úložisko Blob. Vo Verceli skontroluj BLOB_STORE_ID alebo BLOB_READ_WRITE_TOKEN a sprav Redeploy.",
         storage: getStorageDiagnostics(),
       },
       { status: 500 }

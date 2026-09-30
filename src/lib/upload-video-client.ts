@@ -1,7 +1,7 @@
 "use client";
 
+import { uploadLargeFileToBlob } from "@/lib/upload-blob-client";
 import {
-  guessVideoContentType,
   MAX_VIDEO_BYTES,
   MAX_VIDEO_SERVER_BYTES,
 } from "@/lib/video-upload";
@@ -42,75 +42,18 @@ async function uploadViaServer(file: File): Promise<string> {
   return data.url;
 }
 
-async function uploadViaSupabaseStorage(file: File): Promise<string> {
-  const contentType = guessVideoContentType(file.name, file.type || "");
-  const prep = await fetch("/api/admin/upload/video", {
-    method: "POST",
-    credentials: "same-origin",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      fileName: file.name,
-      contentType,
-      fileSize: file.size,
-    }),
-  });
-  const prepText = await prep.text();
-  if (!prep.ok) {
-    throw new Error(messageFromUploadResponse(prep, prepText));
-  }
-
-  let signed: {
-    signedUrl?: string;
-    token?: string;
-    publicUrl?: string;
-    contentType?: string;
-  } = {};
-  try {
-    signed = JSON.parse(prepText) as typeof signed;
-  } catch {
-    throw new Error("Neplatná odpoveď pri príprave uploadu.");
-  }
-  if (!signed.signedUrl || !signed.publicUrl) {
-    throw new Error("Úložisko nevrátilo upload URL.");
-  }
-
-  const uploadType = signed.contentType || contentType;
-  let uploadRes = await fetch(signed.signedUrl, {
-    method: "PUT",
-    body: file,
-    headers: { "Content-Type": uploadType },
-  });
-
-  if (!uploadRes.ok && signed.token) {
-    uploadRes = await fetch(signed.signedUrl, {
-      method: "PUT",
-      body: file,
-      headers: {
-        "Content-Type": uploadType,
-        Authorization: `Bearer ${signed.token}`,
-      },
-    });
-  }
-
-  if (!uploadRes.ok) {
-    throw new Error(`Upload do úložiska zlyhal (HTTP ${uploadRes.status}).`);
-  }
-
-  return signed.publicUrl;
-}
-
 export async function uploadVideoFileClient(file: File): Promise<string> {
   if (file.size > MAX_VIDEO_BYTES) {
     throw new Error("Maximálna veľkosť videa je 80 MB — skráť ukážku alebo zníž rozlíšenie.");
   }
 
   if (file.size > MAX_VIDEO_SERVER_BYTES) {
-    return uploadViaSupabaseStorage(file);
+    return uploadLargeFileToBlob("video", file);
   }
 
   try {
     return await uploadViaServer(file);
   } catch {
-    return uploadViaSupabaseStorage(file);
+    return uploadLargeFileToBlob("video", file);
   }
 }

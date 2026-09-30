@@ -40,7 +40,7 @@ type PollAdminState = {
   upcomingOptions: string[];
   configOptions: string[];
   publicPath: string;
-  storage: "supabase" | "local" | "unconfigured";
+  storage: "blob" | "local" | "unconfigured";
   publicVisible: boolean;
 };
 
@@ -1523,8 +1523,8 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
                 <div className="rounded-xl border border-brand-border bg-brand-surface/50 p-4">
                   <div className="text-brand-muted text-xs uppercase tracking-wider mb-1">Uložisko</div>
                   <div className="font-semibold text-brand-text">
-                    {pollAdmin.storage === "supabase"
-                      ? "Supabase"
+                    {pollAdmin.storage === "blob"
+                      ? "Vercel Blob"
                       : pollAdmin.storage === "local"
                         ? "Lokálny súbor (dev)"
                         : "Nenastavené"}

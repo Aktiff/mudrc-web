@@ -7,16 +7,6 @@ import { readQuizLibraryBackup, writeQuizLibraryBackup } from "@/lib/quiz-librar
 import { readAllQuizDecks } from "@/lib/quiz-deck-storage";
 import { deleteAppStorageBlob, readAppStorageBlob, writeAppStorageBlob } from "@/lib/blob-app-storage";
 import { shouldWriteBlob } from "@/lib/storage";
-import {
-  canUseSupabaseStorage,
-  isSupabaseRestrictedMessage,
-  supabaseDeleteQuizLibraryItem,
-  supabaseFetchQuizLibrary,
-  supabaseFetchQuizLibraryIndex,
-  supabaseFetchQuizLibraryItem,
-  supabaseSetQuizLibraryIndex,
-  supabaseSetQuizLibraryItem,
-} from "@/lib/supabase-storage";
 
 const QUIZ_LIBRARY_INDEX_BLOB = "quiz-library-index";
 const quizLibraryItemBlobName = (id: string) => `quiz-library-item-${id}`;
@@ -93,34 +83,13 @@ function deckToLibraryItem(deck: QuizDeck): QuizLibraryItem {
 }
 
 async function migrateLegacyMonolithicStore(): Promise<QuizLibraryItem[]> {
-  let quizzes: QuizLibraryItem[] = [];
-
-  if (canUseSupabaseStorage()) {
-    const legacy = await supabaseFetchQuizLibrary();
-    if (legacy.status === "ok") {
-      quizzes = (legacy.value.quizzes ?? []) as QuizLibraryItem[];
-    }
-  }
-
-  if (!quizzes.length) {
-    const monolithic = await readAppStorageBlob<{ quizzes?: QuizLibraryItem[] }>("quiz-library");
-    quizzes = monolithic?.quizzes ?? [];
-  }
-
+  const monolithic = await readAppStorageBlob<{ quizzes?: QuizLibraryItem[] }>("quiz-library");
+  const quizzes = monolithic?.quizzes ?? [];
   if (!quizzes.length) return [];
 
   const items = quizzes.map(toIndexEntry);
   for (const quiz of quizzes) {
     const normalized = normalizeLibraryQuiz(quiz);
-    if (canUseSupabaseStorage()) {
-      try {
-        await supabaseSetQuizLibraryItem(normalized.id, normalized);
-        continue;
-      } catch (error) {
-        const msg = error instanceof Error ? error.message : String(error);
-        if (!isSupabaseRestrictedMessage(msg)) throw error;
-      }
-    }
     if (shouldWriteBlob()) {
       await writeAppStorageBlob(quizLibraryItemBlobName(normalized.id), normalized);
     } else {
@@ -163,39 +132,10 @@ async function writeQuizBlobPair(normalized: QuizLibraryItem, entry: QuizLibrary
   await writeAppStorageBlob(QUIZ_LIBRARY_INDEX_BLOB, index);
 }
 
-async function trySupabaseQuizMirror(normalized: QuizLibraryItem, entry: QuizLibraryIndexEntry): Promise<void> {
-  if (!canUseSupabaseStorage()) return;
-  try {
-    await supabaseSetQuizLibraryItem(normalized.id, normalized);
-    const index = await readIndex();
-    const merged = await mergeIndexEntry(index.items, entry);
-    await supabaseSetQuizLibraryIndex({ items: merged.items });
-  } catch (error) {
-    console.error("Supabase quiz library mirror failed (Blob je zdroj pravdy):", error);
-  }
-}
-
 async function readIndex(): Promise<LibraryIndex> {
   if (shouldWriteBlob()) {
     const fromBlob = await readAppStorageBlob<LibraryIndex>(QUIZ_LIBRARY_INDEX_BLOB);
     if (fromBlob?.items?.length) return fromBlob;
-  }
-  if (canUseSupabaseStorage()) {
-    let result = await supabaseFetchQuizLibraryIndex();
-    if (result.status === "missing") {
-      try {
-        await migrateLegacyMonolithicStore();
-      } catch (error) {
-        console.error("migrateLegacyMonolithicStore failed:", error);
-      }
-      result = await supabaseFetchQuizLibraryIndex();
-    }
-    if (result.status === "ok") {
-      return { items: (result.value.items ?? []) as QuizLibraryIndexEntry[] };
-    }
-    if (result.status === "error") {
-      console.error(`Quiz library index Supabase chyba (${result.message}) — fallback Blob/local.`);
-    }
   }
   const index = await readIndexFromBlobOrLocal();
   if (index.items.length) return index;
@@ -213,15 +153,6 @@ async function readQuizById(id: string): Promise<QuizLibraryItem | null> {
     const fromBlob = await readAppStorageBlob<QuizLibraryItem>(quizLibraryItemBlobName(id));
     if (fromBlob) return fromBlob;
   }
-  if (canUseSupabaseStorage()) {
-    const result = await supabaseFetchQuizLibraryItem(id);
-    if (result.status === "ok") return result.value as QuizLibraryItem;
-    if (result.status === "error") {
-      console.error(`Quiz library item Supabase chyba (${result.message}) — fallback Blob/local.`);
-    } else {
-      return null;
-    }
-  }
   const fromBlob = await readAppStorageBlob<QuizLibraryItem>(quizLibraryItemBlobName(id));
   if (fromBlob) return fromBlob;
   return readLocalItem(id);
@@ -231,23 +162,10 @@ async function persistQuizIndexItems(items: QuizLibraryIndexEntry[]): Promise<vo
   const sorted = [...items].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   if (shouldWriteBlob()) {
     await writeAppStorageBlob(QUIZ_LIBRARY_INDEX_BLOB, { items: sorted });
-    if (canUseSupabaseStorage()) {
-      try {
-        await supabaseSetQuizLibraryIndex({ items: sorted });
-      } catch (error) {
-        console.error("persistQuizIndexItems Supabase mirror failed:", error);
-      }
-    }
     return;
   }
-  if (canUseSupabaseStorage()) {
-    try {
-      await supabaseSetQuizLibraryIndex({ items: sorted });
-      return;
-    } catch (error) {
-      console.error("persistQuizIndexItems Supabase failed:", error);
-      throw new Error("Nepodarilo sa uložiť zoznam kvízov — skontroluj Blob alebo Supabase vo Verceli.");
-    }
+  if (process.env.VERCEL) {
+    throw new Error("Nepodarilo sa uložiť zoznam kvízov — nastav Blob vo Verceli.");
   }
   writeLocalIndex({ items: sorted });
 }
@@ -258,21 +176,11 @@ async function persistQuiz(quiz: QuizLibraryItem): Promise<void> {
 
   if (shouldWriteBlob()) {
     await writeQuizBlobPair(normalized, entry);
-    await trySupabaseQuizMirror(normalized, entry);
     return;
   }
 
-  if (canUseSupabaseStorage()) {
-    try {
-      await supabaseSetQuizLibraryItem(normalized.id, normalized);
-      const index = await readIndex();
-      const items = [...index.items.filter((item) => item.id !== normalized.id), entry];
-      await persistQuizIndexItems(items);
-      return;
-    } catch (error) {
-      console.error("persistQuiz Supabase failed:", error);
-      throw new Error("Nepodarilo sa uložiť kvíz — Supabase neodpovedá a Blob nie je nastavený.");
-    }
+  if (process.env.VERCEL) {
+    throw new Error("Nepodarilo sa uložiť kvíz — Blob nie je nastavený.");
   }
 
   writeLocalItem(normalized);
@@ -359,16 +267,6 @@ export { readQuizLibraryBackup };
 export async function deleteLibraryQuiz(id: string): Promise<boolean> {
   const existing = await readQuizById(id);
   if (!existing) return false;
-
-  if (canUseSupabaseStorage()) {
-    try {
-      await supabaseDeleteQuizLibraryItem(id);
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error);
-      if (!isSupabaseRestrictedMessage(msg)) throw error;
-      console.error("deleteLibraryQuiz Supabase failed:", msg);
-    }
-  }
 
   if (shouldWriteBlob()) {
     await deleteAppStorageBlob(quizLibraryItemBlobName(id));

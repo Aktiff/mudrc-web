@@ -1,4 +1,3 @@
-import { uploadBlobMedia } from "@/lib/blob-media";
 import { isSupabaseUploadsUrl, rewriteStoredMediaUrl } from "@/lib/media-url";
 import {
   hydrateQuizMediaForPlayback,
@@ -8,25 +7,9 @@ import { readAllLibraryQuizzes, readLibraryQuiz, saveLibraryQuiz } from "@/lib/q
 import { readStoredMusicBank, writeStoredMusicBank } from "@/lib/music-bank-storage";
 import { readStoredSoundBank, writeStoredSoundBank } from "@/lib/sound-bank-storage";
 import { shouldWriteBlob } from "@/lib/storage";
-import { fetchSupabaseUploadsBytes } from "@/lib/supabase-uploads-bytes";
 
 async function maybeCopyToBlob(url: string): Promise<string> {
-  const rewritten = rewriteStoredMediaUrl(url) ?? url;
-  if (!rewritten.startsWith("/api/media/supabase/")) return rewritten;
-  if (!shouldWriteBlob()) return rewritten;
-
-  const objectPath = rewritten
-    .replace(/^\/api\/media\/supabase\//, "")
-    .split("/")
-    .map((p) => decodeURIComponent(p))
-    .join("/");
-  const file = await fetchSupabaseUploadsBytes(objectPath);
-  if (!file?.buffer.length) return rewritten;
-
-  const fileName = objectPath.split("/").pop() ?? "clip.mp3";
-  const folder = objectPath.startsWith("video/") ? "video" : objectPath.startsWith("events/") ? "events" : "audio";
-  const { url: blobUrl } = await uploadBlobMedia(folder, fileName, file.buffer, file.contentType);
-  return blobUrl;
+  return rewriteStoredMediaUrl(url) ?? url;
 }
 
 async function repairQuizId(quizId: string, copyToBlob: boolean) {

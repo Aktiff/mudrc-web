@@ -17,7 +17,7 @@ const LEGACY_EVENTS_KEY = "mudrc/events.json";
 const LEGACY_REGS_KEY = "mudrc/registrations.json";
 
 /**
- * Import Supabase `app_storage` (or export) rows into Vercel Blob.
+ * Import exportovaných riadkov app_storage do Vercel Blob.
  *
  * POST JSON body:
  * {
@@ -42,7 +42,7 @@ const LEGACY_REGS_KEY = "mudrc/registrations.json";
  *
  * Blob paths:
  * - events / registrations → mudrc/events.json, mudrc/registrations.json
- * - ostatné kľúče → mudrc/app-storage/<key>.json (rovnaký názov ako Supabase `key`,
+ * - ostatné kľúče → mudrc/app-storage/<key>.json (rovnaký názov ako pôvodný `key`,
  *   okrem quiz-library-item-* a aliasu quiz-library:<id>)
  */
 function normalizeImportKey(key: string): { target: "legacy-events" | "legacy-regs" | "app-blob"; blobName: string } {
@@ -119,7 +119,7 @@ export async function POST(req: NextRequest) {
       ok: errors.length === 0,
       written,
       errors,
-      hint: "Po importe nastav STORAGE_DISABLE_SUPABASE=1 a redeploy; over cez /api/admin/storage-debug.",
+      hint: "Po importe over dáta cez /api/admin/storage-debug.",
     },
     { headers: { "Cache-Control": "no-store" } }
   );

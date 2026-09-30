@@ -40,10 +40,7 @@ export async function PUT(req: NextRequest, { params }: RouteContext) {
     const saved = await saveLibraryQuiz({ ...body, id: params.id });
     return NextResponse.json(saved);
   } catch (error) {
-    const raw = error instanceof Error ? error.message : "Nepodarilo sa uložiť kvíz.";
-    const message = raw.toLowerCase().includes("supabase")
-      ? "Uloženie do Supabase zlyhalo — skús znova o minútu (ukladá sa do Blob). Ak chyba ostáva, obnov stránku Ctrl+F5."
-      : raw;
+    const message = error instanceof Error ? error.message : "Nepodarilo sa uložiť kvíz.";
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

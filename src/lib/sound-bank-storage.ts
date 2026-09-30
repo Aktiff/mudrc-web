@@ -12,7 +12,6 @@ import {
 } from "@/lib/sound-bank";
 import { readAllLibraryQuizzes } from "@/lib/quiz-library-storage";
 import { readAppStorageWithFallback, writeAppStorageWithFallback } from "@/lib/app-storage-fallback";
-import { supabaseFetchSoundBank, supabaseSetSoundBank } from "@/lib/supabase-storage";
 
 const localPath = path.join(process.cwd(), "src/data/sound-bank.local.json");
 const BLOB_NAME = "sound-bank";
@@ -36,7 +35,6 @@ export async function readStoredSoundBank(): Promise<SoundBankItem[]> {
   const data = await readAppStorageWithFallback({
     label: "sound-bank",
     blobName: BLOB_NAME,
-    fetchSupabase: supabaseFetchSoundBank,
     readLocal: () => ({ clips: readLocalSoundBank() }),
     empty: { clips: [] },
   });
@@ -50,7 +48,6 @@ export async function writeStoredSoundBank(clips: SoundBankItem[]): Promise<void
     label: "sound-bank",
     blobName: BLOB_NAME,
     payload,
-    writeSupabase: () => supabaseSetSoundBank(payload),
     writeLocal: () => writeLocalSoundBank(sorted),
   });
 }

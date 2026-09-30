@@ -4,11 +4,6 @@ import type { QuizLibraryItem } from "@/lib/quiz-library";
 import { normalizeLibraryQuiz } from "@/lib/quiz-library";
 import { readAppStorageBlob, writeAppStorageBlob } from "@/lib/blob-app-storage";
 import { shouldWriteBlob } from "@/lib/storage";
-import {
-  hasSupabaseStorage,
-  supabaseFetchQuizLibraryBackup,
-  supabaseSetQuizLibraryBackup,
-} from "@/lib/supabase-storage";
 
 const quizBackupBlobName = (id: string) => `quiz-library-backup-${id}`;
 
@@ -18,13 +13,6 @@ function localBackupPath(id: string): string {
 
 export async function writeQuizLibraryBackup(quiz: QuizLibraryItem): Promise<void> {
   const payload = { quiz, savedAt: new Date().toISOString() };
-  if (hasSupabaseStorage()) {
-    try {
-      await supabaseSetQuizLibraryBackup(quiz.id, payload);
-    } catch (error) {
-      console.error("writeQuizLibraryBackup Supabase failed:", error);
-    }
-  }
   if (shouldWriteBlob()) {
     await writeAppStorageBlob(quizBackupBlobName(quiz.id), payload);
     return;
@@ -35,12 +23,6 @@ export async function writeQuizLibraryBackup(quiz: QuizLibraryItem): Promise<voi
 
 export async function readQuizLibraryBackup(id: string): Promise<QuizLibraryItem | null> {
   try {
-    if (hasSupabaseStorage()) {
-      const result = await supabaseFetchQuizLibraryBackup(id);
-      if (result.status === "ok") {
-        return normalizeLibraryQuiz(result.value.quiz as QuizLibraryItem);
-      }
-    }
     const fromBlob = await readAppStorageBlob<{ quiz: QuizLibraryItem }>(quizBackupBlobName(id));
     if (fromBlob?.quiz) return normalizeLibraryQuiz(fromBlob.quiz);
 

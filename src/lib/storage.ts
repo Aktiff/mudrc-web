@@ -6,19 +6,6 @@ import { sortEventsByDate, sortLeagueTable } from "@/lib/data";
 import { isValidStoredEvent } from "@/lib/event-normalize";
 import { rebuildLeagueFromPastResults } from "@/lib/league-rebuild";
 import seedEventsBundle from "@/data/events.json";
-import {
-  canUseSupabaseStorage,
-  getSupabaseStorageDiagnostics,
-  hasSupabaseStorage,
-  isSupabaseRestrictedMessage,
-  supabaseFetchEventLeague,
-  supabaseFetchEvents,
-  supabaseFetchQuizzes,
-  supabaseFetchRegistrations,
-  supabaseSetEvents,
-  supabaseSetQuizzes,
-  supabaseSetRegistrations,
-} from "@/lib/supabase-storage";
 import { writeAppStorageBlob, readAppStorageBlob } from "@/lib/blob-app-storage";
 import { findQuizResult, mergePastResults, normalizeDateKey, quizResultKey } from "@/lib/quiz-result-key";
 
@@ -57,24 +44,20 @@ export function shouldWriteBlob(): boolean {
 export function getStorageDiagnostics() {
   return {
     vercel: isVercel,
-    supabase: getSupabaseStorageDiagnostics(),
     blobStoreId: !!process.env.BLOB_STORE_ID,
     blobReadWriteToken: !!process.env.BLOB_READ_WRITE_TOKEN,
     vercelOidcToken: !!process.env.VERCEL_OIDC_TOKEN,
     envKeys: Object.keys(process.env).filter(
-      (key) =>
-        key.includes("BLOB") ||
-        key.includes("SUPABASE") ||
-        key === "VERCEL_OIDC_TOKEN"
+      (key) => key.includes("BLOB") || key === "VERCEL_OIDC_TOKEN"
     ),
   };
 }
 
 export function hasPersistentStorage(): boolean {
-  return hasSupabaseStorage() || hasBlobStorage();
+  return hasBlobStorage();
 }
 
-export { hasBlobStorage, hasSupabaseStorage };
+export { hasBlobStorage };
 
 /** @deprecated use getStorageDiagnostics */
 export const getBlobStorageDiagnostics = getStorageDiagnostics;
@@ -114,7 +97,7 @@ export type Registration = {
   createdAt: string;
 };
 
-/** Rovnako ako registrácie — samostatný kľúč `quizzes` v Supabase. */
+/** Rovnako ako registrácie — výsledky kvízov v Blobe. */
 export type StoredQuiz = {
   id: string;
   eventSlug: string;
@@ -403,18 +386,6 @@ async function loadEventsFromFallbackSources(): Promise<QuizEvent[]> {
   return readBundledSeedEvents();
 }
 
-async function bootstrapEventsToSupabase(): Promise<QuizEvent[]> {
-  const events = await loadEventsFromFallbackSources();
-  if (events.length && canUseSupabaseStorage()) {
-    try {
-      await persistEvents(events);
-    } catch (error) {
-      console.error("bootstrapEventsToSupabase persist error:", error);
-    }
-  }
-  return events;
-}
-
 function pastResultToStoredQuiz(eventSlug: string, result: PastResult): StoredQuiz {
   return {
     id: quizResultKey(result),
@@ -462,7 +433,7 @@ function enrichEventsWithQuizzes(events: QuizEvent[], quizzes: StoredQuiz[]): Qu
   });
 }
 
-/** Prepočet ligy z uložených kvízov (Supabase `quizzes`) + súhrnných výsledkov v `events`. */
+/** Prepočet ligy z uložených kvízov v Blobe a súhrnných výsledkov v udalostiach. */
 export async function rebuildLeagueTableForEvent(event: QuizEvent): Promise<{
   leagueTable: LeagueEntry[];
   pastResults: PastResult[];
@@ -488,16 +459,6 @@ async function loadQuizzesRaw(): Promise<StoredQuiz[]> {
     return fromBlob.quizzes.map(normalizeStoredQuiz);
   }
 
-  if (canUseSupabaseStorage()) {
-    const result = await supabaseFetchQuizzes();
-    if (result.status === "ok") {
-      const fromSupabase = ((result.value.quizzes ?? []) as StoredQuiz[]).map(normalizeStoredQuiz);
-      if (fromSupabase.length > 0) return fromSupabase;
-    } else if (result.status === "error") {
-      console.error(`Supabase quizzes chyba (${result.message}) — fallback Blob / events.json.`);
-    }
-  }
-
   const events = readBundledSeedEvents();
   const extracted: StoredQuiz[] = [];
   for (const event of events) {
@@ -513,30 +474,11 @@ async function loadQuizzesRaw(): Promise<StoredQuiz[]> {
 async function persistQuizzes(quizzes: StoredQuiz[]): Promise<void> {
   if (shouldWriteBlob()) {
     await writeAppStorageBlob(QUIZZES_APP_BLOB, { quizzes });
-    if (canUseSupabaseStorage()) {
-      try {
-        await supabaseSetQuizzes({ quizzes });
-      } catch (error) {
-        console.error("persistQuizzes Supabase mirror failed (Blob uložené):", error);
-      }
-    }
     return;
   }
-  if (canUseSupabaseStorage()) {
-    try {
-      await supabaseSetQuizzes({ quizzes });
-      return;
-    } catch (error) {
-      console.error("persistQuizzes Supabase failed:", error);
-      throw new Error("Nepodarilo sa uložiť výsledky kvízu — nastav Blob vo Verceli alebo obnov Supabase.");
-    }
-  }
   if (isVercel) {
-    throw new Error(
-      "Úložisko nie je dostupné. Vo Verceli nastav BLOB_STORE_ID / token alebo obnov Supabase."
-    );
+    throw new Error("Úložisko nie je dostupné. Vo Verceli nastav BLOB_STORE_ID / token.");
   }
-  // lokálne: kvízy zostávajú v events.local.json cez updateEvents
 }
 
 async function migrateQuizzesFromLegacy(events: QuizEvent[]): Promise<StoredQuiz[]> {
@@ -546,18 +488,6 @@ async function migrateQuizzesFromLegacy(events: QuizEvent[]): Promise<StoredQuiz
     for (const result of event.pastResults ?? []) {
       if ((result.teams?.length ?? 0) > 0) {
         extracted.push(pastResultToStoredQuiz(event.slug, result));
-      }
-    }
-  }
-
-  if (canUseSupabaseStorage() && extracted.length === 0) {
-    for (const event of events) {
-      const league = await supabaseFetchEventLeague(event.slug);
-      if (league.status !== "ok") continue;
-      for (const result of (league.value.pastResults ?? []) as PastResult[]) {
-        if ((result.teams?.length ?? 0) > 0) {
-          extracted.push(pastResultToStoredQuiz(event.slug, result));
-        }
       }
     }
   }
@@ -573,17 +503,7 @@ async function migrateQuizzesFromLegacy(events: QuizEvent[]): Promise<StoredQuiz
 }
 
 async function loadQuizzes(): Promise<StoredQuiz[]> {
-  let quizzes = await loadQuizzesRaw();
-  if (quizzes.length > 0) return quizzes;
-
-  if (canUseSupabaseStorage()) {
-    const eventsResult = await supabaseFetchEvents();
-    if (eventsResult.status === "ok") {
-      const events = (eventsResult.value.events ?? []) as QuizEvent[];
-      quizzes = await migrateQuizzesFromLegacy(events);
-    }
-  }
-  return quizzes;
+  return loadQuizzesRaw();
 }
 
 export async function readAllStoredQuizzes(): Promise<StoredQuiz[]> {
@@ -669,43 +589,16 @@ export async function hasQuizForDate(eventSlug: string, date: string): Promise<b
 }
 
 async function loadEventsBase(): Promise<QuizEvent[]> {
-  if (canUseSupabaseStorage()) {
-    const result = await supabaseFetchEvents();
-    if (result.status === "ok") {
-      const events = (result.value.events ?? []) as QuizEvent[];
-      if (events.length > 0) return events;
-      console.warn("Supabase events prazdne — obnovujem zo zalohy (blob / events.json).");
-      return bootstrapEventsToSupabase();
-    }
-    if (result.status === "error") {
-      console.error(`Supabase events chyba (${result.message}) — fallback blob / events.json.`);
-      return loadEventsFromFallbackSources();
-    }
-    return bootstrapEventsToSupabase();
-  }
-
   return loadEventsFromFallbackSources();
 }
 
 export async function persistEvents(events: QuizEvent[]): Promise<void> {
-  if (canUseSupabaseStorage()) {
-    try {
-      await supabaseSetEvents({ events });
-      return;
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error);
-      console.error("persistEvents Supabase failed:", msg);
-      if (!isSupabaseRestrictedMessage(msg)) throw error;
-    }
-  }
   if (shouldWriteBlob()) {
     await persistEventsBlob(events);
     return;
   }
   if (isVercel) {
-    throw new Error(
-      "Supabase je nedostupný (kvóta). Pridaj BLOB_READ_WRITE_TOKEN vo Verceli alebo obnov Supabase plán."
-    );
+    throw new Error("Úložisko nie je dostupné. Vo Verceli nastav BLOB_STORE_ID / token.");
   }
   writeLocalEvents(events);
 }
@@ -730,8 +623,9 @@ async function loadRegsFromSplitFiles(): Promise<Registration[]> {
   return regs.filter((reg): reg is Registration => !!reg).map(normalizeRegistration);
 }
 
-async function loadRegsFromBlob(): Promise<Registration[]> {
-  if (!shouldReadBlob()) return [];
+/** `null` = v Blobe ešte nie je úložisko registrácií. Prázdne pole = zámerne žiadne registrácie. */
+async function loadRegsFromBlob(): Promise<Registration[] | null> {
+  if (!shouldReadBlob()) return null;
 
   const manifest = await optionalReadBlob<{ ids: string[] }>(REGS_MANIFEST_KEY);
   if (manifest && Array.isArray(manifest.ids)) {
@@ -743,11 +637,12 @@ async function loadRegsFromBlob(): Promise<Registration[]> {
   }
 
   const monolithic = await optionalReadBlob<{ registrations?: Registration[] }>(LEGACY_REGS_KEY);
-  if (monolithic?.registrations?.length) {
+  if (monolithic && Array.isArray(monolithic.registrations)) {
     return monolithic.registrations.map(normalizeRegistration);
   }
 
-  return loadRegsFromSplitFiles();
+  const split = await loadRegsFromSplitFiles();
+  return split.length ? split : null;
 }
 
 async function persistRegistrationsBlob(registrations: Registration[]): Promise<void> {
@@ -767,71 +662,21 @@ async function persistRegistrationsBlob(registrations: Registration[]): Promise<
 }
 
 export async function persistRegistrations(registrations: Registration[]): Promise<void> {
-  if (canUseSupabaseStorage()) {
-    try {
-      await supabaseSetRegistrations({ registrations });
-      return;
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error);
-      console.error("persistRegistrations Supabase failed:", msg);
-      if (!isSupabaseRestrictedMessage(msg)) throw error;
-    }
-  }
   if (shouldWriteBlob()) {
     await persistRegistrationsBlob(registrations);
     return;
   }
+
   if (isVercel) {
     throw new Error("STORAGE_NOT_CONFIGURED");
   }
   writeLocalRegistrations(registrations);
 }
 
-/** Nové zápisy môžu skončiť v Blobe pri výpadku Supabase — doplní chýbajúce ID z Blobu. */
-function mergeRegistrationsFromBlob(primary: Registration[], fromBlob: Registration[]): Registration[] {
-  if (!fromBlob.length) return primary;
-  const byId = new Map(primary.map((reg) => [reg.id, reg]));
-  let added = false;
-  for (const reg of fromBlob) {
-    const norm = normalizeRegistration(reg);
-    if (!byId.has(norm.id)) {
-      byId.set(norm.id, norm);
-      added = true;
-    }
-  }
-  return added ? Array.from(byId.values()) : primary;
-}
-
 async function loadRegistrations(): Promise<Registration[]> {
-  if (canUseSupabaseStorage()) {
-    const result = await supabaseFetchRegistrations();
-    if (result.status === "ok") {
-      const fromSupabase = ((result.value.registrations ?? []) as Registration[]).map(normalizeRegistration);
-      if (shouldReadBlob()) {
-        const fromBlob = await loadRegsFromBlob();
-        return mergeRegistrationsFromBlob(fromSupabase, fromBlob);
-      }
-      return fromSupabase;
-    }
-    if (result.status === "error") {
-      console.error(`Supabase registrations chyba (${result.message}) — fallback blob / local.`);
-      const fromBlob = shouldReadBlob() ? await loadRegsFromBlob() : [];
-      return fromBlob.length ? fromBlob : readLocalRegistrations().registrations;
-    }
-
-    const fromBlob = shouldReadBlob() ? await loadRegsFromBlob() : [];
-    const registrations = fromBlob.length ? fromBlob : readLocalRegistrations().registrations;
-    try {
-      await supabaseSetRegistrations({ registrations });
-    } catch (error) {
-      console.error("loadRegistrations bootstrap to Supabase failed:", error);
-    }
-    return registrations;
-  }
-
   if (shouldReadBlob()) {
     const fromBlob = await loadRegsFromBlob();
-    if (fromBlob.length) return fromBlob;
+    if (fromBlob !== null) return fromBlob;
   }
 
   return readLocalRegistrations().registrations;
@@ -989,21 +834,15 @@ export async function getEventsStorageMeta(): Promise<{
   configured: boolean;
   eventCount: number;
 }> {
-  if (!hasSupabaseStorage()) {
-    return { source: "local", configured: false, eventCount: readLocalEvents().events.length };
-  }
-  const result = await supabaseFetchEvents();
-  if (result.status === "ok") {
+  if (shouldReadBlob()) {
+    const fromBlob = await loadEventsFromBlobOptional();
     return {
-      source: "supabase",
+      source: "blob",
       configured: true,
-      eventCount: (result.value.events ?? []).length,
+      eventCount: fromBlob?.length ?? 0,
     };
   }
-  if (result.status === "missing") {
-    return { source: "supabase-missing", configured: true, eventCount: 0 };
-  }
-  return { source: "supabase-error", configured: true, eventCount: 0 };
+  return { source: "local", configured: !isVercel, eventCount: readLocalEvents().events.length };
 }
 
 export async function updateRegistrations(
