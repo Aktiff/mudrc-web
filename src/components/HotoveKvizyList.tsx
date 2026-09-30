@@ -2,16 +2,9 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { AlertTriangle, BookOpen, Layers, MonitorPlay, Pencil, Play, Plus, Trash2 } from "lucide-react";
-import type { QuizEvent } from "@/lib/data";
+import { BookOpen, Layers, MonitorPlay, Pencil, Play, Plus, Trash2 } from "lucide-react";
 import type { QuizLibraryItem, QuizUsage } from "@/lib/quiz-library";
 import { clearQuizDraft } from "@/lib/quiz-editor-draft";
-import { CANVAS_LIBRARY_QUIZ_ID, isAssignedLibraryQuiz, isCanvasLibraryQuiz } from "@/lib/quiz-result-library";
-import QuizResultsEntryForm, {
-  parseTeamNamesInput,
-  teamsFromNames,
-  type QuizTeamRow,
-} from "@/components/QuizResultsEntryForm";
 
 type QuizListItem = QuizLibraryItem & {
   usageCount: number;
@@ -20,41 +13,16 @@ type QuizListItem = QuizLibraryItem & {
   isSafe: boolean;
 };
 
-function todaySkDate(): string {
-  const d = new Date();
-  return `${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}.${d.getFullYear()}`;
-}
-
 export default function HotoveKvizyList() {
   const [quizzes, setQuizzes] = useState<QuizListItem[]>([]);
-  const [events, setEvents] = useState<QuizEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [actionQuizId, setActionQuizId] = useState<string | null>(null);
   const [listMessage, setListMessage] = useState<{ text: string; ok: boolean } | null>(null);
 
-  const [teamNamesText, setTeamNamesText] = useState("");
-  const [filterTeams, setFilterTeams] = useState<string[]>([]);
-  const [selectedEventSlug, setSelectedEventSlug] = useState("");
-  const [libraryQuizId, setLibraryQuizId] = useState(CANVAS_LIBRARY_QUIZ_ID);
-  const [quizDate, setQuizDate] = useState(todaySkDate);
-  const [quizTeams, setQuizTeams] = useState<QuizTeamRow[]>(() => teamsFromNames([], 4));
-  const [submitting, setSubmitting] = useState(false);
-  const [message, setMessage] = useState<{ text: string; ok: boolean } | null>(null);
-  const [resultSummary, setResultSummary] = useState<{
-    winnerTeam: string;
-    ligaPoints: { name: string; total: number; liga: number }[];
-  } | null>(null);
-
-  const selectedEvent = events.find((event) => event.slug === selectedEventSlug);
-  const rounds = selectedEvent?.rounds || 4;
-
-  const loadQuizzes = useCallback(async (teams: string[] = []) => {
-    const params = new URLSearchParams();
-    if (teams.length) params.set("teams", teams.join("\n"));
-    params.set("_", String(Date.now()));
-    const res = await fetch(`/api/admin/quiz-library?${params}`, { cache: "no-store" });
+  const loadQuizzes = useCallback(async () => {
+    const res = await fetch(`/api/admin/quiz-library?_=${Date.now()}`, { cache: "no-store" });
     if (res.ok) {
       const data = await res.json();
       setQuizzes(data.quizzes ?? []);
@@ -63,146 +31,19 @@ export default function HotoveKvizyList() {
 
   const loadAll = useCallback(async () => {
     setLoading(true);
-    const [eventsRes] = await Promise.all([
-      fetch(`/api/admin/events?_=${Date.now()}`, { cache: "no-store" }),
-      loadQuizzes(filterTeams),
-    ]);
-    if (eventsRes.ok) {
-      const data = await eventsRes.json();
-      setEvents(data.events ?? []);
-    }
+    await loadQuizzes();
     setLoading(false);
-  }, [filterTeams, loadQuizzes]);
+  }, [loadQuizzes]);
 
   useEffect(() => {
     loadAll();
   }, [loadAll]);
 
   useEffect(() => {
-    const refresh = () => loadQuizzes(filterTeams);
+    const refresh = () => loadQuizzes();
     window.addEventListener("focus", refresh);
     return () => window.removeEventListener("focus", refresh);
-  }, [filterTeams, loadQuizzes]);
-
-  const loadTeamsForEvent = useCallback(
-    async (slug: string, venue: string, silent = false) => {
-      const res = await fetch(`/api/register?slug=${slug}&venue=${encodeURIComponent(venue)}&_=${Date.now()}`, {
-        cache: "no-store",
-      });
-      const data = await res.json();
-      const names = (data.registrations ?? []).map((row: { teamName: string }) => row.teamName).filter(Boolean);
-      if (!names.length) {
-        if (!silent) setMessage({ text: "Žiadne registrácie pre tento podnik.", ok: false });
-        setTeamNamesText("");
-        setFilterTeams([]);
-        setQuizTeams(teamsFromNames([], rounds));
-        await loadQuizzes([]);
-        return;
-      }
-      setTeamNamesText(names.join("\n"));
-      setFilterTeams(names);
-      setQuizTeams(teamsFromNames(names, rounds));
-      await loadQuizzes(names);
-      if (!silent) setMessage({ text: `Načítaných ${names.length} tímov z registrácií.`, ok: true });
-    },
-    [loadQuizzes, rounds]
-  );
-
-  useEffect(() => {
-    if (!selectedEventSlug || !selectedEvent) return;
-    loadTeamsForEvent(selectedEventSlug, selectedEvent.venue, true);
-  }, [selectedEventSlug, selectedEvent, loadTeamsForEvent]);
-
-  useEffect(() => {
-    setQuizTeams((teams) => {
-      const names = teams.map((team) => team.name);
-      return teamsFromNames(names, rounds, Math.max(10, teams.length));
-    });
-  }, [rounds]);
-
-  const applyTeamsToTable = async () => {
-    const names = parseTeamNamesInput(teamNamesText);
-    setFilterTeams(names);
-    setQuizTeams(teamsFromNames(names, rounds));
-    await loadQuizzes(names);
-    if (names.length && libraryQuizId) {
-      const res = await fetch(`/api/admin/quiz-library?teams=${encodeURIComponent(names.join("\n"))}&_=${Date.now()}`, {
-        cache: "no-store",
-      });
-      if (res.ok) {
-        const data = await res.json();
-        const quiz = (data.quizzes ?? []).find((entry: QuizListItem) => entry.id === libraryQuizId);
-        if (quiz && !quiz.isSafe) {
-          setMessage({ text: `Pozor: na vybranom kvíze už hrali ${quiz.conflictingTeams.join(", ")}.`, ok: false });
-          return;
-        }
-      }
-    }
-    setMessage(names.length ? { text: `Načítaných ${names.length} tímov do tabuľky.`, ok: true } : null);
-  };
-
-  const loadFromRegistrations = async () => {
-    if (!selectedEventSlug || !selectedEvent) return;
-    await loadTeamsForEvent(selectedEventSlug, selectedEvent.venue, false);
-  };
-
-  const submitResult = async () => {
-    const validTeams = quizTeams.filter((team) => team.name.trim());
-    if (!selectedEventSlug) {
-      setMessage({ text: "Vyber podnik.", ok: false });
-      return;
-    }
-    if (!libraryQuizId) {
-      setMessage({ text: "Vyber hotový kvíz alebo „Kvíz v Canve“.", ok: false });
-      return;
-    }
-    if (!quizDate || validTeams.length < 2) {
-      setMessage({ text: "Zadaj dátum a aspoň 2 tímy s bodmi.", ok: false });
-      return;
-    }
-    if (isAssignedLibraryQuiz(libraryQuizId)) {
-      const picked = quizzes.find((quiz) => quiz.id === libraryQuizId);
-      if (picked && !picked.isSafe) {
-        setMessage({
-          text: `Tieto tímy už hrali „${picked.title}“: ${picked.conflictingTeams.join(", ")}.`,
-          ok: false,
-        });
-        return;
-      }
-    }
-
-    setSubmitting(true);
-    setMessage(null);
-    setResultSummary(null);
-    try {
-      const res = await fetch(`/api/admin/events/${selectedEventSlug}/kviz`, {
-        method: "POST",
-        cache: "no-store",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ date: quizDate, teams: validTeams, libraryQuizId }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setMessage({ text: data.error ?? "Chyba pri ukladaní.", ok: false });
-        return;
-      }
-      setResultSummary(data);
-      setMessage({
-        text: isCanvasLibraryQuiz(libraryQuizId)
-          ? "Výsledok uložený (kvíz v Canve, bez priradenia ku knižnici)."
-          : "Výsledok uložený a priradený ku kvízu.",
-        ok: true,
-      });
-      setQuizTeams(teamsFromNames([], rounds));
-      setTeamNamesText("");
-      setFilterTeams([]);
-      await loadQuizzes([]);
-    } catch {
-      setMessage({ text: "Sieťová chyba.", ok: false });
-    } finally {
-      setSubmitting(false);
-    }
-  };
+  }, [loadQuizzes]);
 
   const createQuiz = async () => {
     const title = window.prompt("Názov nového kvízu:", "Nový kvíz");
@@ -246,7 +87,7 @@ export default function HotoveKvizyList() {
         return;
       }
       setListMessage({ text: `Kvíz premenovaný na „${newTitle.trim()}“.`, ok: true });
-      await loadQuizzes(filterTeams);
+      await loadQuizzes();
     } catch {
       setListMessage({ text: "Sieťová chyba pri premenovaní.", ok: false });
     } finally {
@@ -268,10 +109,7 @@ export default function HotoveKvizyList() {
         return;
       }
       clearQuizDraft(quiz.id);
-      if (libraryQuizId === quiz.id) setLibraryQuizId(CANVAS_LIBRARY_QUIZ_ID);
-      const releasedCount = Array.isArray(data.releasedBankQuestionIds)
-        ? data.releasedBankQuestionIds.length
-        : 0;
+      const releasedCount = Array.isArray(data.releasedBankQuestionIds) ? data.releasedBankQuestionIds.length : 0;
       setListMessage({
         text:
           releasedCount > 0
@@ -279,7 +117,7 @@ export default function HotoveKvizyList() {
             : `Kvíz „${quiz.title}" bol vymazaný.`,
         ok: true,
       });
-      await loadQuizzes(filterTeams);
+      await loadQuizzes();
     } catch {
       setListMessage({ text: "Sieťová chyba pri mazaní.", ok: false });
     } finally {
@@ -287,37 +125,8 @@ export default function HotoveKvizyList() {
     }
   };
 
-  const safeCount = quizzes.filter((quiz) => quiz.isSafe).length;
-
   return (
-    <div className="space-y-10">
-      <QuizResultsEntryForm
-        events={events}
-        quizzes={quizzes}
-        selectedEventSlug={selectedEventSlug}
-        onEventSlugChange={setSelectedEventSlug}
-        libraryQuizId={libraryQuizId}
-        onLibraryQuizIdChange={setLibraryQuizId}
-        teamNamesText={teamNamesText}
-        onTeamNamesTextChange={setTeamNamesText}
-        onApplyTeams={applyTeamsToTable}
-        quizDate={quizDate}
-        onQuizDateChange={setQuizDate}
-        quizTeams={quizTeams}
-        onQuizTeamsChange={setQuizTeams}
-        onSubmit={submitResult}
-        submitting={submitting}
-        message={message}
-        resultSummary={resultSummary}
-        loadFromRegistrations={selectedEventSlug ? loadFromRegistrations : undefined}
-      />
-
-      {filterTeams.length > 0 && (
-        <p className="text-sm text-brand-muted -mt-4">
-          Vhodných kvízov pre zadané tímy: <strong className="text-brand-text">{safeCount}</strong> z {quizzes.length}
-        </p>
-      )}
-
+    <div className="space-y-6">
       <div className="flex items-center justify-between gap-4">
         <div>
           <p className="text-brand-muted text-sm">{loading ? "Načítavam…" : `${quizzes.length} kvízov v knižnici`}</p>
@@ -350,9 +159,7 @@ export default function HotoveKvizyList() {
         {quizzes.map((quiz) => (
           <div
             key={quiz.id}
-            className={`bg-brand-card rounded-2xl border px-6 py-5 flex flex-col sm:flex-row sm:items-center gap-4 sm:justify-between ${
-              filterTeams.length && !quiz.isSafe ? "border-amber-400/70" : "border-brand-border"
-            }`}
+            className="bg-brand-card rounded-2xl border border-brand-border px-6 py-5 flex flex-col sm:flex-row sm:items-center gap-4 sm:justify-between"
           >
             <div className="flex items-start gap-4 min-w-0">
               <div className="w-10 h-10 rounded-xl bg-brand-tint flex items-center justify-center shrink-0">
@@ -376,25 +183,10 @@ export default function HotoveKvizyList() {
                         ? "otázky"
                         : "otázok"}
                   </span>
-                  <span className="text-brand-muted">{quiz.usageCount === 0 ? "Ešte nepoužitý" : `${quiz.usageCount}× hraný`}</span>
-                  {filterTeams.length > 0 && (
-                    <span
-                      className={`font-semibold px-2.5 py-1 rounded-full ${
-                        quiz.isSafe
-                          ? "bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-300"
-                          : "bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300"
-                      }`}
-                    >
-                      {quiz.isSafe ? "Vhodný" : "Konflikt tímov"}
-                    </span>
-                  )}
+                  <span className="text-brand-muted">
+                    {quiz.usageCount === 0 ? "Ešte nepoužitý" : `${quiz.usageCount}× hraný`}
+                  </span>
                 </div>
-                {quiz.conflictingTeams.length > 0 && (
-                  <p className="text-xs text-amber-700 dark:text-amber-300 mt-2 inline-flex items-start gap-1">
-                    <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-                    Už hrali: {quiz.conflictingTeams.join(", ")}
-                  </p>
-                )}
                 {quiz.usageCount > 0 && (
                   <p className="text-xs text-brand-muted mt-1">
                     Naposledy: {quiz.usages[0]?.venue} ({quiz.usages[0]?.city}) — {quiz.usages[0]?.date}
@@ -403,16 +195,6 @@ export default function HotoveKvizyList() {
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-2 shrink-0">
-              <button
-                type="button"
-                onClick={() => {
-                  setLibraryQuizId(quiz.id);
-                  window.scrollTo({ top: 0, behavior: "smooth" });
-                }}
-                className="inline-flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded-xl border border-brand-orange/40 text-brand-orange-readable hover:bg-brand-tint transition-colors"
-              >
-                Použiť
-              </button>
               <Link
                 href={`/admin/hotove-kvizy/${quiz.id}`}
                 className="inline-flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded-xl border border-brand-border text-brand-text hover:border-brand-orange hover:text-brand-orange-readable transition-colors"
@@ -423,7 +205,7 @@ export default function HotoveKvizyList() {
               <Link
                 href={`/admin/hotove-kvizy/${quiz.id}/prehrat`}
                 className={`inline-flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded-xl transition-colors ${
-                  (quiz.questions?.length ?? 0)
+                  quiz.questions?.length
                     ? "bg-brand-orange text-brand-btn-fg hover:opacity-90"
                     : "bg-brand-surface text-brand-muted border border-brand-border pointer-events-none opacity-60"
                 }`}
@@ -455,7 +237,7 @@ export default function HotoveKvizyList() {
 
       {!loading && quizzes.length === 0 && (
         <div className="bg-brand-card rounded-2xl border border-brand-border px-6 py-10 text-center text-brand-muted">
-          Zatiaľ nemáš žiadne hotové kvízy. Vytvor prvý kliknutím na „Nový kvíz“.
+          Zatiaľ nemáš žiadne kvízy. Vytvor prvý kliknutím na „Nový kvíz“.
         </div>
       )}
     </div>

@@ -15,7 +15,7 @@ const navItems = [
   },
   {
     href: "/admin/hotove-kvizy",
-    label: "Hotové kvízy",
+    label: "Kvízy",
     icon: MonitorPlay,
     exact: false,
     isActive: (pathname: string) => pathname.startsWith("/admin/hotove-kvizy"),

@@ -36,7 +36,7 @@ export default function MediaRepairButton({ className }: Props) {
         parts.push(`Fotky podnikov: ${data.eventImages.migrated.length} opravených.`);
       }
       if (typeof data.quizzesChanged === "number") {
-        parts.push(`Hotové kvízy: ${data.quizzesChanged} z ${data.quizCount ?? "?"} aktualizovaných.`);
+        parts.push(`Kvízy: ${data.quizzesChanged} z ${data.quizCount ?? "?"} aktualizovaných.`);
       }
       if (data.banks) {
         const b = data.banks;

@@ -10,10 +10,9 @@ export default function HotoveKvizyPage() {
     <div className="w-full">
       <div className="mb-10 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-5 sm:gap-6">
         <div className="min-w-0">
-          <h1 className="font-display text-4xl text-brand-text tracking-wide mb-1">Hotové kvízy</h1>
+          <h1 className="font-display text-4xl text-brand-text tracking-wide mb-1">Kvízy</h1>
           <p className="text-brand-muted text-sm max-w-3xl leading-relaxed">
-            Knižnica otázok na recykláciu. Hore zapíšeš výsledok rovnako ako pri podniku — vyber podnik, kvíz, načítaj
-            tímy do tabuľky a ulož body. Systém si pamätá kde, kedy a s kým kvíz hral.
+            Knižnica kvízov. Otvor kvíz, uprav otázky alebo ho prehraj na projektore.
           </p>
         </div>
         <div className="flex flex-col gap-3 shrink-0 self-start sm:mt-1">

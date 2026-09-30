@@ -34,7 +34,7 @@ export default function HotoveKvizyBankaPage() {
         className="inline-flex items-center gap-1 text-sm text-brand-muted hover:text-brand-orange-readable"
       >
         <ChevronLeft className="w-4 h-4" />
-        Späť na hotové kvízy
+        Späť na kvízy
       </Link>
 
       <div className="flex items-start gap-4">
