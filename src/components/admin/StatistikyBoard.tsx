@@ -222,17 +222,23 @@ export default function StatistikyBoard({
                           </label>
                         </div>
                         {editing.teams.length > 0 ? (
-                          <div className="space-y-2">
+                          <div className="max-w-md space-y-1.5">
                             <div className="label">Hráči v tímoch</div>
                             {editing.teams.map((team, index) => (
-                              <div key={`${team.teamName}-${index}`} className="grid grid-cols-[1fr_6rem] gap-3 items-center">
-                                <span className="text-brand-text">{team.teamName}</span>
+                              <label
+                                key={`${team.teamName}-${index}`}
+                                className="group grid grid-cols-[1fr_5.5rem] items-center gap-3 rounded-xl border border-transparent bg-brand-surface px-3 py-1.5 transition-colors hover:border-brand-border focus-within:border-brand-orange focus-within:bg-brand-orange focus-within:shadow-sm"
+                              >
+                                <span className="truncate font-medium text-brand-muted group-focus-within:font-bold group-focus-within:text-brand-btn-fg">
+                                  {team.teamName}
+                                </span>
                                 <input
-                                  className="input py-2 text-center"
+                                  className="input py-2 text-center text-lg font-semibold group-focus-within:border-brand-orange group-focus-within:bg-brand-card"
                                   type="number"
                                   min="0"
                                   max="99"
                                   value={team.players || ""}
+                                  aria-label={`Počet hráčov, ${team.teamName}`}
                                   onChange={(e) => {
                                     const players = Number(e.target.value) || 0;
                                     setEditing({
@@ -243,7 +249,7 @@ export default function StatistikyBoard({
                                     });
                                   }}
                                 />
-                              </div>
+                              </label>
                             ))}
                           </div>
                         ) : (
