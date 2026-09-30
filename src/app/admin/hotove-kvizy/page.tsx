@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { BookOpen } from "lucide-react";
-import MediaRepairButton from "@/components/admin/MediaRepairButton";
 import HotoveKvizyList from "@/components/HotoveKvizyList";
 
 export const dynamic = "force-dynamic";
@@ -23,7 +22,6 @@ export default function HotoveKvizyPage() {
             <BookOpen className="w-4 h-4" />
             Banka otázok
           </Link>
-          <MediaRepairButton />
         </div>
       </div>
       <HotoveKvizyList />
