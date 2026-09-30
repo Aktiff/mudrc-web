@@ -126,13 +126,24 @@ async function loadStoredPollConfigs(): Promise<PollConfig[]> {
   return readLocalPollConfigs();
 }
 
-async function persistPollConfigs(configs: PollConfig[]): Promise<void> {
-  requirePollStorage();
+async function persistPollConfigs(
+  configs: PollConfig[],
+  options: { requireWritable?: boolean } = {}
+): Promise<void> {
+  const requireWritable = options.requireWritable !== false;
   const normalized = configs.map(normalizeStoredConfig);
-  if (hasSupabaseStorage()) {
+
+  if (canUseSupabaseStorage()) {
     await supabaseSetPollConfigs({ configs: normalized });
     return;
   }
+
+  if (isVercel) {
+    if (requireWritable) requirePollStorage();
+    console.warn("Poll configs not persisted (Vercel without Supabase storage).");
+    return;
+  }
+
   writeLocalPollConfigs(normalized);
 }
 
@@ -169,12 +180,15 @@ async function persistPollVotes(votes: PollVote[]): Promise<void> {
   writeLocalPollVotes(normalized);
 }
 
-async function savePollConfig(config: PollConfig): Promise<PollConfig> {
+async function savePollConfig(
+  config: PollConfig,
+  options: { requireWritable?: boolean } = {}
+): Promise<PollConfig> {
   const normalized = normalizeStoredConfig(config);
   const current = await loadStoredPollConfigs();
   const idx = current.findIndex((entry) => entry.eventSlug === normalized.eventSlug);
   const next = idx === -1 ? [...current, normalized] : current.map((entry, i) => (i === idx ? normalized : entry));
-  await persistPollConfigs(next);
+  await persistPollConfigs(next, options);
   return normalized;
 }
 
@@ -194,7 +208,11 @@ async function ensurePollConfigPersisted(eventSlug: string, venue?: string): Pro
 
   const resolvedVenue = await resolveVenue(eventSlug, venue ?? defaultConfig.venue);
   const config = normalizeStoredConfig({ ...defaultConfig, venue: resolvedVenue });
-  await savePollConfig(config);
+  try {
+    await savePollConfig(config, { requireWritable: false });
+  } catch (error) {
+    console.error("Poll config auto-seed failed:", error);
+  }
   return config;
 }
 
@@ -467,11 +485,15 @@ export async function upsertPollVote(input: {
 }
 
 export async function isPollActive(eventSlug: string, venue?: string): Promise<boolean> {
-  const resolvedVenue = venue ?? (await resolveVenue(eventSlug));
-  await ensurePollConfigPersisted(eventSlug, resolvedVenue);
-  const config = await loadPollConfig(eventSlug, resolvedVenue);
-  if (!config?.active) return false;
-  return filterUpcomingPollOptions(normalizePollOptions(config.options)).length > 0;
+  try {
+    const resolvedVenue = venue ?? (await resolveVenue(eventSlug));
+    const config = await loadPollConfig(eventSlug, resolvedVenue);
+    if (!config?.active) return false;
+    return filterUpcomingPollOptions(normalizePollOptions(config.options)).length > 0;
+  } catch (error) {
+    console.error("isPollActive failed:", error);
+    return false;
+  }
 }
 
 export async function getPollStorageSummary() {

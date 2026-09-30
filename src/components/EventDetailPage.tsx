@@ -39,8 +39,9 @@ export default function EventDetailPage({ event, region, pollHref }: EventDetail
   const [showModal, setShowModal] = useState(false);
   const rules = event.rules ?? [];
   const regionConfig = getRegion(region)!;
-  const topThree = event.leagueTable.slice(0, 3);
-  const teamSuggestions = leagueTeamNameSuggestions(event.leagueTable);
+  const leagueTable = event.leagueTable ?? [];
+  const topThree = leagueTable.slice(0, 3);
+  const teamSuggestions = leagueTeamNameSuggestions(leagueTable);
 
   return (
     <>

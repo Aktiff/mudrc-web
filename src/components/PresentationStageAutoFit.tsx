@@ -64,7 +64,7 @@ export default function PresentationStageAutoFit({ enabled, slideKey, className 
     <div ref={viewportRef} className={`${className} overflow-hidden`.trim()}>
       <div
         ref={contentRef}
-        className="w-full flex flex-col items-center justify-center origin-center"
+        className="w-full min-h-full h-full flex flex-col items-center justify-center origin-center"
         style={{
           transform: scale < 0.999 ? `scale(${scale})` : undefined,
           transformOrigin: "center center",

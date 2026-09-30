@@ -91,11 +91,21 @@ function RulesSlide({ rules, venueName }: { rules: string[]; venueName: string }
   );
 }
 
-function questionTextStyle(text: string, withImage = false): CSSProperties {
+function questionTextStyle(
+  text: string,
+  withImage = false,
+  imageWithOptions = false
+): CSSProperties {
   const len = text.length;
   const lineHeight = 1.45;
 
   if (withImage) {
+    if (imageWithOptions) {
+      if (len > 100) return { fontSize: "clamp(2.25rem, 4.8vmin, 4.5rem)", lineHeight };
+      if (len > 60) return { fontSize: "clamp(2.5rem, 5.2vmin, 5rem)", lineHeight };
+      if (len > 30) return { fontSize: "clamp(2.75rem, 5.8vmin, 5.75rem)", lineHeight };
+      return { fontSize: "clamp(3rem, 6vmin, 6.25rem)", lineHeight };
+    }
     if (len > 100) return { fontSize: "clamp(2.75rem, 6vmin, 5.5rem)", lineHeight };
     if (len > 60) return { fontSize: "clamp(3.25rem, 7vmin, 6.5rem)", lineHeight };
     if (len > 30) return { fontSize: "clamp(3.75rem, 8vmin, 7.5rem)", lineHeight };
@@ -123,17 +133,17 @@ const SLIDE_SAFE_AREA_CLASS =
 function PresentationImage({
   src,
   variant,
+  fillAvailable = false,
 }: {
   src: string;
   variant: "hero" | "with-options" | "full-slide";
+  fillAvailable?: boolean;
 }) {
   const resolved = bestPresentationImageUrl(src);
-  const className =
-    variant === "full-slide"
-      ? "max-w-[calc(100%-4px)] max-h-[calc(100%-4px)] w-auto h-auto object-contain rounded-2xl shadow-[0_24px_80px_rgba(0,0,0,0.6)] ring-1 ring-white/10"
-      : variant === "hero"
-        ? "max-w-[calc(100%-4px)] max-h-[calc(100%-4px)] w-auto h-auto object-contain rounded-2xl shadow-[0_24px_80px_rgba(0,0,0,0.6)] ring-1 ring-white/10"
-        : "max-w-[calc(100%-4px)] max-h-[calc(100%-4px)] w-auto h-auto object-contain rounded-2xl shadow-[0_24px_80px_rgba(0,0,0,0.6)] ring-1 ring-white/10";
+  const sizeClass = fillAvailable
+    ? "h-full w-full max-h-full max-w-full object-contain"
+    : "max-w-[calc(100%-4px)] max-h-[calc(100%-4px)] w-auto h-auto object-contain";
+  const className = `${sizeClass} rounded-2xl shadow-[0_24px_80px_rgba(0,0,0,0.6)] ring-1 ring-white/10`;
 
   return (
     // eslint-disable-next-line @next/next/no-img-element
@@ -151,21 +161,29 @@ function PresentationImage({
 function OptionsGrid({
   options,
   highlightCorrectIndex = -1,
+  compact = false,
 }: {
   options: string[];
   highlightCorrectIndex?: number;
+  compact?: boolean;
 }) {
   if (!options.length) return null;
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-7 sm:gap-9 w-full max-w-full">
+    <div
+      className={`grid grid-cols-1 sm:grid-cols-2 w-full max-w-full ${
+        compact ? "gap-4 sm:gap-5" : "gap-7 sm:gap-9"
+      }`}
+    >
       {options.map((option, index) => {
         const isCorrect = index === highlightCorrectIndex;
 
         return (
           <div
             key={`${index}-${option}`}
-            className={`flex items-center gap-6 sm:gap-8 w-full px-8 sm:px-11 py-6 sm:py-8 rounded-2xl border-[3px] shadow-[0_12px_48px_rgba(0,0,0,0.45)] ${
+            className={`flex items-center gap-6 sm:gap-8 w-full rounded-2xl border-[3px] shadow-[0_12px_48px_rgba(0,0,0,0.45)] ${
+              compact ? "px-6 sm:px-8 py-4 sm:py-5" : "px-8 sm:px-11 py-6 sm:py-8"
+            } ${
               isCorrect
                 ? "border-[#f0c800] bg-gradient-to-br from-[#f0c800] to-[#e6b800] text-black ring-4 ring-[#f0c800]/35"
                 : "border-white/20 bg-white/[0.06] backdrop-blur-sm text-white"
@@ -215,64 +233,63 @@ function QuestionContent({
     phase === "answer" ? findCorrectOptionIndex(options, question.answer) : -1;
   const imageHero = showImage && options.length === 0;
   const imageWithOptions = showImage && options.length > 0;
+  const imageFocusedLayout = imageHero || imageWithOptions;
 
   const answerBoxClass =
     "shrink-0 px-6 sm:px-10 py-5 sm:py-6 rounded-2xl bg-gradient-to-br from-[#f0c800] to-[#e6b800] text-black text-center w-full max-w-full shadow-[0_20px_60px_rgba(240,200,0,0.25)]";
 
-  return (
-    <div
-      className={`w-full max-w-full min-h-0 max-h-full box-border overflow-hidden ${
-        imageHero
-          ? "max-h-full grid grid-rows-[auto_minmax(0,1fr)_auto] gap-[max(0.75rem,1.8vmin)] px-[max(0.35rem,0.8vmin)] py-[max(0.25rem,0.6vmin)]"
-          : "flex flex-col items-center justify-center gap-6 sm:gap-8 px-[max(0.35rem,0.8vmin)] overflow-visible"
-      }`}
+  const audioBlock =
+    question.kind === "music" || question.kind === "sound" ? (
+      <PresentationAudioBlock
+        questionId={question.id}
+        storedUrl={question.audioUrl}
+        localOverrideUrl={localAudioUrl}
+        onLocalOverride={onLocalAudioOverride}
+        presentationAudioRef={presentationAudioRef}
+        theme="presentation"
+      />
+    ) : null;
+
+  const videoBlock =
+    question.kind === "video" && question.videoUrl?.trim() ? (
+      <video
+        controls
+        playsInline
+        src={playbackMediaSrc(question.videoUrl)}
+        className="w-full max-w-4xl max-h-[min(28vh,360px)] rounded-xl border border-white/10 bg-black"
+        onClick={(e) => e.stopPropagation()}
+        onContextMenu={(e) => e.stopPropagation()}
+      />
+    ) : null;
+
+  const questionBlock = (
+    <p
+      className={`${QUESTION_TEXT_CLASS} shrink-0`}
+      style={questionTextStyle(questionText, imageFocusedLayout, imageWithOptions)}
     >
-      {(question.kind === "music" || question.kind === "sound") && (
-        <PresentationAudioBlock
-          questionId={question.id}
-          storedUrl={question.audioUrl}
-          localOverrideUrl={localAudioUrl}
-          onLocalOverride={onLocalAudioOverride}
-          presentationAudioRef={presentationAudioRef}
-          theme="presentation"
+      {questionText}
+    </p>
+  );
+
+  const imageBlock =
+    showImage && question.imageUrl ? (
+      <div className="min-h-0 h-full w-full flex items-center justify-center overflow-hidden p-[max(0.25rem,0.5vmin)] box-border">
+        <PresentationImage
+          src={question.imageUrl}
+          variant={imageWithOptions ? "with-options" : "hero"}
+          fillAvailable={imageFocusedLayout}
         />
-      )}
+      </div>
+    ) : null;
 
-      {question.kind === "video" && question.videoUrl?.trim() && (
-        <video
-          controls
-          playsInline
-          src={playbackMediaSrc(question.videoUrl)}
-          className="w-full max-w-4xl max-h-[50vh] rounded-xl border border-white/10 bg-black"
-          onClick={(e) => e.stopPropagation()}
-          onContextMenu={(e) => e.stopPropagation()}
-        />
-      )}
-
-      <p
-        className={`${QUESTION_TEXT_CLASS} shrink-0`}
-        style={questionTextStyle(questionText, imageHero || imageWithOptions)}
-      >
-        {questionText}
-      </p>
-
-      {showImage && question.imageUrl && (
-        <div
-          className={
-            imageHero
-              ? "min-h-0 w-full flex items-center justify-center overflow-hidden p-[max(0.5rem,1.2vmin)] box-border"
-              : "w-full flex items-center justify-center shrink-0 max-h-[min(42vh,100%)] overflow-hidden p-[max(0.5rem,1.2vmin)] box-border"
-          }
-        >
-          <PresentationImage
-            src={question.imageUrl}
-            variant={imageHero ? "hero" : imageWithOptions ? "with-options" : "hero"}
-          />
-        </div>
-      )}
-
+  const footerBlock = (
+    <div className="shrink-0 w-full flex flex-col gap-4 sm:gap-5">
       {options.length > 0 && (
-        <OptionsGrid options={options} highlightCorrectIndex={correctOptionIndex} />
+        <OptionsGrid
+          options={options}
+          highlightCorrectIndex={correctOptionIndex}
+          compact={imageWithOptions}
+        />
       )}
 
       {phase === "answer" && options.length > 0 && correctOptionIndex < 0 && question.answer.trim() && (
@@ -295,6 +312,30 @@ function QuestionContent({
           </p>
         </div>
       )}
+    </div>
+  );
+
+  if (imageFocusedLayout) {
+    return (
+      <div className="w-full h-full max-w-full min-h-0 max-h-full box-border overflow-hidden grid grid-rows-[auto_minmax(0,1fr)_auto] gap-[max(0.35rem,0.9vmin)] px-[max(0.35rem,0.8vmin)] py-[max(0.2rem,0.5vmin)]">
+        <div className="shrink-0 w-full flex flex-col items-center gap-2 sm:gap-3 min-h-0">
+          {audioBlock}
+          {videoBlock}
+          {questionBlock}
+        </div>
+        {imageBlock}
+        {footerBlock}
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-full max-w-full min-h-0 max-h-full box-border overflow-visible flex flex-col items-center justify-center gap-6 sm:gap-8 px-[max(0.35rem,0.8vmin)]">
+      {audioBlock}
+      {videoBlock}
+      {questionBlock}
+      {imageBlock}
+      {footerBlock}
     </div>
   );
 }
@@ -389,7 +430,7 @@ function PresentationView({
   }
   if (slide.type === "question_phase") {
     return (
-      <div className="w-full max-h-full min-h-0 flex flex-col items-center justify-center overflow-visible">
+      <div className="w-full h-full max-h-full min-h-0 flex flex-col overflow-hidden">
         <QuestionContent
           question={slide.question}
           phase="question"
@@ -409,7 +450,7 @@ function PresentationView({
   }
   if (slide.type === "answer_phase") {
     return (
-      <div className="w-full max-h-full min-h-0 flex flex-col items-center justify-center overflow-visible">
+      <div className="w-full h-full max-h-full min-h-0 flex flex-col overflow-hidden">
         <QuestionContent
           question={slide.question}
           phase="answer"
@@ -937,7 +978,7 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
       >
         <PresentationStageAutoFit enabled={questionAutoFit} slideKey={slideKey} className={SLIDE_SAFE_AREA_CLASS}>
           {slide && (
-            <div className="w-full min-h-0 max-h-full flex flex-col items-center justify-center overflow-visible">
+            <div className="w-full h-full min-h-0 max-h-full flex flex-col overflow-hidden">
               <PresentationView
                 slide={slide}
                 eventRules={eventRules}
