@@ -148,10 +148,13 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
 
   const loadRegistrations = () => {
     setRegsLoading(true);
-    fetch(`/api/register?slug=${params.slug}&venue=${encodeURIComponent(form.venue)}&_=${Date.now()}`, {
-      cache: "no-store",
-      credentials: "same-origin",
-    })
+    fetch(
+      `/api/admin/registrations?slug=${encodeURIComponent(params.slug)}&venue=${encodeURIComponent(form.venue)}&_=${Date.now()}`,
+      {
+        cache: "no-store",
+        credentials: "same-origin",
+      }
+    )
       .then((r) => r.json())
       .then((d) => {
         const list = (d.registrations ?? []) as EventRegistration[];

@@ -777,11 +777,31 @@ export async function persistRegistrations(registrations: Registration[]): Promi
   writeLocalRegistrations(registrations);
 }
 
+/** Nové zápisy môžu skončiť v Blobe pri výpadku Supabase — doplní chýbajúce ID z Blobu. */
+function mergeRegistrationsFromBlob(primary: Registration[], fromBlob: Registration[]): Registration[] {
+  if (!fromBlob.length) return primary;
+  const byId = new Map(primary.map((reg) => [reg.id, reg]));
+  let added = false;
+  for (const reg of fromBlob) {
+    const norm = normalizeRegistration(reg);
+    if (!byId.has(norm.id)) {
+      byId.set(norm.id, norm);
+      added = true;
+    }
+  }
+  return added ? Array.from(byId.values()) : primary;
+}
+
 async function loadRegistrations(): Promise<Registration[]> {
   if (canUseSupabaseStorage()) {
     const result = await supabaseFetchRegistrations();
     if (result.status === "ok") {
-      return ((result.value.registrations ?? []) as Registration[]).map(normalizeRegistration);
+      const fromSupabase = ((result.value.registrations ?? []) as Registration[]).map(normalizeRegistration);
+      if (shouldReadBlob()) {
+        const fromBlob = await loadRegsFromBlob();
+        return mergeRegistrationsFromBlob(fromSupabase, fromBlob);
+      }
+      return fromSupabase;
     }
     if (result.status === "error") {
       console.error(`Supabase registrations chyba (${result.message}) — fallback blob / local.`);

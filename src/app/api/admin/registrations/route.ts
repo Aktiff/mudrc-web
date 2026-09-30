@@ -1,5 +1,7 @@
 import { randomUUID } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
+import { isAdminRequest } from "@/lib/admin-session";
+import { registrationsForEvent } from "@/lib/registration-utils";
 import {
   addRegistration,
   deleteRegistrationById,
@@ -10,6 +12,27 @@ import {
 } from "@/lib/storage";
 
 export const dynamic = "force-dynamic";
+
+const NO_STORE = { "Cache-Control": "private, no-store, max-age=0, must-revalidate" } as const;
+
+export async function GET(req: NextRequest) {
+  if (!isAdminRequest(req)) {
+    return NextResponse.json({ error: "Neautorizované" }, { status: 401 });
+  }
+
+  const data = await readRegistrations();
+  const slug = req.nextUrl.searchParams.get("slug");
+  const venue = req.nextUrl.searchParams.get("venue");
+  if (slug || venue) {
+    return NextResponse.json(
+      {
+        registrations: registrationsForEvent(data.registrations, slug ?? "", venue ?? ""),
+      },
+      { headers: NO_STORE }
+    );
+  }
+  return NextResponse.json(data, { headers: NO_STORE });
+}
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
