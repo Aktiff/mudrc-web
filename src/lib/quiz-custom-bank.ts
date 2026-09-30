@@ -286,7 +286,10 @@ export async function updateCustomBankQuestionAsync(
   }
   const updated = normalizeStoredCustomQuestion(data.question);
   if (!updated) throw new Error("Uloženie zlyhalo");
-  const questions = parseCustomBankQuestionList(data.questions ?? [updated]);
+  const questions = parseCustomBankQuestionList(data.questions ?? [updated]).map((item) =>
+    item.id === updated.id ? updated : item
+  );
+  if (!questions.some((item) => item.id === updated.id)) questions.unshift(updated);
   writeCustomBankQuestions(questions);
   notifyCustomBankUpdated();
   return updated;

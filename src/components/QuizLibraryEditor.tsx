@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState, Fragment } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, Fragment } from "react";
 import { ChevronDown, ChevronUp, GripVertical, MonitorPlay, Plus, RotateCcw, Save, Trash2, X } from "lucide-react";
 import type { QuizEvent } from "@/lib/data";
 import {
@@ -132,6 +132,10 @@ export default function QuizLibraryEditor({ quizId }: Props) {
   const [soundBankClips, setSoundBankClips] = useState<SoundBankItem[]>([]);
   const [videoBankClips, setVideoBankClips] = useState<VideoBankItem[]>([]);
   const [serverBackupFilled, setServerBackupFilled] = useState<number | null>(null);
+  const quizRef = useRef<QuizLibraryItem | null>(null);
+  const lastSavedJson = useRef("");
+  const saveSeq = useRef(0);
+  quizRef.current = quiz;
 
   const refreshMusicBank = useCallback(async () => {
     setMusicBankTracks(await fetchMusicBankFromServer());
@@ -174,6 +178,7 @@ export default function QuizLibraryEditor({ quizId }: Props) {
     if (res.ok) {
       const serverQuiz = parseQuizPayload(await res.json());
       const active = draft ? normalizeLibraryQuiz(draft) : serverQuiz;
+      lastSavedJson.current = JSON.stringify(serverQuiz);
       if (draft) {
         setQuiz(active);
         setDraftRestored(true);
@@ -225,7 +230,7 @@ export default function QuizLibraryEditor({ quizId }: Props) {
   useEffect(() => {
     if (!draftRestored) return;
     setMsg({
-      text: "Obnovený neuložený koncept — zmeny zostávajú, kým neuložíš alebo neobnovíš stránku po uložení.",
+      text: "Obnovený koncept sa ukladá.",
       ok: true,
     });
   }, [draftRestored]);
@@ -367,11 +372,11 @@ export default function QuizLibraryEditor({ quizId }: Props) {
       text:
         displacedBankId && displacedBankId !== bankId
           ? isImageQuestion
-            ? "Foto otázka vložená — doplni URL obrázka. Predchádzajúca otázka z banky je znova dostupná — nezabudni uložiť."
-            : "Otázka vložená. Predchádzajúca otázka z banky je znova dostupná v banke — nezabudni uložiť."
+            ? "Foto otázka vložená — doplni URL obrázka."
+            : "Otázka vložená. Predchádzajúca otázka z banky je znova dostupná."
           : isImageQuestion
-            ? "Foto otázka vložená — doplni URL obrázka v editore. Nezabudni uložiť."
-            : "Otázka vložená a odstránená z banky pre tento kvíz — nezabudni uložiť.",
+            ? "Foto otázka vložená — doplni URL obrázka v editore."
+            : "Otázka vložená.",
       ok: true,
     });
   };
@@ -471,7 +476,7 @@ export default function QuizLibraryEditor({ quizId }: Props) {
       await refreshSoundBank();
     })();
 
-    setMsg({ text: "Zvuková ukážka vložená — nezabudni uložiť kvíz.", ok: true });
+    setMsg({ text: "Zvuková ukážka vložená.", ok: true });
   };
 
   const insertFromVideoBank = (
@@ -549,7 +554,7 @@ export default function QuizLibraryEditor({ quizId }: Props) {
       await refreshVideoBank();
     })();
 
-    setMsg({ text: "Video ukážka vložená — nezabudni uložiť kvíz.", ok: true });
+    setMsg({ text: "Video ukážka vložená.", ok: true });
   };
 
   const returnQuestionToBank = (questionId: string) => {
@@ -665,7 +670,7 @@ export default function QuizLibraryEditor({ quizId }: Props) {
         });
     }
 
-    setMsg({ text: "Otázka vrátená do banky — nezabudni uložiť.", ok: true });
+    setMsg({ text: "Otázka vrátená do banky.", ok: true });
   };
 
   const updateQuestionOptions = (id: string, options: string[]) => {
@@ -743,7 +748,7 @@ export default function QuizLibraryEditor({ quizId }: Props) {
           : prev.usedBankQuestionIds,
       };
     });
-    setMsg({ text: "Otázka zmazaná — nezabudni uložiť.", ok: true });
+    setMsg({ text: "Otázka zmazaná.", ok: true });
   };
 
   const regenerateTemplate = () => {
@@ -799,32 +804,57 @@ export default function QuizLibraryEditor({ quizId }: Props) {
     }
   };
 
-  const save = async () => {
-    if (!quiz) return;
-    setSaving(true);
-    setMsg(null);
-    try {
-      const res = await fetch(`/api/admin/quiz-library/${quizId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(quiz),
-      });
-      if (res.ok) {
+  const persistQuizNow = useCallback(
+    async (snapshot: QuizLibraryItem, seq: number) => {
+      setSaving(true);
+      try {
+        const res = await fetch(`/api/admin/quiz-library/${quizId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(snapshot),
+        });
+        if (seq !== saveSeq.current) return;
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          setMsg({ text: err.error ?? "Uloženie zlyhalo.", ok: false });
+          return;
+        }
         const saved = parseQuizPayload(await res.json());
+        lastSavedJson.current = JSON.stringify(saved);
         clearQuizDraft(quizId);
-        setQuiz(saved);
         setDraftRestored(false);
-        await refreshLibraryQuizzes();
-        setMsg({ text: "Kvíz uložený.", ok: true });
-      } else {
-        const err = await res.json().catch(() => ({}));
-        setMsg({ text: err.error ?? "Chyba pri ukladaní.", ok: false });
+        if (quizRef.current && JSON.stringify(quizRef.current) === JSON.stringify(snapshot)) {
+          setQuiz(saved);
+        }
+        setMsg({ text: "Uložené.", ok: true });
+        void refreshLibraryQuizzes();
+      } catch {
+        if (seq === saveSeq.current) setMsg({ text: "Uloženie zlyhalo.", ok: false });
+      } finally {
+        if (seq === saveSeq.current) setSaving(false);
       }
-    } catch {
-      setMsg({ text: "Sieťová chyba.", ok: false });
-    } finally {
-      setSaving(false);
-    }
+    },
+    [quizId, refreshLibraryQuizzes]
+  );
+
+  useEffect(() => {
+    if (!quiz || loading) return;
+    const json = JSON.stringify(quiz);
+    if (json === lastSavedJson.current) return;
+    writeQuizDraft(quiz);
+    const seq = ++saveSeq.current;
+    const snapshot = quiz;
+    const timer = window.setTimeout(() => {
+      void persistQuizNow(snapshot, seq);
+    }, 700);
+    return () => window.clearTimeout(timer);
+  }, [quiz, loading, persistQuizNow]);
+
+  const save = async () => {
+    const snapshot = quizRef.current;
+    if (!snapshot) return;
+    const seq = ++saveSeq.current;
+    await persistQuizNow(snapshot, seq);
   };
 
   if (loading) return <p className="text-brand-muted text-sm">Načítavam…</p>;
@@ -907,7 +937,7 @@ export default function QuizLibraryEditor({ quizId }: Props) {
           </button>
           <button type="button" onClick={save} disabled={saving} className="btn-outline text-sm py-2.5 px-4 inline-flex items-center gap-2">
             <Save className="w-4 h-4" />
-            {saving ? "Ukladám…" : "Uložiť"}
+            {saving ? "Ukladám…" : "Uložené"}
           </button>
         </div>
       </div>

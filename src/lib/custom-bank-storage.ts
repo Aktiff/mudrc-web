@@ -99,9 +99,10 @@ export async function removeStoredCustomBankQuestion(id: string): Promise<boolea
 export async function mergeStoredCustomBankQuestions(incoming: CustomBankQuestion[]): Promise<CustomBankQuestion[]> {
   const existing = await readStoredCustomBankQuestions();
   const byId = new Map<string, CustomBankQuestion>();
-  for (const item of [...existing, ...incoming]) {
+  for (const item of existing) byId.set(item.id, item);
+  for (const item of incoming) {
     const normalized = normalizeStoredCustomQuestion(item);
-    if (normalized) byId.set(normalized.id, normalized);
+    if (normalized && !byId.has(normalized.id)) byId.set(normalized.id, normalized);
   }
   const merged = Array.from(byId.values()).sort((a, b) => b.createdAt - a.createdAt);
   await writeStoredCustomBankQuestions(merged);

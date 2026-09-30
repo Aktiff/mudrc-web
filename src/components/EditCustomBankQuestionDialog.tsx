@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 import ImageUrlField from "@/components/admin/ImageUrlField";
 import type { CustomBankQuestion } from "@/lib/quiz-custom-bank";
@@ -28,49 +28,100 @@ export default function EditCustomBankQuestionDialog({ question, onClose, onSave
   const [suggestedImageUrl, setSuggestedImageUrl] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [savedTick, setSavedTick] = useState(0);
+  const baseline = useRef("");
+  const questionRef = useRef(question);
+  const persistRef = useRef<(closeAfter: boolean) => Promise<void>>(async () => {});
+  questionRef.current = question;
+
+  const snapshot = () =>
+    JSON.stringify({
+      questionMode,
+      body,
+      options,
+      openAnswer,
+      correctIndex,
+      note,
+      tagsText,
+      difficulty,
+      isImageQuestion,
+      suggestedImageUrl,
+    });
 
   useEffect(() => {
     if (!question) return;
-    setQuestionMode(question.isOpenQuestion ? "open" : "choice");
+    const nextMode = question.isOpenQuestion ? "open" : "choice";
+    const nextOptions = [...question.options];
+    const nextAnswer = question.isOpenQuestion ? question.answer : "";
+    const nextTags = formatTagsInput(question.tags);
+    const nextNote = question.note ?? "";
+    const nextImage = Boolean(question.isImageQuestion);
+    const nextUrl = question.suggestedImageUrl ?? "";
+    setQuestionMode(nextMode);
     setBody(question.body);
-    setOptions([...question.options]);
-    setOpenAnswer(question.isOpenQuestion ? question.answer : "");
+    setOptions(nextOptions);
+    setOpenAnswer(nextAnswer);
     setCorrectIndex(question.correctIndex);
-    setNote(question.note ?? "");
-    setTagsText(formatTagsInput(question.tags));
+    setNote(nextNote);
+    setTagsText(nextTags);
     setDifficulty(question.difficulty);
-    setIsImageQuestion(Boolean(question.isImageQuestion));
-    setSuggestedImageUrl(question.suggestedImageUrl ?? "");
+    setIsImageQuestion(nextImage);
+    setSuggestedImageUrl(nextUrl);
     setError("");
+    baseline.current = JSON.stringify({
+      questionMode: nextMode,
+      body: question.body,
+      options: nextOptions,
+      openAnswer: nextAnswer,
+      correctIndex: question.correctIndex,
+      note: nextNote,
+      tagsText: nextTags,
+      difficulty: question.difficulty,
+      isImageQuestion: nextImage,
+      suggestedImageUrl: nextUrl,
+    });
   }, [question]);
+
+  useEffect(() => {
+    if (!question) return;
+    const current = snapshot();
+    if (!baseline.current || current === baseline.current) return;
+    const timer = window.setTimeout(() => {
+      void persistRef.current(false);
+    }, 400);
+    return () => window.clearTimeout(timer);
+  }, [question, questionMode, body, options, openAnswer, correctIndex, note, tagsText, difficulty, isImageQuestion, suggestedImageUrl]);
 
   if (!question) return null;
 
-  const handleSave = async () => {
+  const persist = async (closeAfter: boolean) => {
+    const current = questionRef.current;
+    if (!current) return;
     setError("");
     const trimmedBody = body.trim();
     if (!trimmedBody) {
-      setError("Zadaj text otázky.");
+      if (closeAfter) setError("Zadaj text otázky.");
       return;
     }
 
     if (questionMode === "open") {
       if (!openAnswer.trim()) {
-        setError("Zadaj správnu odpoveď.");
+        if (closeAfter) setError("Zadaj správnu odpoveď.");
         return;
       }
     } else {
       const filledOptions = options.map((o) => o.trim());
       if (!filledOptions[0] || !filledOptions[1]) {
-        setError("Možnosti A a B sú povinné.");
+        if (closeAfter) setError("Možnosti A a B sú povinné.");
         return;
       }
       if (!filledOptions[correctIndex]) {
-        setError("Správna možnosť musí mať text.");
+        if (closeAfter) setError("Správna možnosť musí mať text.");
         return;
       }
     }
 
+    const currentSnapshot = snapshot();
     setSubmitting(true);
     try {
       const payload =
@@ -99,15 +150,22 @@ export default function EditCustomBankQuestionDialog({ question, onClose, onSave
               suggestedImageUrl: suggestedImageUrl.trim() || undefined,
             };
 
-      await updateCustomBankQuestionAsync(question.id, payload);
+      await updateCustomBankQuestionAsync(current.id, payload);
+      baseline.current = currentSnapshot;
+      setSavedTick((value) => value + 1);
       onSaved();
-      onClose();
+      if (closeAfter) onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Uloženie zlyhalo.");
     } finally {
       setSubmitting(false);
     }
   };
+
+  const handleSave = () => {
+    void persist(true);
+  };
+  persistRef.current = persist;
 
   return (
     <div
@@ -228,7 +286,7 @@ export default function EditCustomBankQuestionDialog({ question, onClose, onSave
             onClick={handleSave}
             className="btn-primary text-sm py-2 px-4 flex-1 disabled:opacity-60"
           >
-            {submitting ? "Ukladám…" : "Uložiť"}
+            {submitting ? "Ukladám…" : savedTick > 0 ? "Uložené" : "Uložiť"}
           </button>
         </div>
       </div>
