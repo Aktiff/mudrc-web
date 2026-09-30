@@ -19,6 +19,7 @@ import {
   fetchCustomBankQuestionsFromServer,
   isCustomBankQuestionId,
   isGeneratedBankQuestion,
+  customQuestionHasPhoto,
   removeCustomBankQuestionAsync,
   type CustomBankQuestion,
 } from "@/lib/quiz-custom-bank";
@@ -68,6 +69,7 @@ export default function QuestionBankInventory({ refreshKey = 0, onChanged, fillH
   const [refreshingTagId, setRefreshingTagId] = useState<string | null>(null);
   const [hiddenIds, setHiddenIds] = useState<string[]>([]);
   const [questionSourceFilter, setQuestionSourceFilter] = useState<TextBankSourceFilter>("all");
+  const [customKind, setCustomKind] = useState<"text" | "photo">("text");
 
   useEffect(() => {
     setHiddenIds(readHiddenBankQuestionIds());
@@ -83,6 +85,28 @@ export default function QuestionBankInventory({ refreshKey = 0, onChanged, fillH
   const visibleTextQuestions = useMemo(
     () => filterTextBankBySource(fullTextBank, questionSourceFilter),
     [fullTextBank, questionSourceFilter]
+  );
+
+  const shownTextQuestions = useMemo(() => {
+    if (questionSourceFilter !== "custom") return visibleTextQuestions;
+    return visibleTextQuestions.filter((item) =>
+      customKind === "photo" ? customQuestionHasPhoto(item) : !customQuestionHasPhoto(item)
+    );
+  }, [visibleTextQuestions, questionSourceFilter, customKind]);
+
+  const customWithoutPhotoCount = useMemo(
+    () =>
+      questionSourceFilter === "custom"
+        ? visibleTextQuestions.filter((item) => !customQuestionHasPhoto(item)).length
+        : 0,
+    [visibleTextQuestions, questionSourceFilter]
+  );
+  const customWithPhotoCount = useMemo(
+    () =>
+      questionSourceFilter === "custom"
+        ? visibleTextQuestions.filter((item) => customQuestionHasPhoto(item)).length
+        : 0,
+    [visibleTextQuestions, questionSourceFilter]
   );
 
   const filteredMusic = useMemo(
@@ -226,6 +250,29 @@ export default function QuestionBankInventory({ refreshKey = 0, onChanged, fillH
               </button>
             ))}
           </div>
+          {questionSourceFilter === "custom" && (
+            <div className="flex flex-wrap gap-1.5">
+              {(
+                [
+                  ["text", "Otázky bez fotky", customWithoutPhotoCount],
+                  ["photo", "Otázky s fotkou", customWithPhotoCount],
+                ] as const
+              ).map(([key, label, count]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setCustomKind(key)}
+                  className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors ${
+                    customKind === key
+                      ? "bg-sky-700 text-white border-sky-700"
+                      : "border-brand-border text-brand-muted hover:border-sky-400"
+                  }`}
+                >
+                  {label} ({count})
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -250,11 +297,17 @@ export default function QuestionBankInventory({ refreshKey = 0, onChanged, fillH
         ) : tab === "questions" ? (
           textBankCounts.all === 0 ? (
             <p className="text-sm text-brand-muted text-center py-8">V banke zatiaľ nie sú textové otázky.</p>
-          ) : visibleTextQuestions.length === 0 ? (
-            <p className="text-sm text-brand-muted text-center py-8">V tomto filtri nie sú otázky.</p>
+          ) : shownTextQuestions.length === 0 ? (
+            <p className="text-sm text-brand-muted text-center py-8">
+              {questionSourceFilter === "custom" && visibleTextQuestions.length > 0
+                ? customKind === "photo"
+                  ? "Žiadne otázky s fotkou."
+                  : "Žiadne otázky bez fotky."
+                : "V tomto filtri nie sú otázky."}
+            </p>
           ) : (
             <ul className="space-y-3">
-              {visibleTextQuestions.map((q) => {
+              {shownTextQuestions.map((q) => {
                 const isCustom = isCustomBankQuestionId(q.id);
                 const isGenerated = isGeneratedBankQuestion(q);
                 return (

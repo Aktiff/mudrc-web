@@ -40,6 +40,7 @@ import {
   fetchCustomBankQuestionsFromServer,
   isCustomBankQuestionId,
   isGeneratedBankQuestion,
+  customQuestionHasPhoto,
   removeCustomBankQuestionAsync,
   type CustomBankQuestion,
 } from "@/lib/quiz-custom-bank";
@@ -191,6 +192,7 @@ export default function QuizQuestionBankPanel({
   const [localVideo, setLocalVideo] = useState<VideoBankItem[]>([]);
   const [musicTagFilters, setMusicTagFilters] = useState(EMPTY_MUSIC_BANK_TAG_FILTERS);
   const [soundKind, setSoundKind] = useState<"music" | "other">("music");
+  const [customKind, setCustomKind] = useState<"text" | "photo">("text");
 
   const customBankQuestions = customBankQuestionsProp ?? localCustom;
   const musicBankTracks = musicBankTracksProp ?? localMusic;
@@ -427,6 +429,22 @@ export default function QuizQuestionBankPanel({
     return sortWithCustomPriority(filteredQuestions);
   }, [filteredQuestions, manualOrderIds, tagCounts, sourceFilter]);
 
+  const listedQuestions = useMemo(() => {
+    if (sourceFilter !== "custom") return visibleQuestions;
+    return visibleQuestions.filter((item) =>
+      customKind === "photo" ? customQuestionHasPhoto(item) : !customQuestionHasPhoto(item)
+    );
+  }, [visibleQuestions, sourceFilter, customKind]);
+
+  const customWithoutPhotoCount = useMemo(
+    () => (sourceFilter === "custom" ? filteredQuestions.filter((item) => !customQuestionHasPhoto(item)).length : 0),
+    [filteredQuestions, sourceFilter]
+  );
+  const customWithPhotoCount = useMemo(
+    () => (sourceFilter === "custom" ? filteredQuestions.filter((item) => customQuestionHasPhoto(item)).length : 0),
+    [filteredQuestions, sourceFilter]
+  );
+
   const toggleTagExclusion = (tag: string) => {
     setExcludedTags((prev) =>
       prev.includes(tag) ? prev.filter((entry) => entry !== tag) : [...prev, tag]
@@ -621,6 +639,30 @@ export default function QuizQuestionBankPanel({
             </button>
           ))}
         </div>
+
+        {sourceFilter === "custom" && (
+          <div className="flex flex-wrap gap-1.5">
+            {(
+              [
+                ["text", "Otázky bez fotky", customWithoutPhotoCount],
+                ["photo", "Otázky s fotkou", customWithPhotoCount],
+              ] as const
+            ).map(([key, label, count]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setCustomKind(key)}
+                className={`text-xs font-semibold px-2.5 py-1.5 rounded-lg border transition-colors ${
+                  customKind === key
+                    ? "bg-sky-700 text-white border-sky-700"
+                    : "border-brand-border text-brand-muted hover:border-sky-400"
+                }`}
+              >
+                {label} ({count})
+              </button>
+            ))}
+          </div>
+        )}
 
         {sourceFilter === "sound" && (
           <>
@@ -878,14 +920,18 @@ export default function QuizQuestionBankPanel({
               );
             })
           )
-        ) : visibleQuestions.length === 0 ? (
+        ) : listedQuestions.length === 0 ? (
           <p className="text-brand-muted text-sm text-center py-8">
-            {excludedTags.length
-              ? "Po vylúčení zvolených tagov nie sú dostupné otázky."
-              : "Všetky otázky z banky sú vložené alebo odstránené."}
+            {sourceFilter === "custom" && filteredQuestions.length > 0
+              ? customKind === "photo"
+                ? "Žiadne otázky s fotkou."
+                : "Žiadne otázky bez fotky."
+              : excludedTags.length
+                ? "Po vylúčení zvolených tagov nie sú dostupné otázky."
+                : "Všetky otázky z banky sú vložené alebo odstránené."}
           </p>
         ) : (
-          visibleQuestions.map((item) => {
+          listedQuestions.map((item) => {
             const targetId = getTargetId(item.id);
             const tagScore = bankQuestionTagScore(item, tagCounts);
 

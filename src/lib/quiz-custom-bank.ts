@@ -19,6 +19,13 @@ export function isGeneratedBankQuestion(item: QuizBankQuestion): boolean {
   return !isCustomBankQuestionId(item.id);
 }
 
+export function customQuestionHasPhoto(item: {
+  isImageQuestion?: boolean;
+  suggestedImageUrl?: string;
+}): boolean {
+  return Boolean(item.isImageQuestion || item.suggestedImageUrl?.trim());
+}
+
 export function readCustomBankQuestions(): CustomBankQuestion[] {
   if (typeof window === "undefined") return [];
   try {
