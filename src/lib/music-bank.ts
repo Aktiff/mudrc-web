@@ -40,6 +40,16 @@ export function musicTrackKey(artist: string, title: string): string {
   return `${normalizeMusicTrackPart(artist)}|${normalizeMusicTrackPart(title)}`;
 }
 
+/** „Korn - Freak On a Leash“ v popise rozdelí na interpreta a skladbu. */
+export function splitClipIntoArtistTitle(label: string, answer: string): { artist: string; title: string } {
+  const raw = label.trim();
+  const match = raw.match(/^(.+?)\s+[—–-]\s+(.+)$/);
+  if (match?.[1] && match?.[2]) {
+    return { artist: match[1].trim(), title: match[2].trim() };
+  }
+  return { artist: raw, title: answer.trim() };
+}
+
 export function formatMusicTrackLabel(artist: string, title: string): string {
   return `${artist.trim()} — ${title.trim()}`;
 }

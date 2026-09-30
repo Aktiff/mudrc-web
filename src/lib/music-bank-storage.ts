@@ -123,7 +123,7 @@ export async function updateStoredMusicBankItem(
     artist,
     title,
     audioUrl,
-    tags: input.tags?.length ? input.tags : current.tags,
+    tags: Array.isArray(input.tags) ? input.tags : current.tags,
   });
   const merged: MusicBankItem = { ...updated, id: current.id, createdAt: current.createdAt };
   const next = existing.map((t) => (t.id === id ? merged : t));

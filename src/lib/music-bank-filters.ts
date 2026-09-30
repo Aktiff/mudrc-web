@@ -75,6 +75,12 @@ export function filterMusicBankTracks(
   return tracks.filter((t) => musicTrackMatchesTagFilters(t, filters));
 }
 
+export const MANUAL_MUSIC_DECADE_TAGS = ["50'", "60'", "70'", "80'", "90'", "2000'", "2010'", "2020'"] as const;
+
+export function composeMusicTags(fields: { language: string; style: string; decade: string }): string[] {
+  return [fields.language, fields.style, fields.decade].map((value) => value.trim()).filter(Boolean);
+}
+
 export function musicTrackMetaFields(tags: string[] | undefined): {
   language: string;
   style: string;
