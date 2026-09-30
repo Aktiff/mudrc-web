@@ -330,7 +330,7 @@ function QuestionContent({
   }
 
   return (
-    <div className="w-full max-w-full min-h-0 max-h-full box-border overflow-visible flex flex-col items-center justify-center gap-6 sm:gap-8 px-[max(0.35rem,0.8vmin)]">
+    <div className="w-full max-w-full min-h-0 max-h-full box-border overflow-visible flex flex-col items-center justify-center gap-6 sm:gap-8 px-[max(0.35rem,0.8vmin)] my-auto">
       {audioBlock}
       {videoBlock}
       {questionBlock}
@@ -430,7 +430,7 @@ function PresentationView({
   }
   if (slide.type === "question_phase") {
     return (
-      <div className="w-full h-full max-h-full min-h-0 flex flex-col overflow-hidden">
+      <div className="w-full h-full max-h-full min-h-0 flex flex-col items-center justify-center overflow-hidden">
         <QuestionContent
           question={slide.question}
           phase="question"
@@ -450,7 +450,7 @@ function PresentationView({
   }
   if (slide.type === "answer_phase") {
     return (
-      <div className="w-full h-full max-h-full min-h-0 flex flex-col overflow-hidden">
+      <div className="w-full h-full max-h-full min-h-0 flex flex-col items-center justify-center overflow-hidden">
         <QuestionContent
           question={slide.question}
           phase="answer"
@@ -978,7 +978,7 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
       >
         <PresentationStageAutoFit enabled={questionAutoFit} slideKey={slideKey} className={SLIDE_SAFE_AREA_CLASS}>
           {slide && (
-            <div className="w-full h-full min-h-0 max-h-full flex flex-col overflow-hidden">
+            <div className="w-full h-full min-h-0 max-h-full flex flex-col items-center justify-center overflow-hidden">
               <PresentationView
                 slide={slide}
                 eventRules={eventRules}
