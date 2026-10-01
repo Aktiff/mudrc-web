@@ -11,6 +11,7 @@ import {
   normalizeResultLibraryQuizId,
 } from "@/lib/quiz-result-library";
 import { revalidatePublicEventPaths } from "@/lib/revalidate-public";
+import { quizTypeOrDefault } from "@/lib/quiz-type";
 import {
   hasQuizForDate,
   readAllEventsRaw,
@@ -27,8 +28,9 @@ export const dynamic = "force-dynamic";
 type TeamEntry = { name: string; scores: number[]; total?: number; players?: number };
 
 export async function POST(req: NextRequest, { params }: { params: { slug: string } }) {
-  const { date, teams, libraryQuizId }: { date: string; teams: TeamEntry[]; libraryQuizId?: string } =
-    await req.json();
+  const body = await req.json();
+  const { date, teams, libraryQuizId }: { date: string; teams: TeamEntry[]; libraryQuizId?: string } = body;
+  const quizType = quizTypeOrDefault(body.quizType);
   if (!date || !teams?.length) {
     return NextResponse.json({ error: "Chýba dátum alebo tímy" }, { status: 400 });
   }
@@ -76,6 +78,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
       points: winnerTotal,
       teams: teamsDetail,
       libraryQuizId: normalizedLibraryQuizId,
+      quizType,
     });
   } catch (error) {
     console.error("upsertStoredQuiz error:", error);
@@ -105,7 +108,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
       const sortedTable = sortLeagueTable(table);
       const pastResults = [
         ...(event.pastResults ?? []).filter((r) => normalizeDateKey(r.date) !== resultId && r.id !== resultId),
-        { id: resultId, date, winnerTeam, points: winnerTotal, teams: teamsDetail, leagueSynced: true, libraryQuizId: normalizedLibraryQuizId, ...(playerCount > 0 ? { playerCount } : {}) },
+        { id: resultId, date, winnerTeam, points: winnerTotal, teams: teamsDetail, leagueSynced: true, libraryQuizId: normalizedLibraryQuizId, quizType, ...(playerCount > 0 ? { playerCount } : {}) },
       ];
 
       events[idx] = { ...event, leagueTable: sortedTable, pastResults, leagueActive: true };

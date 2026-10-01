@@ -2,6 +2,7 @@ import type { PastResult, PastResultTeam, QuizEvent } from "@/lib/data";
 import { parseSkEventDateTime } from "@/lib/data";
 import { findQuizResult, quizResultKey } from "@/lib/quiz-result-key";
 import { estimatedEntryRevenue } from "@/lib/registration-utils";
+import { quizTypeOrDefault } from "@/lib/quiz-type";
 import {
   deleteStoredQuiz,
   readAllEventsRaw,
@@ -19,6 +20,7 @@ export type QuizStatRow = {
   venue: string;
   city: string;
   entryFee: number;
+  quizType: string;
   players: number;
   estimated: boolean;
   earned: number;
@@ -33,6 +35,7 @@ export type TeamQuizAppearance = {
   date: string;
   venue: string;
   city: string;
+  quizType: string;
   players: number;
   playersEstimated: boolean;
   place: number;
@@ -100,6 +103,7 @@ export function quizStatFromResult(event: QuizEvent, result: PastResult): QuizSt
     venue: event.venue,
     city: event.city,
     entryFee: Number(event.entryFee) || 0,
+    quizType: quizTypeOrDefault(result.quizType),
     players,
     estimated,
     earned: estimatedEntryRevenue(event.entryFee, players),
@@ -143,6 +147,7 @@ export function teamAppearancesFromEvents(events: QuizEvent[]): TeamQuizAppearan
           date: result.date,
           venue: event.venue,
           city: event.city,
+          quizType: quizTypeOrDefault(result.quizType),
           players: stored > 0 ? stored : suggestedTeamPlayers(teamName, seed),
           playersEstimated: stored <= 0,
           place: places.get(teamName.toLocaleLowerCase("sk")) ?? index + 1,
@@ -207,6 +212,7 @@ export async function updateQuizStatistic(input: {
   date: string;
   targetSlug: string;
   playerCount: number;
+  quizType?: string;
   teams?: { teamName: string; players: number }[];
 }) {
   const { events } = await readAllEventsRaw();
@@ -239,6 +245,7 @@ export async function updateQuizStatistic(input: {
     id: result.id || quizResultKey(result),
     date,
     teams,
+    quizType: quizTypeOrDefault(input.quizType ?? result.quizType),
     ...(playerCount > 0 ? { playerCount } : {}),
   };
   if (playerCount <= 0) delete updated.playerCount;
@@ -255,6 +262,7 @@ export async function updateQuizStatistic(input: {
       points: updated.points,
       teams: updated.teams ?? [],
       libraryQuizId: updated.libraryQuizId,
+      quizType: updated.quizType,
     });
   }
 

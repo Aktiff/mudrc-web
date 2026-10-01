@@ -71,6 +71,7 @@ export default async function AdminDashboard() {
                   </div>
                   <div className="text-brand-muted text-sm">
                     {e.city} &mdash; {formatEventDateLabel(e.date)} o {e.time}
+                    {e.quizType?.trim() ? ` · ${e.quizType}` : ""}
                   </div>
                 </div>
               </Link>

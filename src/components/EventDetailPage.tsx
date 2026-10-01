@@ -60,6 +60,9 @@ export default function EventDetailPage({ event, region, pollHref }: EventDetail
             <h1 className="font-display text-5xl sm:text-6xl text-brand-text tracking-wide">
               Kvíz v {event.venue}, {event.city}
             </h1>
+            {event.quizType?.trim() && (
+              <p className="text-brand-orange-readable text-lg font-semibold mt-2">{event.quizType}</p>
+            )}
             <p className="text-brand-muted text-sm mt-2 flex items-center gap-1.5">
               <MapPin className="w-4 h-4 shrink-0" />
               {event.city} &mdash; {event.address}

@@ -4,7 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Pencil, Trash2 } from "lucide-react";
 import { AdminDatePicker } from "@/components/AdminDatePicker";
+import QuizTypeField from "@/components/admin/QuizTypeField";
 import { formatEuroAmount, formatSkPlayerCountTotal } from "@/lib/registration-utils";
+import { quizTypeOrDefault, rememberQuizTypes } from "@/lib/quiz-type";
 import type { QuizStatRow, QuizStatTeam, QuizStatVenue, TeamQuizAppearance } from "@/lib/quiz-stats";
 
 function skCount(count: number, one: string, few: string, many: string) {
@@ -19,6 +21,7 @@ type EditState = {
   date: string;
   targetSlug: string;
   playerCount: string;
+  quizType: string;
   teams: QuizStatTeam[];
 };
 
@@ -113,6 +116,7 @@ export default function StatistikyBoard({
       date: row.date,
       targetSlug: row.slug,
       playerCount: String(row.players),
+      quizType: row.quizType,
       teams: row.teams.map((team) => ({ ...team })),
     });
   };
@@ -131,6 +135,7 @@ export default function StatistikyBoard({
         date: editing.date,
         targetSlug: editing.targetSlug,
         playerCount: editing.teams.length ? teamPlayers : Number(editing.playerCount) || 0,
+        quizType: quizTypeOrDefault(editing.quizType),
         teams: editing.teams,
       }),
     });
@@ -260,6 +265,7 @@ export default function StatistikyBoard({
               <th className="px-5 py-3 font-medium">Dátum</th>
               <th className="px-3 py-3 font-medium">Podnik</th>
               <th className="px-3 py-3 font-medium">Mesto</th>
+              <th className="px-3 py-3 font-medium">Typ kvízu</th>
               <th className="px-3 py-3 font-medium">Hráči</th>
               <th className="px-3 py-3 font-medium">Zarobené</th>
               <th className="px-5 py-3 font-medium text-right"> </th>
@@ -268,7 +274,7 @@ export default function StatistikyBoard({
           <tbody>
             {visible.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-5 py-8 text-center text-brand-muted">
+                <td colSpan={7} className="px-5 py-8 text-center text-brand-muted">
                   Žiadne kvízy pre tento filter.
                 </td>
               </tr>
@@ -278,7 +284,7 @@ export default function StatistikyBoard({
               const isEditing = editing?.slug === row.slug && editing.quizKey === row.key;
               return (
                 <tr key={rowKey} className="border-b border-brand-border last:border-b-0 align-top">
-                  <td className="px-5 py-4 whitespace-nowrap" colSpan={isEditing ? 6 : 1}>
+                  <td className="px-5 py-4 whitespace-nowrap" colSpan={isEditing ? 7 : 1}>
                     {isEditing && editing ? (
                       <div className="space-y-4">
                         <div className="grid gap-3 sm:grid-cols-3">
@@ -301,6 +307,15 @@ export default function StatistikyBoard({
                             </select>
                           </label>
                         </div>
+                        <label className="block max-w-md">
+                          <span className="label">Typ kvízu</span>
+                          <QuizTypeField
+                            id={`stat-quiz-type-${row.slug}-${row.key}`}
+                            value={editing.quizType}
+                            knownTypes={rememberQuizTypes(rows.map((item) => item.quizType))}
+                            onChange={(quizType) => setEditing({ ...editing, quizType })}
+                          />
+                        </label>
                         {editing.teams.length > 0 ? (
                           <div className="max-w-md space-y-1.5">
                             <div className="label">Hráči v tímoch</div>
@@ -366,6 +381,7 @@ export default function StatistikyBoard({
                     <>
                       <td className="px-3 py-4 font-semibold text-brand-text">{row.venue}</td>
                       <td className="px-3 py-4 text-brand-muted">{row.city}</td>
+                      <td className="px-3 py-4">{row.quizType}</td>
                       <td className="px-3 py-4">
                         {formatSkPlayerCountTotal(row.players)}
                         {row.estimated && <span className="ml-2 text-xs text-amber-700">odhad</span>}
@@ -422,6 +438,7 @@ export default function StatistikyBoard({
                     <th className="px-5 py-3 font-medium">Dátum</th>
                     <th className="px-3 py-3 font-medium">Podnik</th>
                     <th className="px-3 py-3 font-medium">Mesto</th>
+                    <th className="px-3 py-3 font-medium">Typ kvízu</th>
                     <th className="px-3 py-3 font-medium">Hráči v tíme</th>
                     <th className="px-3 py-3 font-medium">Umiestnenie</th>
                     <th className="px-5 py-3 font-medium">Tímov na kvíze</th>
@@ -433,6 +450,7 @@ export default function StatistikyBoard({
                       <td className="px-5 py-4 whitespace-nowrap">{row.date}</td>
                       <td className="px-3 py-4 font-semibold text-brand-text">{row.venue}</td>
                       <td className="px-3 py-4 text-brand-muted">{row.city}</td>
+                      <td className="px-3 py-4">{row.quizType}</td>
                       <td className="px-3 py-4">
                         {formatSkPlayerCountTotal(row.players)}
                         {row.playersEstimated && <span className="ml-2 text-xs text-amber-700">odhad</span>}

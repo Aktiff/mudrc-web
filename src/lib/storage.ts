@@ -9,6 +9,7 @@ import { rebuildLeagueFromPastResults } from "@/lib/league-rebuild";
 import seedEventsBundle from "@/data/events.json";
 import { writeAppStorageBlob, readAppStorageBlob } from "@/lib/blob-app-storage";
 import { findQuizResult, mergePastResults, normalizeDateKey, quizResultKey } from "@/lib/quiz-result-key";
+import { splitVenueQuizType } from "@/lib/quiz-type";
 
 const QUIZZES_APP_BLOB = "quizzes";
 
@@ -109,6 +110,7 @@ export type StoredQuiz = {
   points: number;
   teams: PastResultTeam[];
   libraryQuizId?: string;
+  quizType?: string;
 };
 
 export type WriteOptions = {
@@ -448,6 +450,7 @@ function pastResultToStoredQuiz(eventSlug: string, result: PastResult): StoredQu
     points: result.points,
     teams: result.teams ?? [],
     libraryQuizId: result.libraryQuizId,
+    ...(result.quizType?.trim() ? { quizType: result.quizType.trim() } : {}),
   };
 }
 
@@ -459,6 +462,7 @@ function storedQuizToPastResult(quiz: StoredQuiz): PastResult {
     points: quiz.points,
     teams: quiz.teams,
     libraryQuizId: quiz.libraryQuizId,
+    ...(quiz.quizType?.trim() ? { quizType: quiz.quizType.trim() } : {}),
   };
 }
 
@@ -664,10 +668,26 @@ export async function persistEvents(events: QuizEvent[]): Promise<void> {
   writeLocalEvents(events);
 }
 
+let splittingVenueQuizType = false;
+
 async function loadEvents(): Promise<QuizEvent[]> {
   const base = await loadEventsBase();
+  const split = base.map((event) => {
+    const next = splitVenueQuizType(event.venue, event.quizType);
+    if (next.venue === event.venue.trim() && next.quizType === (event.quizType ?? "").trim()) return event;
+    return { ...event, venue: next.venue, quizType: next.quizType || event.quizType };
+  });
+  const changed = split.some((event, index) => event !== base[index]);
+  if (changed && !splittingVenueQuizType) {
+    splittingVenueQuizType = true;
+    try {
+      await persistEvents(split);
+    } finally {
+      splittingVenueQuizType = false;
+    }
+  }
   const quizzes = await loadQuizzes();
-  return enrichEventsWithQuizzes(base, quizzes);
+  return enrichEventsWithQuizzes(changed ? split : base, quizzes);
 }
 
 function normalizeRegistration(reg: Registration & { eventSlug?: string }): Registration {
@@ -850,6 +870,7 @@ function eventForEventsKey(event: QuizEvent): QuizEvent {
       winnerTeam: r.winnerTeam,
       points: r.points,
       ...(typeof r.playerCount === "number" && r.playerCount > 0 ? { playerCount: r.playerCount } : {}),
+      ...(r.quizType?.trim() ? { quizType: r.quizType.trim() } : {}),
     })),
   };
 }

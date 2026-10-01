@@ -50,6 +50,7 @@ export default async function AdminUdalostitPage() {
                   </div>
                   <div className="text-brand-muted text-sm mt-1">
                     {e.city} &mdash; {formatEventDateLabel(e.date)} o {e.time}
+                    {e.quizType?.trim() ? ` · ${e.quizType}` : ""}
                   </div>
                   <div className="text-brand-muted-light text-xs mt-1 font-mono">/{e.slug}{invalid ? " · neúplný záznam" : ""}</div>
                 </div>

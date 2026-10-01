@@ -17,6 +17,8 @@ import { TeamAutocomplete } from "@/components/TeamAutocomplete";
 import LibraryQuizPicker from "@/components/LibraryQuizPicker";
 import { fetchLibraryQuizList } from "@/lib/quiz-library-client";
 import RegistrationPlayersStepper from "@/components/admin/RegistrationPlayersStepper";
+import QuizTypeField from "@/components/admin/QuizTypeField";
+import { DEFAULT_QUIZ_TYPE, normalizeQuizTypeLabel, quizTypeOrDefault, rememberQuizTypes } from "@/lib/quiz-type";
 import {
   CANVAS_LIBRARY_QUIZ_ID,
   isAssignedLibraryQuiz,
@@ -112,6 +114,8 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
   const [quizSubmitting, setQuizSubmitting] = useState(false);
   const [quizMsg, setQuizMsg] = useState<{ text: string; ok: boolean } | null>(null);
   const [libraryQuizId, setLibraryQuizId] = useState(CANVAS_LIBRARY_QUIZ_ID);
+  const [resultQuizType, setResultQuizType] = useState(DEFAULT_QUIZ_TYPE);
+  const [knownQuizTypes, setKnownQuizTypes] = useState<string[]>([DEFAULT_QUIZ_TYPE]);
   type EventRegistration = { id: string; eventSlug: string; venue: string; teamName: string; players: string; phone: string; createdAt: string };
   const [registrations, setRegistrations] = useState<EventRegistration[]>([]);
   const [regsLoading, setRegsLoading] = useState(false);
@@ -213,7 +217,12 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
         method: "POST",
         cache: "no-store",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ date: quizDate, teams: validTeams, libraryQuizId }),
+        body: JSON.stringify({
+          date: quizDate,
+          teams: validTeams,
+          libraryQuizId,
+          quizType: quizTypeOrDefault(resultQuizType),
+        }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -294,7 +303,24 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
         if (ev) setForm(normalizeEvent(ev));
       });
     }
+    fetch(`/api/admin/events?_=${Date.now()}`, { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        const events = (data?.events ?? []) as QuizEvent[];
+        const used = events.flatMap((event) => [
+          event.quizType,
+          ...(event.pastResults ?? []).map((result) => result.quizType),
+        ]);
+        setKnownQuizTypes(rememberQuizTypes(used));
+      })
+      .catch(() => undefined);
   }, [params.slug, isNew]);
+
+  useEffect(() => {
+    const next = normalizeQuizTypeLabel(form.quizType);
+    if (!next) return;
+    setResultQuizType((current) => (current === DEFAULT_QUIZ_TYPE ? next : current));
+  }, [form.quizType]);
 
   useEffect(() => {
     if (isNew || (tab !== "liga" && tab !== "vysledky")) return;
@@ -971,6 +997,9 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
           </Link>
           <h1 className="font-display text-3xl text-brand-text tracking-wide">
             {isNew ? "Nová udalosť" : form.venue || params.slug}
+            {!isNew && form.quizType?.trim() ? (
+              <span className="ml-3 text-lg text-brand-muted font-sans font-semibold normal-case tracking-normal">{form.quizType}</span>
+            ) : null}
           </h1>
           {!isNew && (
             <>
@@ -1037,6 +1066,16 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
             <div>
               <label className="label">Mesto</label>
               <input className="input" value={form.city} onChange={(e) => set("city", e.target.value)} placeholder="Oslany" />
+            </div>
+            <div className="col-span-2 max-w-md">
+              <label className="label">Typ kvízu</label>
+              <QuizTypeField
+                id="event-quiz-type"
+                value={form.quizType ?? ""}
+                knownTypes={knownQuizTypes}
+                onChange={(value) => set("quizType", value)}
+              />
+              <p className="text-brand-muted text-xs mt-1.5">Tento typ platí pre aktuálny termín. Staršie kvízy si držia svoj.</p>
             </div>
           </div>
           <div>
@@ -1224,10 +1263,19 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
             onChange={setLibraryQuizId}
             teamNames={quizTeams.map((team) => team.name)}
           />
-          <div className="mb-6">
-            <label className="label">Dátum kvízu</label>
-            <div className="max-w-xs">
+          <div className="grid gap-4 sm:grid-cols-2 mb-6">
+            <div>
+              <label className="label">Dátum kvízu</label>
               <AdminDatePicker value={quizDate} onChange={setQuizDate} />
+            </div>
+            <div>
+              <label className="label">Typ kvízu</label>
+              <QuizTypeField
+                id="result-quiz-type"
+                value={resultQuizType}
+                knownTypes={knownQuizTypes}
+                onChange={setResultQuizType}
+              />
             </div>
           </div>
           <div className="grid gap-3 mb-2 pr-9" style={{ gridTemplateColumns: `1fr repeat(${form.rounds || 4}, 5rem) 4.5rem 4.5rem` }}>

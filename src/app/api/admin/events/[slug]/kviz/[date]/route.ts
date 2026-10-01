@@ -13,6 +13,7 @@ import { buildQuizUsageMap } from "@/lib/quiz-library-usage";
 import { isAssignedLibraryQuiz, normalizeResultLibraryQuizId } from "@/lib/quiz-result-library";
 
 import { revalidatePublicEventPaths } from "@/lib/revalidate-public";
+import { normalizeQuizTypeLabel } from "@/lib/quiz-type";
 
 import {
   deleteStoredQuiz,
@@ -58,7 +59,8 @@ export async function GET(_req: NextRequest, { params }: { params: { slug: strin
 
 export async function PUT(req: NextRequest, { params }: { params: { slug: string; date: string } }) {
 
-  const { date: newDate, teams }: { date: string; teams: TeamEntry[] } = await req.json();
+  const body = await req.json();
+  const { date: newDate, teams }: { date: string; teams: TeamEntry[] } = body;
 
   const validTeams = teams.filter((t) => t.name.trim());
 
@@ -82,6 +84,7 @@ export async function PUT(req: NextRequest, { params }: { params: { slug: string
 
   const { sorted, teamsDetail, winnerTeam, winnerTotal } = buildQuizTeamsDetail(validTeams);
   const playerCount = teamsDetail.reduce((sum, team) => sum + (team.players ?? 0), 0);
+  const quizType = normalizeQuizTypeLabel(body.quizType) || existing.result.quizType;
 
   const quizId = existing.result.id ?? normalizeDateKey(existing.result.date);
 
@@ -96,6 +99,7 @@ export async function PUT(req: NextRequest, { params }: { params: { slug: string
       points: winnerTotal,
       teams: teamsDetail,
       libraryQuizId: existing.result.libraryQuizId,
+      ...(quizType ? { quizType } : {}),
     });
   } catch (error) {
     console.error("upsertStoredQuiz PUT error:", error);
@@ -182,6 +186,7 @@ export async function PUT(req: NextRequest, { params }: { params: { slug: string
         teams: teamsDetail,
         leagueSynced: true,
         libraryQuizId: existing.result.libraryQuizId,
+        ...(quizType ? { quizType } : {}),
         ...(playerCount > 0 ? { playerCount } : {}),
       };
 

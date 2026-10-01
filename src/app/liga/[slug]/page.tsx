@@ -60,6 +60,7 @@ export default function LigaDetailPage({ params }: { params: { slug: string } })
                   <div className="flex items-center gap-2 min-w-0">
                     <Calendar className="w-4 h-4 text-brand-orange-readable shrink-0" />
                     <span className="font-semibold text-brand-text text-sm">{r.date}</span>
+                    <span className="text-brand-muted text-xs truncate">{r.quizType?.trim() || "Všeobecný kvíz"}</span>
                   </div>
                   <div className="min-w-0">
                     <span className="text-brand-muted text-sm hidden sm:inline">víťaz </span>

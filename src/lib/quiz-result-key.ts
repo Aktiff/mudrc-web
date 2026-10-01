@@ -59,6 +59,7 @@ export function mergePastResults(local: PastResult[], server: PastResult[]): Pas
       ...r,
       teams: pickTeams(existing, r),
       playerCount: r.playerCount ?? existing.playerCount,
+      quizType: r.quizType?.trim() || existing.quizType,
     });
   };
 

@@ -7,6 +7,8 @@ export type QuizEvent = {
   date: string;
   time: string;
   entryFee: number;
+  /** Typ aktuálneho kvízu v podniku, napr. Hudobný kvíz. História má typ na každom výsledku. */
+  quizType?: string;
   maxPlayers: number;
   minPlayers: number;
   rounds: number;
@@ -60,6 +62,8 @@ export type PastResult = {
   teams?: PastResultTeam[];
   /** Súčet hráčov, keď nie je rozpísaný po tímoch. */
   playerCount?: number;
+  /** Typ tohto odohraného kvízu. Prázdne znamená všeobecný kvíz. */
+  quizType?: string;
   /** Detailný kvíz už započítaný v leagueTable (aby sa pri obnove / prepočte nezdvojil). */
   leagueSynced?: boolean;
   /** Odkaz na hotový kvíz z knižnice (recyklácia otázok). */
