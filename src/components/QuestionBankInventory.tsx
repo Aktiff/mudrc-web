@@ -473,8 +473,8 @@ export default function QuestionBankInventory({
                 <li key={clip.id} className="rounded-xl border border-brand-border p-3 space-y-2">
                   <p className="text-sm font-semibold">{clip.label}</p>
                   <p className="text-xs text-brand-muted">Odpoveď: {clip.answer}</p>
+                  <BankMediaPreview src={clip.audioUrl} kind="audio" />
                   <div className="flex flex-wrap gap-2">
-                    <BankMediaPreview src={clip.audioUrl} kind="audio" />
                     <button type="button" onClick={() => setEditSound(clip)} className="btn-outline text-xs py-1.5 px-2 inline-flex items-center gap-1">
                       <Pencil className="w-3 h-3" /> Upraviť
                     </button>
@@ -497,8 +497,8 @@ export default function QuestionBankInventory({
                 <li key={clip.id} className="rounded-xl border border-brand-border p-3 space-y-2">
                   <p className="text-sm font-semibold">{clip.label}</p>
                   <p className="text-xs text-brand-muted">Odpoveď: {clip.answer}</p>
+                  <BankMediaPreview src={clip.videoUrl} kind="video" />
                   <div className="flex flex-wrap gap-2">
-                    <BankMediaPreview src={clip.videoUrl} kind="video" />
                     <button type="button" onClick={() => setEditVideo(clip)} className="btn-outline text-xs py-1.5 px-2 inline-flex items-center gap-1">
                       <Pencil className="w-3 h-3" /> Upraviť
                     </button>
@@ -532,8 +532,8 @@ export default function QuestionBankInventory({
                   {" · "}
                   Dekáda: <span className="text-brand-text">{meta.decade}</span>
                 </p>
+                <BankMediaPreview src={track.audioUrl} kind="audio" />
                 <div className="flex flex-wrap gap-2">
-                  <BankMediaPreview src={track.audioUrl} kind="audio" />
                   <button
                     type="button"
                     disabled={refreshingTagId === track.id}
