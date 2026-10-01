@@ -14,6 +14,12 @@ export const roundLabels: Record<number, string> = {
   4: "5 otázok + 5 zvukových ukážok (koniec kola)",
 };
 
+/** Číslo, ktoré vidíš v editore a na projektore. Hudba v 4. kole pokračuje ako 6–10. */
+export function displayQuestionNumber(question: Pick<QuizQuestionItem, "kind" | "questionNumber">): number {
+  if (question.kind === "music") return MUDRC_ROUND4_NORMAL + question.questionNumber;
+  return question.questionNumber;
+}
+
 /** Hudba = samostatná skupina na konci 4. kola; ostatné typy zdieľajú číslovanie v kole. */
 export function questionRenumberGroupKey(q: QuizQuestionItem): string {
   if (q.kind === "music") return `${q.roundNumber}-music`;

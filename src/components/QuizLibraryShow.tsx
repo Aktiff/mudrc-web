@@ -15,6 +15,7 @@ import { Maximize2, X } from "lucide-react";
 import type { QuizEvent } from "@/lib/data";
 import { playbackMediaSrc } from "@/lib/media-url";
 import { attachVolumeWheel } from "@/lib/media-volume";
+import { displayQuestionNumber } from "@/lib/quiz-template";
 import { VolumeAudio, VolumeVideo } from "@/components/VolumeMedia";
 import { visibleRuleTexts } from "@/lib/quiz-rules";
 import type { QuizLibraryItem, QuizQuestionItem } from "@/lib/quiz-library";
@@ -954,7 +955,7 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
             <span
               className={`font-display ${badgeTimer.textClass} text-black tabular-nums leading-none [font-variant-numeric:tabular-nums]`}
             >
-              {activeQuestion.questionNumber}
+              {displayQuestionNumber(activeQuestion)}
             </span>
           </div>
         </div>
@@ -975,6 +976,16 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
 
       <PresentationZoomLayer
         slideKey={slideKey}
+        wheelMode={
+          activeQuestion &&
+          (activeQuestion.kind === "music" ||
+            activeQuestion.kind === "sound" ||
+            activeQuestion.kind === "video" ||
+            Boolean(activeQuestion.audioUrl?.trim()) ||
+            Boolean(activeQuestion.videoUrl?.trim()))
+            ? "volume"
+            : "zoom"
+        }
         className="relative z-[2] flex-1 flex min-h-0 w-full"
         innerClassName="min-h-0"
         onBackgroundClick={handleStageClick}

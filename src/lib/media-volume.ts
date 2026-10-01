@@ -62,23 +62,29 @@ export function bumpMediaVolume(delta: number) {
   setMediaVolume(getMediaVolume() + delta, { snap: true, user: true });
 }
 
+/** Koliesko hore pridá hlasitosť, dole ju uberá. Vráti zvyšok akumulátora. */
+export function consumeVolumeWheel(acc: number, event: WheelEvent): number {
+  let pixels = event.deltaY;
+  if (event.deltaMode === 1) pixels *= 16;
+  else if (event.deltaMode === 2) pixels *= 800;
+  acc += pixels;
+  const notch = 80;
+  let delta = 0;
+  while (Math.abs(acc) >= notch) {
+    delta += acc > 0 ? -0.05 : 0.05;
+    acc -= Math.sign(acc) * notch;
+  }
+  if (delta !== 0) bumpMediaVolume(delta);
+  return acc;
+}
+
 /** Koliesko hore pridá hlasitosť, dole ju uberá. Jeden krok je 5 %. */
 export function attachVolumeWheel(target: HTMLElement): () => void {
   let acc = 0;
   const onWheel = (event: WheelEvent) => {
     event.preventDefault();
     event.stopPropagation();
-    let pixels = event.deltaY;
-    if (event.deltaMode === 1) pixels *= 16;
-    else if (event.deltaMode === 2) pixels *= 800;
-    acc += pixels;
-    const notch = 80;
-    let delta = 0;
-    while (Math.abs(acc) >= notch) {
-      delta += acc > 0 ? -0.05 : 0.05;
-      acc -= Math.sign(acc) * notch;
-    }
-    if (delta !== 0) bumpMediaVolume(delta);
+    acc = consumeVolumeWheel(acc, event);
   };
   target.addEventListener("wheel", onWheel, { passive: false });
   return () => target.removeEventListener("wheel", onWheel);

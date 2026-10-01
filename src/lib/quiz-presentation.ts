@@ -1,6 +1,6 @@
 import { resolveMediaSrc } from "@/lib/media-url";
 import type { QuizQuestionItem } from "@/lib/quiz-library";
-import { compareQuizQuestions, roundLabels } from "@/lib/quiz-template";
+import { compareQuizQuestions, displayQuestionNumber, roundLabels } from "@/lib/quiz-template";
 
 export type PresentationSlide =
   | { type: "rules" }
@@ -150,7 +150,7 @@ export function findSlideIndexForQuestionInRound(
 
 export function questionPhaseTitle(question: QuizQuestionItem): string {
   if (question.kind === "music") {
-    return `K${question.roundNumber} · Hudba ${question.questionNumber}`;
+    return `K${question.roundNumber} · Otázka ${displayQuestionNumber(question)}`;
   }
   if (question.kind === "sound") {
     return `K${question.roundNumber} · Zvuk ${question.questionNumber}`;

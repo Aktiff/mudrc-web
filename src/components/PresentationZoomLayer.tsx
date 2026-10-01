@@ -11,6 +11,7 @@ import {
   type ReactNode,
 } from "react";
 import { PRESENTATION_FEATURES } from "@/lib/presentation-features";
+import { consumeVolumeWheel } from "@/lib/media-volume";
 
 function manualZoomLimits() {
   const { manualZoomOut, minManualZoomScale, maxManualZoomScale } = PRESENTATION_FEATURES;
@@ -36,6 +37,8 @@ type Props = {
   onBackgroundClick?: (e: MouseEvent<HTMLDivElement>) => void;
   /** Stredné tlačidlo myši (napr. play/pause audia na slide). */
   onMiddleClick?: (e: MouseEvent<HTMLDivElement>) => void;
+  /** zoom = textové slidy, volume = otázka s nahrávkou (koliesko nemení veľkosť). */
+  wheelMode?: "zoom" | "volume";
 };
 
 export default function PresentationZoomLayer({
@@ -45,9 +48,12 @@ export default function PresentationZoomLayer({
   children,
   onBackgroundClick,
   onMiddleClick,
+  wheelMode = "zoom",
 }: Props) {
   const [transform, setTransform] = useState({ scale: 1, x: 0, y: 0 });
   const viewportRef = useRef<HTMLDivElement>(null);
+  const wheelModeRef = useRef(wheelMode);
+  wheelModeRef.current = wheelMode;
   const scaleRef = useRef(1);
   const transformRef = useRef(transform);
   const dragRef = useRef<{
@@ -74,9 +80,14 @@ export default function PresentationZoomLayer({
     const el = viewportRef.current;
     if (!el) return;
 
+    let acc = 0;
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
       e.stopPropagation();
+      if (wheelModeRef.current === "volume") {
+        acc = consumeVolumeWheel(acc, e);
+        return;
+      }
       const { min: MIN_SCALE, max: MAX_SCALE } = manualZoomLimits();
       setTransform((prev) => {
         const factor = Math.exp(-e.deltaY * 0.0011);

@@ -30,6 +30,7 @@ import {
   removeQuestion,
   roundLabels,
   sortQuizQuestions,
+  displayQuestionNumber,
 } from "@/lib/quiz-template";
 import { buildPresentationSlides } from "@/lib/quiz-presentation";
 import QuizQuestionBankPanel from "@/components/QuizQuestionBankPanel";
@@ -725,7 +726,7 @@ export default function QuizLibraryEditor({ quizId }: Props) {
         : prev
     );
     setMsg({
-      text: `Prázdna otázka vložená za č. ${afterQuestionNumber} — doplni ju z banky alebo ručne.`,
+      text: `Prázdna otázka vložená za č. ${displayQuestionNumber({ kind, questionNumber: afterQuestionNumber })} — doplni ju z banky alebo ručne.`,
       ok: true,
     });
   };
@@ -734,14 +735,7 @@ export default function QuizLibraryEditor({ quizId }: Props) {
     const question = questions.find((q) => q.id === questionId);
     if (!question) return;
 
-    const label =
-      question.kind === "music"
-        ? `zvukovú ukážku (koniec kola) ${question.questionNumber}`
-        : question.kind === "sound"
-          ? `zvukovú ukážku ${question.questionNumber}`
-          : question.kind === "video"
-            ? `video ukážku ${question.questionNumber}`
-            : `otázku ${question.questionNumber}`;
+    const label = `otázku ${displayQuestionNumber(question)}`;
     const bankNote = question.bankQuestionId ? " Otázka z banky bude znova dostupná." : "";
 
     if (!window.confirm(`Naozaj zmazať ${label}?${bankNote}`)) return;
@@ -1030,13 +1024,11 @@ export default function QuizLibraryEditor({ quizId }: Props) {
                   <GripVertical className="w-4 h-4 shrink-0" />
                 </button>
                 <span className="text-xs font-bold uppercase tracking-wider text-brand-orange-readable bg-brand-tint px-2.5 py-1 rounded-lg">
-                  {question.kind === "music"
-                    ? `Zvuk · koniec kola ${question.questionNumber}`
-                    : question.kind === "sound"
-                      ? `Zvuk ${question.questionNumber}`
-                      : question.kind === "video"
-                        ? `Video ${question.questionNumber}`
-                        : `Otázka ${question.questionNumber}`}
+                  {question.kind === "sound"
+                    ? `Zvuk ${displayQuestionNumber(question)}`
+                    : question.kind === "video"
+                      ? `Video ${displayQuestionNumber(question)}`
+                      : `Otázka ${displayQuestionNumber(question)}`}
                 </span>
               </div>
               <div className="flex items-center gap-1 shrink-0">

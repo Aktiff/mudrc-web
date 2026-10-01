@@ -16,7 +16,7 @@ import {
   isQuestionSlotEmpty,
   type QuizQuestionItem,
 } from "@/lib/quiz-library";
-import { compareQuizQuestions } from "@/lib/quiz-template";
+import { compareQuizQuestions, displayQuestionNumber } from "@/lib/quiz-template";
 import {
   applyBankQuestionOrder,
   bankQuestionTagScore,
@@ -132,13 +132,9 @@ type Props = {
 const OPTION_LETTERS = ["A", "B", "C", "D", "E", "F"] as const;
 const EMPTY_USED_BODIES: string[] = [];
 
-function contentSlotLabel(q: QuizQuestionItem, openRound: number): string {
-  const base =
-    openRound === 4 && q.kind === "music"
-      ? `Zvuk · koniec kola ${q.questionNumber}`
-      : `Ot. ${q.questionNumber}`;
-  const kindHint =
-    q.kind === "sound" ? " · zvuk" : q.kind === "video" ? " · video" : q.kind === "music" ? "" : "";
+function contentSlotLabel(q: QuizQuestionItem, _openRound: number): string {
+  const base = `Ot. ${displayQuestionNumber(q)}`;
+  const kindHint = q.kind === "sound" ? " · zvuk" : q.kind === "video" ? " · video" : "";
   return `${base}${kindHint}${isQuestionSlotEmpty(q) ? " · prázdna" : " · obsadená"}`;
 }
 
