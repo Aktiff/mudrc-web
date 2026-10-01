@@ -1,3 +1,5 @@
+import type { StoredQuizRule } from "@/lib/quiz-rules";
+
 export type QuizEvent = {
   slug: string;
   venue: string;
@@ -11,7 +13,7 @@ export type QuizEvent = {
   quizType?: string;
   /** Tematický kvíz má nad bežnými pravidlami vlastné špeciálne pravidlá. */
   thematic?: boolean;
-  specialRules?: string[];
+  specialRules?: StoredQuizRule[];
   maxPlayers: number;
   minPlayers: number;
   rounds: number;
@@ -24,7 +26,7 @@ export type QuizEvent = {
   /** Propagačný checklist viazaný na dátum tejto udalosti. */
   promoChecklist?: EventPromoChecklist;
   imageUrl?: string;
-  rules?: string[];
+  rules?: StoredQuizRule[];
   leagueTable: LeagueEntry[];
   pastResults: PastResult[];
 };

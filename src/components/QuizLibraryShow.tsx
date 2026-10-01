@@ -14,6 +14,7 @@ import {
 import { Maximize2, X } from "lucide-react";
 import type { QuizEvent } from "@/lib/data";
 import { playbackMediaSrc } from "@/lib/media-url";
+import { visibleRuleTexts } from "@/lib/quiz-rules";
 import type { QuizLibraryItem, QuizQuestionItem } from "@/lib/quiz-library";
 import {
   bestPresentationImageUrl,
@@ -539,10 +540,8 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
   );
 
   const selectedEvent = events.find((event) => event.slug === eventSlug);
-  const eventRules = selectedEvent?.rules?.filter(Boolean) ?? [];
-  const specialRules = selectedEvent?.thematic
-    ? (selectedEvent.specialRules ?? []).map((rule) => rule.trim()).filter(Boolean)
-    : [];
+  const eventRules = visibleRuleTexts(selectedEvent?.rules);
+  const specialRules = selectedEvent?.thematic ? visibleRuleTexts(selectedEvent.specialRules) : [];
   const venueName = selectedEvent ? `${selectedEvent.venue} · ${selectedEvent.city}` : "";
   const slide = slides[index];
   const progress = slides.length ? ((index + 1) / slides.length) * 100 : 0;

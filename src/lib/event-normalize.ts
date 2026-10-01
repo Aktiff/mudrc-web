@@ -1,4 +1,5 @@
 import type { QuizEvent } from "@/lib/data";
+import { normalizeQuizRules } from "@/lib/quiz-rules";
 import { DEFAULT_REGION, isRegionSlug } from "@/lib/regions";
 
 export function slugifyEvent(text: string): string {
@@ -25,7 +26,7 @@ export function normalizeNewEvent(body: Partial<QuizEvent> & { venue?: string })
     entryFee: Number(body.entryFee) || 0,
     quizType: String(body.quizType ?? "").trim(),
     thematic: body.thematic === true,
-    specialRules: Array.isArray(body.specialRules) ? body.specialRules.map(String) : [],
+    specialRules: normalizeQuizRules(body.specialRules),
     maxPlayers: Number(body.maxPlayers) || 8,
     minPlayers: Number(body.minPlayers) || 2,
     rounds: Number(body.rounds) || 4,
@@ -35,7 +36,7 @@ export function normalizeNewEvent(body: Partial<QuizEvent> & { venue?: string })
     leagueActive: body.leagueActive !== false,
     registrationOpen: body.registrationOpen !== false,
     imageUrl: String(body.imageUrl ?? "").trim(),
-    rules: Array.isArray(body.rules) ? body.rules.map(String) : [],
+    rules: normalizeQuizRules(body.rules),
     leagueTable: Array.isArray(body.leagueTable) ? body.leagueTable : [],
     pastResults: Array.isArray(body.pastResults) ? body.pastResults : [],
   };

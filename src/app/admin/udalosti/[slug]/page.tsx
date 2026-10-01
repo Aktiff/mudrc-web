@@ -20,6 +20,7 @@ import RegistrationPlayersStepper from "@/components/admin/RegistrationPlayersSt
 import QuizTypeField from "@/components/admin/QuizTypeField";
 import { DEFAULT_QUIZ_TYPE, normalizeQuizTypeLabel, quizTypeOrDefault, rememberQuizTypes, venueQuizLabel } from "@/lib/quiz-type";
 import { RuleListEditor } from "@/components/admin/RuleListEditor";
+import { normalizeQuizRules } from "@/lib/quiz-rules";
 import {
   CANVAS_LIBRARY_QUIZ_ID,
   isAssignedLibraryQuiz,
@@ -56,6 +57,8 @@ function normalizeEvent(ev: QuizEvent): QuizEvent {
     leagueActive: ev.leagueActive === false ? false : true,
     registrationOpen: ev.registrationOpen === false ? false : true,
     leagueTable: sortLeagueTable(ev.leagueTable ?? []),
+    rules: normalizeQuizRules(ev.rules),
+    specialRules: normalizeQuizRules(ev.specialRules),
   };
 }
 
@@ -1747,9 +1750,9 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
           {form.thematic && (
             <div>
               <h2 className="font-semibold text-brand-text mb-1">Špeciálne pravidlá</h2>
-              <p className="text-brand-muted text-sm mb-4">Platia len pre tento tematický kvíz a na webe sú nad bežnými pravidlami. Poradie zmeníš šípkami alebo pretiahnutím.</p>
+              <p className="text-brand-muted text-sm mb-4">Platia len pre tento tematický kvíz a na webe sú nad bežnými pravidlami. Poradie zmeníš šípkami alebo pretiahnutím. Skryté pravidlo na webe nie je, kým ho znova nezapneš.</p>
               <RuleListEditor
-                rules={form.specialRules ?? []}
+                rules={normalizeQuizRules(form.specialRules)}
                 onChange={(specialRules) => set("specialRules", specialRules)}
                 placeholder="Špeciálne pravidlo..."
                 addLabel="Pridať špeciálne pravidlo"
@@ -1758,9 +1761,9 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
             </div>
           )}
           <div>
-          <p className="text-brand-muted text-sm mb-4">Bežné pravidlá. Poradie zmeníš šípkami alebo pretiahnutím.</p>
+          <p className="text-brand-muted text-sm mb-4">Bežné pravidlá. Poradie zmeníš šípkami alebo pretiahnutím. Skryté pravidlo na webe nie je, kým ho znova nezapneš.</p>
           <RuleListEditor
-            rules={form.rules ?? []}
+            rules={normalizeQuizRules(form.rules)}
             onChange={(rules) => set("rules", rules)}
             placeholder="Text pravidla..."
             addLabel="Pridať pravidlo"

@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, ChevronUp, GripVertical, Plus, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronUp, Eye, EyeOff, GripVertical, Plus, Trash2 } from "lucide-react";
+import type { QuizRule } from "@/lib/quiz-rules";
 
-function moveToIndex(items: string[], from: number, to: number): string[] {
+function moveToIndex(items: QuizRule[], from: number, to: number): QuizRule[] {
   if (from === to || from < 0 || to < 0 || from >= items.length || to >= items.length) return items;
   const next = [...items];
   const [item] = next.splice(from, 1);
@@ -18,8 +19,8 @@ export function RuleListEditor({
   addLabel,
   emptyLabel,
 }: {
-  rules: string[];
-  onChange: (rules: string[]) => void;
+  rules: QuizRule[];
+  onChange: (rules: QuizRule[]) => void;
   placeholder: string;
   addLabel: string;
   emptyLabel: string;
@@ -53,7 +54,7 @@ export function RuleListEditor({
               move(from, i);
               setDragIndex(null);
             }}
-            className={`flex items-center gap-2 rounded-xl ${dragIndex === i ? "opacity-60" : ""}`}
+            className={`flex items-center gap-2 rounded-xl ${dragIndex === i ? "opacity-60" : ""} ${rule.hidden ? "opacity-60" : ""}`}
           >
             <button
               type="button"
@@ -71,11 +72,27 @@ export function RuleListEditor({
             </button>
             <span className="text-brand-muted-light text-sm w-5 text-right shrink-0">{i + 1}.</span>
             <input
-              className="input text-sm py-2 flex-1"
-              value={rule}
-              onChange={(e) => onChange(rules.map((item, idx) => (idx === i ? e.target.value : item)))}
+              className={`input text-sm py-2 flex-1 ${rule.hidden ? "line-through text-brand-muted" : ""}`}
+              value={rule.text}
+              onChange={(e) =>
+                onChange(rules.map((item, idx) => (idx === i ? { ...item, text: e.target.value } : item)))
+              }
               placeholder={placeholder}
             />
+            <button
+              type="button"
+              onClick={() =>
+                onChange(rules.map((item, idx) => (idx === i ? { ...item, hidden: !item.hidden } : item)))
+              }
+              className={`p-1.5 rounded-lg border shrink-0 transition-colors ${
+                rule.hidden
+                  ? "border-brand-orange text-brand-orange-readable bg-brand-tint"
+                  : "border-brand-border text-brand-muted hover:text-brand-text hover:border-brand-orange"
+              }`}
+              title={rule.hidden ? "Znova zobraziť pravidlo" : "Dočasne skryť pravidlo"}
+            >
+              {rule.hidden ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+            </button>
             <button
               type="button"
               disabled={i === 0}
@@ -105,7 +122,7 @@ export function RuleListEditor({
           </div>
         ))}
       </div>
-      <button type="button" onClick={() => onChange([...rules, ""])} className="btn-outline text-sm py-2 px-4 w-full justify-center">
+      <button type="button" onClick={() => onChange([...rules, { text: "" }])} className="btn-outline text-sm py-2 px-4 w-full justify-center">
         <Plus className="w-4 h-4" /> {addLabel}
       </button>
     </div>

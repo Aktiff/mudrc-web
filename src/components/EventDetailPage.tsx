@@ -19,6 +19,7 @@ import type { RegionSlug } from "@/lib/regions";
 import { getRegion } from "@/lib/regions";
 import { mediaUrlForBrowser } from "@/lib/media-url";
 import { venueQuizLabel } from "@/lib/quiz-type";
+import { visibleRuleTexts } from "@/lib/quiz-rules";
 import Breadcrumbs from "@/components/Breadcrumbs";
 import RegistrationAction from "@/components/RegistrationAction";
 import RegistrationModal from "./RegistrationModal";
@@ -38,10 +39,8 @@ type EventDetailPageProps = {
 
 export default function EventDetailPage({ event, region, pollHref }: EventDetailPageProps) {
   const [showModal, setShowModal] = useState(false);
-  const rules = (event.rules ?? []).map((rule) => rule.trim()).filter(Boolean);
-  const specialRules = event.thematic
-    ? (event.specialRules ?? []).map((rule) => rule.trim()).filter(Boolean)
-    : [];
+  const rules = visibleRuleTexts(event.rules);
+  const specialRules = event.thematic ? visibleRuleTexts(event.specialRules) : [];
   const venueTitle = venueQuizLabel(event.venue, event.quizType);
   const regionConfig = getRegion(region)!;
   const leagueTable = event.leagueTable ?? [];
