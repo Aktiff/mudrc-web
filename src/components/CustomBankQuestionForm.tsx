@@ -102,7 +102,7 @@ export default function CustomBankQuestionForm({ onAdded }: Props) {
 
       resetForm();
       setSuccess(
-        `Otázka uložená do banky (aj na serveri). Tagy: ${created.tags.join(", ")}${tagsText.trim() ? "" : " (doplnené automaticky)"}.`
+        `Otázka je uložená v banke. Tagy: ${created.tags.join(", ")}${tagsText.trim() ? "" : " (doplnené automaticky)"}.`
       );
       onAdded?.();
       window.setTimeout(() => setSuccess(""), 5000);

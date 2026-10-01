@@ -36,9 +36,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Chýba text otázky" }, { status: 400 });
     }
 
-    const created = await addStoredCustomBankQuestion(input);
-    const questions = await readStoredCustomBankQuestions();
-    return NextResponse.json({ ok: true, question: created, questions });
+    const { question, questions } = await addStoredCustomBankQuestion(input);
+    return NextResponse.json({ ok: true, question, questions });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Chyba pri ukladaní otázky";
     return NextResponse.json({ error: message }, { status: 500 });

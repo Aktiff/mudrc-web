@@ -61,13 +61,54 @@ export async function writeStoredCustomBankQuestions(questions: CustomBankQuesti
   });
 }
 
+let bankWriteQueue: Promise<void> = Promise.resolve();
+
+function enqueueBankWrite<T>(job: () => Promise<T>): Promise<T> {
+  const run = bankWriteQueue.then(job, job);
+  bankWriteQueue = run.then(
+    () => undefined,
+    () => undefined
+  );
+  return run;
+}
+
+/** Zapíše celý zoznam a znova ho prečíta. Keď medzitým prišiel iný zápis, skúsi to znova. */
+async function mutateStoredCustomBank(
+  mutate: (current: CustomBankQuestion[]) => CustomBankQuestion[]
+): Promise<CustomBankQuestion[]> {
+  return enqueueBankWrite(async () => {
+    let lastError: Error | null = null;
+    for (let attempt = 0; attempt < 6; attempt++) {
+      const current = await readStoredCustomBankQuestions();
+      const next = mutate(current);
+      try {
+        await writeStoredCustomBankQuestions(next);
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error("Uloženie banky zlyhalo");
+        continue;
+      }
+      const after = await readStoredCustomBankQuestions();
+      const afterIds = new Set(after.map((question) => question.id));
+      if (next.every((question) => afterIds.has(question.id))) return after;
+    }
+    throw lastError ?? new Error("Otázku sa nepodarilo uložiť. Skús to znova.");
+  });
+}
+
 export async function addStoredCustomBankQuestion(
   input: NewCustomBankQuestionInput
-): Promise<CustomBankQuestion> {
+): Promise<{ question: CustomBankQuestion; questions: CustomBankQuestion[] }> {
   const item = createCustomBankQuestion(input);
-  const existing = await readStoredCustomBankQuestions();
-  await writeStoredCustomBankQuestions([item, ...existing.filter((q) => q.id !== item.id)]);
-  return item;
+  if (!item.body.trim() || !item.answer.trim()) {
+    throw new Error("Chýba text otázky alebo správna odpoveď");
+  }
+  const questions = await mutateStoredCustomBank((current) => [
+    item,
+    ...current.filter((question) => question.id !== item.id),
+  ]);
+  const saved = questions.find((question) => question.id === item.id);
+  if (!saved) throw new Error("Otázku sa nepodarilo uložiť. Skús to znova.");
+  return { question: saved, questions };
 }
 
 export async function updateStoredCustomBankQuestion(
@@ -77,34 +118,32 @@ export async function updateStoredCustomBankQuestion(
   if (!isCustomBankQuestionId(id)) throw new Error("NOT_FOUND");
   if (!input?.body?.trim()) throw new Error("Chýba text otázky");
 
-  const existing = await readStoredCustomBankQuestions();
-  const current = existing.find((q) => q.id === id);
-  if (!current) throw new Error("NOT_FOUND");
-
-  const updated = applyCustomBankQuestionUpdate(current, input);
-  await writeStoredCustomBankQuestions(
-    existing.map((q) => (q.id === id ? updated : q))
-  );
-  return updated;
+  const questions = await mutateStoredCustomBank((existing) => {
+    const current = existing.find((q) => q.id === id);
+    if (!current) throw new Error("NOT_FOUND");
+    const updated = applyCustomBankQuestionUpdate(current, input);
+    return existing.map((q) => (q.id === id ? updated : q));
+  });
+  const saved = questions.find((q) => q.id === id);
+  if (!saved) throw new Error("NOT_FOUND");
+  return saved;
 }
 
 export async function removeStoredCustomBankQuestion(id: string): Promise<boolean> {
-  const existing = await readStoredCustomBankQuestions();
-  const next = existing.filter((q) => q.id !== id);
-  if (next.length === existing.length) return false;
-  await writeStoredCustomBankQuestions(next);
+  const before = await readStoredCustomBankQuestions();
+  if (!before.some((question) => question.id === id)) return false;
+  await mutateStoredCustomBank((existing) => existing.filter((question) => question.id !== id));
   return true;
 }
 
 export async function mergeStoredCustomBankQuestions(incoming: CustomBankQuestion[]): Promise<CustomBankQuestion[]> {
-  const existing = await readStoredCustomBankQuestions();
-  const byId = new Map<string, CustomBankQuestion>();
-  for (const item of existing) byId.set(item.id, item);
-  for (const item of incoming) {
-    const normalized = normalizeStoredCustomQuestion(item);
-    if (normalized && !byId.has(normalized.id)) byId.set(normalized.id, normalized);
-  }
-  const merged = Array.from(byId.values()).sort((a, b) => b.createdAt - a.createdAt);
-  await writeStoredCustomBankQuestions(merged);
-  return merged;
+  return mutateStoredCustomBank((existing) => {
+    const byId = new Map<string, CustomBankQuestion>();
+    for (const item of existing) byId.set(item.id, item);
+    for (const item of incoming) {
+      const normalized = normalizeStoredCustomQuestion(item);
+      if (normalized && !byId.has(normalized.id)) byId.set(normalized.id, normalized);
+    }
+    return Array.from(byId.values());
+  });
 }

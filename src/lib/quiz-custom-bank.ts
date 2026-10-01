@@ -196,6 +196,18 @@ export function addCustomBankQuestion(input: NewCustomBankQuestionInput): Custom
 }
 
 const CUSTOM_BANK_SYNC_FLAG = "mudrc-custom-bank-synced-v1";
+let customBankSync: Promise<void> | null = null;
+
+export function ensureCustomBankSynced(): Promise<void> {
+  if (typeof window === "undefined") return Promise.resolve();
+  if (!customBankSync) {
+    customBankSync = syncLocalCustomBankToServerOnce().catch((error) => {
+      customBankSync = null;
+      throw error;
+    });
+  }
+  return customBankSync;
+}
 
 export async function syncLocalCustomBankToServerOnce(): Promise<void> {
   if (typeof window === "undefined") return;
@@ -207,28 +219,24 @@ export async function syncLocalCustomBankToServerOnce(): Promise<void> {
     return;
   }
 
-  try {
-    const res = await fetch("/api/admin/custom-bank", {
-      method: "POST",
-      cache: "no-store",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ merge: true, questions: local }),
-    });
-    if (res.ok) {
-      const data = await res.json();
-      if (Array.isArray(data.questions)) {
-        writeCustomBankQuestions(parseCustomBankQuestionList(data.questions));
-      }
-    }
-  } catch {
-    /* sync zlyhal — zostane localStorage */
-  } finally {
-    window.sessionStorage.setItem(CUSTOM_BANK_SYNC_FLAG, "1");
+  const res = await fetch("/api/admin/custom-bank", {
+    method: "POST",
+    cache: "no-store",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ merge: true, questions: local }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(typeof data.error === "string" ? data.error : "Synchronizácia banky zlyhala");
   }
+  if (Array.isArray(data.questions)) {
+    writeCustomBankQuestions(parseCustomBankQuestionList(data.questions));
+  }
+  window.sessionStorage.setItem(CUSTOM_BANK_SYNC_FLAG, "1");
 }
 
 export async function fetchCustomBankQuestionsFromServer(): Promise<CustomBankQuestion[]> {
-  await syncLocalCustomBankToServerOnce();
+  await ensureCustomBankSynced().catch(() => undefined);
 
   try {
     const res = await fetch(`/api/admin/custom-bank?_=${Date.now()}`, { cache: "no-store" });
@@ -244,27 +252,27 @@ export async function fetchCustomBankQuestionsFromServer(): Promise<CustomBankQu
 }
 
 export async function addCustomBankQuestionAsync(input: NewCustomBankQuestionInput): Promise<CustomBankQuestion> {
-  try {
-    const res = await fetch("/api/admin/custom-bank", {
-      method: "POST",
-      cache: "no-store",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(input),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      throw new Error(typeof data.error === "string" ? data.error : "Uloženie zlyhalo");
-    }
-    const created = normalizeStoredCustomQuestion(data.question) ?? createCustomBankQuestion(input);
-    const questions = parseCustomBankQuestionList(
-      Array.isArray(data.questions) ? data.questions : [data.question]
-    );
-    writeCustomBankQuestions(questions);
-    notifyCustomBankUpdated();
-    return created;
-  } catch {
-    return addCustomBankQuestion(input);
+  await ensureCustomBankSynced().catch(() => undefined);
+
+  const res = await fetch("/api/admin/custom-bank", {
+    method: "POST",
+    cache: "no-store",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(typeof data.error === "string" ? data.error : "Uloženie zlyhalo");
   }
+  const created = normalizeStoredCustomQuestion(data.question);
+  if (!created) throw new Error("Uloženie zlyhalo");
+  const questions = parseCustomBankQuestionList(Array.isArray(data.questions) ? data.questions : []);
+  if (!questions.some((question) => question.id === created.id)) {
+    questions.unshift(created);
+  }
+  writeCustomBankQuestions(questions);
+  notifyCustomBankUpdated();
+  return created;
 }
 
 export async function updateCustomBankQuestionAsync(
