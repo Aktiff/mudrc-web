@@ -5,7 +5,13 @@ import { useRouter } from "next/navigation";
 import { Pencil, Trash2 } from "lucide-react";
 import { AdminDatePicker } from "@/components/AdminDatePicker";
 import { formatEuroAmount, formatSkPlayerCountTotal } from "@/lib/registration-utils";
-import type { QuizStatRow, QuizStatTeam, QuizStatVenue } from "@/lib/quiz-stats";
+import type { QuizStatRow, QuizStatTeam, QuizStatVenue, TeamQuizAppearance } from "@/lib/quiz-stats";
+
+function skCount(count: number, one: string, few: string, many: string) {
+  if (count === 1) return `1 ${one}`;
+  if (count >= 2 && count <= 4) return `${count} ${few}`;
+  return `${count} ${many}`;
+}
 
 type EditState = {
   slug: string;
@@ -19,17 +25,25 @@ type EditState = {
 export default function StatistikyBoard({
   initialRows,
   venues,
+  initialTeams,
 }: {
   initialRows: QuizStatRow[];
   venues: QuizStatVenue[];
+  initialTeams: TeamQuizAppearance[];
 }) {
   const router = useRouter();
   const [rows, setRows] = useState(initialRows);
+  const [teamRows, setTeamRows] = useState(initialTeams);
+  const [view, setView] = useState<"kvizy" | "timy">("kvizy");
   useEffect(() => {
     setRows(initialRows);
   }, [initialRows]);
+  useEffect(() => {
+    setTeamRows(initialTeams);
+  }, [initialTeams]);
   const [venueFilter, setVenueFilter] = useState("");
   const [cityFilter, setCityFilter] = useState("");
+  const [teamFilter, setTeamFilter] = useState("");
   const [editing, setEditing] = useState<EditState | null>(null);
   const [busyKey, setBusyKey] = useState("");
   const [error, setError] = useState("");
@@ -58,8 +72,36 @@ export default function StatistikyBoard({
     { players: 0, earned: 0 }
   );
 
-  const applyData = (data: { rows?: QuizStatRow[] }) => {
+  const teamNames = useMemo(() => {
+    const names = new Map<string, string>();
+    for (const row of teamRows) {
+      const key = row.teamName.toLocaleLowerCase("sk");
+      if (!names.has(key)) names.set(key, row.teamName);
+    }
+    return Array.from(names.values()).sort((a, b) => a.localeCompare(b, "sk"));
+  }, [teamRows]);
+
+  const visibleTeams = teamRows.filter((row) => {
+    if (teamFilter && row.teamName.toLocaleLowerCase("sk") !== teamFilter) return false;
+    if (venueFilter && row.venue !== venueFilter) return false;
+    if (cityFilter && row.city !== cityFilter) return false;
+    return true;
+  });
+
+  const teamGroups = useMemo(() => {
+    const groups: { teamName: string; rows: TeamQuizAppearance[] }[] = [];
+    for (const row of visibleTeams) {
+      const key = row.teamName.toLocaleLowerCase("sk");
+      const last = groups[groups.length - 1];
+      if (last && last.teamName.toLocaleLowerCase("sk") === key) last.rows.push(row);
+      else groups.push({ teamName: row.teamName, rows: [row] });
+    }
+    return groups;
+  }, [visibleTeams]);
+
+  const applyData = (data: { rows?: QuizStatRow[]; teams?: TeamQuizAppearance[] }) => {
     if (Array.isArray(data.rows)) setRows(data.rows);
+    if (Array.isArray(data.teams)) setTeamRows(data.teams);
     router.refresh();
   };
 
@@ -133,10 +175,46 @@ export default function StatistikyBoard({
     <div className="w-full min-w-0">
       <h1 className="font-display text-4xl text-brand-text tracking-wide mb-1">Štatistiky</h1>
       <p className="text-brand-muted text-sm mb-6">
-        Odohrané kvízy, počet hráčov a príjem zo vstupného. Pri starších kvízoch je počet hráčov odhad, kým ho neuložíš.
+        {view === "kvizy"
+          ? "Odohrané kvízy, počet hráčov a príjem zo vstupného. Pri starších kvízoch je počet hráčov odhad, kým ho neuložíš."
+          : "História tímov na kvízoch. Pri starších kvízoch je počet hráčov v tíme odhad, kým ho neuložíš pri kvíze."}
       </p>
 
+      <div className="inline-flex rounded-full border border-brand-border bg-brand-card p-1 mb-6">
+        <button
+          type="button"
+          onClick={() => setView("kvizy")}
+          className={`px-5 py-2 rounded-full text-sm font-semibold transition-colors ${
+            view === "kvizy" ? "bg-brand-orange text-brand-btn-fg" : "text-brand-muted hover:text-brand-text"
+          }`}
+        >
+          Kvízy
+        </button>
+        <button
+          type="button"
+          onClick={() => setView("timy")}
+          className={`px-5 py-2 rounded-full text-sm font-semibold transition-colors ${
+            view === "timy" ? "bg-brand-orange text-brand-btn-fg" : "text-brand-muted hover:text-brand-text"
+          }`}
+        >
+          Tímy
+        </button>
+      </div>
+
       <div className="flex flex-col sm:flex-row gap-3 mb-4">
+        {view === "timy" && (
+          <label className="block sm:w-64">
+            <span className="label">Tím</span>
+            <select className="input" value={teamFilter} onChange={(e) => setTeamFilter(e.target.value)}>
+              <option value="">Všetky tímy</option>
+              {teamNames.map((name) => (
+                <option key={name.toLocaleLowerCase("sk")} value={name.toLocaleLowerCase("sk")}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <label className="block sm:w-64">
           <span className="label">Podnik</span>
           <select className="input" value={venueFilter} onChange={(e) => setVenueFilter(e.target.value)}>
@@ -161,6 +239,8 @@ export default function StatistikyBoard({
         </label>
       </div>
 
+      {view === "kvizy" && (
+      <>
       <div className="bg-brand-card rounded-2xl border border-brand-border px-5 py-4 mb-4 flex flex-wrap gap-x-6 gap-y-1 text-sm">
         <span className="text-brand-muted">{visible.length} {visible.length === 1 ? "kvíz" : "kvízov"}</span>
         <span className="text-brand-muted">{formatSkPlayerCountTotal(totals.players)}</span>
@@ -314,6 +394,59 @@ export default function StatistikyBoard({
           </tbody>
         </table>
       </div>
+      </>
+      )}
+
+      {view === "timy" && (
+        <div className="space-y-4">
+          <div className="bg-brand-card rounded-2xl border border-brand-border px-5 py-4 flex flex-wrap gap-x-6 gap-y-1 text-sm">
+            <span className="text-brand-muted">{skCount(teamGroups.length, "tím", "tímy", "tímov")}</span>
+            <span className="text-brand-muted">{skCount(visibleTeams.length, "štart", "štarty", "štartov")}</span>
+          </div>
+          {teamGroups.length === 0 && (
+            <div className="bg-brand-card rounded-2xl border border-brand-border px-5 py-8 text-center text-brand-muted text-sm">
+              Žiadne tímy pre tento filter. História sa berie z kvízov, pri ktorých sú zapísané tímy.
+            </div>
+          )}
+          {teamGroups.map((group) => (
+            <section key={group.teamName.toLocaleLowerCase("sk")} className="bg-brand-card rounded-2xl border border-brand-border overflow-x-auto">
+              <div className="px-5 py-4 border-b border-brand-border">
+                <h2 className="font-display text-2xl text-brand-text tracking-wide">{group.teamName}</h2>
+                <p className="text-brand-muted text-sm mt-0.5">
+                  {skCount(group.rows.length, "kvíz", "kvízy", "kvízov")}
+                </p>
+              </div>
+              <table className="w-full min-w-[760px] text-sm">
+                <thead>
+                  <tr className="border-b border-brand-border text-left text-xs uppercase tracking-wider text-brand-muted">
+                    <th className="px-5 py-3 font-medium">Dátum</th>
+                    <th className="px-3 py-3 font-medium">Podnik</th>
+                    <th className="px-3 py-3 font-medium">Mesto</th>
+                    <th className="px-3 py-3 font-medium">Hráči v tíme</th>
+                    <th className="px-3 py-3 font-medium">Umiestnenie</th>
+                    <th className="px-5 py-3 font-medium">Tímov na kvíze</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {group.rows.map((row) => (
+                    <tr key={row.id} className="border-b border-brand-border last:border-b-0">
+                      <td className="px-5 py-4 whitespace-nowrap">{row.date}</td>
+                      <td className="px-3 py-4 font-semibold text-brand-text">{row.venue}</td>
+                      <td className="px-3 py-4 text-brand-muted">{row.city}</td>
+                      <td className="px-3 py-4">
+                        {formatSkPlayerCountTotal(row.players)}
+                        {row.playersEstimated && <span className="ml-2 text-xs text-amber-700">odhad</span>}
+                      </td>
+                      <td className="px-3 py-4 font-semibold text-brand-text">{row.place}.</td>
+                      <td className="px-5 py-4">{row.teamCount}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </section>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

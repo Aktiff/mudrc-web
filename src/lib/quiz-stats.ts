@@ -27,6 +27,18 @@ export type QuizStatRow = {
 
 export type QuizStatVenue = { slug: string; venue: string; city: string; entryFee: number };
 
+export type TeamQuizAppearance = {
+  id: string;
+  teamName: string;
+  date: string;
+  venue: string;
+  city: string;
+  players: number;
+  playersEstimated: boolean;
+  place: number;
+  teamCount: number;
+};
+
 function hashSeed(seed: string): number {
   let hash = 0;
   for (let i = 0; i < seed.length; i++) hash = (hash * 33 + seed.charCodeAt(i)) >>> 0;
@@ -95,7 +107,65 @@ export function quizStatFromResult(event: QuizEvent, result: PastResult): QuizSt
   };
 }
 
-export async function listQuizStatistics(): Promise<{ rows: QuizStatRow[]; venues: QuizStatVenue[] }> {
+function placesForTeams(teams: PastResultTeam[]): Map<string, number> {
+  const sorted = teams
+    .map((team) => ({ name: team.teamName.trim(), total: Number(team.total) || 0 }))
+    .filter((team) => team.name)
+    .sort((a, b) => b.total - a.total || a.name.localeCompare(b.name, "sk"));
+  const places = new Map<string, number>();
+  let lastTotal = Number.NaN;
+  let lastPlace = 0;
+  sorted.forEach((team, index) => {
+    const place = team.total === lastTotal ? lastPlace : index + 1;
+    lastTotal = team.total;
+    lastPlace = place;
+    const key = team.name.toLocaleLowerCase("sk");
+    if (!places.has(key)) places.set(key, place);
+  });
+  return places;
+}
+
+export function teamAppearancesFromEvents(events: QuizEvent[]): TeamQuizAppearance[] {
+  const rows: TeamQuizAppearance[] = [];
+  for (const event of events) {
+    for (const result of event.pastResults ?? []) {
+      const detailed = (result.teams ?? []).filter((team) => team.teamName.trim());
+      if (!detailed.length) continue;
+      const quizKey = quizResultKey(result);
+      const seed = `${event.slug}|${quizKey}`;
+      const places = placesForTeams(detailed);
+      detailed.forEach((team, index) => {
+        const teamName = team.teamName.trim();
+        const stored = storedTeamPlayers(team);
+        rows.push({
+          id: `${event.slug}|${quizKey}|${index}|${teamName.toLocaleLowerCase("sk")}`,
+          teamName,
+          date: result.date,
+          venue: event.venue,
+          city: event.city,
+          players: stored > 0 ? stored : suggestedTeamPlayers(teamName, seed),
+          playersEstimated: stored <= 0,
+          place: places.get(teamName.toLocaleLowerCase("sk")) ?? index + 1,
+          teamCount: detailed.length,
+        });
+      });
+    }
+  }
+  rows.sort((a, b) => {
+    const byName = a.teamName.localeCompare(b.teamName, "sk");
+    if (byName !== 0) return byName;
+    const ta = parseSkEventDateTime(a.date)?.getTime() ?? 0;
+    const tb = parseSkEventDateTime(b.date)?.getTime() ?? 0;
+    return tb - ta || a.venue.localeCompare(b.venue, "sk");
+  });
+  return rows;
+}
+
+export async function listQuizStatistics(): Promise<{
+  rows: QuizStatRow[];
+  venues: QuizStatVenue[];
+  teams: TeamQuizAppearance[];
+}> {
   const { events } = await readAllEventsRaw();
   const rows = events.flatMap((event) =>
     (event.pastResults ?? []).map((result) => quizStatFromResult(event, result))
@@ -113,7 +183,7 @@ export async function listQuizStatistics(): Promise<{ rows: QuizStatRow[]; venue
       entryFee: Number(event.entryFee) || 0,
     }))
     .sort((a, b) => a.venue.localeCompare(b.venue, "sk") || a.city.localeCompare(b.city, "sk"));
-  return { rows, venues };
+  return { rows, venues, teams: teamAppearancesFromEvents(events) };
 }
 
 async function rebuildLeague(slug: string) {
