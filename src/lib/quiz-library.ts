@@ -7,7 +7,7 @@ import {
 import { normalizeQuestionOptions, parseEmbeddedOptions } from "@/lib/quiz-question-options";
 import { normalizeTags } from "@/lib/quiz-question-tags";
 import { teamKey } from "@/lib/poll";
-import { DEFAULT_MUSIC_QUESTION_BODY } from "@/lib/music-bank";
+import { DEFAULT_MUSIC_QUESTION_BODY, ensureMusicQuestionBody } from "@/lib/music-bank";
 import { DEFAULT_SOUND_QUESTION_BODY } from "@/lib/sound-bank";
 import { DEFAULT_VIDEO_QUESTION_BODY } from "@/lib/video-bank";
 
@@ -105,7 +105,10 @@ function normalizeQuestion(input: Partial<QuizQuestionItem>): QuizQuestionItem |
     return null;
   }
 
-  let body = input.body?.trim() ?? "";
+  let body = ensureMusicQuestionBody(
+    input.kind === "music" ? "music" : "",
+    input.body?.trim() ?? ""
+  );
   let options = normalizeQuestionOptions(input.options);
 
   if (!options?.length && body) {
@@ -243,6 +246,9 @@ export function collectPlayedTeamNames(usages: QuizUsage[]): string[] {
 }
 
 export function isQuestionSlotEmpty(question: QuizQuestionItem): boolean {
+  if (question.kind === "music") {
+    return !question.answer.trim() && !question.audioUrl?.trim();
+  }
   return !question.body.trim() && !question.answer.trim();
 }
 
@@ -293,9 +299,12 @@ export function quizQuestionBodyKey(body: string | undefined | null): string {
 }
 
 const GENERIC_MEDIA_QUESTION_BODIES = new Set(
-  [DEFAULT_MUSIC_QUESTION_BODY, DEFAULT_SOUND_QUESTION_BODY, DEFAULT_VIDEO_QUESTION_BODY].map((body) =>
-    quizQuestionBodyKey(body)
-  )
+  [
+    DEFAULT_MUSIC_QUESTION_BODY,
+    "Napíš meno interpreta a názov skladby",
+    DEFAULT_SOUND_QUESTION_BODY,
+    DEFAULT_VIDEO_QUESTION_BODY,
+  ].map((body) => quizQuestionBodyKey(body))
 );
 
 /** Texty otázok, ktoré už sú v nejakom kvíze — aj keď slot nemá id z banky. */

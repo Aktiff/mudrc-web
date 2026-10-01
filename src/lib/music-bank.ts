@@ -118,7 +118,21 @@ export function createMusicBankItem(input: NewMusicBankItemInput): MusicBankItem
   };
 }
 
-export const DEFAULT_MUSIC_QUESTION_BODY = "Napíš meno interpreta a názov skladby";
+export const DEFAULT_MUSIC_QUESTION_BODY = "Napíšte meno interpreta a názov piesne";
+
+const REPLACED_MUSIC_QUESTION_BODIES = new Set(
+  ["", "napíš meno interpreta a názov skladby", "čí je to hlas?"].map((body) =>
+    body.toLocaleLowerCase("sk").replace(/\s+/g, " ")
+  )
+);
+
+/** Prázdny text alebo starý predvolený text hudobnej otázky nahradí vetou pre obecenstvo. */
+export function ensureMusicQuestionBody(kind: string, body: string): string {
+  if (kind !== "music") return body;
+  const key = body.trim().toLocaleLowerCase("sk").replace(/\s+/g, " ");
+  if (!REPLACED_MUSIC_QUESTION_BODIES.has(key)) return body;
+  return DEFAULT_MUSIC_QUESTION_BODY;
+}
 
 export function formatMusicBankHostNote(item: MusicBankItem): string {
   const parts = [`Interpret: ${item.artist}`, `Skladba: ${item.title}`, "Body: 1 + 1"];

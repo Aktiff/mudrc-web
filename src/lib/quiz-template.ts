@@ -1,6 +1,7 @@
 import type { QuizSlide } from "@/lib/quiz-deck";
 import type { QuizQuestionItem, QuizQuestionKind } from "@/lib/quiz-library";
 import { createSlideId } from "@/lib/quiz-deck";
+import { DEFAULT_MUSIC_QUESTION_BODY } from "@/lib/music-bank";
 
 export const MUDRC_ROUND_QUESTION_COUNTS = [15, 15, 15, 10] as const;
 export const MUDRC_ROUND4_NORMAL = 5;
@@ -84,7 +85,7 @@ function createEmptyQuestion(
     roundNumber,
     questionNumber,
     kind,
-    body: "",
+    body: kind === "music" ? DEFAULT_MUSIC_QUESTION_BODY : "",
     answer: "",
     imageUrl: "",
     audioUrl: "",

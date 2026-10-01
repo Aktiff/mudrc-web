@@ -38,7 +38,7 @@ import MusicBankQuestionForm from "@/components/MusicBankQuestionForm";
 import VideoBankQuestionForm from "@/components/VideoBankQuestionForm";
 import AudioUrlField from "@/components/admin/AudioUrlField";
 import VideoUrlField from "@/components/admin/VideoUrlField";
-import { type MusicBankItem } from "@/lib/music-bank";
+import { DEFAULT_MUSIC_QUESTION_BODY, type MusicBankItem } from "@/lib/music-bank";
 import { fetchMusicBankFromServer } from "@/lib/music-bank-client";
 import { DEFAULT_SOUND_QUESTION_BODY, type SoundBankItem } from "@/lib/sound-bank";
 import { addSoundBankItemAsync, fetchSoundBankFromServer } from "@/lib/sound-bank-client";
@@ -449,7 +449,7 @@ export default function QuizLibraryEditor({ quizId }: Props) {
             ? {
                 ...q,
                 kind: slotIsMusicTail ? "music" : "sound",
-                body: DEFAULT_SOUND_QUESTION_BODY,
+                body: slotIsMusicTail ? DEFAULT_MUSIC_QUESTION_BODY : DEFAULT_SOUND_QUESTION_BODY,
                 answer,
                 mediaLabel: label,
                 musicArtist: undefined,
@@ -1086,11 +1086,13 @@ export default function QuizLibraryEditor({ quizId }: Props) {
                 value={question.body}
                 onChange={(e) => updateQuestion(question.id, { body: e.target.value })}
                 placeholder={
-                  question.kind === "music" || question.kind === "sound"
-                    ? DEFAULT_SOUND_QUESTION_BODY
-                    : question.kind === "video"
-                      ? DEFAULT_VIDEO_QUESTION_BODY
-                      : "Sem napíš otázku…"
+                  question.kind === "music"
+                    ? DEFAULT_MUSIC_QUESTION_BODY
+                    : question.kind === "sound"
+                      ? DEFAULT_SOUND_QUESTION_BODY
+                      : question.kind === "video"
+                        ? DEFAULT_VIDEO_QUESTION_BODY
+                        : "Sem napíš otázku…"
                 }
               />
             </div>
