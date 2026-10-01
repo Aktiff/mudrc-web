@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ChevronDown, ChevronUp, Plus } from "lucide-react";
 import ImageUrlField from "@/components/admin/ImageUrlField";
 import { addCustomBankQuestionAsync, type CustomBankQuestion } from "@/lib/quiz-custom-bank";
+import TagSuggestInput from "@/components/TagSuggestInput";
 import { parseTagsInput } from "@/lib/quiz-question-tags";
 
 const OPTION_LETTERS = ["A", "B", "C", "D", "E", "F"] as const;
@@ -230,12 +231,13 @@ export default function CustomBankQuestionForm({ onAdded }: Props) {
             </div>
             <div>
               <label className="label">Tagy (voliteľné)</label>
-              <input
+              <TagSuggestInput
                 className="input text-sm py-2"
                 value={tagsText}
-                onChange={(e) => setTagsText(e.target.value)}
+                onChange={setTagsText}
                 placeholder="Ak necháš prázdne, doplníme ich za teba"
               />
+              <p className="text-brand-muted text-xs mt-1">Použitý tag sa uloží a nabudúce sa ponúkne pri písaní.</p>
             </div>
           </div>
 

@@ -22,6 +22,27 @@ export function parseTagsInput(raw: string): string[] | undefined {
   return normalizeTags(raw);
 }
 
+const SKIPPED_SUGGESTION_TAGS = new Set(["vlastné", "vseobecne", "všeobecné"]);
+
+function tagParts(raw: unknown): string[] {
+  if (typeof raw === "string") return raw.split(/[,;]+/);
+  if (!Array.isArray(raw)) return [];
+  return raw.map((value) => (typeof value === "string" ? value : ""));
+}
+
+/** Tagy, ktoré má zmysel pamätať a ponúkať pri písaní. Nie je to limit 8 tagov na otázku. */
+export function uniqueQuestionTags(raw: unknown): string[] {
+  const seen = new Set<string>();
+  const tags: string[] = [];
+  for (const part of tagParts(raw)) {
+    const tag = part.trim().toLowerCase();
+    if (tag.length < 2 || SKIPPED_SUGGESTION_TAGS.has(tag) || seen.has(tag)) continue;
+    seen.add(tag);
+    tags.push(tag);
+  }
+  return tags.sort((a, b) => a.localeCompare(b, "sk"));
+}
+
 export function formatTagsInput(tags: string[] | undefined): string {
   return tags?.join(", ") ?? "";
 }

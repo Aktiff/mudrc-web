@@ -42,6 +42,7 @@ src/data/venue-teams.local.json
 src/data/poll-votes.local.json
 src/data/poll-configs.local.json
 src/data/seat-plans.local.json
+src/data/used-question-tags.local.json
 
 .vercel
 .env*

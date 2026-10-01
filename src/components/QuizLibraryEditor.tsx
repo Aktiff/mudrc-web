@@ -47,6 +47,7 @@ import { addVideoBankItemAsync, fetchVideoBankFromServer } from "@/lib/video-ban
 import QuizTagStats from "@/components/QuizTagStats";
 import ImageUrlField from "@/components/admin/ImageUrlField";
 import { optionLetter } from "@/lib/quiz-question-options";
+import TagSuggestInput from "@/components/TagSuggestInput";
 import { formatTagsInput, parseTagsInput } from "@/lib/quiz-question-tags";
 import {
   clearQuizDraft,
@@ -1116,10 +1117,9 @@ export default function QuizLibraryEditor({ quizId }: Props) {
             {question.kind === "normal" && (
               <div>
                 <label className="label">Tagy (oddelené čiarkou)</label>
-                <input
-                  className="input"
+                <TagSuggestInput
                   value={formatTagsInput(question.tags)}
-                  onChange={(e) => updateQuestion(question.id, { tags: parseTagsInput(e.target.value) })}
+                  onChange={(next) => updateQuestion(question.id, { tags: parseTagsInput(next) })}
                   placeholder="história, geografia, afrika"
                 />
                 {(question.tags?.length ?? 0) > 0 && (

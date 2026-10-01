@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 import ImageUrlField from "@/components/admin/ImageUrlField";
+import TagSuggestInput from "@/components/TagSuggestInput";
 import type { CustomBankQuestion } from "@/lib/quiz-custom-bank";
 import { updateCustomBankQuestionAsync } from "@/lib/quiz-custom-bank";
 import { formatTagsInput, parseTagsInput } from "@/lib/quiz-question-tags";
@@ -259,7 +260,7 @@ export default function EditCustomBankQuestionDialog({ question, onClose, onSave
           </div>
           <div>
             <label className="label">Tagy</label>
-            <input className="input text-sm py-2" value={tagsText} onChange={(e) => setTagsText(e.target.value)} />
+            <TagSuggestInput className="input text-sm py-2" value={tagsText} onChange={setTagsText} />
           </div>
         </div>
 
