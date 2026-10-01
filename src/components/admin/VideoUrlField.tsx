@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Upload, X } from "lucide-react";
 import { playbackMediaSrc } from "@/lib/media-url";
+import { VolumeVideo } from "@/components/VolumeMedia";
 import { uploadVideoFileClient } from "@/lib/upload-video-client";
 
 type Props = {
@@ -80,8 +81,10 @@ export default function VideoUrlField({
       </p>
       {error && <p className="text-sm text-red-500 mt-1">{error}</p>}
       {value.trim() && (
-        <video
+        <VolumeVideo
+          hint
           controls
+          playsInline
           src={playbackMediaSrc(value)}
           className="w-full max-w-xl mt-2 rounded-xl border border-brand-border"
           preload="metadata"

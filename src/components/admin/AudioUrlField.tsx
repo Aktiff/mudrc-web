@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Upload, X } from "lucide-react";
 import { playbackMediaSrc } from "@/lib/media-url";
+import { VolumeAudio } from "@/components/VolumeMedia";
 import { uploadAudioFileClient } from "@/lib/upload-audio-client";
 
 type Props = {
@@ -80,7 +81,7 @@ export default function AudioUrlField({
       </p>
       {error && <p className="text-sm text-red-500 mt-1">{error}</p>}
       {value.trim() && (
-        <audio controls src={playbackMediaSrc(value)} className="w-full max-w-md mt-2" preload="metadata" />
+        <VolumeAudio hint controls src={playbackMediaSrc(value)} className="w-full max-w-md mt-2" preload="metadata" />
       )}
     </div>
   );

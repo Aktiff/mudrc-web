@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { playbackMediaSrc } from "@/lib/media-url";
+import { VolumeAudio, VolumeVideo } from "@/components/VolumeMedia";
 import { BookOpen, Check, ClipboardCopy, Pencil, Shuffle, Trash2 } from "lucide-react";
 import {
   EditMusicTrackDialog,
@@ -768,7 +769,7 @@ export default function QuizQuestionBankPanel({
                     <p className="text-sm font-semibold text-brand-text">{clip.label}</p>
                     <p className="text-sm text-brand-muted">Odpoveď: {clip.answer}</p>
                     {clip.audioUrl && (
-                      <audio controls src={playbackMediaSrc(clip.audioUrl)} className="w-full max-w-md" preload="metadata" />
+                      <VolumeAudio hint controls src={playbackMediaSrc(clip.audioUrl)} className="w-full max-w-md" preload="metadata" />
                     )}
                     {clip.note ? <p className="text-xs text-brand-muted">{clip.note}</p> : null}
                     {bankTargetSlots.length > 0 && onInsertSound ? (
@@ -824,7 +825,7 @@ export default function QuizQuestionBankPanel({
                     <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-sky-100 text-sky-900 border border-sky-200">hudba</span>
                     <p className="text-sm font-semibold text-brand-text">{track.artist} — {track.title}</p>
                     {track.audioUrl && (
-                      <audio controls src={playbackMediaSrc(track.audioUrl)} className="w-full max-w-md" preload="metadata" />
+                      <VolumeAudio hint controls src={playbackMediaSrc(track.audioUrl)} className="w-full max-w-md" preload="metadata" />
                     )}
                     <p className="text-xs text-brand-muted">
                       Jazyk: <span className="text-brand-text">{meta.language}</span>
@@ -884,8 +885,10 @@ export default function QuizQuestionBankPanel({
                   <p className="text-sm font-semibold text-brand-text">{clip.label}</p>
                   <p className="text-sm text-brand-muted">Odpoveď: {clip.answer}</p>
                   {clip.videoUrl && (
-                    <video
+                    <VolumeVideo
+                      hint
                       controls
+                      playsInline
                       src={playbackMediaSrc(clip.videoUrl)}
                       className="w-full max-w-md rounded-lg border border-brand-border"
                       preload="metadata"

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { playbackMediaSrc } from "@/lib/media-url";
+import { VolumeAudio, VolumeVideo } from "@/components/VolumeMedia";
 
 const STOP_EVENT = "mudrc-bank-preview-stop";
 
@@ -10,7 +11,7 @@ type Props = {
   kind: "audio" | "video";
 };
 
-/** Rovnaký prehrávač ako v editore kvízu: natívne audio/video controls. */
+/** Rovnaký prehrávač ako v editore kvízu, so spoločnou hlasitosťou. */
 export default function BankMediaPreview({ src, kind }: Props) {
   const url = playbackMediaSrc(src);
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -41,8 +42,9 @@ export default function BankMediaPreview({ src, kind }: Props) {
 
   if (kind === "video") {
     return (
-      <video
+      <VolumeVideo
         ref={videoRef}
+        hint
         controls
         playsInline
         preload="metadata"
@@ -52,5 +54,5 @@ export default function BankMediaPreview({ src, kind }: Props) {
     );
   }
 
-  return <audio ref={audioRef} controls preload="metadata" src={url} className="w-full max-w-md" />;
+  return <VolumeAudio ref={audioRef} hint controls preload="metadata" src={url} className="w-full max-w-md" />;
 }

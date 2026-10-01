@@ -14,6 +14,8 @@ import {
 import { Maximize2, X } from "lucide-react";
 import type { QuizEvent } from "@/lib/data";
 import { playbackMediaSrc } from "@/lib/media-url";
+import { attachVolumeWheel } from "@/lib/media-volume";
+import { VolumeAudio, VolumeVideo } from "@/components/VolumeMedia";
 import { visibleRuleTexts } from "@/lib/quiz-rules";
 import type { QuizLibraryItem, QuizQuestionItem } from "@/lib/quiz-library";
 import {
@@ -257,8 +259,9 @@ function QuestionContent({
 
   const audioBlock =
     (question.kind === "music" || question.kind === "sound") && question.audioUrl?.trim() ? (
-      <audio
+      <VolumeAudio
         ref={presentationAudioRef}
+        captureWheel={false}
         controls
         src={playbackMediaSrc(question.audioUrl)}
         className="w-full max-w-xl shrink-0"
@@ -269,7 +272,8 @@ function QuestionContent({
 
   const videoBlock =
     question.kind === "video" && question.videoUrl?.trim() ? (
-      <video
+      <VolumeVideo
+        captureWheel={false}
         controls
         playsInline
         src={playbackMediaSrc(question.videoUrl)}
@@ -533,6 +537,13 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
     document.addEventListener("fullscreenchange", onFullscreenChange);
     return () => document.removeEventListener("fullscreenchange", onFullscreenChange);
   }, []);
+
+  useEffect(() => {
+    if (!started) return;
+    const root = rootRef.current;
+    if (!root) return;
+    return attachVolumeWheel(root);
+  }, [started]);
 
   const slides = useMemo(
     () => (quiz?.questions?.length ? buildPresentationSlides(quiz.questions) : []),

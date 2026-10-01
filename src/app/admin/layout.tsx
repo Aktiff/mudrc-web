@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Armchair, BarChart3, Calendar, ClipboardList, LayoutDashboard, LogOut, MonitorPlay, Users } from "lucide-react";
+import { MediaVolumeHint } from "@/components/VolumeMedia";
 
 const navItems = [
   { href: "/admin", label: "Prehľad", icon: LayoutDashboard, exact: true },
@@ -39,7 +40,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     pathname.includes("/prezentacia") || /\/hotove-kvizy\/[^/]+\/prehrat$/.test(pathname);
 
   if (isFullscreen) {
-    return <>{children}</>;
+    return (
+      <>
+        {children}
+        <MediaVolumeHint />
+      </>
+    );
   }
 
   const handleLogout = async () => {
@@ -123,6 +129,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       }`}>
         {children}
       </main>
+      <MediaVolumeHint />
     </div>
   );
 }
