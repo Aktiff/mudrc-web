@@ -6,6 +6,7 @@ import { ChevronDown, ChevronUp, GripVertical, MonitorPlay, Plus, RotateCcw, Sav
 import type { QuizEvent } from "@/lib/data";
 import {
   collectUsedBankQuestionIdsFromQuiz,
+  collectUsedQuestionBodyKeys,
   normalizeLibraryQuiz,
   type QuizLibraryItem,
   type QuizQuestionItem,
@@ -242,6 +243,10 @@ export default function QuizLibraryEditor({ quizId }: Props) {
       .flatMap(collectUsedBankQuestionIdsFromQuiz);
     const fromCurrent = quiz ? collectUsedBankQuestionIdsFromQuiz(quiz) : [];
     return Array.from(new Set([...fromOthers, ...fromCurrent]));
+  }, [libraryQuizzes, quiz, quizId]);
+  const usedQuestionBodies = useMemo(() => {
+    const others = libraryQuizzes.filter((entry) => entry.id !== quizId);
+    return collectUsedQuestionBodyKeys(quiz ? [...others, quiz] : others);
   }, [libraryQuizzes, quiz, quizId]);
   const presentationCount = useMemo(
     () => (questions.length ? buildPresentationSlides(questions).length : 0),
@@ -1331,6 +1336,7 @@ export default function QuizLibraryEditor({ quizId }: Props) {
             roundQuestions={roundQuestions}
             allQuizQuestions={questions}
             usedBankQuestionIds={globalUsedBankQuestionIds}
+            usedQuestionBodies={usedQuestionBodies}
             customBankQuestions={customBankQuestions}
             musicBankTracks={musicBankTracks}
             soundBankClips={soundBankClips}
@@ -1352,6 +1358,7 @@ export default function QuizLibraryEditor({ quizId }: Props) {
             roundQuestions={roundQuestions}
             allQuizQuestions={questions}
             usedBankQuestionIds={globalUsedBankQuestionIds}
+            usedQuestionBodies={usedQuestionBodies}
             customBankQuestions={customBankQuestions}
             musicBankTracks={musicBankTracks}
             soundBankClips={soundBankClips}

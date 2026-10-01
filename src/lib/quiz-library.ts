@@ -7,6 +7,9 @@ import {
 import { normalizeQuestionOptions, parseEmbeddedOptions } from "@/lib/quiz-question-options";
 import { normalizeTags } from "@/lib/quiz-question-tags";
 import { teamKey } from "@/lib/poll";
+import { DEFAULT_MUSIC_QUESTION_BODY } from "@/lib/music-bank";
+import { DEFAULT_SOUND_QUESTION_BODY } from "@/lib/sound-bank";
+import { DEFAULT_VIDEO_QUESTION_BODY } from "@/lib/video-bank";
 
 export type QuizQuestionKind = "normal" | "sound" | "video" | "music";
 
@@ -283,4 +286,29 @@ export function collectGlobalUsedBankQuestionIds(quizzes: QuizLibraryItem[]): st
     }
   }
   return Array.from(ids);
+}
+
+export function quizQuestionBodyKey(body: string | undefined | null): string {
+  return (body ?? "").trim().toLocaleLowerCase("sk").replace(/\s+/g, " ");
+}
+
+const GENERIC_MEDIA_QUESTION_BODIES = new Set(
+  [DEFAULT_MUSIC_QUESTION_BODY, DEFAULT_SOUND_QUESTION_BODY, DEFAULT_VIDEO_QUESTION_BODY].map((body) =>
+    quizQuestionBodyKey(body)
+  )
+);
+
+/** Texty otázok, ktoré už sú v nejakom kvíze — aj keď slot nemá id z banky. */
+export function collectUsedQuestionBodyKeys(
+  quizzes: Array<{ questions?: Array<{ body?: string }> }>
+): string[] {
+  const keys = new Set<string>();
+  for (const quiz of quizzes) {
+    for (const question of quiz.questions ?? []) {
+      const key = quizQuestionBodyKey(question.body);
+      if (!key || GENERIC_MEDIA_QUESTION_BODIES.has(key)) continue;
+      keys.add(key);
+    }
+  }
+  return Array.from(keys);
 }

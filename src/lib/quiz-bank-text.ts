@@ -1,4 +1,5 @@
 import { isCustomBankQuestionId, isGeneratedBankQuestion } from "@/lib/quiz-custom-bank";
+import { quizQuestionBodyKey } from "@/lib/quiz-library";
 import { filterVisibleBankQuestions, type QuizBankQuestion } from "@/lib/quiz-question-bank";
 
 /** Celá textová banka (vlastné + vygenerované), bez otázok už vložených v kvíze. */
@@ -16,6 +17,19 @@ export function getInsertableTextBankQuestions(
   hiddenIds: string[]
 ): QuizBankQuestion[] {
   return filterVisibleBankQuestions(usedIds, hiddenIds, customQuestions);
+}
+
+/** Otázka s rovnakým znením, aká už je v kvíze, v banke nezostane. */
+export function excludeQuestionsUsedByBody(
+  questions: QuizBankQuestion[],
+  usedBodies: Iterable<string>
+): QuizBankQuestion[] {
+  const used = usedBodies instanceof Set ? usedBodies : new Set(usedBodies);
+  if (used.size === 0) return questions;
+  return questions.filter((question) => {
+    const key = quizQuestionBodyKey(question.body);
+    return !key || !used.has(key);
+  });
 }
 
 export function countTextBankSources(questions: QuizBankQuestion[]): {

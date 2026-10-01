@@ -11,10 +11,12 @@ import {
 import EditCustomBankQuestionDialog from "@/components/EditCustomBankQuestionDialog";
 import {
   countTextBankSources,
+  excludeQuestionsUsedByBody,
   filterTextBankBySource,
-  getFullTextBankQuestions,
+  getInsertableTextBankQuestions,
   type TextBankSourceFilter,
 } from "@/lib/quiz-bank-text";
+import { collectGlobalUsedBankQuestionIds, collectUsedQuestionBodyKeys, type QuizLibraryItem } from "@/lib/quiz-library";
 import {
   fetchCustomBankQuestionsFromServer,
   isCustomBankQuestionId,
@@ -68,6 +70,8 @@ export default function QuestionBankInventory({ refreshKey = 0, onChanged, fillH
   const [musicFilters, setMusicFilters] = useState(EMPTY_MUSIC_BANK_TAG_FILTERS);
   const [refreshingTagId, setRefreshingTagId] = useState<string | null>(null);
   const [hiddenIds, setHiddenIds] = useState<string[]>([]);
+  const [usedIds, setUsedIds] = useState<string[]>([]);
+  const [usedBodies, setUsedBodies] = useState<string[]>([]);
   const [questionSourceFilter, setQuestionSourceFilter] = useState<TextBankSourceFilter>("all");
   const [customKind, setCustomKind] = useState<"text" | "photo">("text");
 
@@ -75,9 +79,28 @@ export default function QuestionBankInventory({ refreshKey = 0, onChanged, fillH
     setHiddenIds(readHiddenBankQuestionIds());
   }, []);
 
+  const usedIdSet = useMemo(() => new Set(usedIds), [usedIds]);
+
   const fullTextBank = useMemo(
-    () => getFullTextBankQuestions(questions, hiddenIds),
-    [questions, hiddenIds]
+    () =>
+      excludeQuestionsUsedByBody(
+        getInsertableTextBankQuestions(questions, usedIds, hiddenIds),
+        usedBodies
+      ),
+    [questions, hiddenIds, usedIds, usedBodies]
+  );
+
+  const availableSound = useMemo(
+    () => sound.filter((clip) => !usedIdSet.has(clip.id)),
+    [sound, usedIdSet]
+  );
+  const availableVideo = useMemo(
+    () => video.filter((clip) => !usedIdSet.has(clip.id)),
+    [video, usedIdSet]
+  );
+  const availableMusic = useMemo(
+    () => music.filter((track) => !usedIdSet.has(track.id)),
+    [music, usedIdSet]
   );
 
   const textBankCounts = useMemo(() => countTextBankSources(fullTextBank), [fullTextBank]);
@@ -110,22 +133,26 @@ export default function QuestionBankInventory({ refreshKey = 0, onChanged, fillH
   );
 
   const filteredMusic = useMemo(
-    () => filterMusicBankTracks(music, musicFilters),
-    [music, musicFilters]
+    () => filterMusicBankTracks(availableMusic, musicFilters),
+    [availableMusic, musicFilters]
   );
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [q, s, v, m] = await Promise.all([
+    const [q, s, v, m, quizRes] = await Promise.all([
       fetchCustomBankQuestionsFromServer(),
       fetchSoundBankFromServer(),
       fetchVideoBankFromServer(),
       fetchMusicBankFromServer(),
+      fetch(`/api/admin/quiz-library?_=${Date.now()}`, { cache: "no-store" }),
     ]);
+    const quizzes: QuizLibraryItem[] = quizRes.ok ? ((await quizRes.json()).quizzes ?? []) : [];
     setQuestions(q.filter((item) => isCustomBankQuestionId(item.id)));
     setSound(s);
     setVideo(v);
     setMusic(m);
+    setUsedIds(collectGlobalUsedBankQuestionIds(quizzes));
+    setUsedBodies(collectUsedQuestionBodyKeys(quizzes));
     setLoading(false);
   }, []);
 
@@ -135,9 +162,9 @@ export default function QuestionBankInventory({ refreshKey = 0, onChanged, fillH
 
   const tabs: { id: Tab; label: string; count: number }[] = [
     { id: "questions", label: "Otázky", count: textBankCounts.all },
-    { id: "sound", label: "Iné ukážky", count: sound.length },
-    { id: "video", label: "Video", count: video.length },
-    { id: "music", label: "Hudobné ukážky", count: music.length },
+    { id: "sound", label: "Iné ukážky", count: availableSound.length },
+    { id: "video", label: "Video", count: availableVideo.length },
+    { id: "music", label: "Hudobné ukážky", count: availableMusic.length },
   ];
 
   const afterEdit = () => {
@@ -197,7 +224,7 @@ export default function QuestionBankInventory({ refreshKey = 0, onChanged, fillH
       <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 border-b border-brand-border shrink-0">
         <div>
           <p className="font-semibold text-brand-text">Obsah banky</p>
-          <p className="text-brand-muted text-xs mt-0.5">Prehľad a úpravy uložených položiek</p>
+          <p className="text-brand-muted text-xs mt-0.5">Použité v kvíze sa tu nezobrazujú. Zmiznú, kým ich z kvízu nevyberieš.</p>
         </div>
         <button
           type="button"
@@ -276,12 +303,12 @@ export default function QuestionBankInventory({ refreshKey = 0, onChanged, fillH
         </div>
       )}
 
-      {tab === "music" && music.length > 0 && (
+      {tab === "music" && availableMusic.length > 0 && (
         <div className="px-4 sm:px-5 py-3 border-b border-brand-border bg-brand-warm/20 shrink-0 space-y-2">
-          <MusicBankTagFilters tracks={music} value={musicFilters} onChange={setMusicFilters} />
+          <MusicBankTagFilters tracks={availableMusic} value={musicFilters} onChange={setMusicFilters} />
           {musicTagFiltersActive(musicFilters) && (
             <p className="text-[11px] text-brand-muted">
-              Zobrazených {filteredMusic.length} z {music.length} skladieb
+              Zobrazených {filteredMusic.length} z {availableMusic.length} skladieb
             </p>
           )}
         </div>
@@ -365,11 +392,13 @@ export default function QuestionBankInventory({ refreshKey = 0, onChanged, fillH
             </ul>
           )
         ) : tab === "sound" ? (
-          sound.length === 0 ? (
-            <p className="text-sm text-brand-muted text-center py-8">Zatiaľ žiadne iné ukážky.</p>
+          availableSound.length === 0 ? (
+            <p className="text-sm text-brand-muted text-center py-8">
+              {sound.length === 0 ? "Zatiaľ žiadne iné ukážky." : "Všetky iné ukážky sú už použité v kvíze."}
+            </p>
           ) : (
             <ul className="space-y-3">
-              {sound.map((clip) => (
+              {availableSound.map((clip) => (
                 <li key={clip.id} className="rounded-xl border border-brand-border p-3 space-y-2">
                   <p className="text-sm font-semibold">{clip.label}</p>
                   <p className="text-xs text-brand-muted">Odpoveď: {clip.answer}</p>
@@ -386,11 +415,13 @@ export default function QuestionBankInventory({ refreshKey = 0, onChanged, fillH
             </ul>
           )
         ) : tab === "video" ? (
-          video.length === 0 ? (
-            <p className="text-sm text-brand-muted text-center py-8">Zatiaľ žiadne video.</p>
+          availableVideo.length === 0 ? (
+            <p className="text-sm text-brand-muted text-center py-8">
+              {video.length === 0 ? "Zatiaľ žiadne video." : "Všetky videá sú už použité v kvíze."}
+            </p>
           ) : (
             <ul className="space-y-3">
-              {video.map((clip) => (
+              {availableVideo.map((clip) => (
                 <li key={clip.id} className="rounded-xl border border-brand-border p-3 space-y-2">
                   <p className="text-sm font-semibold">{clip.label}</p>
                   <p className="text-xs text-brand-muted">Odpoveď: {clip.answer}</p>
@@ -406,8 +437,10 @@ export default function QuestionBankInventory({ refreshKey = 0, onChanged, fillH
               ))}
             </ul>
           )
-        ) : music.length === 0 ? (
-          <p className="text-sm text-brand-muted text-center py-8">Zatiaľ žiadna hudobná ukážka.</p>
+        ) : availableMusic.length === 0 ? (
+          <p className="text-sm text-brand-muted text-center py-8">
+            {music.length === 0 ? "Zatiaľ žiadna hudobná ukážka." : "Všetky hudobné ukážky sú už použité v kvíze."}
+          </p>
         ) : filteredMusic.length === 0 ? (
           <p className="text-sm text-brand-muted text-center py-8">Žiadna skladba nevyhovuje filtrom.</p>
         ) : (

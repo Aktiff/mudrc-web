@@ -33,6 +33,7 @@ import {
 } from "@/lib/quiz-question-bank";
 import {
   countTextBankSources,
+  excludeQuestionsUsedByBody,
   getFullTextBankQuestions,
   getInsertableTextBankQuestions,
 } from "@/lib/quiz-bank-text";
@@ -79,6 +80,7 @@ type Props = {
   roundQuestions: QuizQuestionItem[];
   allQuizQuestions: QuizQuestionItem[];
   usedBankQuestionIds: string[];
+  usedQuestionBodies?: string[];
   customBankQuestions?: QuizBankQuestion[];
   musicBankTracks?: MusicBankItem[];
   soundBankClips?: SoundBankItem[];
@@ -127,6 +129,7 @@ type Props = {
 };
 
 const OPTION_LETTERS = ["A", "B", "C", "D", "E", "F"] as const;
+const EMPTY_USED_BODIES: string[] = [];
 
 function contentSlotLabel(q: QuizQuestionItem, openRound: number): string {
   const base =
@@ -162,6 +165,7 @@ export default function QuizQuestionBankPanel({
   roundQuestions,
   allQuizQuestions,
   usedBankQuestionIds,
+  usedQuestionBodies = EMPTY_USED_BODIES,
   customBankQuestions: customBankQuestionsProp,
   musicBankTracks: musicBankTracksProp,
   soundBankClips: soundBankClipsProp,
@@ -244,8 +248,12 @@ export default function QuizQuestionBankPanel({
   );
 
   const availableQuestions = useMemo(
-    () => getInsertableTextBankQuestions(customBankQuestions, usedBankQuestionIds, hiddenIds),
-    [usedBankQuestionIds, hiddenIds, customBankQuestions]
+    () =>
+      excludeQuestionsUsedByBody(
+        getInsertableTextBankQuestions(customBankQuestions, usedBankQuestionIds, hiddenIds),
+        usedQuestionBodies
+      ),
+    [usedBankQuestionIds, hiddenIds, customBankQuestions, usedQuestionBodies]
   );
 
   const sourceCounts = useMemo(() => {
