@@ -19,6 +19,7 @@ import { fetchLibraryQuizList } from "@/lib/quiz-library-client";
 import RegistrationPlayersStepper from "@/components/admin/RegistrationPlayersStepper";
 import QuizTypeField from "@/components/admin/QuizTypeField";
 import { DEFAULT_QUIZ_TYPE, normalizeQuizTypeLabel, quizTypeOrDefault, rememberQuizTypes, venueQuizLabel } from "@/lib/quiz-type";
+import { RuleListEditor } from "@/components/admin/RuleListEditor";
 import {
   CANVAS_LIBRARY_QUIZ_ID,
   isAssignedLibraryQuiz,
@@ -935,17 +936,6 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
   const removeResult = (i: number) =>
     set("pastResults", form.pastResults.filter((_, idx) => idx !== i));
 
-  const addRule = () => set("rules", [...(form.rules ?? []), ""]);
-  const updateRule = (i: number, val: string) =>
-    set("rules", (form.rules ?? []).map((r, idx) => (idx === i ? val : r)));
-  const removeRule = (i: number) =>
-    set("rules", (form.rules ?? []).filter((_, idx) => idx !== i));
-  const addSpecialRule = () => set("specialRules", [...(form.specialRules ?? []), ""]);
-  const updateSpecialRule = (i: number, val: string) =>
-    set("specialRules", (form.specialRules ?? []).map((r, idx) => (idx === i ? val : r)));
-  const removeSpecialRule = (i: number) =>
-    set("specialRules", (form.specialRules ?? []).filter((_, idx) => idx !== i));
-
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -1757,55 +1747,25 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
           {form.thematic && (
             <div>
               <h2 className="font-semibold text-brand-text mb-1">Špeciálne pravidlá</h2>
-              <p className="text-brand-muted text-sm mb-4">Platia len pre tento tematický kvíz a na webe sú nad bežnými pravidlami.</p>
-              <div className="space-y-2 mb-4">
-                {(form.specialRules ?? []).length === 0 && (
-                  <p className="text-brand-muted text-sm py-4 text-center">Zatiaľ žiadne špeciálne pravidlá.</p>
-                )}
-                {(form.specialRules ?? []).map((rule, i) => (
-                  <div key={i} className="flex items-center gap-2">
-                    <span className="text-brand-muted-light text-sm w-5 text-right shrink-0">{i + 1}.</span>
-                    <input
-                      className="input text-sm py-2 flex-1"
-                      value={rule}
-                      onChange={(e) => updateSpecialRule(i, e.target.value)}
-                      placeholder="Špeciálne pravidlo..."
-                    />
-                    <button onClick={() => removeSpecialRule(i)} className="text-brand-muted-light hover:text-red-400 transition-colors shrink-0">
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-              <button onClick={addSpecialRule} className="btn-outline text-sm py-2 px-4 w-full justify-center">
-                <Plus className="w-4 h-4" /> Pridať špeciálne pravidlo
-              </button>
+              <p className="text-brand-muted text-sm mb-4">Platia len pre tento tematický kvíz a na webe sú nad bežnými pravidlami. Poradie zmeníš šípkami alebo pretiahnutím.</p>
+              <RuleListEditor
+                rules={form.specialRules ?? []}
+                onChange={(specialRules) => set("specialRules", specialRules)}
+                placeholder="Špeciálne pravidlo..."
+                addLabel="Pridať špeciálne pravidlo"
+                emptyLabel="Zatiaľ žiadne špeciálne pravidlá."
+              />
             </div>
           )}
           <div>
-          <p className="text-brand-muted text-sm mb-4">Bežné pravidlá. Každé pravidlo je jeden riadok.</p>
-          <div className="space-y-2 mb-4">
-            {(form.rules ?? []).length === 0 && (
-              <p className="text-brand-muted text-sm py-4 text-center">Žiadne pravidlá. Pridaj prvé.</p>
-            )}
-            {(form.rules ?? []).map((rule, i) => (
-              <div key={i} className="flex items-center gap-2">
-                <span className="text-brand-muted-light text-sm w-5 text-right shrink-0">{i + 1}.</span>
-                <input
-                  className="input text-sm py-2 flex-1"
-                  value={rule}
-                  onChange={(e) => updateRule(i, e.target.value)}
-                  placeholder="Text pravidla..."
-                />
-                <button onClick={() => removeRule(i)} className="text-brand-muted-light hover:text-red-400 transition-colors shrink-0">
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </div>
-            ))}
-          </div>
-          <button onClick={addRule} className="btn-outline text-sm py-2 px-4 w-full justify-center">
-            <Plus className="w-4 h-4" /> Pridať pravidlo
-          </button>
+          <p className="text-brand-muted text-sm mb-4">Bežné pravidlá. Poradie zmeníš šípkami alebo pretiahnutím.</p>
+          <RuleListEditor
+            rules={form.rules ?? []}
+            onChange={(rules) => set("rules", rules)}
+            placeholder="Text pravidla..."
+            addLabel="Pridať pravidlo"
+            emptyLabel="Žiadne pravidlá. Pridaj prvé."
+          />
           </div>
         </div>
       )}
