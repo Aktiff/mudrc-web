@@ -24,6 +24,8 @@ export function normalizeNewEvent(body: Partial<QuizEvent> & { venue?: string })
     time: String(body.time ?? "19:00").trim() || "19:00",
     entryFee: Number(body.entryFee) || 0,
     quizType: String(body.quizType ?? "").trim(),
+    thematic: body.thematic === true,
+    specialRules: Array.isArray(body.specialRules) ? body.specialRules.map(String) : [],
     maxPlayers: Number(body.maxPlayers) || 8,
     minPlayers: Number(body.minPlayers) || 2,
     rounds: Number(body.rounds) || 4,

@@ -5,6 +5,7 @@ import { formatEventDateLabel, sortEventsForAdminOverview } from "@/lib/data";
 import { isValidStoredEvent } from "@/lib/event-normalize";
 import { getPollActiveFlagsBySlug } from "@/lib/poll-storage";
 import { estimatedEntryRevenue, formatEuroAmount, formatSkPlayerCountTotal, registrationTotalsForEvent } from "@/lib/registration-utils";
+import { venueQuizLabel } from "@/lib/quiz-type";
 import { readAllEventsRaw, readRegistrations } from "@/lib/storage";
 
 export const dynamic = "force-dynamic";
@@ -46,11 +47,10 @@ export default async function AdminUdalostitPage() {
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="font-semibold text-lg text-brand-text group-hover:text-brand-orange-readable transition-colors">
-                    {e.venue}
+                    {venueQuizLabel(e.venue, e.quizType)}
                   </div>
                   <div className="text-brand-muted text-sm mt-1">
                     {e.city} &mdash; {formatEventDateLabel(e.date)} o {e.time}
-                    {e.quizType?.trim() ? ` · ${e.quizType}` : ""}
                   </div>
                   <div className="text-brand-muted-light text-xs mt-1 font-mono">/{e.slug}{invalid ? " · neúplný záznam" : ""}</div>
                 </div>

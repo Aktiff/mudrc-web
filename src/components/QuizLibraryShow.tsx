@@ -70,13 +70,34 @@ function SlideBackdrop() {
   );
 }
 
-function RulesSlide({ rules, venueName }: { rules: string[]; venueName: string }) {
+function RulesSlide({
+  rules,
+  specialRules = [],
+  venueName,
+}: {
+  rules: string[];
+  specialRules?: string[];
+  venueName: string;
+}) {
   return (
     <div className="flex flex-col items-center gap-8 w-full max-w-4xl px-8 mx-auto">
       {venueName && (
         <p className="text-[#f0c800]/70 text-lg sm:text-xl tracking-wide">{venueName}</p>
       )}
       <div className="w-16 h-1 rounded-full bg-gradient-to-r from-transparent via-[#f0c800] to-transparent" />
+      {specialRules.length > 0 && (
+        <>
+          <p className="text-[#f0c800] text-2xl sm:text-3xl tracking-wide font-semibold font-display">Špeciálne pravidlá</p>
+          <ul className="space-y-4 w-full rounded-3xl border border-white/10 bg-white/[0.03] backdrop-blur-sm p-8 sm:p-10">
+            {specialRules.map((rule, index) => (
+              <li key={index} className="flex gap-5 text-lg sm:text-2xl text-white/95 leading-snug">
+                <span className="text-[#f0c800] font-display text-3xl sm:text-4xl shrink-0 w-8 text-right">{index + 1}</span>
+                <span>{fixSlovakLineBreaks(rule)}</span>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
       <p className="text-[#f0c800] text-2xl sm:text-3xl tracking-wide font-semibold font-display">Pravidlá</p>
       <ul className="space-y-4 w-full rounded-3xl border border-white/10 bg-white/[0.03] backdrop-blur-sm p-8 sm:p-10">
         {rules.map((rule, index) => (
@@ -348,19 +369,21 @@ function ImageSlide({ question }: { question: QuizQuestionItem }) {
 function PresentationView({
   slide,
   eventRules,
+  specialRules = [],
   venueName,
   nextQuizLines,
   presentationAudioRef,
 }: {
   slide: PresentationSlide;
   eventRules: string[];
+  specialRules?: string[];
   venueName: string;
   nextQuizLines: string[];
   presentationAudioRef?: RefObject<HTMLAudioElement>;
 }) {
   if (slide.type === "rules") {
     const rules = eventRules.length ? eventRules : ["Pravidlá nastav v admin → Udalosť → Pravidlá."];
-    return <RulesSlide rules={rules} venueName={venueName} />;
+    return <RulesSlide rules={rules} specialRules={specialRules} venueName={venueName} />;
   }
   if (slide.type === "round") {
     return (
@@ -517,6 +540,9 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
 
   const selectedEvent = events.find((event) => event.slug === eventSlug);
   const eventRules = selectedEvent?.rules?.filter(Boolean) ?? [];
+  const specialRules = selectedEvent?.thematic
+    ? (selectedEvent.specialRules ?? []).map((rule) => rule.trim()).filter(Boolean)
+    : [];
   const venueName = selectedEvent ? `${selectedEvent.venue} · ${selectedEvent.city}` : "";
   const slide = slides[index];
   const progress = slides.length ? ((index + 1) / slides.length) * 100 : 0;
@@ -950,6 +976,7 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
               <PresentationView
                 slide={slide}
                 eventRules={eventRules}
+                specialRules={specialRules}
                 venueName={venueName}
                 nextQuizLines={nextQuizLines}
                 presentationAudioRef={presentationAudioRef}

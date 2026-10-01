@@ -18,7 +18,7 @@ import LibraryQuizPicker from "@/components/LibraryQuizPicker";
 import { fetchLibraryQuizList } from "@/lib/quiz-library-client";
 import RegistrationPlayersStepper from "@/components/admin/RegistrationPlayersStepper";
 import QuizTypeField from "@/components/admin/QuizTypeField";
-import { DEFAULT_QUIZ_TYPE, normalizeQuizTypeLabel, quizTypeOrDefault, rememberQuizTypes } from "@/lib/quiz-type";
+import { DEFAULT_QUIZ_TYPE, normalizeQuizTypeLabel, quizTypeOrDefault, rememberQuizTypes, venueQuizLabel } from "@/lib/quiz-type";
 import {
   CANVAS_LIBRARY_QUIZ_ID,
   isAssignedLibraryQuiz,
@@ -280,6 +280,8 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
     registrationOpen: true,
     imageUrl: "",
     rules: [],
+    thematic: false,
+    specialRules: [],
     leagueTable: [],
     pastResults: [],
   });
@@ -938,6 +940,11 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
     set("rules", (form.rules ?? []).map((r, idx) => (idx === i ? val : r)));
   const removeRule = (i: number) =>
     set("rules", (form.rules ?? []).filter((_, idx) => idx !== i));
+  const addSpecialRule = () => set("specialRules", [...(form.specialRules ?? []), ""]);
+  const updateSpecialRule = (i: number, val: string) =>
+    set("specialRules", (form.specialRules ?? []).map((r, idx) => (idx === i ? val : r)));
+  const removeSpecialRule = (i: number) =>
+    set("specialRules", (form.specialRules ?? []).filter((_, idx) => idx !== i));
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -996,10 +1003,7 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
             <ChevronLeft className="w-5 h-5" />
           </Link>
           <h1 className="font-display text-3xl text-brand-text tracking-wide">
-            {isNew ? "Nová udalosť" : form.venue || params.slug}
-            {!isNew && form.quizType?.trim() ? (
-              <span className="ml-3 text-lg text-brand-muted font-sans font-semibold normal-case tracking-normal">{form.quizType}</span>
-            ) : null}
+            {isNew ? "Nová udalosť" : venueQuizLabel(form.venue, form.quizType) || params.slug}
           </h1>
           {!isNew && (
             <>
@@ -1053,7 +1057,9 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
         <button className={tabClass("vysledky")} onClick={() => setTab("vysledky")}>Výsledky ({form.pastResults.length})</button>
         <button className={tabClass("registracie")} onClick={() => setTab("registracie")}>Registrácie ({registrations.length})</button>
         <button className={tabClass("anketa")} onClick={() => setTab("anketa")}>Anketa ({pollAdmin?.teamCount ?? 0})</button>
-        <button className={tabClass("pravidla")} onClick={() => setTab("pravidla")}>Pravidlá ({(form.rules ?? []).length})</button>
+        <button className={tabClass("pravidla")} onClick={() => setTab("pravidla")}>
+          Pravidlá ({(form.rules ?? []).length + (form.thematic ? (form.specialRules ?? []).length : 0)})
+        </button>
       </div>
 
       {tab === "info" && (
@@ -1075,7 +1081,16 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
                 knownTypes={knownQuizTypes}
                 onChange={(value) => set("quizType", value)}
               />
-              <p className="text-brand-muted text-xs mt-1.5">Tento typ platí pre aktuálny termín. Staršie kvízy si držia svoj.</p>
+              <p className="text-brand-muted text-xs mt-1.5">Na webe sa píše za podnik, napríklad Alipub - Hudobný kvíz. Staršie kvízy si držia svoj typ.</p>
+              <label className="mt-3 flex items-center gap-2 text-sm font-semibold text-brand-text">
+                <input
+                  type="checkbox"
+                  className="accent-brand-orange"
+                  checked={form.thematic === true}
+                  onChange={(e) => set("thematic", e.target.checked)}
+                />
+                Tematický kvíz
+              </label>
             </div>
           </div>
           <div>
@@ -1738,8 +1753,37 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
       )}
 
       {tab === "pravidla" && (
-        <div className="bg-brand-card rounded-2xl border border-brand-border p-6">
-          <p className="text-brand-muted text-sm mb-4">Každé pravidlo je jeden riadok.</p>
+        <div className="bg-brand-card rounded-2xl border border-brand-border p-6 space-y-8">
+          {form.thematic && (
+            <div>
+              <h2 className="font-semibold text-brand-text mb-1">Špeciálne pravidlá</h2>
+              <p className="text-brand-muted text-sm mb-4">Platia len pre tento tematický kvíz a na webe sú nad bežnými pravidlami.</p>
+              <div className="space-y-2 mb-4">
+                {(form.specialRules ?? []).length === 0 && (
+                  <p className="text-brand-muted text-sm py-4 text-center">Zatiaľ žiadne špeciálne pravidlá.</p>
+                )}
+                {(form.specialRules ?? []).map((rule, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <span className="text-brand-muted-light text-sm w-5 text-right shrink-0">{i + 1}.</span>
+                    <input
+                      className="input text-sm py-2 flex-1"
+                      value={rule}
+                      onChange={(e) => updateSpecialRule(i, e.target.value)}
+                      placeholder="Špeciálne pravidlo..."
+                    />
+                    <button onClick={() => removeSpecialRule(i)} className="text-brand-muted-light hover:text-red-400 transition-colors shrink-0">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <button onClick={addSpecialRule} className="btn-outline text-sm py-2 px-4 w-full justify-center">
+                <Plus className="w-4 h-4" /> Pridať špeciálne pravidlo
+              </button>
+            </div>
+          )}
+          <div>
+          <p className="text-brand-muted text-sm mb-4">Bežné pravidlá. Každé pravidlo je jeden riadok.</p>
           <div className="space-y-2 mb-4">
             {(form.rules ?? []).length === 0 && (
               <p className="text-brand-muted text-sm py-4 text-center">Žiadne pravidlá. Pridaj prvé.</p>
@@ -1762,6 +1806,7 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
           <button onClick={addRule} className="btn-outline text-sm py-2 px-4 w-full justify-center">
             <Plus className="w-4 h-4" /> Pridať pravidlo
           </button>
+          </div>
         </div>
       )}
 

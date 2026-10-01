@@ -13,6 +13,7 @@ import {
   sortEventsByDate,
 } from "@/lib/data";
 import { eventPath } from "@/lib/regions";
+import { venueQuizLabel } from "@/lib/quiz-type";
 import { mediaUrlForBrowser } from "@/lib/media-url";
 import RegistrationAction from "./RegistrationAction";
 const RegistrationModal = dynamic(() => import("./RegistrationModal"), { ssr: false });
@@ -82,11 +83,8 @@ export default function QuizEventCards({ events }: { events: QuizEvent[] }) {
               <div className="flex items-start justify-between gap-4 mb-1">
                 <div>
                   <h3 className="font-display text-3xl text-brand-text tracking-wide group-hover:text-brand-orange transition-colors">
-                    {event.venue}
+                    {venueQuizLabel(event.venue, event.quizType)}
                   </h3>
-                  {event.quizType?.trim() && (
-                    <p className="text-brand-orange-readable text-sm font-semibold mt-1">{event.quizType}</p>
-                  )}
                   <div className="flex items-center gap-1.5 text-brand-muted text-sm mt-1">
                     <MapPin className="w-3.5 h-3.5 text-brand-orange" />
                     {event.city}

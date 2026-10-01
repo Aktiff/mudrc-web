@@ -5,6 +5,7 @@ import { eventPath, getEventRegionSlug, getRegion, type RegionSlug } from "@/lib
 import { OG_IMAGE_VERSION } from "@/lib/og-image";
 import { absoluteMediaUrl } from "@/lib/media-url";
 import { SITE_URL, absoluteUrl } from "@/lib/site-url";
+import { venueQuizLabel } from "@/lib/quiz-type";
 
 export { SITE_URL, absoluteUrl };
 
@@ -35,7 +36,7 @@ export function buildEventShareDescription(event: QuizEvent): string {
 
 export function buildEventMetadata(event: QuizEvent, region: RegionSlug): Metadata {
   const path = eventPath(event);
-  const pageTitle = `Kvíz ${event.venue}, ${event.city}`;
+  const pageTitle = `Kvíz ${venueQuizLabel(event.venue, event.quizType)}, ${event.city}`;
   const shareTitle = buildEventShareTitle(event);
   const shareDescription = buildEventShareDescription(event);
   const ogImagePath = `${path}/opengraph-image?v=${OG_IMAGE_VERSION}`;

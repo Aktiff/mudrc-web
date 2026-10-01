@@ -18,6 +18,7 @@ import { formatDuration, formatEventDateLabel, isRegistrationOpen, leagueTeamNam
 import type { RegionSlug } from "@/lib/regions";
 import { getRegion } from "@/lib/regions";
 import { mediaUrlForBrowser } from "@/lib/media-url";
+import { venueQuizLabel } from "@/lib/quiz-type";
 import Breadcrumbs from "@/components/Breadcrumbs";
 import RegistrationAction from "@/components/RegistrationAction";
 import RegistrationModal from "./RegistrationModal";
@@ -37,7 +38,11 @@ type EventDetailPageProps = {
 
 export default function EventDetailPage({ event, region, pollHref }: EventDetailPageProps) {
   const [showModal, setShowModal] = useState(false);
-  const rules = event.rules ?? [];
+  const rules = (event.rules ?? []).map((rule) => rule.trim()).filter(Boolean);
+  const specialRules = event.thematic
+    ? (event.specialRules ?? []).map((rule) => rule.trim()).filter(Boolean)
+    : [];
+  const venueTitle = venueQuizLabel(event.venue, event.quizType);
   const regionConfig = getRegion(region)!;
   const leagueTable = event.leagueTable ?? [];
   const topThree = leagueTable.slice(0, 3);
@@ -54,15 +59,12 @@ export default function EventDetailPage({ event, region, pollHref }: EventDetail
                 { label: "Domov", href: "/" },
                 { label: "Kvízy", href: "/kvizy" },
                 { label: regionConfig.name, href: `/kvizy/${region}` },
-                { label: event.venue },
+                { label: venueTitle },
               ]}
             />
             <h1 className="font-display text-5xl sm:text-6xl text-brand-text tracking-wide">
-              Kvíz v {event.venue}, {event.city}
+              Kvíz v {venueTitle}, {event.city}
             </h1>
-            {event.quizType?.trim() && (
-              <p className="text-brand-orange-readable text-lg font-semibold mt-2">{event.quizType}</p>
-            )}
             <p className="text-brand-muted text-sm mt-2 flex items-center gap-1.5">
               <MapPin className="w-4 h-4 shrink-0" />
               {event.city} &mdash; {event.address}
@@ -131,20 +133,40 @@ export default function EventDetailPage({ event, region, pollHref }: EventDetail
                 </p>
               </div>
 
-              {rules.length > 0 && (
-                <div className="bg-brand-card rounded-2xl border border-brand-border p-6 md:p-8">
-                  <h2 className="font-display text-2xl text-brand-text tracking-wide mb-4 flex items-center gap-2">
-                    <BookOpen className="w-5 h-5 text-brand-orange-readable" />
-                    Pravidlá
-                  </h2>
-                  <ul className="space-y-2">
-                    {rules.map((rule, i) => (
-                      <li key={i} className="text-brand-muted text-sm flex gap-2">
-                        <span className="text-brand-orange-readable shrink-0">•</span>
-                        {rule}
-                      </li>
-                    ))}
-                  </ul>
+              {(specialRules.length > 0 || rules.length > 0) && (
+                <div className="bg-brand-card rounded-2xl border border-brand-border p-6 md:p-8 space-y-8">
+                  {specialRules.length > 0 && (
+                    <div>
+                      <h2 className="font-display text-2xl text-brand-text tracking-wide mb-4 flex items-center gap-2">
+                        <BookOpen className="w-5 h-5 text-brand-orange-readable" />
+                        Špeciálne pravidlá
+                      </h2>
+                      <ul className="space-y-2">
+                        {specialRules.map((rule, i) => (
+                          <li key={i} className="text-brand-text text-sm flex gap-2">
+                            <span className="text-brand-orange-readable shrink-0">•</span>
+                            {rule}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {rules.length > 0 && (
+                    <div>
+                      <h2 className="font-display text-2xl text-brand-text tracking-wide mb-4 flex items-center gap-2">
+                        <BookOpen className="w-5 h-5 text-brand-orange-readable" />
+                        Pravidlá
+                      </h2>
+                      <ul className="space-y-2">
+                        {rules.map((rule, i) => (
+                          <li key={i} className="text-brand-muted text-sm flex gap-2">
+                            <span className="text-brand-orange-readable shrink-0">•</span>
+                            {rule}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

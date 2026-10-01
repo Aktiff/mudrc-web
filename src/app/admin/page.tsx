@@ -3,6 +3,7 @@ import { Calendar, Plus, PauseCircle } from "lucide-react";
 import EventPromoChecks from "@/components/admin/EventPromoChecks";
 import { formatEventDateLabel, sortEventsForAdminOverview } from "@/lib/data";
 import { formatSkPlayerCountTotal, registrationTotalsForEvent } from "@/lib/registration-utils";
+import { venueQuizLabel } from "@/lib/quiz-type";
 import { readEvents, readRegistrations } from "@/lib/storage";
 
 export const dynamic = "force-dynamic";
@@ -57,7 +58,7 @@ export default async function AdminDashboard() {
                 </div>
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-semibold text-brand-text">{e.venue}</span>
+                    <span className="font-semibold text-brand-text">{venueQuizLabel(e.venue, e.quizType)}</span>
                     {!e.active && (
                       <span className="flex items-center gap-1 text-xs text-amber-600 bg-amber-50 dark:bg-amber-950/40 dark:text-amber-300 px-2 py-0.5 rounded-full">
                         <PauseCircle className="w-3 h-3" /> Kvíz vypnutý
@@ -71,7 +72,6 @@ export default async function AdminDashboard() {
                   </div>
                   <div className="text-brand-muted text-sm">
                     {e.city} &mdash; {formatEventDateLabel(e.date)} o {e.time}
-                    {e.quizType?.trim() ? ` · ${e.quizType}` : ""}
                   </div>
                 </div>
               </Link>

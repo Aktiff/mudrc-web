@@ -10,6 +10,20 @@ export function quizTypeOrDefault(value: string | undefined | null): string {
   return normalizeQuizTypeLabel(value) || DEFAULT_QUIZ_TYPE;
 }
 
+export function isGeneralQuizType(value: string | undefined | null): boolean {
+  const label = normalizeQuizTypeLabel(value);
+  return !label || label.toLocaleLowerCase("sk") === DEFAULT_QUIZ_TYPE.toLocaleLowerCase("sk");
+}
+
+/** Názov podniku a typ kvízu v jednom riadku, napr. Alipub - Hudobný kvíz. */
+export function venueQuizLabel(venue: string, quizType?: string | null): string {
+  const place = venue.trim();
+  const type = normalizeQuizTypeLabel(quizType);
+  if (!place) return type;
+  if (!type || isGeneralQuizType(type)) return place;
+  return `${place} - ${type}`;
+}
+
 /** Ak je typ kvízu pripísaný za pomlčkou v názve podniku, oddelí ho. */
 export function splitVenueQuizType(venue: string, quizType?: string): { venue: string; quizType: string } {
   const place = venue.trim();

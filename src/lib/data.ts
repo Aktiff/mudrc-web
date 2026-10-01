@@ -9,6 +9,9 @@ export type QuizEvent = {
   entryFee: number;
   /** Typ aktuálneho kvízu v podniku, napr. Hudobný kvíz. História má typ na každom výsledku. */
   quizType?: string;
+  /** Tematický kvíz má nad bežnými pravidlami vlastné špeciálne pravidlá. */
+  thematic?: boolean;
+  specialRules?: string[];
   maxPlayers: number;
   minPlayers: number;
   rounds: number;
