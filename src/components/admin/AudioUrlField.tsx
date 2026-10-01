@@ -21,18 +21,21 @@ export default function AudioUrlField({
   onUploadSuccess,
 }: Props) {
   const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState("");
 
   const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
     setUploading(true);
+    setError("");
     try {
       const url = await uploadAudioFileClient(file);
       onChange(url);
       onUploadSuccess?.("Audio nahrané do úložiska.");
     } catch (err) {
       const text = err instanceof Error ? err.message : "Chyba pri nahrávaní audio.";
+      setError(text);
       onUploadError?.(text);
     } finally {
       setUploading(false);
@@ -73,8 +76,9 @@ export default function AudioUrlField({
         )}
       </div>
       <p className="text-brand-muted text-xs mt-1.5">
-        Upload ide do Vercel Blob. Odporúčaná dĺžka ukážky ~30 s.
+        Upload ide do úložiska. Odporúčaná dĺžka ukážky ~30 s, maximum 12 MB.
       </p>
+      {error && <p className="text-sm text-red-500 mt-1">{error}</p>}
       {value.trim() && (
         <audio controls src={playbackMediaSrc(value)} className="w-full max-w-md mt-2" preload="metadata" />
       )}

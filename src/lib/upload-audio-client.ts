@@ -1,10 +1,10 @@
 "use client";
 
-import { uploadLargeFileToBlob } from "@/lib/upload-blob-client";
 import {
   MAX_AUDIO_BYTES,
   MAX_AUDIO_SERVER_BYTES,
 } from "@/lib/audio-upload";
+import { uploadFileInParts } from "@/lib/upload-media-parts-client";
 
 function messageFromUploadResponse(res: Response, text: string): string {
   try {
@@ -48,16 +48,8 @@ export async function uploadAudioFileClient(file: File): Promise<string> {
   }
 
   if (file.size > MAX_AUDIO_SERVER_BYTES) {
-    return uploadLargeFileToBlob("audio", file);
+    return uploadFileInParts("audio", file);
   }
 
-  try {
-    return await uploadViaServer(file);
-  } catch (serverErr) {
-    try {
-      return await uploadLargeFileToBlob("audio", file);
-    } catch {
-      throw serverErr instanceof Error ? serverErr : new Error("Nepodarilo sa nahrať audio.");
-    }
-  }
+  return uploadViaServer(file);
 }

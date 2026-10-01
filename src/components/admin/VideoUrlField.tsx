@@ -21,18 +21,21 @@ export default function VideoUrlField({
   onUploadSuccess,
 }: Props) {
   const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState("");
 
   const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
     setUploading(true);
+    setError("");
     try {
       const url = await uploadVideoFileClient(file);
       onChange(url);
       onUploadSuccess?.("Video nahrané do úložiska.");
     } catch (err) {
       const text = err instanceof Error ? err.message : "Chyba pri nahrávaní videa.";
+      setError(text);
       onUploadError?.(text);
     } finally {
       setUploading(false);
@@ -75,6 +78,7 @@ export default function VideoUrlField({
       <p className="text-brand-muted text-xs mt-1.5">
         MP4 alebo WEBM do úložiska. Krátke filmové ukážky (~30–90 s) odporúčané.
       </p>
+      {error && <p className="text-sm text-red-500 mt-1">{error}</p>}
       {value.trim() && (
         <video
           controls

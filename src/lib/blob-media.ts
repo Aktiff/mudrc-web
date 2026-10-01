@@ -1,4 +1,4 @@
-import { put } from "@vercel/blob";
+import { del, get, put } from "@vercel/blob";
 import { blobAuthOptions, blobStoreAccess, shouldWriteBlob } from "@/lib/storage";
 
 export const BLOB_MEDIA_PREFIX = "mudrc/media/";
@@ -42,6 +42,31 @@ export async function uploadBlobMedia(
   });
 
   return { pathname, url: mediaUrlFromBlobPathname(pathname) };
+}
+
+export async function readBlobMediaBuffer(pathname: string): Promise<Buffer> {
+  if (!pathname.startsWith(BLOB_MEDIA_PREFIX)) {
+    throw new Error("Invalid media pathname");
+  }
+  const auth = blobAuthOptions();
+  const result = await get(pathname, {
+    access: blobStoreAccess(),
+    useCache: false,
+    ...auth,
+  });
+  if (!result || result.statusCode !== 200 || !result.stream) {
+    throw new Error("Časť nahrávky sa nenašla.");
+  }
+  return Buffer.from(await new Response(result.stream).arrayBuffer());
+}
+
+export async function deleteBlobMedia(pathname: string): Promise<void> {
+  if (!pathname.startsWith(BLOB_MEDIA_PREFIX)) return;
+  try {
+    await del(pathname, blobAuthOptions());
+  } catch {
+    /* dočasná časť už nemusí byť */
+  }
 }
 
 export async function uploadEventImageToBlob(

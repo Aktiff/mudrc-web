@@ -1,10 +1,10 @@
 "use client";
 
-import { uploadLargeFileToBlob } from "@/lib/upload-blob-client";
 import {
   MAX_VIDEO_BYTES,
   MAX_VIDEO_SERVER_BYTES,
 } from "@/lib/video-upload";
+import { uploadFileInParts } from "@/lib/upload-media-parts-client";
 
 function messageFromUploadResponse(res: Response, text: string): string {
   try {
@@ -48,12 +48,8 @@ export async function uploadVideoFileClient(file: File): Promise<string> {
   }
 
   if (file.size > MAX_VIDEO_SERVER_BYTES) {
-    return uploadLargeFileToBlob("video", file);
+    return uploadFileInParts("video", file);
   }
 
-  try {
-    return await uploadViaServer(file);
-  } catch {
-    return uploadLargeFileToBlob("video", file);
-  }
+  return uploadViaServer(file);
 }
