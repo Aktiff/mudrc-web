@@ -136,6 +136,7 @@ export default function QuizLibraryEditor({ quizId }: Props) {
   const quizRef = useRef<QuizLibraryItem | null>(null);
   const lastSavedJson = useRef("");
   const saveSeq = useRef(0);
+  const recentCustomBank = useRef<CustomBankQuestion[]>([]);
   quizRef.current = quiz;
 
   const refreshMusicBank = useCallback(async () => {
@@ -152,7 +153,9 @@ export default function QuizLibraryEditor({ quizId }: Props) {
 
   const refreshCustomBank = useCallback(async () => {
     const questions = await fetchCustomBankQuestionsFromServer();
-    setCustomBankQuestions(questions);
+    const ids = new Set(questions.map((item) => item.id));
+    const extra = recentCustomBank.current.filter((item) => !ids.has(item.id));
+    setCustomBankQuestions([...extra, ...questions]);
   }, []);
 
   useEffect(() => {
@@ -888,7 +891,15 @@ export default function QuizLibraryEditor({ quizId }: Props) {
         </div>
       </div>
 
-      <CustomBankQuestionForm onAdded={refreshCustomBank} />
+      <CustomBankQuestionForm
+        onAdded={(question) => {
+          recentCustomBank.current = [
+            question,
+            ...recentCustomBank.current.filter((item) => item.id !== question.id),
+          ];
+          void refreshCustomBank();
+        }}
+      />
       <MusicBankQuestionForm
         onAdded={() => {
           void refreshMusicBank();

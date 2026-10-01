@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { ChevronDown, ChevronUp, Plus } from "lucide-react";
 import ImageUrlField from "@/components/admin/ImageUrlField";
-import { addCustomBankQuestionAsync } from "@/lib/quiz-custom-bank";
+import { addCustomBankQuestionAsync, type CustomBankQuestion } from "@/lib/quiz-custom-bank";
 import { parseTagsInput } from "@/lib/quiz-question-tags";
 
 const OPTION_LETTERS = ["A", "B", "C", "D", "E", "F"] as const;
@@ -11,7 +11,7 @@ const OPTION_LETTERS = ["A", "B", "C", "D", "E", "F"] as const;
 type QuestionMode = "choice" | "open";
 
 type Props = {
-  onAdded?: () => void;
+  onAdded?: (question: CustomBankQuestion) => void;
 };
 
 export default function CustomBankQuestionForm({ onAdded }: Props) {
@@ -104,7 +104,7 @@ export default function CustomBankQuestionForm({ onAdded }: Props) {
       setSuccess(
         `Otázka je uložená v banke. Tagy: ${created.tags.join(", ")}${tagsText.trim() ? "" : " (doplnené automaticky)"}.`
       );
-      onAdded?.();
+      onAdded?.(created);
       window.setTimeout(() => setSuccess(""), 5000);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Uloženie zlyhalo.");

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Pencil, RefreshCw, Sparkles, Trash2 } from "lucide-react";
 import MusicBankTagFilters from "@/components/MusicBankTagFilters";
 import {
@@ -51,11 +51,20 @@ type Tab = "questions" | "sound" | "video" | "music";
 type Props = {
   refreshKey?: number;
   onChanged?: () => void;
+  /** Práve uložená otázka — zobrazí sa hneď, aj keď neskoršie načítanie ešte nevie o nej. */
+  addedQuestion?: CustomBankQuestion | null;
+  addedNonce?: number;
   /** Keď je rodič sticky panel (celá výška), zoznam sa roztiahne a scrolluje vo vnútri. */
   fillHeight?: boolean;
 };
 
-export default function QuestionBankInventory({ refreshKey = 0, onChanged, fillHeight = false }: Props) {
+export default function QuestionBankInventory({
+  refreshKey = 0,
+  onChanged,
+  addedQuestion = null,
+  addedNonce = 0,
+  fillHeight = false,
+}: Props) {
   const [tab, setTab] = useState<Tab>("questions");
   const [loading, setLoading] = useState(true);
   const [questions, setQuestions] = useState<CustomBankQuestion[]>([]);
@@ -74,21 +83,36 @@ export default function QuestionBankInventory({ refreshKey = 0, onChanged, fillH
   const [usedBodies, setUsedBodies] = useState<string[]>([]);
   const [questionSourceFilter, setQuestionSourceFilter] = useState<TextBankSourceFilter>("all");
   const [customKind, setCustomKind] = useState<"text" | "photo">("text");
+  const [pinned, setPinned] = useState<CustomBankQuestion[]>([]);
+  const [highlightId, setHighlightId] = useState<string | null>(null);
+  const pendingAdded = useRef<CustomBankQuestion[]>([]);
+  const reinjected = useRef(new Set<string>());
+  const loadSeq = useRef(0);
+  const loadedOnce = useRef(false);
 
   useEffect(() => {
     setHiddenIds(readHiddenBankQuestionIds());
   }, []);
 
+  const sourceQuestions = useMemo(() => {
+    const byId = new Map<string, CustomBankQuestion>();
+    for (const item of questions) byId.set(item.id, item);
+    for (const item of pinned) byId.set(item.id, item);
+    if (addedQuestion) byId.set(addedQuestion.id, addedQuestion);
+    return Array.from(byId.values()).sort((a, b) => b.createdAt - a.createdAt);
+  }, [questions, pinned, addedQuestion]);
+
   const usedIdSet = useMemo(() => new Set(usedIds), [usedIds]);
 
-  const fullTextBank = useMemo(
-    () =>
-      excludeQuestionsUsedByBody(
-        getInsertableTextBankQuestions(questions, usedIds, hiddenIds),
-        usedBodies
-      ),
-    [questions, hiddenIds, usedIds, usedBodies]
-  );
+  const fullTextBank = useMemo(() => {
+    const available = getInsertableTextBankQuestions(sourceQuestions, usedIds, hiddenIds);
+    const custom = available.filter((item) => isCustomBankQuestionId(item.id));
+    const generated = excludeQuestionsUsedByBody(
+      available.filter((item) => !isCustomBankQuestionId(item.id)),
+      usedBodies
+    );
+    return [...custom, ...generated];
+  }, [sourceQuestions, hiddenIds, usedIds, usedBodies]);
 
   const availableSound = useMemo(
     () => sound.filter((clip) => !usedIdSet.has(clip.id)),
@@ -138,7 +162,8 @@ export default function QuestionBankInventory({ refreshKey = 0, onChanged, fillH
   );
 
   const load = useCallback(async () => {
-    setLoading(true);
+    const seq = ++loadSeq.current;
+    if (!loadedOnce.current) setLoading(true);
     const [q, s, v, m, quizRes] = await Promise.all([
       fetchCustomBankQuestionsFromServer(),
       fetchSoundBankFromServer(),
@@ -146,19 +171,53 @@ export default function QuestionBankInventory({ refreshKey = 0, onChanged, fillH
       fetchMusicBankFromServer(),
       fetch(`/api/admin/quiz-library?_=${Date.now()}`, { cache: "no-store" }),
     ]);
+    if (seq !== loadSeq.current) return;
     const quizzes: QuizLibraryItem[] = quizRes.ok ? ((await quizRes.json()).quizzes ?? []) : [];
-    setQuestions(q.filter((item) => isCustomBankQuestionId(item.id)));
+    const server = q.filter((item) => isCustomBankQuestionId(item.id));
+    const serverIds = new Set(server.map((item) => item.id));
+    const missing = pendingAdded.current.filter((item) => !serverIds.has(item.id));
+    const toSave = missing.filter((item) => !reinjected.current.has(item.id));
+    for (const item of toSave) reinjected.current.add(item.id);
+    setQuestions([...missing, ...server.filter((item) => !missing.some((extra) => extra.id === item.id))]);
     setSound(s);
     setVideo(v);
     setMusic(m);
     setUsedIds(collectGlobalUsedBankQuestionIds(quizzes));
     setUsedBodies(collectUsedQuestionBodyKeys(quizzes));
+    loadedOnce.current = true;
     setLoading(false);
+    if (toSave.length > 0) {
+      void fetch("/api/admin/custom-bank", {
+        method: "POST",
+        cache: "no-store",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ merge: true, questions: toSave }),
+      });
+    }
   }, []);
 
   useEffect(() => {
     void load();
   }, [load, refreshKey]);
+
+  useEffect(() => {
+    if (!addedNonce || !addedQuestion) return;
+    pendingAdded.current = [
+      addedQuestion,
+      ...pendingAdded.current.filter((item) => item.id !== addedQuestion.id),
+    ];
+    setPinned((prev) => [addedQuestion, ...prev.filter((item) => item.id !== addedQuestion.id)]);
+    setTab("questions");
+    setQuestionSourceFilter("custom");
+    setCustomKind(customQuestionHasPhoto(addedQuestion) ? "photo" : "text");
+    setHighlightId(addedQuestion.id);
+    setLoading(false);
+    const timer = window.setTimeout(() => {
+      document.getElementById(`bank-item-${addedQuestion.id}`)?.scrollIntoView({ block: "nearest" });
+    }, 50);
+    void load();
+    return () => window.clearTimeout(timer);
+  }, [addedNonce, addedQuestion, load]);
 
   const tabs: { id: Tab; label: string; count: number }[] = [
     { id: "questions", label: "Otázky", count: textBankCounts.all },
@@ -174,6 +233,9 @@ export default function QuestionBankInventory({ refreshKey = 0, onChanged, fillH
 
   const removeQuestion = async (id: string) => {
     if (!window.confirm("Odstrániť otázku z banky?")) return;
+    pendingAdded.current = pendingAdded.current.filter((item) => item.id !== id);
+    reinjected.current.delete(id);
+    setPinned((prev) => prev.filter((item) => item.id !== id));
     await removeCustomBankQuestionAsync(id);
     afterEdit();
   };
@@ -224,7 +286,9 @@ export default function QuestionBankInventory({ refreshKey = 0, onChanged, fillH
       <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 border-b border-brand-border shrink-0">
         <div>
           <p className="font-semibold text-brand-text">Obsah banky</p>
-          <p className="text-brand-muted text-xs mt-0.5">Použité v kvíze sa tu nezobrazujú. Zmiznú, kým ich z kvízu nevyberieš.</p>
+          <p className="text-brand-muted text-xs mt-0.5">
+            Nová otázka sa ukáže hneď v Moje otázky. Otázka už vložená do kvízu tu nie je, kým ju z kvízu nevyberieš.
+          </p>
         </div>
         <button
           type="button"
@@ -338,7 +402,13 @@ export default function QuestionBankInventory({ refreshKey = 0, onChanged, fillH
                 const isCustom = isCustomBankQuestionId(q.id);
                 const isGenerated = isGeneratedBankQuestion(q);
                 return (
-                <li key={q.id} className="rounded-xl border border-brand-border bg-brand-surface/50 p-3 space-y-2">
+                <li
+                  key={q.id}
+                  id={`bank-item-${q.id}`}
+                  className={`rounded-xl border bg-brand-surface/50 p-3 space-y-2 ${
+                    highlightId === q.id ? "border-brand-orange ring-2 ring-brand-orange/50" : "border-brand-border"
+                  }`}
+                >
                   <div className="flex flex-wrap items-center gap-1.5">
                     {isCustom && (
                       <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-brand-orange/15 text-brand-orange-readable border border-brand-orange/40">

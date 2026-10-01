@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { BookOpen, ChevronLeft } from "lucide-react";
 import CustomBankQuestionForm from "@/components/CustomBankQuestionForm";
+import type { CustomBankQuestion } from "@/lib/quiz-custom-bank";
 import MusicBankQuestionForm from "@/components/MusicBankQuestionForm";
 import QuestionBankInventory from "@/components/QuestionBankInventory";
 import VideoBankQuestionForm from "@/components/VideoBankQuestionForm";
@@ -11,19 +12,33 @@ import VideoBankQuestionForm from "@/components/VideoBankQuestionForm";
 export default function HotoveKvizyBankaPage() {
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [addedQuestion, setAddedQuestion] = useState<CustomBankQuestion | null>(null);
+  const [addedNonce, setAddedNonce] = useState(0);
 
   const bump = () => setRefreshKey((v) => v + 1);
+  const showAdded = (question: CustomBankQuestion) => {
+    setAddedQuestion(question);
+    setAddedNonce((v) => v + 1);
+  };
 
   const addForms = (
     <div className="space-y-4 min-w-0 max-w-full">
       <h2 className="font-display text-xl text-brand-text tracking-wide">Pridať do banky</h2>
-      <CustomBankQuestionForm onAdded={bump} />
+      <CustomBankQuestionForm onAdded={showAdded} />
       <MusicBankQuestionForm onAdded={bump} onMessage={(text, ok) => setMsg({ text, ok })} />
       <VideoBankQuestionForm onAdded={bump} onMessage={(text, ok) => setMsg({ text, ok })} />
     </div>
   );
 
-  const inventory = <QuestionBankInventory refreshKey={refreshKey} onChanged={bump} fillHeight />;
+  const inventory = (
+    <QuestionBankInventory
+      refreshKey={refreshKey}
+      addedQuestion={addedQuestion}
+      addedNonce={addedNonce}
+      onChanged={bump}
+      fillHeight
+    />
+  );
 
   return (
     <div className="min-w-0 max-w-full space-y-6 pb-6">
