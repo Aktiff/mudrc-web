@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { Plus, Trash2, ChevronLeft, Save, PauseCircle, PlayCircle, Upload, ImageIcon, Phone, Users, Clock, RefreshCw, Vote, ExternalLink, UserPlus, UserX, Armchair } from "lucide-react";
 import Link from "next/link";
 import type { QuizEvent, LeagueEntry, PastResult } from "@/lib/data";
-import { eventTeamNameSuggestions, sortLeagueTable } from "@/lib/data";
+import { eventTeamNameSuggestions, formatEventDateLabel, sortLeagueTable } from "@/lib/data";
 import { hasSeedLeagueBackup } from "@/lib/league-seed";
 import { formatPollOptionLabel, pollOptionsMatch } from "@/lib/poll";
 import { findQuizResult, mergePastResults, normalizeDateKey, quizResultKey } from "@/lib/quiz-result-key";
@@ -17,6 +17,7 @@ import { TeamAutocomplete } from "@/components/TeamAutocomplete";
 import LibraryQuizPicker from "@/components/LibraryQuizPicker";
 import { fetchLibraryQuizList } from "@/lib/quiz-library-client";
 import RegistrationPlayersStepper from "@/components/admin/RegistrationPlayersStepper";
+import RegistrationShareList from "@/components/admin/RegistrationShareList";
 import QuizTypeField from "@/components/admin/QuizTypeField";
 import { DEFAULT_QUIZ_TYPE, normalizeQuizTypeLabel, quizTypeOrDefault, rememberQuizTypes, venueQuizLabel } from "@/lib/quiz-type";
 import { RuleListEditor } from "@/components/admin/RuleListEditor";
@@ -1478,6 +1479,12 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
             </p>
           </div>
 
+          <RegistrationShareList
+            venue={form.venue}
+            city={form.city}
+            whenLabel={form.date ? `${formatEventDateLabel(form.date)}${form.time ? ` o ${form.time}` : ""}` : undefined}
+            teams={registrations}
+          />
           {registrations.length > 0 && (
             <div className="flex flex-wrap items-center justify-between gap-3 mb-6 pb-6 border-b border-brand-border">
               <p className="text-brand-muted text-sm">

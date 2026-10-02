@@ -12,6 +12,7 @@ import {
   registrationsForEvent,
 } from "@/lib/registration-utils";
 import AdminRegistrationRow, { type AdminRegistration } from "@/components/admin/AdminRegistrationRow";
+import RegistrationShareList from "@/components/admin/RegistrationShareList";
 
 function matchesFilter(reg: AdminRegistration, filter: string): boolean {
   const q = filter.trim().toLowerCase();
@@ -223,6 +224,12 @@ export default function RegistraciaPage() {
           {teamCountLabel(totals.teams)} · {formatSkPlayerCountTotal(totals.players)}
         </p>
         {msg && <p className={`text-sm mb-4 ${msg.ok ? "text-green-600" : "text-red-500"}`}>{msg.text}</p>}
+        <RegistrationShareList
+          venue={event.venue}
+          city={event.city}
+          whenLabel={`${formatEventDateLabel(event.date)} o ${event.time}`}
+          teams={list}
+        />
         <div className="flex flex-wrap items-center gap-3 mb-6">
           <Link href={`/admin/udalosti/${event.slug}?tab=registracie`} className="text-sm font-semibold text-brand-orange-readable hover:underline">
             Otvoriť v udalosti

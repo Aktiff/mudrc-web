@@ -43,6 +43,37 @@ export function formatSkPlayerCountTotal(count: number): string {
   return `${count} hráčov`;
 }
 
+export function formatSkTeamCount(count: number): string {
+  if (count === 1) return "1 tím";
+  if (count >= 2 && count <= 4) return `${count} tímy`;
+  return `${count} tímov`;
+}
+
+export function registrationShareText(input: {
+  venue: string;
+  city?: string;
+  whenLabel?: string;
+  teams: { teamName: string; players: string | number }[];
+}): string {
+  const teams = input.teams
+    .map((team) => ({
+      teamName: team.teamName.trim(),
+      players: parseRegistrationPlayerCount(team.players),
+    }))
+    .filter((team) => team.teamName)
+    .sort((a, b) => a.teamName.localeCompare(b.teamName, "sk"));
+  const players = teams.reduce((sum, team) => sum + team.players, 0);
+  const place = [input.venue.trim(), input.city?.trim()].filter(Boolean).join(", ");
+  const lines = [place];
+  if (input.whenLabel?.trim()) lines.push(input.whenLabel.trim());
+  lines.push("", `${formatSkTeamCount(teams.length)} · ${formatSkPlayerCountTotal(players)}`, "");
+  teams.forEach((team, index) => {
+    const count = team.players > 0 ? ` — ${formatSkPlayerCountTotal(team.players)}` : "";
+    lines.push(`${index + 1}. ${team.teamName}${count}`);
+  });
+  return lines.join("\n");
+}
+
 /** Vstupné za hráča × počet prihlásených hráčov. */
 export function estimatedEntryRevenue(entryFee: number, players: number): number {
   const fee = Number(entryFee);
