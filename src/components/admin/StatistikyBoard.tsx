@@ -5,9 +5,66 @@ import { useRouter } from "next/navigation";
 import { Pencil, Trash2 } from "lucide-react";
 import { AdminDatePicker } from "@/components/AdminDatePicker";
 import QuizTypeField from "@/components/admin/QuizTypeField";
+import { parseSkEventDateTime } from "@/lib/data";
 import { formatEuroAmount, formatSkPlayerCountTotal } from "@/lib/registration-utils";
 import { quizTypeOrDefault, rememberQuizTypes } from "@/lib/quiz-type";
 import type { QuizStatRow, QuizStatTeam, QuizStatVenue, TeamQuizAppearance } from "@/lib/quiz-stats";
+
+type DatePeriod = "all" | "today" | "thisWeek" | "lastWeek" | "thisMonth" | "lastMonth" | "thisYear";
+
+const DATE_PERIODS: { id: DatePeriod; label: string }[] = [
+  { id: "all", label: "Všetko" },
+  { id: "today", label: "Dnes" },
+  { id: "thisWeek", label: "Tento týždeň" },
+  { id: "lastWeek", label: "Posledný týždeň" },
+  { id: "thisMonth", label: "Tento mesiac" },
+  { id: "lastMonth", label: "Posledný mesiac" },
+  { id: "thisYear", label: "Tento rok" },
+];
+
+function formatSkDate(date: Date): string {
+  return `${String(date.getDate()).padStart(2, "0")}.${String(date.getMonth() + 1).padStart(2, "0")}.${date.getFullYear()}`;
+}
+
+function periodRange(period: DatePeriod, now = new Date()): { from: string; to: string } {
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  if (period === "all") return { from: "", to: "" };
+  if (period === "today") return { from: formatSkDate(today), to: formatSkDate(today) };
+  if (period === "thisWeek" || period === "lastWeek") {
+    const mondayOffset = (today.getDay() + 6) % 7;
+    const monday = new Date(today);
+    monday.setDate(today.getDate() - mondayOffset);
+    if (period === "thisWeek") return { from: formatSkDate(monday), to: formatSkDate(today) };
+    const from = new Date(monday);
+    from.setDate(monday.getDate() - 7);
+    const to = new Date(monday);
+    to.setDate(monday.getDate() - 1);
+    return { from: formatSkDate(from), to: formatSkDate(to) };
+  }
+  if (period === "thisMonth") {
+    return { from: formatSkDate(new Date(today.getFullYear(), today.getMonth(), 1)), to: formatSkDate(today) };
+  }
+  if (period === "lastMonth") {
+    const from = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+    const to = new Date(today.getFullYear(), today.getMonth(), 0);
+    return { from: formatSkDate(from), to: formatSkDate(to) };
+  }
+  return { from: formatSkDate(new Date(today.getFullYear(), 0, 1)), to: formatSkDate(today) };
+}
+
+function dateInRange(value: string, from: string, to: string): boolean {
+  if (!from && !to) return true;
+  const current = parseSkEventDateTime(value);
+  if (!current) return false;
+  const start = from ? parseSkEventDateTime(from) : null;
+  const end = to ? parseSkEventDateTime(to) : null;
+  if (start && current.getTime() < start.getTime()) return false;
+  if (end) {
+    const endOfDay = new Date(end.getFullYear(), end.getMonth(), end.getDate(), 23, 59, 59, 999);
+    if (current.getTime() > endOfDay.getTime()) return false;
+  }
+  return true;
+}
 
 function skCount(count: number, one: string, few: string, many: string) {
   if (count === 1) return `1 ${one}`;
@@ -47,6 +104,8 @@ export default function StatistikyBoard({
   const [venueFilter, setVenueFilter] = useState("");
   const [cityFilter, setCityFilter] = useState("");
   const [teamFilter, setTeamFilter] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [editing, setEditing] = useState<EditState | null>(null);
   const [busyKey, setBusyKey] = useState("");
   const [error, setError] = useState("");
@@ -55,14 +114,15 @@ export default function StatistikyBoard({
     () => Array.from(new Set(rows.map((row) => row.city).filter(Boolean))).sort((a, b) => a.localeCompare(b, "sk")),
     [rows]
   );
-  const venueNames = useMemo(
-    () => Array.from(new Set(rows.map((row) => row.venue).filter(Boolean))).sort((a, b) => a.localeCompare(b, "sk")),
-    [rows]
-  );
+  const venueNames = useMemo(() => {
+    const source = cityFilter ? rows.filter((row) => row.city === cityFilter) : rows;
+    return Array.from(new Set(source.map((row) => row.venue).filter(Boolean))).sort((a, b) => a.localeCompare(b, "sk"));
+  }, [rows, cityFilter]);
 
   const visible = rows.filter((row) => {
-    if (venueFilter && row.venue !== venueFilter) return false;
     if (cityFilter && row.city !== cityFilter) return false;
+    if (venueFilter && row.venue !== venueFilter) return false;
+    if (!dateInRange(row.date, dateFrom, dateTo)) return false;
     return true;
   });
 
@@ -78,18 +138,46 @@ export default function StatistikyBoard({
   const teamNames = useMemo(() => {
     const names = new Map<string, string>();
     for (const row of teamRows) {
+      if (cityFilter && row.city !== cityFilter) continue;
+      if (venueFilter && row.venue !== venueFilter) continue;
+      if (!dateInRange(row.date, dateFrom, dateTo)) continue;
       const key = row.teamName.toLocaleLowerCase("sk");
       if (!names.has(key)) names.set(key, row.teamName);
     }
     return Array.from(names.values()).sort((a, b) => a.localeCompare(b, "sk"));
-  }, [teamRows]);
+  }, [teamRows, cityFilter, venueFilter, dateFrom, dateTo]);
 
   const visibleTeams = teamRows.filter((row) => {
-    if (teamFilter && row.teamName.toLocaleLowerCase("sk") !== teamFilter) return false;
-    if (venueFilter && row.venue !== venueFilter) return false;
     if (cityFilter && row.city !== cityFilter) return false;
+    if (venueFilter && row.venue !== venueFilter) return false;
+    if (teamFilter && row.teamName.toLocaleLowerCase("sk") !== teamFilter) return false;
+    if (!dateInRange(row.date, dateFrom, dateTo)) return false;
     return true;
   });
+
+  const activePeriod = DATE_PERIODS.find((period) => {
+    const range = periodRange(period.id);
+    return range.from === dateFrom && range.to === dateTo;
+  })?.id;
+
+  const chooseCity = (city: string) => {
+    setCityFilter(city);
+    if (city && venueFilter && !rows.some((row) => row.city === city && row.venue === venueFilter)) {
+      setVenueFilter("");
+    }
+    setTeamFilter("");
+  };
+
+  const chooseVenue = (venue: string) => {
+    setVenueFilter(venue);
+    setTeamFilter("");
+  };
+
+  const choosePeriod = (period: DatePeriod) => {
+    const range = periodRange(period);
+    setDateFrom(range.from);
+    setDateTo(range.to);
+  };
 
   const teamGroups = useMemo(() => {
     const groups: { teamName: string; rows: TeamQuizAppearance[] }[] = [];
@@ -206,42 +294,82 @@ export default function StatistikyBoard({
         </button>
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-3 mb-4">
-        {view === "timy" && (
+      <div className="flex flex-col gap-3 mb-4">
+        <div className="flex flex-col sm:flex-row gap-3">
           <label className="block sm:w-64">
-            <span className="label">Tím</span>
-            <select className="input" value={teamFilter} onChange={(e) => setTeamFilter(e.target.value)}>
-              <option value="">Všetky tímy</option>
-              {teamNames.map((name) => (
-                <option key={name.toLocaleLowerCase("sk")} value={name.toLocaleLowerCase("sk")}>
-                  {name}
+            <span className="label">Mesto</span>
+            <select className="input" value={cityFilter} onChange={(e) => chooseCity(e.target.value)}>
+              <option value="">Všetky mestá</option>
+              {cities.map((city) => (
+                <option key={city} value={city}>
+                  {city}
                 </option>
               ))}
             </select>
           </label>
-        )}
-        <label className="block sm:w-64">
-          <span className="label">Podnik</span>
-          <select className="input" value={venueFilter} onChange={(e) => setVenueFilter(e.target.value)}>
-            <option value="">Všetky podniky</option>
-            {venueNames.map((venue) => (
-              <option key={venue} value={venue}>
-                {venue}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="block sm:w-64">
-          <span className="label">Mesto</span>
-          <select className="input" value={cityFilter} onChange={(e) => setCityFilter(e.target.value)}>
-            <option value="">Všetky mestá</option>
-            {cities.map((city) => (
-              <option key={city} value={city}>
-                {city}
-              </option>
-            ))}
-          </select>
-        </label>
+          <label className="block sm:w-64">
+            <span className="label">Podnik</span>
+            <select className="input" value={venueFilter} onChange={(e) => chooseVenue(e.target.value)}>
+              <option value="">Všetky podniky</option>
+              {venueNames.map((venue) => (
+                <option key={venue} value={venue}>
+                  {venue}
+                </option>
+              ))}
+            </select>
+          </label>
+          {view === "timy" && (
+            <label className="block sm:w-64">
+              <span className="label">Tím</span>
+              <select className="input" value={teamFilter} onChange={(e) => setTeamFilter(e.target.value)}>
+                <option value="">Všetky tímy</option>
+                {teamNames.map((name) => (
+                  <option key={name.toLocaleLowerCase("sk")} value={name.toLocaleLowerCase("sk")}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {DATE_PERIODS.map((period) => (
+            <button
+              key={period.id}
+              type="button"
+              onClick={() => choosePeriod(period.id)}
+              className={`px-3 py-1.5 rounded-full text-sm font-semibold border transition-colors ${
+                activePeriod === period.id
+                  ? "bg-brand-orange text-brand-btn-fg border-brand-orange"
+                  : "bg-brand-card text-brand-muted border-brand-border hover:text-brand-text"
+              }`}
+            >
+              {period.label}
+            </button>
+          ))}
+        </div>
+        <div className="flex flex-col sm:flex-row gap-3">
+          <label className="block sm:w-52">
+            <span className="label">Od</span>
+            <AdminDatePicker
+              value={dateFrom}
+              placeholder="Od"
+              onChange={(value) => {
+                setDateFrom(value);
+              }}
+            />
+          </label>
+          <label className="block sm:w-52">
+            <span className="label">Do</span>
+            <AdminDatePicker
+              value={dateTo}
+              placeholder="Do"
+              onChange={(value) => {
+                setDateTo(value);
+              }}
+            />
+          </label>
+        </div>
       </div>
 
       {view === "kvizy" && (
