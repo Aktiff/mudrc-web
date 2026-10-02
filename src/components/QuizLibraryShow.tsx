@@ -258,8 +258,7 @@ function QuestionContent({
   const answerBoxClass =
     "shrink-0 px-6 sm:px-10 py-5 sm:py-6 rounded-2xl bg-gradient-to-br from-[#f0c800] to-[#e6b800] text-black text-center w-full max-w-full shadow-[0_20px_60px_rgba(240,200,0,0.25)]";
 
-  const audioBlock =
-    (question.kind === "music" || question.kind === "sound") && question.audioUrl?.trim() ? (
+  const audioBlock = question.audioUrl?.trim() ? (
       <VolumeAudio
         ref={presentationAudioRef}
         captureWheel={false}
@@ -271,8 +270,7 @@ function QuestionContent({
       />
     ) : null;
 
-  const videoBlock =
-    question.kind === "video" && question.videoUrl?.trim() ? (
+  const videoBlock = question.videoUrl?.trim() ? (
       <VolumeVideo
         captureWheel={false}
         controls

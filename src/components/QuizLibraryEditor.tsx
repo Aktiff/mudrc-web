@@ -1184,16 +1184,18 @@ export default function QuizLibraryEditor({ quizId }: Props) {
                 onUploadSuccess={(text) => setMsg({ text, ok: true })}
               />
               )}
-              {(question.kind === "music" || question.kind === "sound") && (
+              {(question.kind === "music" || question.kind === "sound" || question.kind === "normal") && (
                 <AudioUrlField
+                  label={question.kind === "normal" ? "Nahrávka (voliteľné)" : undefined}
                   value={question.audioUrl ?? ""}
                   onChange={(url) => updateQuestion(question.id, { audioUrl: url })}
                   onUploadError={(text) => setMsg({ text, ok: false })}
                   onUploadSuccess={(text) => setMsg({ text, ok: true })}
                 />
               )}
-              {question.kind === "video" && (
+              {(question.kind === "video" || question.kind === "normal") && (
                 <VideoUrlField
+                  label={question.kind === "normal" ? "Video (voliteľné)" : undefined}
                   value={question.videoUrl ?? ""}
                   onChange={(url) => updateQuestion(question.id, { videoUrl: url })}
                   onUploadError={(text) => setMsg({ text, ok: false })}
