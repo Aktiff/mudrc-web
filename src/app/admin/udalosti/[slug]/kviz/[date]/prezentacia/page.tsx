@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useLayoutEffect, useRef, useMemo, type CSSProperties } from "react";
 import Link from "next/link";
-import type { PastResultTeam } from "@/lib/data";
+import type { LeagueEntry, PastResultTeam } from "@/lib/data";
 
 type TeamDisplay = PastResultTeam & { totalWithBonus: number; rowId: number };
 type ScoreGroup = { teams: TeamDisplay[]; baseTotal: number; startRank: number };
@@ -35,6 +35,7 @@ export default function PrezentaciaPage({ params }: { params: { slug: string; da
   const [showRounds, setShowRounds] = useState(true);
   const [bonus, setBonus] = useState<Record<number, number>>({});
   const [saving, setSaving] = useState(false);
+  const [leagueTable, setLeagueTable] = useState<LeagueEntry[]>([]);
   const listRef = useRef<HTMLDivElement>(null);
   const [listHeight, setListHeight] = useState(0);
 
@@ -91,7 +92,8 @@ export default function PrezentaciaPage({ params }: { params: { slug: string; da
   const G = allGroups.length;
   const isStartScreen = step === 0;
   const isPreFinal = step === G;
-  const isFinal = step > G;
+  const isFinal = step === G + 1;
+  const isLeague = step > G + 1;
 
   const visibleGroups: ScoreGroup[] = allGroups.slice(Math.max(0, G - step));
   const displayGroups = visibleGroups.map((group) => ({
@@ -106,6 +108,8 @@ export default function PrezentaciaPage({ params }: { params: { slug: string; da
 
   const visibleRowCount = isStartScreen
     ? 0
+    : isLeague
+    ? leagueTable.length
     : isFinal
     ? finalSorted.length
     : displayGroups.reduce((sum, group) => sum + group.teams.length, 0);
@@ -122,7 +126,7 @@ export default function PrezentaciaPage({ params }: { params: { slug: string; da
       ro.disconnect();
       window.removeEventListener("resize", measure);
     };
-  }, [step, showRounds, isPreFinal, isFinal, visibleRowCount]);
+  }, [step, showRounds, isPreFinal, isFinal, isLeague, visibleRowCount]);
 
   const gapPx = visibleRowCount > 10 ? 1 : visibleRowCount > 7 ? 2 : 3;
   const rowHeight =
@@ -157,7 +161,9 @@ export default function PrezentaciaPage({ params }: { params: { slug: string; da
         setSaving(false);
         return;
       }
-      alert("Kvíz uložený do ligy. Liga je zapnutá.");
+      const saved = await res.json().catch(() => ({}));
+      const table = Array.isArray(saved.event?.leagueTable) ? (saved.event.leagueTable as LeagueEntry[]) : [];
+      setLeagueTable(table);
     } catch {
       alert("Sieťová chyba pri ukladaní kvízu");
       setSaving(false);
@@ -229,12 +235,16 @@ export default function PrezentaciaPage({ params }: { params: { slug: string; da
           ← Späť
         </Link>
         <span className="font-bold text-[#f0b429] text-2xl tracking-widest">MUDRC KVÍZ</span>
-        <button
-          onClick={() => setShowRounds((v) => !v)}
-          className="text-sm font-semibold px-3 py-1.5 rounded-lg border border-[#f0b429] text-[#f0b429] hover:bg-[#f0b429] hover:text-black transition-all"
-        >
-          {showRounds ? "Skryť kolá" : "Zobraziť kolá"}
-        </button>
+        {isLeague ? (
+          <span className="w-[7.5rem]" />
+        ) : (
+          <button
+            onClick={() => setShowRounds((v) => !v)}
+            className="text-sm font-semibold px-3 py-1.5 rounded-lg border border-[#f0b429] text-[#f0b429] hover:bg-[#f0b429] hover:text-black transition-all"
+          >
+            {showRounds ? "Skryť kolá" : "Zobraziť kolá"}
+          </button>
+        )}
       </div>
 
       <div className="flex-1 min-h-0 flex flex-col px-2 py-2 overflow-hidden w-full">
@@ -244,6 +254,45 @@ export default function PrezentaciaPage({ params }: { params: { slug: string; da
             <span className="font-bold text-[#f0b429] tracking-widest" style={{ fontSize: "3.5rem" }}>
               MUDRC KVÍZ
             </span>
+          </div>
+        ) : isLeague ? (
+          <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+            <div className="shrink-0 py-2 px-2">
+              <div className="font-bold text-[#f0b429] leading-tight" style={{ fontSize: `${Math.min(34, layout.namePx * 1.05)}px` }}>
+                Ligová tabuľka
+              </div>
+            </div>
+            {leagueTable.length === 0 ? (
+              <div className="flex-1 flex items-center justify-center text-stone-400 text-2xl text-center px-6">
+                Tento podnik zatiaľ nemá ligovú tabuľku.
+              </div>
+            ) : (
+              <div ref={listRef} className="flex-1 min-h-0 flex flex-col overflow-hidden w-full" style={listGapStyle}>
+                {leagueTable.map((entry) => (
+                  <div
+                    key={`${entry.rank}-${entry.teamName}`}
+                    className={`grid items-center gap-3 rounded-xl w-full ${entry.rank === 1 ? "border-2 border-[#f0b429] bg-[#211900]" : "border border-[#2a2a2a] bg-[#1a1a1a]"}`}
+                    style={{ ...rowFlex, display: "grid", alignItems: "center", gridTemplateColumns: rowGrid, padding: "0 0.5rem" }}
+                  >
+                    <span
+                      className={`font-bold shrink-0 ${entry.rank === 1 ? "text-[#f0b429]" : "text-stone-400"}`}
+                      style={{ fontSize: `${layout.rankPx}px` }}
+                    >
+                      {entry.rank === 1 ? "🏆" : `${entry.rank}.`}
+                    </span>
+                    <span
+                      className={`font-bold truncate ${entry.rank === 1 ? "text-[#ffd54f]" : "text-white"}`}
+                      style={{ fontSize: `${layout.namePx}px` }}
+                    >
+                      {entry.teamName}
+                    </span>
+                    <span className="text-[#f0b429] font-bold text-right whitespace-nowrap tabular-nums" style={{ fontSize: `${layout.scorePx}px` }}>
+                      {entry.points}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         ) : isFinal ? (
           <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
@@ -439,7 +488,7 @@ export default function PrezentaciaPage({ params }: { params: { slug: string; da
       )}
 
       <div className="flex justify-center py-3 shrink-0">
-        {isFinal ? (
+        {isLeague ? (
           <Link
             href={backUrl}
             className="bg-[#f0b429] text-black font-bold rounded-2xl hover:bg-[#ffd54f] transition-colors shadow-lg shadow-black/40"
@@ -447,6 +496,14 @@ export default function PrezentaciaPage({ params }: { params: { slug: string; da
           >
             Zavrieť prezentáciu
           </Link>
+        ) : isFinal ? (
+          <button
+            onClick={() => setStep(G + 2)}
+            className="bg-[#f0b429] text-black font-bold rounded-2xl hover:bg-[#ffd54f] transition-colors active:scale-95 shadow-lg shadow-black/40"
+            style={{ fontSize: "1.25rem", padding: "0.75rem 3rem" }}
+          >
+            Ligová tabuľka →
+          </button>
         ) : isPreFinal ? (
           <button
             onClick={saveAndRevealWinner}

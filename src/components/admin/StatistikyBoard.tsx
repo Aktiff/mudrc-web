@@ -179,6 +179,15 @@ export default function StatistikyBoard({
     setDateTo(range.to);
   };
 
+  const filtersActive = Boolean(cityFilter || venueFilter || teamFilter || dateFrom || dateTo);
+  const resetFilters = () => {
+    setCityFilter("");
+    setVenueFilter("");
+    setTeamFilter("");
+    setDateFrom("");
+    setDateTo("");
+  };
+
   const teamGroups = useMemo(() => {
     const groups: { teamName: string; rows: TeamQuizAppearance[] }[] = [];
     for (const row of visibleTeams) {
@@ -369,6 +378,11 @@ export default function StatistikyBoard({
               }}
             />
           </label>
+          <div className="flex items-end">
+            <button type="button" onClick={resetFilters} disabled={!filtersActive} className="btn-outline text-sm py-2 px-4 disabled:opacity-40">
+              Zrušiť filter
+            </button>
+          </div>
         </div>
       </div>
 
