@@ -119,12 +119,92 @@ function reorderQuestionInGroup(
   return sortQuizQuestions([...rest, ...renumbered]);
 }
 
+const NORMAL_MEDIA_CHOICES = [
+  { id: "none", label: "Žiadne" },
+  { id: "image", label: "Obrázok" },
+  { id: "audio", label: "Nahrávka" },
+  { id: "video", label: "Video" },
+] as const;
+
+function NormalQuestionMedia({
+  question,
+  choice,
+  onChoice,
+  onImage,
+  onAudio,
+  onVideo,
+  onUploadError,
+  onUploadSuccess,
+}: {
+  question: QuizQuestionItem;
+  choice: (typeof NORMAL_MEDIA_CHOICES)[number]["id"];
+  onChoice: (choice: (typeof NORMAL_MEDIA_CHOICES)[number]["id"]) => void;
+  onImage: (url: string) => void;
+  onAudio: (url: string) => void;
+  onVideo: (url: string) => void;
+  onUploadError: (text: string) => void;
+  onUploadSuccess: (text: string) => void;
+}) {
+  return (
+    <div className="space-y-3">
+      <div>
+        <p className="label">Vloženie</p>
+        <div className="flex flex-wrap gap-1.5">
+          {NORMAL_MEDIA_CHOICES.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => onChoice(item.id)}
+              className={`text-xs font-semibold px-2.5 py-1.5 rounded-lg border transition-colors ${
+                choice === item.id
+                  ? "bg-brand-orange text-brand-btn-fg border-brand-orange"
+                  : "btn-outline"
+              }`}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+      </div>
+      {choice === "image" && (
+        <ImageUrlField
+          value={question.imageUrl ?? ""}
+          onChange={onImage}
+          onUploadError={onUploadError}
+          onUploadSuccess={onUploadSuccess}
+        />
+      )}
+      {choice === "audio" && (
+        <AudioUrlField
+          label="Nahrávka"
+          value={question.audioUrl ?? ""}
+          onChange={onAudio}
+          onUploadError={onUploadError}
+          onUploadSuccess={onUploadSuccess}
+        />
+      )}
+      {choice === "video" && (
+        <VideoUrlField
+          label="Video"
+          value={question.videoUrl ?? ""}
+          onChange={onVideo}
+          onUploadError={onUploadError}
+          onUploadSuccess={onUploadSuccess}
+        />
+      )}
+    </div>
+  );
+}
+
 export default function QuizLibraryEditor({ quizId }: Props) {
   const [quiz, setQuiz] = useState<QuizLibraryItem | null>(null);
   const [loading, setLoading] = useState(true);
   const [draftRestored, setDraftRestored] = useState(false);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
+  const [normalMediaChoice, setNormalMediaChoice] = useState<
+    Record<string, "none" | "image" | "audio" | "video">
+  >({});
   const [events, setEvents] = useState<QuizEvent[]>([]);
   const [playEventSlug, setPlayEventSlug] = useState("");
   const [openRound, setOpenRound] = useState<number>(1);
@@ -1175,34 +1255,67 @@ export default function QuizLibraryEditor({ quizId }: Props) {
                 )}
               </div>
             )}
-            <div className="grid gap-3 grid-cols-1">
-              {question.kind === "normal" && (
-              <ImageUrlField
-                value={question.imageUrl ?? ""}
-                onChange={(url) => updateQuestion(question.id, { imageUrl: url })}
+            {question.kind === "normal" ? (
+              <NormalQuestionMedia
+                question={question}
+                choice={
+                  normalMediaChoice[question.id] ??
+                  (question.videoUrl?.trim()
+                    ? "video"
+                    : question.audioUrl?.trim()
+                      ? "audio"
+                      : question.imageUrl?.trim()
+                        ? "image"
+                        : "none")
+                }
+                onChoice={(choice) => {
+                  const current =
+                    normalMediaChoice[question.id] ??
+                    (question.videoUrl?.trim()
+                      ? "video"
+                      : question.audioUrl?.trim()
+                        ? "audio"
+                        : question.imageUrl?.trim()
+                          ? "image"
+                          : "none");
+                  if (choice === current) return;
+                  setNormalMediaChoice((prev) => ({ ...prev, [question.id]: choice }));
+                  if (choice === "none") {
+                    updateQuestion(question.id, { imageUrl: "", audioUrl: "", videoUrl: "" });
+                  } else if (choice === "image") {
+                    updateQuestion(question.id, { audioUrl: "", videoUrl: "" });
+                  } else if (choice === "audio") {
+                    updateQuestion(question.id, { imageUrl: "", videoUrl: "" });
+                  } else {
+                    updateQuestion(question.id, { imageUrl: "", audioUrl: "" });
+                  }
+                }}
                 onUploadError={(text) => setMsg({ text, ok: false })}
                 onUploadSuccess={(text) => setMsg({ text, ok: true })}
+                onImage={(url) => updateQuestion(question.id, { imageUrl: url })}
+                onAudio={(url) => updateQuestion(question.id, { audioUrl: url })}
+                onVideo={(url) => updateQuestion(question.id, { videoUrl: url })}
               />
-              )}
-              {(question.kind === "music" || question.kind === "sound" || question.kind === "normal") && (
-                <AudioUrlField
-                  label={question.kind === "normal" ? "Nahrávka (voliteľné)" : undefined}
-                  value={question.audioUrl ?? ""}
-                  onChange={(url) => updateQuestion(question.id, { audioUrl: url })}
-                  onUploadError={(text) => setMsg({ text, ok: false })}
-                  onUploadSuccess={(text) => setMsg({ text, ok: true })}
-                />
-              )}
-              {(question.kind === "video" || question.kind === "normal") && (
-                <VideoUrlField
-                  label={question.kind === "normal" ? "Video (voliteľné)" : undefined}
-                  value={question.videoUrl ?? ""}
-                  onChange={(url) => updateQuestion(question.id, { videoUrl: url })}
-                  onUploadError={(text) => setMsg({ text, ok: false })}
-                  onUploadSuccess={(text) => setMsg({ text, ok: true })}
-                />
-              )}
-            </div>
+            ) : (
+              <div className="grid gap-3 grid-cols-1">
+                {(question.kind === "music" || question.kind === "sound") && (
+                  <AudioUrlField
+                    value={question.audioUrl ?? ""}
+                    onChange={(url) => updateQuestion(question.id, { audioUrl: url })}
+                    onUploadError={(text) => setMsg({ text, ok: false })}
+                    onUploadSuccess={(text) => setMsg({ text, ok: true })}
+                  />
+                )}
+                {question.kind === "video" && (
+                  <VideoUrlField
+                    value={question.videoUrl ?? ""}
+                    onChange={(url) => updateQuestion(question.id, { videoUrl: url })}
+                    onUploadError={(text) => setMsg({ text, ok: false })}
+                    onUploadSuccess={(text) => setMsg({ text, ok: true })}
+                  />
+                )}
+              </div>
+            )}
             {question.kind === "normal" && question.imageUrl?.trim() && (
               <div className="space-y-2">
                 <p className="text-xs font-semibold text-brand-muted uppercase tracking-wider">Kde zobraziť obrázok</p>
