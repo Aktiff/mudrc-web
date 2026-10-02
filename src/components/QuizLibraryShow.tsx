@@ -83,16 +83,19 @@ function RulesSlide({
   specialRules?: string[];
   venueName: string;
 }) {
-  const ruleItemClass =
-    "flex items-baseline gap-3 sm:gap-4 text-[clamp(1.05rem,1.55vw,1.7rem)] text-white/95 leading-snug";
+  const longest = Math.max(1, ...rules.map((rule) => rule.length), ...specialRules.map((rule) => rule.length));
+  const ruleFont = `clamp(0.78rem, ${(155 / longest).toFixed(3)}cqw, 1.55rem)`;
+  const ruleItemClass = "flex items-baseline gap-3 w-full text-white/95 leading-tight";
   const ruleNumberClass =
-    "text-[#f0c800] font-display text-[clamp(1.35rem,1.9vw,2rem)] shrink-0 w-8 sm:w-10 text-right tabular-nums";
-  const listClass =
-    "w-full space-y-1.5 sm:space-y-2 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 sm:px-8 sm:py-4";
+    "text-[#f0c800] font-display shrink-0 w-7 sm:w-9 text-right tabular-nums";
+  const listClass = "w-full max-w-none space-y-1 rounded-2xl border border-white/10 bg-white/[0.03] px-[2vw] py-[1.2vh]";
 
   return (
-    <div className="w-full h-full min-h-0 overflow-y-auto">
-      <div className="m-auto w-full min-h-full flex flex-col justify-center gap-3 sm:gap-4 px-1 py-2">
+    <div
+      className="absolute inset-0 z-[5] flex flex-col justify-center pointer-events-none px-[1.5vw] py-[2vh]"
+      style={{ containerType: "size" }}
+    >
+      <div className="w-full max-w-none flex flex-col justify-center gap-2 sm:gap-3">
         {venueName && (
           <p className="text-[#f0c800]/70 text-base sm:text-lg tracking-wide text-center">{venueName}</p>
         )}
@@ -103,9 +106,9 @@ function RulesSlide({
             </p>
             <ul className={listClass}>
               {specialRules.map((rule, index) => (
-                <li key={index} className={ruleItemClass}>
+                <li key={index} className={ruleItemClass} style={{ fontSize: ruleFont }}>
                   <span className={ruleNumberClass}>{index + 1}</span>
-                  <span className="min-w-0">{fixSlovakLineBreaks(rule)}</span>
+                  <span className="min-w-0 flex-1">{fixSlovakLineBreaks(rule)}</span>
                 </li>
               ))}
             </ul>
@@ -116,9 +119,9 @@ function RulesSlide({
         </p>
         <ul className={listClass}>
           {rules.map((rule, index) => (
-            <li key={index} className={ruleItemClass}>
+            <li key={index} className={ruleItemClass} style={{ fontSize: ruleFont }}>
               <span className={ruleNumberClass}>{index + 1}</span>
-              <span className="min-w-0">{fixSlovakLineBreaks(rule)}</span>
+              <span className="min-w-0 flex-1">{fixSlovakLineBreaks(rule)}</span>
             </li>
           ))}
         </ul>
@@ -1001,21 +1004,30 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
         onBackgroundClick={handleStageClick}
         onMiddleClick={handleStageAuxClick}
       >
-        <PresentationStageAutoFit enabled={questionAutoFit} slideKey={slideKey} className={SLIDE_SAFE_AREA_CLASS}>
-          {slide && (
-            <div className="w-full h-full min-h-0 max-h-full flex flex-col items-center justify-center overflow-hidden">
-              <PresentationView
-                slide={slide}
-                eventRules={eventRules}
-                specialRules={specialRules}
-                venueName={venueName}
-                nextQuizLines={nextQuizLines}
-                presentationAudioRef={presentationAudioRef}
-              />
-            </div>
-          )}
-        </PresentationStageAutoFit>
+        {slide?.type !== "rules" && (
+          <PresentationStageAutoFit enabled={questionAutoFit} slideKey={slideKey} className={SLIDE_SAFE_AREA_CLASS}>
+            {slide && (
+              <div className="w-full h-full min-h-0 max-h-full flex flex-col items-center justify-center overflow-hidden">
+                <PresentationView
+                  slide={slide}
+                  eventRules={eventRules}
+                  specialRules={specialRules}
+                  venueName={venueName}
+                  nextQuizLines={nextQuizLines}
+                  presentationAudioRef={presentationAudioRef}
+                />
+              </div>
+            )}
+          </PresentationStageAutoFit>
+        )}
       </PresentationZoomLayer>
+      {slide?.type === "rules" && (
+        <RulesSlide
+          rules={eventRules.length ? eventRules : ["Pravidlá nastav v admin → Udalosť → Pravidlá."]}
+          specialRules={specialRules}
+          venueName={venueName}
+        />
+      )}
 
       {!isFullscreen && (
         <div className="absolute bottom-0 inset-x-0 z-20">
