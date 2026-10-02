@@ -83,34 +83,46 @@ function RulesSlide({
   specialRules?: string[];
   venueName: string;
 }) {
+  const ruleItemClass =
+    "flex items-baseline gap-3 sm:gap-4 text-[clamp(1.05rem,1.55vw,1.7rem)] text-white/95 leading-snug";
+  const ruleNumberClass =
+    "text-[#f0c800] font-display text-[clamp(1.35rem,1.9vw,2rem)] shrink-0 w-8 sm:w-10 text-right tabular-nums";
+  const listClass =
+    "w-full space-y-1.5 sm:space-y-2 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 sm:px-8 sm:py-4";
+
   return (
-    <div className="flex flex-col items-center gap-8 w-full max-w-4xl px-8 mx-auto">
-      {venueName && (
-        <p className="text-[#f0c800]/70 text-lg sm:text-xl tracking-wide">{venueName}</p>
-      )}
-      <div className="w-16 h-1 rounded-full bg-gradient-to-r from-transparent via-[#f0c800] to-transparent" />
-      {specialRules.length > 0 && (
-        <>
-          <p className="text-[#f0c800] text-2xl sm:text-3xl tracking-wide font-semibold font-display">Špeciálne pravidlá</p>
-          <ul className="space-y-4 w-full rounded-3xl border border-white/10 bg-white/[0.03] backdrop-blur-sm p-8 sm:p-10">
-            {specialRules.map((rule, index) => (
-              <li key={index} className="flex gap-5 text-lg sm:text-2xl text-white/95 leading-snug">
-                <span className="text-[#f0c800] font-display text-3xl sm:text-4xl shrink-0 w-8 text-right">{index + 1}</span>
-                <span>{fixSlovakLineBreaks(rule)}</span>
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
-      <p className="text-[#f0c800] text-2xl sm:text-3xl tracking-wide font-semibold font-display">Pravidlá</p>
-      <ul className="space-y-4 w-full rounded-3xl border border-white/10 bg-white/[0.03] backdrop-blur-sm p-8 sm:p-10">
-        {rules.map((rule, index) => (
-          <li key={index} className="flex gap-5 text-lg sm:text-2xl text-white/95 leading-snug">
-            <span className="text-[#f0c800] font-display text-3xl sm:text-4xl shrink-0 w-8 text-right">{index + 1}</span>
-            <span>{fixSlovakLineBreaks(rule)}</span>
-          </li>
-        ))}
-      </ul>
+    <div className="w-full h-full min-h-0 overflow-y-auto">
+      <div className="m-auto w-full min-h-full flex flex-col justify-center gap-3 sm:gap-4 px-1 py-2">
+        {venueName && (
+          <p className="text-[#f0c800]/70 text-base sm:text-lg tracking-wide text-center">{venueName}</p>
+        )}
+        {specialRules.length > 0 && (
+          <>
+            <p className="text-[#f0c800] text-xl sm:text-2xl tracking-wide font-semibold font-display text-center">
+              Špeciálne pravidlá
+            </p>
+            <ul className={listClass}>
+              {specialRules.map((rule, index) => (
+                <li key={index} className={ruleItemClass}>
+                  <span className={ruleNumberClass}>{index + 1}</span>
+                  <span className="min-w-0">{fixSlovakLineBreaks(rule)}</span>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+        <p className="text-[#f0c800] text-xl sm:text-2xl tracking-wide font-semibold font-display text-center">
+          Pravidlá
+        </p>
+        <ul className={listClass}>
+          {rules.map((rule, index) => (
+            <li key={index} className={ruleItemClass}>
+              <span className={ruleNumberClass}>{index + 1}</span>
+              <span className="min-w-0">{fixSlovakLineBreaks(rule)}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
     </div>
   );
 }
