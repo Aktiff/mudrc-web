@@ -192,8 +192,8 @@ export default function VenueTeamsPage() {
       <h1 className="font-display text-4xl text-brand-text tracking-wide mb-1">Tímy</h1>
       <p className="text-brand-muted text-sm mb-2">Kontakty podľa podnikov — ostanú aj po vymazaní registrácií</p>
       <p className="text-brand-muted text-xs mb-6">
-        Uloží sa názov tímu a telefón, ak je to celé číslo (aspoň 9 číslic, nie samé nuly). Nové číslo pri ďalšej
-        registrácii sa k tímu pridá.
+        Uloží sa názov tímu a telefón tak, ako ho napísali. Prázdne pole a samé nuly sa nepridajú. Ďalšie číslo pri
+        novej registrácii sa k tímu pridá.
       </p>
       <div className="flex flex-wrap items-center gap-3 mb-8">
         <input
@@ -290,18 +290,22 @@ function TeamRow({
         {showVenue && <p className="text-brand-muted text-sm mt-1">{team.venue}</p>}
         <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-sm text-brand-muted">
           {team.phones.length === 0 ? (
-            <span>Bez platného telefónu</span>
+            <span>Bez telefónu</span>
           ) : (
-            team.phones.map((phone) => (
+            team.phones.map((phone) => {
+              const digits = phone.replace(/\D/g, "");
+              const dial = digits.startsWith("421") ? digits : digits.replace(/^0/, "421");
+              return (
               <a
                 key={phone}
-                href={`tel:+${phone.startsWith("421") ? phone : phone.replace(/^0/, "421")}`}
+                href={`tel:+${dial}`}
                 className="inline-flex items-center gap-1.5 hover:text-brand-text"
               >
                 <Phone className="w-3.5 h-3.5" />
                 {formatTeamPhone(phone)}
               </a>
-            ))
+              );
+            })
           )}
         </div>
         <p className="text-brand-muted text-xs mt-2">Naposledy {team.updatedAt}</p>

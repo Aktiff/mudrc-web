@@ -3,6 +3,7 @@ import { isAdminRequest } from "@/lib/admin-session";
 import { deleteVenueTeam, readVenueTeams } from "@/lib/venue-teams";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 const NO_STORE = { "Cache-Control": "private, no-store, max-age=0, must-revalidate" } as const;
 

@@ -30,7 +30,7 @@ function sleep(ms: number): Promise<void> {
 
 type ListedBlob = { pathname: string; uploadedAt: number; url: string };
 
-async function listBlobs(prefix: string): Promise<ListedBlob[]> {
+async function listBlobs(prefix: string, strict = false): Promise<ListedBlob[]> {
   if (!hasBlobStorage()) return [];
   const all: ListedBlob[] = [];
   let cursor: string | undefined;
@@ -47,7 +47,8 @@ async function listBlobs(prefix: string): Promise<ListedBlob[]> {
       }
       cursor = result.hasMore ? result.cursor : undefined;
     } while (cursor);
-  } catch {
+  } catch (error) {
+    if (strict) throw error;
     return all;
   }
   return all;
@@ -166,6 +167,24 @@ export async function deleteAppStorageBlob(name: string): Promise<void> {
   } catch {
     /* ignore missing blob */
   }
+}
+
+/** Všetky ešte existujúce verzie jedného úložiska, vrátane starého jedného súboru. */
+export async function readAppStorageBlobHistory<T>(name: string): Promise<T[]> {
+  const blobs = [...(await listBlobs(versionPrefix(name), true)), ...(await listBlobs(blobKey(name), true))];
+  const seen = new Set<string>();
+  const out: T[] = [];
+  for (const blob of blobs) {
+    if (seen.has(blob.pathname)) continue;
+    seen.add(blob.pathname);
+    try {
+      const data = await readListed<T>(blob);
+      if (data !== null) out.push(data);
+    } catch {
+      /* jedna stará verzia môže chýbať, ostatné ešte môžu mať kontakty */
+    }
+  }
+  return out;
 }
 
 export async function countAppStorageBlobKeys(): Promise<number> {

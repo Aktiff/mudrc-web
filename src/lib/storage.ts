@@ -1083,6 +1083,64 @@ export async function writeEvents(data: { events: QuizEvent[] }, options?: Write
   }, options);
 }
 
+function registrationsFromUnknown(data: unknown): Registration[] {
+  if (!data || typeof data !== "object") return [];
+  const record = data as { registrations?: Registration[]; teamName?: string; phone?: string };
+  if (Array.isArray(record.registrations)) return record.registrations.map(normalizeRegistration);
+  if (record.teamName) return [normalizeRegistration(record as Registration)];
+  return [];
+}
+
+async function mapPool<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let next = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (next < items.length) {
+      const index = next;
+      next += 1;
+      results[index] = await fn(items[index]);
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
+
+/** Staršie súbory registrácií, z ktorých sa dajú vrátiť telefóny zmazané zo zoznamu tímov. */
+export async function readArchivedRegistrations(): Promise<Registration[]> {
+  if (!shouldReadBlob()) return readLocalRegistrations().registrations;
+
+  const prefixes = ["mudrc/registrations/", LEGACY_REGS_KEY];
+  const blobs: { pathname: string; uploadedAt: number; url: string }[] = [];
+  for (const prefix of prefixes) {
+    let cursor: string | undefined;
+    do {
+      const result = await list({ prefix, limit: 1000, cursor, ...blobAuthOptions() });
+      for (const blob of result.blobs) {
+        const uploadedAt = new Date(blob.uploadedAt).getTime();
+        blobs.push({
+          pathname: blob.pathname,
+          url: blob.url,
+          uploadedAt: Number.isFinite(uploadedAt) ? uploadedAt : 0,
+        });
+      }
+      cursor = result.hasMore ? result.cursor : undefined;
+    } while (cursor);
+  }
+
+  const unique = Array.from(new Map(blobs.map((blob) => [blob.pathname, blob])).values()).filter(
+    (blob) => blob.pathname.endsWith(".json") && !blob.pathname.endsWith("_manifest.json")
+  );
+  const groups = await mapPool(unique, 6, async (blob) => {
+    try {
+      const data = await readListedBlobJson<unknown>(blob);
+      return registrationsFromUnknown(data);
+    } catch {
+      return [];
+    }
+  });
+  return groups.flat();
+}
+
 export async function readRegistrations(): Promise<{ registrations: Registration[] }> {
   try {
     return { registrations: await loadRegistrations() };
