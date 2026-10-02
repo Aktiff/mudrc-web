@@ -4,6 +4,7 @@ import Link from "next/link";
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -83,44 +84,83 @@ function RulesSlide({
   specialRules?: string[];
   venueName: string;
 }) {
-  const longest = Math.max(1, ...rules.map((rule) => rule.length), ...specialRules.map((rule) => rule.length));
-  const ruleFont = `clamp(0.78rem, ${(155 / longest).toFixed(3)}cqw, 1.55rem)`;
-  const ruleItemClass = "flex items-baseline gap-3 w-full text-white/95 leading-tight";
-  const ruleNumberClass =
-    "text-[#f0c800] font-display shrink-0 w-7 sm:w-9 text-right tabular-nums";
-  const listClass = "w-full max-w-none space-y-1 rounded-2xl border border-white/10 bg-white/[0.03] px-[2vw] py-[1.2vh]";
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const rulesKey = `${venueName}\n${specialRules.join("\n")}\n${rules.join("\n")}`;
+
+  useLayoutEffect(() => {
+    const viewport = viewportRef.current;
+    const content = contentRef.current;
+    if (!viewport || !content) return;
+
+    const fit = () => {
+      const maxH = viewport.clientHeight;
+      const maxW = viewport.clientWidth;
+      if (maxH < 1 || maxW < 1) return;
+
+      let lo = 18;
+      let hi = 64;
+      let best = lo;
+      for (let i = 0; i < 12; i += 1) {
+        const mid = (lo + hi) / 2;
+        content.style.fontSize = `${mid}px`;
+        const tooBig = content.scrollHeight > maxH + 1 || content.scrollWidth > maxW + 1;
+        if (tooBig) hi = mid;
+        else {
+          best = mid;
+          lo = mid;
+        }
+      }
+      content.style.fontSize = `${best}px`;
+    };
+
+    fit();
+    const observer = new ResizeObserver(fit);
+    observer.observe(viewport);
+    return () => observer.disconnect();
+  }, [rulesKey]);
+
+  const ruleItemClass = "flex items-baseline gap-[0.45em] w-full text-white/95 leading-snug";
+  const listClass =
+    "w-full max-w-none space-y-[0.28em] rounded-2xl border border-white/10 bg-white/[0.03] px-[0.7em] py-[0.45em]";
 
   return (
     <div
-      className="absolute inset-0 z-[5] flex flex-col justify-center pointer-events-none px-[1.5vw] py-[2vh]"
-      style={{ containerType: "size" }}
+      ref={viewportRef}
+      className="absolute inset-0 z-[5] flex items-center pointer-events-none overflow-hidden px-[2vw] py-[2vh]"
     >
-      <div className="w-full max-w-none flex flex-col justify-center gap-2 sm:gap-3">
+      <div ref={contentRef} className="w-full flex flex-col justify-center gap-[0.4em]" style={{ fontSize: "42px" }}>
         {venueName && (
-          <p className="text-[#f0c800]/70 text-base sm:text-lg tracking-wide text-center">{venueName}</p>
+          <p className="text-[#f0c800]/70 tracking-wide text-center" style={{ fontSize: "0.72em" }}>
+            {venueName}
+          </p>
         )}
         {specialRules.length > 0 && (
           <>
-            <p className="text-[#f0c800] text-xl sm:text-2xl tracking-wide font-semibold font-display text-center">
+            <p className="text-[#f0c800] tracking-wide font-semibold font-display text-center" style={{ fontSize: "0.85em" }}>
               Špeciálne pravidlá
             </p>
             <ul className={listClass}>
               {specialRules.map((rule, index) => (
-                <li key={index} className={ruleItemClass} style={{ fontSize: ruleFont }}>
-                  <span className={ruleNumberClass}>{index + 1}</span>
+                <li key={index} className={ruleItemClass}>
+                  <span className="text-[#f0c800] font-display shrink-0 w-[1.4em] text-right tabular-nums">
+                    {index + 1}
+                  </span>
                   <span className="min-w-0 flex-1">{fixSlovakLineBreaks(rule)}</span>
                 </li>
               ))}
             </ul>
           </>
         )}
-        <p className="text-[#f0c800] text-xl sm:text-2xl tracking-wide font-semibold font-display text-center">
+        <p className="text-[#f0c800] tracking-wide font-semibold font-display text-center" style={{ fontSize: "0.85em" }}>
           Pravidlá
         </p>
         <ul className={listClass}>
           {rules.map((rule, index) => (
-            <li key={index} className={ruleItemClass} style={{ fontSize: ruleFont }}>
-              <span className={ruleNumberClass}>{index + 1}</span>
+            <li key={index} className={ruleItemClass}>
+              <span className="text-[#f0c800] font-display shrink-0 w-[1.4em] text-right tabular-nums">
+                {index + 1}
+              </span>
               <span className="min-w-0 flex-1">{fixSlovakLineBreaks(rule)}</span>
             </li>
           ))}
