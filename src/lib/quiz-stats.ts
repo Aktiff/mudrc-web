@@ -7,6 +7,7 @@ import {
   deleteStoredQuiz,
   readAllEventsRaw,
   rebuildLeagueTableForEvent,
+  recoverQuizTeamPlayers,
   updateEvents,
   upsertStoredQuiz,
 } from "@/lib/storage";
@@ -171,6 +172,11 @@ export async function listQuizStatistics(): Promise<{
   venues: QuizStatVenue[];
   teams: TeamQuizAppearance[];
 }> {
+  try {
+    await recoverQuizTeamPlayers();
+  } catch (error) {
+    console.error("quiz player recovery failed:", error);
+  }
   const { events } = await readAllEventsRaw();
   const rows = events.flatMap((event) =>
     (event.pastResults ?? []).map((result) => quizStatFromResult(event, result))

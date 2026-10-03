@@ -82,7 +82,15 @@ export async function PUT(req: NextRequest, { params }: { params: { slug: string
 
 
 
-  const { sorted, teamsDetail, winnerTeam, winnerTotal } = buildQuizTeamsDetail(validTeams);
+  const previousPlayers = new Map(
+    (existing.result.teams ?? []).map((team) => [team.teamName.trim().toLowerCase(), team.players])
+  );
+  const teamsKeepingPlayers = validTeams.map((team) => {
+    if (team.players != null) return team;
+    const previous = previousPlayers.get(team.name.trim().toLowerCase());
+    return previous && previous > 0 ? { ...team, players: previous } : team;
+  });
+  const { sorted, teamsDetail, winnerTeam, winnerTotal } = buildQuizTeamsDetail(teamsKeepingPlayers);
   const playerCount = teamsDetail.reduce((sum, team) => sum + (team.players ?? 0), 0);
   const quizType = normalizeQuizTypeLabel(body.quizType) || existing.result.quizType;
 

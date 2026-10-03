@@ -172,6 +172,7 @@ export async function deleteAppStorageBlob(name: string): Promise<void> {
 /** Všetky ešte existujúce verzie jedného úložiska, vrátane starého jedného súboru. */
 export async function readAppStorageBlobHistory<T>(name: string): Promise<T[]> {
   const blobs = [...(await listBlobs(versionPrefix(name), true)), ...(await listBlobs(blobKey(name), true))];
+  blobs.sort((a, b) => b.uploadedAt - a.uploadedAt);
   const seen = new Set<string>();
   const out: T[] = [];
   for (const blob of blobs) {

@@ -35,6 +35,7 @@ export default function AdminQuizDetailPage({ params }: { params: { slug: string
   const [deleting, setDeleting] = useState(false);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
   const [rounds, setRounds] = useState(4);
   const quizKey = decodeURIComponent(params.date);
 
@@ -101,6 +102,7 @@ export default function AdminQuizDetailPage({ params }: { params: { slug: string
     const valid = editTeams.filter((t) => t.name.trim());
     if (valid.length < 2) return;
     setSaving(true);
+    setSaveError("");
     const res = await fetch(`/api/admin/events/${params.slug}/kviz/${encodeURIComponent(quizKey)}`, {
       method: "PUT",
       cache: "no-store",
@@ -111,6 +113,9 @@ export default function AdminQuizDetailPage({ params }: { params: { slug: string
       setEditing(false);
       setLoading(true);
       await loadData();
+    } else {
+      const data = await res.json().catch(() => ({}));
+      setSaveError(data.error ?? "Počty hráčov sa nepodarilo uložiť. Skús znova.");
     }
     setSaving(false);
   };
@@ -287,6 +292,7 @@ export default function AdminQuizDetailPage({ params }: { params: { slug: string
               {saving ? "Ukladám..." : "Uložiť zmeny"}
             </button>
           </div>
+          {saveError && <p className="text-sm text-red-500 mt-3">{saveError}</p>}
         </div>
       )}
 

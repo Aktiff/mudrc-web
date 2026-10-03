@@ -7,7 +7,7 @@ import { sortEventsByDate, sortLeagueTable } from "@/lib/data";
 import { isValidStoredEvent } from "@/lib/event-normalize";
 import { rebuildLeagueFromPastResults } from "@/lib/league-rebuild";
 import seedEventsBundle from "@/data/events.json";
-import { writeAppStorageBlob, readAppStorageBlob } from "@/lib/blob-app-storage";
+import { writeAppStorageBlob, readAppStorageBlob, readAppStorageBlobHistory } from "@/lib/blob-app-storage";
 import { findQuizResult, mergePastResults, normalizeDateKey, quizResultKey } from "@/lib/quiz-result-key";
 import { splitVenueQuizType } from "@/lib/quiz-type";
 
@@ -528,9 +528,48 @@ async function loadQuizzesRaw(): Promise<StoredQuiz[]> {
   return extracted;
 }
 
+const QUIZ_PLAYER_RECOVERY = 1;
+
+function quizIdentity(quiz: Pick<StoredQuiz, "id" | "date">): string {
+  return quiz.id || normalizeDateKey(quiz.date);
+}
+
+function mergeMissingTeamPlayers(current: StoredQuiz[], history: { quizzes?: StoredQuiz[] }[]): StoredQuiz[] {
+  return current.map((quiz) => {
+    const teams = (quiz.teams ?? []).map((team) => {
+      if ((team.players ?? 0) > 0) return team;
+      const name = team.teamName.trim().toLowerCase();
+      for (const snap of history) {
+        const older = (snap.quizzes ?? []).find(
+          (item) => item.eventSlug === quiz.eventSlug && quizIdentity(item) === quizIdentity(quiz)
+        );
+        const match = older?.teams?.find((row) => row.teamName.trim().toLowerCase() === name);
+        if ((match?.players ?? 0) > 0) return { ...team, players: match!.players };
+      }
+      return team;
+    });
+    return { ...quiz, teams };
+  });
+}
+
+/** Raz doplní počty hráčov, ktoré novší zápis kvízu zahodil. */
+export async function recoverQuizTeamPlayers(): Promise<void> {
+  if (!shouldWriteBlob()) return;
+  const raw = await readAppStorageBlob<{ quizzes?: StoredQuiz[]; playerRecovery?: number }>(QUIZZES_APP_BLOB);
+  if (!raw || raw.playerRecovery === QUIZ_PLAYER_RECOVERY) return;
+  const current = (raw.quizzes ?? []).map(normalizeStoredQuiz);
+  const history = await readAppStorageBlobHistory<{ quizzes?: StoredQuiz[] }>(QUIZZES_APP_BLOB);
+  const recovered = mergeMissingTeamPlayers(current, history);
+  await writeAppStorageBlob(QUIZZES_APP_BLOB, { quizzes: recovered, playerRecovery: QUIZ_PLAYER_RECOVERY });
+}
+
 async function persistQuizzes(quizzes: StoredQuiz[]): Promise<void> {
   if (shouldWriteBlob()) {
-    await writeAppStorageBlob(QUIZZES_APP_BLOB, { quizzes });
+    const raw = await readAppStorageBlob<{ playerRecovery?: number }>(QUIZZES_APP_BLOB);
+    await writeAppStorageBlob(QUIZZES_APP_BLOB, {
+      quizzes,
+      ...(raw?.playerRecovery ? { playerRecovery: raw.playerRecovery } : {}),
+    });
     return;
   }
   if (isVercel) {
@@ -1278,6 +1317,11 @@ export async function deleteRegistrationsByIds(ids: string[]): Promise<number> {
 export { mergeEventPreserve };
 
 export async function readQuizResult(slug: string, quizParam: string) {
+  try {
+    await recoverQuizTeamPlayers();
+  } catch (error) {
+    console.error("quiz player recovery failed:", error);
+  }
   const stored = await readStoredQuiz(slug, quizParam);
   if (stored?.teams?.length) {
     const base = await loadEventsBase();

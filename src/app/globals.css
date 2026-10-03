@@ -87,6 +87,15 @@
   .input {
     @apply w-full border border-brand-border rounded-xl px-3 py-2.5 text-brand-text placeholder:text-brand-muted-light focus:outline-none focus:border-brand-orange transition-colors bg-brand-surface;
   }
+  .input[type="number"] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+  .input[type="number"]::-webkit-outer-spin-button,
+  .input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
   .label {
     @apply block text-xs font-semibold text-brand-muted uppercase tracking-wider mb-1.5;
   }

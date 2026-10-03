@@ -147,6 +147,7 @@ export default function PrezentaciaPage({ params }: { params: { slug: string; da
       name: t.teamName,
       scores: t.rounds ?? [],
       total: t.totalWithBonus,
+      ...(t.players && t.players > 0 ? { players: t.players } : {}),
     }));
     try {
       const res = await fetch(`/api/admin/events/${params.slug}/kviz/${encodeURIComponent(quizKey || params.date)}`, {
