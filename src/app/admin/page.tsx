@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Calendar, Plus, PauseCircle } from "lucide-react";
 import EventPromoChecks from "@/components/admin/EventPromoChecks";
 import { formatEventDateLabel, sortEventsForAdminOverview } from "@/lib/data";
-import { formatSkPlayerCountTotal, registrationTotalsForEvent } from "@/lib/registration-utils";
+import { estimatedEntryRevenue, formatEuroAmount, formatSkPlayerCountTotal, registrationTotalsForEvent } from "@/lib/registration-utils";
 import { venueQuizLabel } from "@/lib/quiz-type";
 import { readEvents, readRegistrations } from "@/lib/storage";
 
@@ -80,6 +80,8 @@ export default async function AdminDashboard() {
                   {regTotals.teams}{" "}
                   {regTotals.teams === 1 ? "reg. tím" : "reg. tímov"} ·{" "}
                   {formatSkPlayerCountTotal(regTotals.players)}
+                  {" · "}
+                  {formatEuroAmount(estimatedEntryRevenue(e.entryFee, regTotals.players))}
                 </div>
                 <div className="text-brand-muted-light text-xs mt-0.5">
                   {e.leagueTable.length} v lige · {e.pastResults.length} kvízov

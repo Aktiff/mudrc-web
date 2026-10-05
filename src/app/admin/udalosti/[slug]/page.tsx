@@ -1498,6 +1498,10 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
                       : `${registrationPlayerTotal} hráčov`}{" "}
                   celkom
                 </span>
+                {" · "}
+                <span className="text-brand-text font-semibold">
+                  príjem {formatEuroAmount(estimatedEntryRevenue(form.entryFee, registrationPlayerTotal))}
+                </span>
               </p>
               <button
                 onClick={clearAllRegistrations}

@@ -6,6 +6,8 @@ import { ArrowLeft, Calendar, ChevronRight, MapPin, Trash2 } from "lucide-react"
 import type { QuizEvent } from "@/lib/data";
 import { formatEventDateLabel, parseSkEventDateTime, sortEventsForAdminOverview } from "@/lib/data";
 import {
+  estimatedEntryRevenue,
+  formatEuroAmount,
   formatSkPlayerCountTotal,
   parseRegistrationPlayerCount,
   registrationTotalsForEvent,
@@ -113,16 +115,19 @@ export default function RegistraciaPage() {
     const counted = new Set<string>();
     let teams = 0;
     let players = 0;
+    let earned = 0;
     for (const event of sortedEvents) {
       if (!isUpcomingEvent(event)) continue;
       for (const reg of registrationsForEvent(regs, event.slug, event.venue) as AdminRegistration[]) {
         if (counted.has(reg.id)) continue;
         counted.add(reg.id);
         teams += 1;
-        players += parseRegistrationPlayerCount(reg.players);
+        const count = parseRegistrationPlayerCount(reg.players);
+        players += count;
+        earned += estimatedEntryRevenue(event.entryFee, count);
       }
     }
-    return { teams, players };
+    return { teams, players, earned };
   }, [sortedEvents, regs]);
 
   const selectedEvent = selectedSlug ? sortedEvents.find((event) => event.slug === selectedSlug) ?? null : null;
@@ -222,6 +227,8 @@ export default function RegistraciaPage() {
         </p>
         <p className="text-brand-text text-sm font-semibold mb-6">
           {teamCountLabel(totals.teams)} · {formatSkPlayerCountTotal(totals.players)}
+          {" · "}
+          príjem {formatEuroAmount(estimatedEntryRevenue(event.entryFee, totals.players))}
         </p>
         {msg && <p className={`text-sm mb-4 ${msg.ok ? "text-green-600" : "text-red-500"}`}>{msg.text}</p>}
         <RegistrationShareList
@@ -275,8 +282,10 @@ export default function RegistraciaPage() {
       <h1 className="font-display text-4xl text-brand-text tracking-wide mb-1">Registrácie</h1>
       <p className="text-brand-text text-lg font-semibold mb-1">
         Nadchádzajúce: {teamCountLabel(upcomingTotals.teams)} · {formatSkPlayerCountTotal(upcomingTotals.players)}
+        {" · "}
+        {formatEuroAmount(upcomingTotals.earned)}
       </p>
-      <p className="text-brand-muted text-xs mb-6">Súčet tímov a ľudí vo všetkých budúcich kvízoch, ktoré majú prihlášky.</p>
+      <p className="text-brand-muted text-xs mb-6">Súčet tímov, ľudí a vstupného vo všetkých budúcich kvízoch, ktoré majú prihlášky.</p>
       {msg && <p className={`text-sm mb-4 ${msg.ok ? "text-green-600" : "text-red-500"}`}>{msg.text}</p>}
       <div className="flex flex-wrap items-center gap-3 mb-8">
         <input
@@ -337,6 +346,9 @@ export default function RegistraciaPage() {
                 <div className="text-sm text-brand-muted text-right shrink-0">
                   <div className="font-semibold text-brand-text">{teamCountLabel(totals.teams)}</div>
                   <div>{formatSkPlayerCountTotal(totals.players)}</div>
+                  <div className="font-semibold text-brand-text">
+                    {formatEuroAmount(estimatedEntryRevenue(event.entryFee, totals.players))}
+                  </div>
                 </div>
               </div>
             </button>
