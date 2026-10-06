@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 import {
   createMusicBankItem,
+  musicBankInputFromReturnedAudio,
   musicIdentityFromQuestionFields,
   musicTrackKey,
   MusicTrackDuplicateError,
@@ -10,6 +11,7 @@ import {
   type MusicTrackDuplicateConflict,
   type NewMusicBankItemInput,
 } from "@/lib/music-bank";
+import { readStoredSoundBank, removeStoredSoundBankItem } from "@/lib/sound-bank-storage";
 import { enrichMusicTrackAutoTags, lookupMusicTrackAutoTags } from "@/lib/music-track-metadata";
 import { readAllLibraryQuizzes } from "@/lib/quiz-library-storage";
 import { readAppStorageWithFallback, writeAppStorageWithFallback } from "@/lib/app-storage-fallback";
@@ -56,7 +58,8 @@ export async function writeStoredMusicBank(tracks: MusicBankItem[]): Promise<voi
 export async function findMusicTrackConflict(
   artist: string,
   title: string,
-  excludeId?: string
+  excludeId?: string,
+  ignoreQuizId?: string
 ): Promise<MusicTrackDuplicateConflict | null> {
   const key = musicTrackKey(artist, title);
   const bank = await readStoredMusicBank();
@@ -70,6 +73,7 @@ export async function findMusicTrackConflict(
 
   const quizzes = await readAllLibraryQuizzes();
   for (const quiz of quizzes) {
+    if (ignoreQuizId && quiz.id === ignoreQuizId) continue;
     for (const question of quiz.questions ?? []) {
       const identity = musicIdentityFromQuestionFields(question);
       if (identity?.key === key) {
@@ -86,10 +90,13 @@ export async function findMusicTrackConflict(
   return null;
 }
 
-export async function addStoredMusicBankItem(input: NewMusicBankItemInput): Promise<MusicBankItem> {
+export async function addStoredMusicBankItem(
+  input: NewMusicBankItemInput,
+  ignoreQuizId?: string
+): Promise<MusicBankItem> {
   const artist = input.artist.trim();
   const title = input.title.trim();
-  const conflict = await findMusicTrackConflict(artist, title);
+  const conflict = await findMusicTrackConflict(artist, title, undefined, ignoreQuizId);
   if (conflict) {
     throw new MusicTrackDuplicateError(conflict);
   }
@@ -141,6 +148,38 @@ export async function refreshStoredMusicBankItemTags(id: string): Promise<MusicB
   const next = existing.map((t) => (t.id === id ? merged : t));
   await writeStoredMusicBank(next);
   return merged;
+}
+
+let rehomeInflight: Promise<void> | null = null;
+
+/** Pieseň vrátená z kvízu sa omylom ukladala medzi iné ukážky. Presunie ju späť. */
+export function rehomeMusicTracksLeftInSoundBank(): Promise<void> {
+  if (!rehomeInflight) {
+    rehomeInflight = moveReturnedMusicOutOfSoundBank().finally(() => {
+      rehomeInflight = null;
+    });
+  }
+  return rehomeInflight;
+}
+
+async function moveReturnedMusicOutOfSoundBank(): Promise<void> {
+  const clips = await readStoredSoundBank();
+  for (const clip of clips) {
+    const restored = musicBankInputFromReturnedAudio({
+      label: clip.label,
+      answer: clip.answer,
+      audioUrl: clip.audioUrl,
+      hostNote: clip.note,
+    });
+    if (!restored) continue;
+    const existing = await readStoredMusicBank();
+    const key = musicTrackKey(restored.artist, restored.title);
+    if (!existing.some((track) => musicTrackKey(track.artist, track.title) === key)) {
+      const item = createMusicBankItem(restored);
+      await writeStoredMusicBank([item, ...existing]);
+    }
+    await removeStoredSoundBankItem(clip.id);
+  }
 }
 
 export async function removeStoredMusicBankItem(id: string): Promise<boolean> {

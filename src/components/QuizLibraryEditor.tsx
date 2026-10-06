@@ -39,8 +39,8 @@ import MusicBankQuestionForm from "@/components/MusicBankQuestionForm";
 import VideoBankQuestionForm from "@/components/VideoBankQuestionForm";
 import AudioUrlField from "@/components/admin/AudioUrlField";
 import VideoUrlField from "@/components/admin/VideoUrlField";
-import { DEFAULT_MUSIC_QUESTION_BODY, type MusicBankItem } from "@/lib/music-bank";
-import { fetchMusicBankFromServer } from "@/lib/music-bank-client";
+import { DEFAULT_MUSIC_QUESTION_BODY, musicBankInputFromReturnedAudio, type MusicBankItem } from "@/lib/music-bank";
+import { addMusicBankItemAsync, fetchMusicBankFromServer } from "@/lib/music-bank-client";
 import { DEFAULT_SOUND_QUESTION_BODY, type SoundBankItem } from "@/lib/sound-bank";
 import { addSoundBankItemAsync, fetchSoundBankFromServer } from "@/lib/sound-bank-client";
 import { DEFAULT_VIDEO_QUESTION_BODY, type VideoBankItem } from "@/lib/video-bank";
@@ -228,6 +228,40 @@ export default function QuizLibraryEditor({ quizId }: Props) {
   const refreshSoundBank = useCallback(async () => {
     setSoundBankClips(await fetchSoundBankFromServer());
   }, []);
+
+  const restoreAudioClip = useCallback(
+    async (input: {
+      bankQuestionId?: string;
+      label: string;
+      answer: string;
+      audioUrl: string;
+      hostNote?: string;
+      tags?: string[];
+    }) => {
+      const music = musicBankInputFromReturnedAudio(input);
+      if (music) {
+        try {
+          await addMusicBankItemAsync(music, quizRef.current?.id);
+        } catch {
+          /* skladba už v banke je */
+        }
+        await refreshMusicBank();
+        return;
+      }
+      try {
+        await addSoundBankItemAsync({
+          label: input.label,
+          answer: input.answer,
+          audioUrl: input.audioUrl,
+          note: input.hostNote,
+        });
+      } catch {
+        /* duplicita */
+      }
+      await refreshSoundBank();
+    },
+    [refreshMusicBank, refreshSoundBank]
+  );
 
   const refreshVideoBank = useCallback(async () => {
     setVideoBankClips(await fetchVideoBankFromServer());
@@ -556,12 +590,16 @@ export default function QuizLibraryEditor({ quizId }: Props) {
     });
 
     void (async () => {
-      if (restoreToBank) {
-        try {
-          await addSoundBankItemAsync(restoreToBank);
-        } catch {
-          /* duplicita */
-        }
+      if (restoreToBank && displacedBankId) {
+        await restoreAudioClip({
+          bankQuestionId: displacedBankId,
+          label: restoreToBank.label,
+          answer: restoreToBank.answer,
+          audioUrl: restoreToBank.audioUrl,
+          hostNote: restoreToBank.note,
+          tags: target.tags,
+        });
+        return;
       }
       await refreshSoundBank();
     })();
@@ -658,6 +696,7 @@ export default function QuizLibraryEditor({ quizId }: Props) {
       question.answer?.trim() &&
       question.audioUrl?.trim()
         ? {
+            bankQuestionId: bankId,
             label:
               question.mediaLabel?.trim() ||
               (question.musicArtist?.trim() && question.musicTitle?.trim()
@@ -665,7 +704,8 @@ export default function QuizLibraryEditor({ quizId }: Props) {
                 : question.answer.trim()),
             answer: question.answer.trim(),
             audioUrl: question.audioUrl.trim(),
-            note: question.hostNote?.trim() || undefined,
+            hostNote: question.hostNote?.trim() || undefined,
+            tags: question.tags,
           }
         : null;
 
@@ -741,11 +781,9 @@ export default function QuizLibraryEditor({ quizId }: Props) {
     );
 
     if (soundRestore) {
-      void addSoundBankItemAsync(soundRestore)
-        .then(() => refreshSoundBank())
-        .catch(() => {
-          setMsg({ text: "Slot vyprázdnený, zvuk sa nepodarilo vrátiť do banky.", ok: false });
-        });
+      void restoreAudioClip(soundRestore).catch(() => {
+        setMsg({ text: "Slot vyprázdnený, ukážku sa nepodarilo vrátiť do banky.", ok: false });
+      });
     } else if (videoRestore) {
       void addVideoBankItemAsync(videoRestore)
         .then(() => refreshVideoBank())

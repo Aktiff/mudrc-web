@@ -134,6 +134,65 @@ export function ensureMusicQuestionBody(kind: string, body: string): string {
   return DEFAULT_MUSIC_QUESTION_BODY;
 }
 
+const BANK_SLOT_TAGS = new Set(["hudba", "zvuk", "video"]);
+
+/** Poznámka, ktorú banka zapíše k piesni. Podľa nej sa spozná skladba vrátená omylom medzi iné ukážky. */
+export function parseMusicHostNote(note: string): {
+  artist: string;
+  title: string;
+  tags: string[];
+  userNote?: string;
+} | null {
+  const match = note.trim().match(
+    /^Interpret:\s*(.+?)\s*·\s*Skladba:\s*(.+?)\s*·\s*Body:\s*1\s*\+\s*1(?:\s*·\s*Tagy:\s*(.*?))?(?:\s*·\s*(.+))?$/
+  );
+  if (!match) return null;
+  const artist = match[1].trim();
+  const title = match[2].trim();
+  if (!artist || !title) return null;
+  const tags = (match[3] ?? "")
+    .split(",")
+    .map((tag) => tag.trim())
+    .filter((tag) => tag && !BANK_SLOT_TAGS.has(tag.toLowerCase()));
+  const userNote = match[4]?.trim();
+  return { artist, title, tags, userNote: userNote || undefined };
+}
+
+/** Skladba z hudobnej banky sa vracia medzi piesne, nie medzi iné ukážky. */
+export function musicBankInputFromReturnedAudio(input: {
+  bankQuestionId?: string;
+  label?: string;
+  answer?: string;
+  audioUrl?: string;
+  hostNote?: string;
+  tags?: string[];
+}): NewMusicBankItemInput | null {
+  const audioUrl = input.audioUrl?.trim() ?? "";
+  if (!audioUrl) return null;
+  const fromMusicBank = isMusicBankId(input.bankQuestionId ?? "");
+  const parsedNote = parseMusicHostNote(input.hostNote ?? "");
+  if (!fromMusicBank && !parsedNote) return null;
+
+  const label = input.label?.trim() || input.answer?.trim() || "";
+  const split = splitClipIntoArtistTitle(label, input.answer?.trim() || label);
+  const artist = parsedNote?.artist || split.artist;
+  const title = parsedNote?.title || split.title;
+  if (!artist || !title) return null;
+
+  const fromQuestion = (input.tags ?? [])
+    .map((tag) => tag.trim())
+    .filter((tag) => tag && !BANK_SLOT_TAGS.has(tag.toLowerCase()));
+  const tags = fromQuestion.length ? fromQuestion : parsedNote?.tags;
+
+  return {
+    artist,
+    title,
+    audioUrl,
+    tags: tags?.length ? tags : undefined,
+    note: parsedNote?.userNote,
+  };
+}
+
 export function formatMusicBankHostNote(item: MusicBankItem): string {
   const parts = [`Interpret: ${item.artist}`, `Skladba: ${item.title}`, "Body: 1 + 1"];
   if (item.tags?.length) parts.push(`Tagy: ${item.tags.join(", ")}`);

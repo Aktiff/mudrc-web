@@ -24,6 +24,8 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ conflict });
     }
 
+    const { rehomeMusicTracksLeftInSoundBank } = await import("@/lib/music-bank-storage");
+    await rehomeMusicTracksLeftInSoundBank();
     const clips = await readStoredSoundBank();
     return NextResponse.json({ clips });
   } catch (error) {

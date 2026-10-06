@@ -3,6 +3,7 @@ import {
   addStoredMusicBankItem,
   findMusicTrackConflict,
   readStoredMusicBank,
+  rehomeMusicTracksLeftInSoundBank,
   removeStoredMusicBankItem,
   refreshStoredMusicBankItemTags,
   updateStoredMusicBankItem,
@@ -21,6 +22,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ conflict });
     }
 
+    await rehomeMusicTracksLeftInSoundBank();
     const tracks = await readStoredMusicBank();
     return NextResponse.json({ tracks });
   } catch (error) {
@@ -31,11 +33,12 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const body = (await req.json()) as NewMusicBankItemInput;
+    const body = (await req.json()) as NewMusicBankItemInput & { ignoreQuizId?: string };
     if (!body.artist?.trim() || !body.title?.trim() || !body.audioUrl?.trim()) {
       return NextResponse.json({ error: "Vyplň interpreta, názov skladby a audio URL." }, { status: 400 });
     }
-    const track = await addStoredMusicBankItem(body);
+    const ignoreQuizId = typeof body.ignoreQuizId === "string" ? body.ignoreQuizId : undefined;
+    const track = await addStoredMusicBankItem(body, ignoreQuizId);
     const tracks = await readStoredMusicBank();
     return NextResponse.json({
       ok: true,

@@ -35,12 +35,15 @@ export async function findMusicTrackConflictAsync(
   }
 }
 
-export async function addMusicBankItemAsync(input: NewMusicBankItemInput): Promise<MusicBankItem> {
+export async function addMusicBankItemAsync(
+  input: NewMusicBankItemInput,
+  ignoreQuizId?: string
+): Promise<MusicBankItem> {
   const res = await fetch("/api/admin/music-bank", {
     method: "POST",
     cache: "no-store",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
+    body: JSON.stringify({ ...input, ...(ignoreQuizId ? { ignoreQuizId } : {}) }),
   });
   const data = await res.json();
   if (!res.ok) {
