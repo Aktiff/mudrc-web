@@ -114,7 +114,7 @@ export async function finishMediaUpload(input: {
 
   const maxBytes = kind === "audio" ? MAX_AUDIO_BYTES : MAX_VIDEO_BYTES;
   if (!Number.isFinite(input.size) || input.size <= 0 || input.size > maxBytes) {
-    throw new Error(kind === "audio" ? "Maximálna veľkosť audio je 12 MB." : "Maximálna veľkosť videa je 80 MB.");
+    throw new Error(kind === "audio" ? "Maximálna veľkosť audio je 20 MB." : "Maximálna veľkosť videa je 80 MB.");
   }
 
   const parts: Buffer[] = [];

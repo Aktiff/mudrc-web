@@ -77,7 +77,7 @@ export default function AudioUrlField({
         )}
       </div>
       <p className="text-brand-muted text-xs mt-1.5">
-        Upload ide do úložiska. Odporúčaná dĺžka ukážky ~30 s, maximum 12 MB.
+        Upload ide do úložiska. Odporúčaná dĺžka ukážky ~30 s, maximum 20 MB.
       </p>
       {error && <p className="text-sm text-red-500 mt-1">{error}</p>}
       {value.trim() && (

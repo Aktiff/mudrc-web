@@ -94,7 +94,7 @@ export async function POST(req: NextRequest) {
         );
       }
       if (file.size > MAX_AUDIO_BYTES) {
-        return NextResponse.json({ error: "Maximálna veľkosť audio je 12 MB." }, { status: 400 });
+        return NextResponse.json({ error: "Maximálna veľkosť audio je 20 MB." }, { status: 400 });
       }
       if (process.env.VERCEL && file.size > MAX_AUDIO_SERVER_BYTES) {
         return NextResponse.json(

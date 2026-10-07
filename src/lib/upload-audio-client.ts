@@ -44,7 +44,7 @@ async function uploadViaServer(file: File): Promise<string> {
 
 export async function uploadAudioFileClient(file: File): Promise<string> {
   if (file.size > MAX_AUDIO_BYTES) {
-    throw new Error("Maximálna veľkosť audio je 12 MB — skráť ukážku na ~30 s.");
+    throw new Error("Maximálna veľkosť audio je 20 MB — skráť ukážku na ~30 s.");
   }
 
   if (file.size > MAX_AUDIO_SERVER_BYTES) {

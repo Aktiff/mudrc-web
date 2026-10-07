@@ -1,4 +1,4 @@
-export const MAX_AUDIO_BYTES = 12 * 1024 * 1024;
+export const MAX_AUDIO_BYTES = 20 * 1024 * 1024;
 /** Vercel serverless request body limit (~4.5 MB) — larger files need client → Blob upload. */
 export const MAX_AUDIO_SERVER_BYTES = 3.5 * 1024 * 1024;
 
