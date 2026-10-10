@@ -147,6 +147,7 @@ export default function MusicBankQuestionForm({ onAdded, onMessage }: Props) {
             title: row.title,
             audioUrl: url,
             note: note.trim() || undefined,
+            presentationFade: true,
           });
         }
         okCount += 1;
@@ -206,6 +207,7 @@ export default function MusicBankQuestionForm({ onAdded, onMessage }: Props) {
           title: title.trim(),
           audioUrl: audioUrl.trim(),
           note: note.trim() || undefined,
+          presentationFade: true,
         });
         const tagLine = formatMusicBankTagsLabel(saved.tags);
         onMessage?.(

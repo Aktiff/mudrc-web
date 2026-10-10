@@ -11,6 +11,8 @@ export type MusicBankItem = {
   note?: string;
   /** Jazyk, štýl, dekáda — doplnené pri uploade z MusicBrainz. */
   tags?: string[];
+  /** true = v prezentácii plynulý nábeh a dobeh. Staršie ukážky ho nemajú. */
+  presentationFade?: boolean;
   createdAt: number;
 };
 
@@ -20,6 +22,7 @@ export type NewMusicBankItemInput = {
   audioUrl: string;
   note?: string;
   tags?: string[];
+  presentationFade?: boolean;
 };
 
 export type MusicTrackDuplicateSource = "bank" | "quiz";
@@ -92,6 +95,7 @@ export function normalizeMusicBankItem(raw: unknown): MusicBankItem | null {
     audioUrl,
     note: typeof row.note === "string" ? row.note.trim() : undefined,
     tags: normalizeTags(row.tags),
+    presentationFade: row.presentationFade === true ? true : undefined,
     createdAt: typeof row.createdAt === "number" ? row.createdAt : Date.now(),
   };
 }
@@ -114,6 +118,7 @@ export function createMusicBankItem(input: NewMusicBankItemInput): MusicBankItem
     audioUrl: input.audioUrl.trim(),
     note: input.note?.trim() || undefined,
     tags: normalizeTags(input.tags),
+    presentationFade: input.presentationFade === true ? true : undefined,
     createdAt: Date.now(),
   };
 }
@@ -166,6 +171,7 @@ export function musicBankInputFromReturnedAudio(input: {
   audioUrl?: string;
   hostNote?: string;
   tags?: string[];
+  presentationFade?: boolean;
 }): NewMusicBankItemInput | null {
   const audioUrl = input.audioUrl?.trim() ?? "";
   if (!audioUrl) return null;
@@ -190,6 +196,7 @@ export function musicBankInputFromReturnedAudio(input: {
     audioUrl,
     tags: tags?.length ? tags : undefined,
     note: parsedNote?.userNote,
+    presentationFade: input.presentationFade === true ? true : undefined,
   };
 }
 

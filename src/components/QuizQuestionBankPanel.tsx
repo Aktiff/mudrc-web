@@ -117,7 +117,9 @@ type Props = {
     answer: string,
     audioUrl: string,
     hostNote?: string,
-    tags?: string[]
+    tags?: string[],
+    bodyOverride?: string,
+    audioEdgeFade?: boolean
   ) => void;
   onInsertVideo?: (
     bankId: string,
@@ -348,7 +350,9 @@ export default function QuizQuestionBankPanel({
       label,
       track.audioUrl,
       formatMusicBankHostNote(track),
-      track.tags
+      track.tags,
+      DEFAULT_MUSIC_QUESTION_BODY,
+      track.presentationFade === true
     );
     void removeMusicBankItemAsync(track.id).then(() => onMusicBankChange?.());
     setTargetByBankId((prev) => {

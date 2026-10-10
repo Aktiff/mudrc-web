@@ -9,6 +9,7 @@ import {
   setMediaVolume,
   subscribeMediaVolume,
 } from "@/lib/media-volume";
+import { attachPresentationEdgeFade, restorePresentationAudio } from "@/lib/presentation-audio-fade";
 
 function assignRef<T>(ref: ForwardedRef<T>, value: T | null) {
   if (typeof ref === "function") ref(value);
@@ -54,9 +55,22 @@ function VolumeCaption() {
   return <p className="text-[11px] text-brand-muted mt-1">Hlasitosť {pct} % · koliesko hore pridá, dole uberá</p>;
 }
 
+function useEdgeFade(node: HTMLAudioElement | null, enabled: boolean) {
+  useEffect(() => {
+    if (!node) return;
+    if (!enabled) {
+      restorePresentationAudio(node);
+      return;
+    }
+    return attachPresentationEdgeFade(node);
+  }, [enabled, node]);
+}
+
 type Extra = {
   hint?: boolean;
   captureWheel?: boolean;
+  /** Len prezentácia. Prvá a posledná sekunda. */
+  edgeFade?: boolean;
 };
 
 function VolumeShell({
@@ -83,12 +97,13 @@ function VolumeShell({
 }
 
 export const VolumeAudio = forwardRef<HTMLAudioElement, ComponentProps<"audio"> & Extra>(function VolumeAudio(
-  { hint = false, captureWheel = true, ...props },
+  { hint = false, captureWheel = true, edgeFade = false, ...props },
   forwarded
 ) {
   const [node, setNode] = useState<HTMLAudioElement | null>(null);
   const [box, setBox] = useState<HTMLDivElement | null>(null);
   useAppliedVolume(node);
+  useEdgeFade(node, edgeFade);
   return (
     <VolumeShell hint={hint} captureWheel={captureWheel} box={box} setBox={setBox}>
       <audio

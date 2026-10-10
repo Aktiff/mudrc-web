@@ -239,6 +239,7 @@ export default function QuizLibraryEditor({ quizId }: Props) {
       audioUrl: string;
       hostNote?: string;
       tags?: string[];
+      presentationFade?: boolean;
     }) => {
       const music = musicBankInputFromReturnedAudio(input);
       if (music) {
@@ -538,7 +539,8 @@ export default function QuizLibraryEditor({ quizId }: Props) {
     audioUrl: string,
     hostNote?: string,
     bankTags?: string[],
-    bodyOverride?: string
+    bodyOverride?: string,
+    audioEdgeFade?: boolean
   ) => {
     const target = questions.find((q) => q.id === targetQuestionId);
     if (!target) return;
@@ -559,6 +561,8 @@ export default function QuizLibraryEditor({ quizId }: Props) {
             answer: target.answer.trim(),
             audioUrl: target.audioUrl.trim(),
             note: target.hostNote?.trim() || undefined,
+            tags: target.tags,
+            presentationFade: target.audioEdgeFade === true,
           }
         : null;
 
@@ -582,6 +586,7 @@ export default function QuizLibraryEditor({ quizId }: Props) {
                 musicArtist: undefined,
                 musicTitle: undefined,
                 audioUrl,
+                audioEdgeFade: audioEdgeFade ? true : undefined,
                 videoUrl: undefined,
                 bankQuestionId: bankId,
                 hostNote: hostNote?.trim() || undefined,
@@ -609,7 +614,8 @@ export default function QuizLibraryEditor({ quizId }: Props) {
           answer: restoreToBank.answer,
           audioUrl: restoreToBank.audioUrl,
           hostNote: restoreToBank.note,
-          tags: target.tags,
+          tags: restoreToBank.tags,
+          presentationFade: restoreToBank.presentationFade,
         });
         return;
       }
@@ -718,6 +724,7 @@ export default function QuizLibraryEditor({ quizId }: Props) {
             audioUrl: question.audioUrl.trim(),
             hostNote: question.hostNote?.trim() || undefined,
             tags: question.tags,
+            presentationFade: question.audioEdgeFade === true,
           }
         : null;
 
@@ -773,6 +780,7 @@ export default function QuizLibraryEditor({ quizId }: Props) {
                     musicArtist: undefined,
                     musicTitle: undefined,
                     audioUrl: undefined,
+                    audioEdgeFade: undefined,
                     videoUrl: undefined,
                     mediaLabel: undefined,
                     options: undefined,
@@ -1417,7 +1425,16 @@ export default function QuizLibraryEditor({ quizId }: Props) {
                 {(question.kind === "music" || question.kind === "sound") && (
                   <AudioUrlField
                     value={question.audioUrl ?? ""}
-                    onChange={(url) => updateQuestion(question.id, { audioUrl: url })}
+                    onChange={(url, meta) =>
+                      updateQuestion(question.id, {
+                        audioUrl: url,
+                        ...(question.kind === "music" && meta?.uploaded
+                          ? { audioEdgeFade: true }
+                          : url.trim()
+                            ? {}
+                            : { audioEdgeFade: undefined }),
+                      })
+                    }
                     onUploadError={(text) => setMsg({ text, ok: false })}
                     onUploadSuccess={(text) => setMsg({ text, ok: true })}
                   />

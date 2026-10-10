@@ -317,6 +317,7 @@ function QuestionContent({
       <VolumeAudio
         ref={presentationAudioRef}
         captureWheel={false}
+        edgeFade={question.audioEdgeFade === true}
         controls
         src={playbackMediaSrc(question.audioUrl)}
         className="w-full max-w-xl shrink-0 touch-auto pointer-events-auto"

@@ -124,12 +124,14 @@ export async function updateStoredMusicBankItem(
   const conflict = await findMusicTrackConflict(artist, title, id);
   if (conflict) throw new MusicTrackDuplicateError(conflict);
 
+  const audioChanged = audioUrl !== current.audioUrl;
   const updated = createMusicBankItem({
     ...input,
     artist,
     title,
     audioUrl,
     tags: Array.isArray(input.tags) ? input.tags : current.tags,
+    presentationFade: audioChanged ? input.presentationFade === true : current.presentationFade === true,
   });
   const merged: MusicBankItem = { ...updated, id: current.id, createdAt: current.createdAt };
   const next = existing.map((t) => (t.id === id ? merged : t));

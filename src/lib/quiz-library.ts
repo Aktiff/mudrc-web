@@ -32,6 +32,8 @@ export type QuizQuestionItem = {
   bankQuestionId?: string;
   imageUrl?: string;
   audioUrl?: string;
+  /** true = v prezentácii prvá a posledná sekunda plynulo nabehne a dobehne */
+  audioEdgeFade?: boolean;
   videoUrl?: string;
   /** Popis ukážky z banky (zvuk / video) — pre vrátenie do banky */
   mediaLabel?: string;
@@ -143,6 +145,7 @@ function normalizeQuestion(input: Partial<QuizQuestionItem>): QuizQuestionItem |
     bankQuestionId: input.bankQuestionId?.trim() || undefined,
     imageUrl: input.imageUrl?.trim() || undefined,
     audioUrl: input.audioUrl?.trim() || undefined,
+    audioEdgeFade: input.audioEdgeFade === true ? true : undefined,
     videoUrl: input.videoUrl?.trim() || undefined,
     mediaLabel: input.mediaLabel?.trim() || undefined,
     imageDuringQuestion: Boolean(input.imageDuringQuestion),

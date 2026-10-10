@@ -240,6 +240,7 @@ function AudioBankEditForm({
             audioUrl: url,
             note: note.trim() || undefined,
             tags,
+            presentationFade: url !== initialAudioUrl.trim() ? true : undefined,
           });
         } else {
           await addMusicBankItemAsync({
@@ -248,6 +249,7 @@ function AudioBankEditForm({
             audioUrl: url,
             note: note.trim() || undefined,
             tags,
+            presentationFade: url !== initialAudioUrl.trim() ? true : undefined,
           });
           await removeSoundBankItemAsync(sourceId);
         }

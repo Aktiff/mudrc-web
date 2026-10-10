@@ -9,7 +9,7 @@ import { uploadAudioFileClient } from "@/lib/upload-audio-client";
 type Props = {
   label?: string;
   value: string;
-  onChange: (url: string) => void;
+  onChange: (url: string, meta?: { uploaded?: boolean }) => void;
   onUploadError?: (message: string) => void;
   onUploadSuccess?: (message: string) => void;
 };
@@ -32,7 +32,7 @@ export default function AudioUrlField({
     setError("");
     try {
       const url = await uploadAudioFileClient(file);
-      onChange(url);
+      onChange(url, { uploaded: true });
       onUploadSuccess?.("Audio nahrané do úložiska.");
     } catch (err) {
       const text = err instanceof Error ? err.message : "Chyba pri nahrávaní audio.";
