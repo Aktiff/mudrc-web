@@ -366,23 +366,30 @@ async function latestEventsVersion(): Promise<{ pathname: string; uploadedAt: nu
 }
 
 /** Nový súbor pri každom zápise. Prepísaná cesta ostáva v cache a po refreshi vráti starý checklist. */
+async function readPointedJson<T>(pointer: { pathname?: string; url?: string }, label: string): Promise<T | null> {
+  const targets = [pointer.pathname, pointer.url].filter((value): value is string => Boolean(value));
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    for (const target of targets) {
+      try {
+        const data = await fetchBlobJson<T>(target, pointer.pathname || label);
+        if (data !== null) return data;
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    await sleep(250);
+  }
+  if (lastError) console.error(`${label} pointer read failed:`, lastError);
+  return null;
+}
+
 async function readEventsPointer(): Promise<QuizEvent[] | null> {
   const pointer = await optionalReadBlob<{ pathname?: string; url?: string }>(EVENTS_CURRENT_KEY);
   if (!pointer?.url && !pointer?.pathname) return null;
-  let lastError: unknown;
-  for (let attempt = 0; attempt < 3; attempt++) {
-    try {
-      const data = await fetchBlobJson<{ events?: QuizEvent[] }>(
-        pointer.url || pointer.pathname || EVENTS_CURRENT_KEY,
-        pointer.pathname || EVENTS_CURRENT_KEY
-      );
-      if (data && Array.isArray(data.events)) return data.events;
-    } catch (error) {
-      lastError = error;
-    }
-    await sleep(200);
-  }
-  throw lastError instanceof Error ? lastError : new Error("Udalosti sa nepodarilo načítať.");
+  const data = await readPointedJson<{ events?: QuizEvent[] }>(pointer, EVENTS_CURRENT_KEY);
+  if (data && Array.isArray(data.events)) return data.events;
+  throw new Error("Udalosti sa nepodarilo načítať.");
 }
 
 async function loadVersionedEvents(): Promise<QuizEvent[] | null> {
@@ -792,6 +799,7 @@ async function fetchBlobJson<T>(urlOrPathname: string, pathname: string): Promis
   const result = await get(urlOrPathname, {
     access: blobStoreAccess(),
     headers: { "cache-control": "no-cache", pragma: "no-cache" },
+    abortSignal: AbortSignal.timeout(8000),
     ...blobAuthOptions(),
   });
   if (!result) return null;
@@ -824,22 +832,11 @@ async function latestRegistrationVersion(): Promise<{ pathname: string; uploaded
 async function readRegistrationsPointer(): Promise<Registration[] | null> {
   const pointer = await optionalReadBlob<{ pathname?: string; url?: string }>(REGS_CURRENT_KEY);
   if (!pointer?.url && !pointer?.pathname) return null;
-  let lastError: unknown;
-  for (let attempt = 0; attempt < 3; attempt++) {
-    try {
-      const data = await fetchBlobJson<{ registrations?: Registration[] }>(
-        pointer.url || pointer.pathname || REGS_CURRENT_KEY,
-        pointer.pathname || REGS_CURRENT_KEY
-      );
-      if (data && Array.isArray(data.registrations)) {
-        return data.registrations.map(normalizeRegistration);
-      }
-    } catch (error) {
-      lastError = error;
-    }
-    await sleep(200);
+  const data = await readPointedJson<{ registrations?: Registration[] }>(pointer, REGS_CURRENT_KEY);
+  if (data && Array.isArray(data.registrations)) {
+    return data.registrations.map(normalizeRegistration);
   }
-  throw lastError instanceof Error ? lastError : new Error("Registrácie sa nepodarilo načítať.");
+  throw new Error("Registrácie sa nepodarilo načítať.");
 }
 
 async function loadVersionedRegistrations(): Promise<Registration[] | null> {

@@ -1140,7 +1140,7 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(snapshot),
-          signal: AbortSignal.timeout(20000),
+          signal: AbortSignal.timeout(45000),
         });
         if (seq !== saveSeq.current) return;
         if (!res.ok) {
@@ -1156,8 +1156,17 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
           setQuiz(saved);
         }
         setMsg({ text: "Uložené.", ok: true });
-      } catch {
-        if (seq === saveSeq.current) setMsg({ text: "Uloženie zlyhalo. Skús to znova.", ok: false });
+      } catch (err) {
+        const aborted = err instanceof Error && (err.name === "TimeoutError" || err.name === "AbortError");
+        if (aborted) saveQueued.current = null;
+        if (seq === saveSeq.current) {
+          setMsg({
+            text: aborted
+              ? "Ukladanie trvá dlhšie. Zmeny sú v tomto okne, počkaj a skús Uložiť ešte raz."
+              : "Uloženie zlyhalo. Skús to znova.",
+            ok: false,
+          });
+        }
       } finally {
         saveInflight.current = false;
         if (seq === saveSeq.current) setSaving(false);

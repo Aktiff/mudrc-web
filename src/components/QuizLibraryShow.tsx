@@ -1015,30 +1015,41 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
       >
         <SlideBackdrop />
 
-      {!isFullscreen && (
-        <div className="absolute top-0 inset-x-0 flex items-center justify-end p-4 sm:p-5 z-20">
-          <div className="flex items-center gap-2 pointer-events-auto">
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                toggleFullscreen();
-              }}
-              className="p-2.5 rounded-full bg-black/40 border border-white/15 hover:bg-white/15 backdrop-blur-sm transition-colors"
-              title="Celá obrazovka"
-            >
-              <Maximize2 className="w-5 h-5" />
-            </button>
-            <Link
-              href={`/admin/hotove-kvizy/${quizId}`}
-              className="p-2.5 rounded-full bg-black/40 border border-white/15 hover:bg-white/15 backdrop-blur-sm transition-colors"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <X className="w-5 h-5" />
-            </Link>
-          </div>
+      <div className="absolute top-0 inset-x-0 flex items-center justify-end p-4 sm:p-5 z-[80] pointer-events-none">
+        <div className="flex items-center gap-2 pointer-events-auto">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              toggleFullscreen();
+            }}
+            className="p-2.5 rounded-full bg-black/70 border border-white/20 hover:bg-white/15 backdrop-blur-sm transition-colors"
+            title="Celá obrazovka"
+          >
+            <Maximize2 className="w-5 h-5" />
+          </button>
+          <button
+            type="button"
+            className="p-2.5 rounded-full bg-black/70 border border-white/20 hover:bg-white/15 backdrop-blur-sm transition-colors"
+            title="Zavrieť prezentáciu"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              const leave = () => {
+                window.location.href = `/admin/hotove-kvizy/${quizId}`;
+              };
+              if (document.fullscreenElement) {
+                void document.exitFullscreen().finally(leave);
+              } else {
+                leave();
+              }
+            }}
+          >
+            <X className="w-5 h-5" />
+          </button>
         </div>
-      )}
+      </div>
 
       {showQuestionBadge && activeQuestion && (
         <div className="absolute top-4 sm:top-5 left-4 sm:left-5 z-[1] pointer-events-none">

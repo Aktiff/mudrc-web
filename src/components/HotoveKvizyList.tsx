@@ -20,27 +20,37 @@ export default function HotoveKvizyList() {
   const [createError, setCreateError] = useState<string | null>(null);
   const [actionQuizId, setActionQuizId] = useState<string | null>(null);
   const [listMessage, setListMessage] = useState<{ text: string; ok: boolean } | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const loadQuizzes = useCallback(async () => {
     const res = await fetch(`/api/admin/quiz-library?_=${Date.now()}`, {
       cache: "no-store",
-      signal: AbortSignal.timeout(25000),
+      signal: AbortSignal.timeout(20000),
     });
-    if (res.ok) {
-      const data = await res.json();
-      setQuizzes(data.quizzes ?? []);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(typeof data.error === "string" ? data.error : "Kvízy sa nepodarilo načítať.");
     }
+    setQuizzes(data.quizzes ?? []);
+    setLoadError(null);
   }, []);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
-    try {
-      await loadQuizzes();
-    } catch {
-      setListMessage({ text: "Kvízy sa nepodarilo načítať. Skús obnoviť stránku.", ok: false });
-    } finally {
-      setLoading(false);
+    setLoadError(null);
+    let lastError = "Kvízy sa nepodarilo načítať.";
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      try {
+        await loadQuizzes();
+        setLoading(false);
+        return;
+      } catch (error) {
+        lastError = error instanceof Error ? error.message : lastError;
+        if (attempt < 3) await new Promise((resolve) => setTimeout(resolve, 700));
+      }
     }
+    setLoadError(lastError);
+    setLoading(false);
   }, [loadQuizzes]);
 
   useEffect(() => {
@@ -237,7 +247,16 @@ export default function HotoveKvizyList() {
         ))}
       </div>
 
-      {!loading && quizzes.length === 0 && (
+      {!loading && loadError && quizzes.length === 0 && (
+        <div className="bg-brand-card rounded-2xl border border-brand-border px-6 py-10 text-center space-y-3">
+          <p className="text-red-500 text-sm">{loadError}</p>
+          <button type="button" onClick={() => void loadAll()} className="btn-primary text-sm py-2.5 px-5">
+            Načítať znova
+          </button>
+        </div>
+      )}
+
+      {!loading && !loadError && quizzes.length === 0 && (
         <div className="bg-brand-card rounded-2xl border border-brand-border px-6 py-10 text-center text-brand-muted">
           Zatiaľ nemáš žiadne kvízy. Vytvor prvý kliknutím na „Nový kvíz“.
         </div>

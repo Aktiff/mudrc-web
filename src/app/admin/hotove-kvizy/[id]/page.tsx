@@ -11,7 +11,19 @@ export const dynamic = "force-dynamic";
 type PageProps = { params: { id: string } };
 
 export default async function HotovyKvizDetailPage({ params }: PageProps) {
-  const quiz = await readLibraryQuiz(params.id);
+  let quiz: Awaited<ReturnType<typeof readLibraryQuiz>> = null;
+  try {
+    quiz = await readLibraryQuiz(params.id);
+  } catch {
+    return (
+      <div className="space-y-4">
+        <p className="text-red-500 text-sm">Kvíz sa nepodarilo načítať.</p>
+        <a href={`/admin/hotove-kvizy/${params.id}`} className="btn-primary text-sm py-2.5 px-5 inline-flex">
+          Načítať znova
+        </a>
+      </div>
+    );
+  }
   if (!quiz) notFound();
 
   return (

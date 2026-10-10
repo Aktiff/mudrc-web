@@ -66,11 +66,24 @@ async function listBlobs(prefix: string, strict = false): Promise<ListedBlob[]> 
   return all;
 }
 
+function isPointerDocument(data: unknown): boolean {
+  if (!data || typeof data !== "object" || Array.isArray(data)) return false;
+  const row = data as Record<string, unknown>;
+  return (
+    typeof row.pathname === "string" &&
+    typeof row.url === "string" &&
+    !("items" in row) &&
+    !("questions" in row) &&
+    !("events" in row) &&
+    !("registrations" in row)
+  );
+}
+
 async function readBlobBody<T>(urlOrPathname: string, pathname: string): Promise<T | null> {
   const result = await get(urlOrPathname, {
     access: blobStoreAccess(),
     headers: { "cache-control": "no-cache", pragma: "no-cache" },
-    abortSignal: AbortSignal.timeout(12000),
+    abortSignal: AbortSignal.timeout(8000),
     ...blobAuthOptions(),
   });
   if (!result) return null;
@@ -78,7 +91,9 @@ async function readBlobBody<T>(urlOrPathname: string, pathname: string): Promise
     throw new Error(`Blob get failed (${pathname}): incomplete response`);
   }
   const raw = await new Response(result.stream).text();
-  return JSON.parse(raw) as T;
+  const data = JSON.parse(raw) as T;
+  if (isPointerDocument(data)) return null;
+  return data;
 }
 
 async function readListed<T>(blob: ListedBlob): Promise<T | null> {
@@ -92,23 +107,33 @@ async function latestVersion(name: string): Promise<ListedBlob | null> {
   return blobs[0];
 }
 
+async function readPointerTarget<T>(pointer: CurrentPointer): Promise<T | null> {
+  const targets = [pointer.pathname, pointer.url].filter((value): value is string => Boolean(value));
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    for (const target of targets) {
+      try {
+        const data = await readBlobBody<T>(target, pointer.pathname || target);
+        if (data !== null) return data;
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    await sleep(250);
+  }
+  if (lastError) {
+    console.error("blob pointer read failed:", lastError);
+  }
+  return null;
+}
+
 export async function readAppStorageCurrent<T>(name: string): Promise<T | null> {
   if (!hasBlobStorage()) return null;
   const pointer = await optionalReadBlob<CurrentPointer>(currentPointerKey(name));
   if (!pointer?.url && !pointer?.pathname) return null;
-  const target = pointer.url || pointer.pathname;
-  const label = pointer.pathname || currentPointerKey(name);
-  let lastError: unknown;
-  for (let attempt = 0; attempt < 3; attempt++) {
-    try {
-      const data = await readBlobBody<T>(target, label);
-      if (data !== null) return data;
-    } catch (error) {
-      lastError = error;
-    }
-    await sleep(200);
-  }
-  throw lastError instanceof Error ? lastError : new Error(`Úložisko ${name} sa nepodarilo načítať.`);
+  const data = await readPointerTarget<T>(pointer);
+  if (data !== null) return data;
+  throw new Error(`Úložisko ${name} sa nepodarilo načítať.`);
 }
 
 async function pruneVersions(name: string, keepKey: string): Promise<void> {

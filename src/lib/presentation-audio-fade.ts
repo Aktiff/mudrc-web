@@ -63,11 +63,12 @@ export function restorePresentationAudio(audio: HTMLAudioElement) {
 
 /** Prvá a posledná sekunda ukážky v prezentácii. Súbor sa nemení. */
 export function attachPresentationEdgeFade(audio: HTMLAudioElement): () => void {
-  const graph = ensureGraph(audio);
-  const ctx = sharedAudioContext();
+  let disposed = false;
   let raf = 0;
+  let graph: FadeGraph | null = graphs.get(audio) ?? null;
 
   const apply = () => {
+    if (!graph) return;
     graph.gain.gain.value = envelope(audio.currentTime, audio.duration);
   };
 
@@ -76,11 +77,19 @@ export function attachPresentationEdgeFade(audio: HTMLAudioElement): () => void 
     if (!audio.paused && !audio.ended) raf = requestAnimationFrame(loop);
   };
 
-  const onPlay = () => {
-    void ctx.resume();
+  const arm = () => {
+    if (disposed) return;
+    const ctx = sharedAudioContext();
+    if (ctx.state !== "running") return;
+    graph = ensureGraph(audio);
     cancelAnimationFrame(raf);
     apply();
-    raf = requestAnimationFrame(loop);
+    if (!audio.paused && !audio.ended) raf = requestAnimationFrame(loop);
+  };
+
+  const onPlay = () => {
+    const ctx = sharedAudioContext();
+    void ctx.resume().then(arm);
   };
   const onStop = () => cancelAnimationFrame(raf);
 
@@ -89,27 +98,16 @@ export function attachPresentationEdgeFade(audio: HTMLAudioElement): () => void 
   audio.addEventListener("ended", onStop);
   audio.addEventListener("seeked", apply);
   audio.addEventListener("durationchange", apply);
-  apply();
   if (!audio.paused) onPlay();
 
   return () => {
+    disposed = true;
     cancelAnimationFrame(raf);
     audio.removeEventListener("play", onPlay);
     audio.removeEventListener("pause", onStop);
     audio.removeEventListener("ended", onStop);
     audio.removeEventListener("seeked", apply);
     audio.removeEventListener("durationchange", apply);
-    audio.pause();
-    graph.gain.gain.value = 1;
-    try {
-      graph.source.disconnect();
-    } catch {
-      /* už odpojené */
-    }
-    try {
-      graph.gain.disconnect();
-    } catch {
-      /* už odpojené */
-    }
+    if (graph) graph.gain.gain.value = 1;
   };
 }
