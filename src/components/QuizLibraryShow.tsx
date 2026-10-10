@@ -20,6 +20,7 @@ import { displayQuestionNumber } from "@/lib/quiz-template";
 import { VolumeAudio, VolumeVideo } from "@/components/VolumeMedia";
 import { visibleRuleTexts } from "@/lib/quiz-rules";
 import type { QuizLibraryItem, QuizQuestionItem } from "@/lib/quiz-library";
+import { parseQuizPayload } from "@/lib/quiz-editor-draft";
 import {
   bestPresentationImageUrl,
   buildPresentationSlides,
@@ -544,6 +545,7 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
   const [started, setStarted] = useState(false);
   const [index, setIndex] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [slideView, setSlideView] = useState({ scale: 1, x: 0, y: 0 });
   const [showNextQuizModal, setShowNextQuizModal] = useState(false);
@@ -557,18 +559,40 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
   const [savedNextQuizSteps, setSavedNextQuizSteps] = useState<{ venue: string; atLocal: string }[]>([]);
   const [aspectMode, setAspectMode] = useState<PresentationAspectMode>("tv-16:9");
   useEffect(() => {
+    let cancelled = false;
+    const signal = AbortSignal.timeout(20000);
     Promise.all([
-      fetch(`/api/admin/quiz-library/${quizId}?_=${Date.now()}`, { cache: "no-store" }).then((r) =>
+      fetch(`/api/admin/quiz-library/${quizId}?_=${Date.now()}`, { cache: "no-store", signal }).then((r) =>
         r.ok ? r.json() : null
       ),
-      fetch(`/api/admin/events?_=${Date.now()}`, { cache: "no-store" }).then((r) =>
+      fetch(`/api/admin/events?_=${Date.now()}`, { cache: "no-store", signal }).then((r) =>
         r.ok ? r.json() : { events: [] }
       ),
-    ]).then(([quizData, eventsData]) => {
-      setQuiz(quizData);
-      setEvents(eventsData.events ?? []);
-      setLoading(false);
-    });
+    ])
+      .then(([quizData, eventsData]) => {
+        if (cancelled) return;
+        try {
+          setQuiz(quizData ? parseQuizPayload(quizData) : null);
+          setLoadError(quizData ? "" : "Kvíz sa nepodarilo načítať.");
+        } catch (error) {
+          setQuiz(null);
+          setLoadError(error instanceof Error ? error.message : "Kvíz sa nepodarilo načítať.");
+        }
+        const list = eventsData && Array.isArray(eventsData.events) ? eventsData.events : [];
+        setEvents(list);
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        setQuiz(null);
+        const timedOut = error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
+        setLoadError(timedOut ? "Načítanie trvalo príliš dlho. Skús to znova." : "Kvíz sa nepodarilo načítať.");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [quizId]);
 
   useEffect(() => {
@@ -601,10 +625,14 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
     return attachVolumeWheel(root);
   }, [started]);
 
-  const slides = useMemo(
-    () => (quiz?.questions?.length ? buildPresentationSlides(quiz.questions) : []),
-    [quiz?.questions]
-  );
+  const slides = useMemo(() => {
+    if (!quiz?.questions?.length) return [];
+    try {
+      return buildPresentationSlides(quiz.questions);
+    } catch {
+      return [];
+    }
+  }, [quiz?.questions]);
 
   const selectedEvent = events.find((event) => event.slug === eventSlug);
   const eventRules = visibleRuleTexts(selectedEvent?.rules);
@@ -797,8 +825,8 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
 
   if (!slides.length) {
     return (
-      <div className="fixed inset-0 z-[9999] bg-[#060606] flex flex-col items-center justify-center gap-4 text-white">
-        <p>Žiadne otázky. Doplň ich v editore.</p>
+      <div className="fixed inset-0 z-[9999] bg-[#060606] flex flex-col items-center justify-center gap-4 text-white px-6 text-center">
+        <p>{loadError || "Žiadne otázky. Doplň ich v editore."}</p>
         <Link href={`/admin/hotove-kvizy/${quizId}`} className="text-[#f0c800] underline">
           Späť do editora
         </Link>

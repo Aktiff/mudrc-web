@@ -70,6 +70,7 @@ async function readBlobBody<T>(urlOrPathname: string, pathname: string): Promise
   const result = await get(urlOrPathname, {
     access: blobStoreAccess(),
     headers: { "cache-control": "no-cache", pragma: "no-cache" },
+    abortSignal: AbortSignal.timeout(12000),
     ...blobAuthOptions(),
   });
   if (!result) return null;

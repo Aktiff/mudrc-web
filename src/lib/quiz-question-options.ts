@@ -45,18 +45,19 @@ export function normalizeQuestionOptions(raw: unknown): string[] | undefined {
 
 export function getQuestionOptions(question: QuizQuestionItem): string[] {
   if (question.options?.length) {
-    return question.options.filter((option) => option.trim());
+    return question.options.filter((option) => typeof option === "string" && option.trim());
   }
-  return parseEmbeddedOptions(question.body).options;
+  return parseEmbeddedOptions(question.body ?? "").options;
 }
 
 export function getQuestionBodyText(question: QuizQuestionItem): string {
+  const body = typeof question.body === "string" ? question.body : "";
   if (question.options?.length) {
-    return question.body.trim();
+    return body.trim();
   }
-  const parsed = parseEmbeddedOptions(question.body);
+  const parsed = parseEmbeddedOptions(body);
   if (parsed.options.length) return parsed.questionText;
-  return question.body.trim();
+  return body.trim();
 }
 
 export function optionLetter(index: number): string {

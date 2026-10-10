@@ -35,7 +35,7 @@ export function compareQuizQuestions(a: QuizQuestionItem, b: QuizQuestionItem): 
     if (aMusic !== bMusic) return aMusic - bMusic;
   }
   if (a.questionNumber !== b.questionNumber) return a.questionNumber - b.questionNumber;
-  return a.id.localeCompare(b.id);
+  return String(a.id ?? "").localeCompare(String(b.id ?? ""));
 }
 
 export function sortQuizQuestions(questions: QuizQuestionItem[]): QuizQuestionItem[] {

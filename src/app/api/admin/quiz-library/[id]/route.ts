@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { deleteLibraryQuiz, readLibraryQuiz, saveLibraryQuiz } from "@/lib/quiz-library-storage";
-import { getQuizUsages } from "@/lib/quiz-library-usage";
-import { collectPlayedTeamNames, collectUsedBankQuestionIdsFromQuiz, normalizeLibraryQuiz } from "@/lib/quiz-library";
+import { collectUsedBankQuestionIdsFromQuiz, normalizeLibraryQuiz } from "@/lib/quiz-library";
 import { hydrateQuizMediaForPlayback } from "@/lib/quiz-media-resolve";
-import { readAllEventsRaw, readAllStoredQuizzes } from "@/lib/storage";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,22 +10,12 @@ type RouteContext = { params: { id: string } };
 
 export async function GET(_req: NextRequest, { params }: RouteContext) {
   try {
-    const [quiz, storedQuizzes, { events }] = await Promise.all([
-      readLibraryQuiz(params.id),
-      readAllStoredQuizzes(),
-      readAllEventsRaw(),
-    ]);
+    const quiz = await readLibraryQuiz(params.id);
     if (!quiz) return NextResponse.json({ error: "Kvíz nenájdený" }, { status: 404 });
 
-    const usages = getQuizUsages(params.id, storedQuizzes, events);
     const normalized = normalizeLibraryQuiz(quiz);
     const hydrated = await hydrateQuizMediaForPlayback(normalized);
-    return NextResponse.json({
-      ...hydrated,
-      usages,
-      playedTeamNames: collectPlayedTeamNames(usages),
-      usageCount: usages.length,
-    });
+    return NextResponse.json(hydrated);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Nepodarilo sa načítať kvíz.";
     return NextResponse.json({ error: message }, { status: 500 });
