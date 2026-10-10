@@ -246,14 +246,15 @@ export default function QuizQuestionBankPanel({
     [customBankQuestions, hiddenIds]
   );
 
-  const availableQuestions = useMemo(
-    () =>
-      excludeQuestionsUsedByBody(
-        getInsertableTextBankQuestions(customBankQuestions, usedBankQuestionIds, hiddenIds),
-        usedQuestionBodies
-      ),
-    [usedBankQuestionIds, hiddenIds, customBankQuestions, usedQuestionBodies]
-  );
+  const availableQuestions = useMemo(() => {
+    const insertable = getInsertableTextBankQuestions(customBankQuestions, usedBankQuestionIds, hiddenIds);
+    const custom = insertable.filter((item) => isCustomBankQuestionId(item.id));
+    const generated = excludeQuestionsUsedByBody(
+      insertable.filter((item) => !isCustomBankQuestionId(item.id)),
+      usedQuestionBodies
+    );
+    return [...custom, ...generated];
+  }, [usedBankQuestionIds, hiddenIds, customBankQuestions, usedQuestionBodies]);
 
   const sourceCounts = useMemo(() => {
     const text = countTextBankSources(availableQuestions);
@@ -629,7 +630,6 @@ export default function QuizQuestionBankPanel({
             [
               ["all", "Všetky", sourceCounts.all],
               ["custom", "Moje otázky", sourceCounts.custom],
-              ["generated", "Vygenerované", sourceCounts.generated],
               ["sound", "Zvukové ukážky", sourceCounts.sound],
               ["video", "Video", sourceCounts.video],
             ] as const

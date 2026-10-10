@@ -838,7 +838,7 @@ export default function QuizLibraryEditor({ quizId }: Props) {
     const options = [...(question.options ?? [])];
     while (options.length < 6) options.push("");
     const hasChoices = options.some((option) => option.trim());
-    const matched = hasChoices ? options.findIndex((option) => option.trim() === question.answer.trim()) : 0;
+    const matched = hasChoices ? options.findIndex((option) => option.trim() === question.answer.trim()) : -1;
     const input = {
       body: question.body.trim(),
       options: options.slice(0, 6),
@@ -846,7 +846,7 @@ export default function QuizLibraryEditor({ quizId }: Props) {
       answer: question.answer.trim(),
       note: question.hostNote?.trim() || undefined,
       tags: question.tags,
-      isOpenQuestion: !hasChoices,
+      isOpenQuestion: matched < 0,
       isImageQuestion: Boolean(question.imageUrl?.trim() || question.imageDuringQuestion),
       suggestedImageUrl: question.imageUrl?.trim() || undefined,
     };
@@ -873,9 +873,14 @@ export default function QuizLibraryEditor({ quizId }: Props) {
           created,
           ...recentCustomBank.current.filter((item) => item.id !== created.id),
         ];
-        finish("Otázka je v banke — celé znenie, odpoveď aj tagy.");
+        finish("Otázka je v banke v Moje otázky. V tomto kvíze ostala.");
       })
-      .catch(() => setMsg({ text: "Otázku sa nepodarilo uložiť do banky.", ok: false }));
+      .catch((err) =>
+        setMsg({
+          text: err instanceof Error ? err.message : "Otázku sa nepodarilo uložiť do banky.",
+          ok: false,
+        })
+      );
   };
 
   const updateQuestionOptions = (id: string, options: string[]) => {

@@ -288,7 +288,7 @@ export default function QuestionBankInventory({
         <div>
           <p className="font-semibold text-brand-text">Obsah banky</p>
           <p className="text-brand-muted text-xs mt-0.5">
-            Nová otázka sa ukáže hneď v Moje otázky. Otázka už vložená do kvízu tu nie je, kým ju z kvízu nevyberieš.
+            Vlastná otázka uložená z kvízu tu zostane, aj keď v kvíze ostala. Otázka vložená z banky do kvízu sa skryje, kým ju nevrátiš.
           </p>
         </div>
         <button
@@ -323,9 +323,8 @@ export default function QuestionBankInventory({
           <div className="flex flex-wrap gap-1.5">
             {(
               [
-                ["all", "Všetky", textBankCounts.all],
+                ["all", "Všetky", textBankCounts.custom],
                 ["custom", "Moje otázky", textBankCounts.custom],
-                ["generated", "Vygenerované", textBankCounts.generated],
               ] as const
             ).map(([key, label, count]) => (
               <button

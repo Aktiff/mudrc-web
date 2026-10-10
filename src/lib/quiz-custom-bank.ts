@@ -166,7 +166,7 @@ export function createCustomBankQuestion(input: NewCustomBankQuestionInput): Cus
     answer = input.answer?.trim() ?? "";
   } else {
     correctIndex = Math.min(Math.max(0, input.correctIndex), 5);
-    answer = options[correctIndex]?.trim() ?? input.answer?.trim() ?? "";
+    answer = options[correctIndex]?.trim() || input.answer?.trim() || "";
   }
 
   const tags = resolveCustomQuestionTags(input.tags, input.body.trim(), answer, input.note);
