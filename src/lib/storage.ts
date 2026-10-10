@@ -21,6 +21,7 @@ const eventBlobKey = (slug: string) => `mudrc/events/${slug}.json`;
 const regBlobKey = (id: string) => `mudrc/registrations/${id}.json`;
 const REGS_VERSION_PREFIX = "mudrc/registrations/versions/";
 const EVENTS_VERSION_PREFIX = "mudrc/events/versions/";
+const EVENTS_CURRENT_KEY = "mudrc/events/current.json";
 
 const eventsPath = path.join(process.cwd(), "src/data/events.json");
 const eventsLocalPath = path.join(process.cwd(), "src/data/events.local.json");
@@ -364,29 +365,44 @@ async function latestEventsVersion(): Promise<{ pathname: string; uploadedAt: nu
 }
 
 /** Nový súbor pri každom zápise. Prepísaná cesta ostáva v cache a po refreshi vráti starý checklist. */
+async function readEventsPointer(): Promise<QuizEvent[] | null> {
+  const pointer = await optionalReadBlob<{ pathname?: string; url?: string }>(EVENTS_CURRENT_KEY);
+  if (!pointer?.url && !pointer?.pathname) return null;
+  try {
+    const data = await fetchBlobJson<{ events?: QuizEvent[] }>(
+      pointer.url || pointer.pathname || EVENTS_CURRENT_KEY,
+      pointer.pathname || EVENTS_CURRENT_KEY
+    );
+    return data && Array.isArray(data.events) ? data.events : null;
+  } catch {
+    return null;
+  }
+}
+
 async function loadVersionedEvents(): Promise<QuizEvent[] | null> {
+  const fromPointer = await readEventsPointer();
+  if (fromPointer) return fromPointer;
+
   const latest = await latestEventsVersion();
   if (!latest) return null;
 
-  for (let attempt = 0; attempt < 5; attempt++) {
+  for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      const data = await readListedBlobJson<{ events?: QuizEvent[] }>(latest);
-      if (data && Array.isArray(data.events)) return data.events;
+      const data = await fetchBlobJson<{ events?: QuizEvent[] }>(latest.pathname, latest.pathname);
+      if (data && Array.isArray(data.events)) {
+        try {
+          await writeBlob(EVENTS_CURRENT_KEY, { pathname: latest.pathname, url: latest.url });
+        } catch {
+          /* ďalšie čítanie ešte prejde zoznamom verzií */
+        }
+        return data.events;
+      }
     } catch {
       // nový súbor ešte nemusí byť na prvý pokus čitateľný
     }
     await sleep(200);
   }
   throw new Error("Udalosti sa nepodarilo načítať. Skús obnoviť stránku.");
-}
-
-async function pruneOldEventVersions(keepKey: string): Promise<void> {
-  const blobs = await listBlobsByPrefix(EVENTS_VERSION_PREFIX);
-  const stale = blobs
-    .filter((blob) => blob.pathname !== keepKey)
-    .sort((a, b) => b.uploadedAt - a.uploadedAt)
-    .slice(1);
-  await Promise.all(stale.map((blob) => deleteBlob(blob.pathname)));
 }
 
 async function loadEventsFromBlobOptional(): Promise<QuizEvent[] | null> {
@@ -399,18 +415,8 @@ async function loadEventsFromBlobOptional(): Promise<QuizEvent[] | null> {
 async function persistEventsBlob(events: QuizEvent[]): Promise<void> {
   const prepared = events.map(eventForEventsKey);
   const key = `${EVENTS_VERSION_PREFIX}${Date.now()}-${randomUUID()}.json`;
-  await writeBlob(key, { events: prepared });
-
-  for (let attempt = 0; attempt < 8; attempt++) {
-    const latest = await latestEventsVersion();
-    if (latest?.pathname === key) {
-      void pruneOldEventVersions(key);
-      return;
-    }
-    await sleep(200);
-  }
-
-  throw new Error("Udalosti sa nepodarilo hneď uložiť. Skús znova.");
+  const stored = await writeBlob(key, { events: prepared });
+  await writeBlob(EVENTS_CURRENT_KEY, { pathname: stored.pathname || key, url: stored.url });
 }
 
 async function listRegistrationBlobIds(): Promise<string[]> {
@@ -753,7 +759,13 @@ async function listBlobsByPrefix(prefix: string): Promise<{ pathname: string; up
   let cursor: string | undefined;
   try {
     do {
-      const result = await list({ prefix, limit: 1000, cursor, ...blobAuthOptions() });
+      const result = await list({
+        prefix,
+        limit: 1000,
+        cursor,
+        abortSignal: AbortSignal.timeout(8000),
+        ...blobAuthOptions(),
+      });
       for (const blob of result.blobs) {
         const uploadedAt = new Date(blob.uploadedAt).getTime();
         all.push({

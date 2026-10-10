@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   addStoredMusicBankItem,
+  addStoredMusicBankItems,
   findMusicTrackConflict,
   readStoredMusicBank,
   removeStoredMusicBankItem,
@@ -31,11 +32,18 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const body = (await req.json()) as NewMusicBankItemInput & { ignoreQuizId?: string };
+    const body = (await req.json()) as NewMusicBankItemInput & {
+      ignoreQuizId?: string;
+      items?: NewMusicBankItemInput[];
+    };
+    const ignoreQuizId = typeof body.ignoreQuizId === "string" ? body.ignoreQuizId : undefined;
+    if (Array.isArray(body.items)) {
+      const result = await addStoredMusicBankItems(body.items, ignoreQuizId);
+      return NextResponse.json({ ok: true, added: result.added, errors: result.errors });
+    }
     if (!body.artist?.trim() || !body.title?.trim() || !body.audioUrl?.trim()) {
       return NextResponse.json({ error: "Vyplň interpreta, názov skladby a audio URL." }, { status: 400 });
     }
-    const ignoreQuizId = typeof body.ignoreQuizId === "string" ? body.ignoreQuizId : undefined;
     const track = await addStoredMusicBankItem(body, ignoreQuizId);
     return NextResponse.json({
       ok: true,

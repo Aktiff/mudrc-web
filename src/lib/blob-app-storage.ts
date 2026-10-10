@@ -82,14 +82,7 @@ async function readBlobBody<T>(urlOrPathname: string, pathname: string): Promise
 }
 
 async function readListed<T>(blob: ListedBlob): Promise<T | null> {
-  const freshUrl = `${blob.url}${blob.url.includes("?") ? "&" : "?"}v=${Date.now()}`;
-  try {
-    const fresh = await readBlobBody<T>(freshUrl, blob.pathname);
-    if (fresh !== null) return fresh;
-  } catch {
-    /* skús pôvodnú adresu */
-  }
-  return readBlobBody<T>(blob.url, blob.pathname);
+  return readBlobBody<T>(blob.pathname, blob.pathname);
 }
 
 async function latestVersion(name: string): Promise<ListedBlob | null> {
@@ -110,31 +103,30 @@ export async function readAppStorageCurrent<T>(name: string): Promise<T | null> 
   }
 }
 
-function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error("timeout")), ms);
-    promise.then(
-      (value) => {
-        clearTimeout(timer);
-        resolve(value);
-      },
-      (error) => {
-        clearTimeout(timer);
-        reject(error);
-      }
-    );
-  });
-}
-
 async function pruneVersions(name: string, keepKey: string): Promise<void> {
-  const blobs = await withTimeout(listBlobs(versionPrefix(name)), 4000).catch(() => []);
+  let blobs: ListedBlob[] = [];
+  try {
+    const result = await list({
+      prefix: versionPrefix(name),
+      limit: 40,
+      abortSignal: AbortSignal.timeout(4000),
+      ...blobAuthOptions(),
+    });
+    blobs = result.blobs.map((blob) => ({
+      pathname: blob.pathname,
+      url: blob.url,
+      uploadedAt: new Date(blob.uploadedAt).getTime() || 0,
+    }));
+  } catch {
+    return;
+  }
+  const newest = [...blobs].sort((a, b) => b.pathname.localeCompare(a.pathname))[0]?.pathname;
   const stale = blobs
-    .filter((blob) => blob.pathname !== keepKey)
-    .sort((a, b) => a.uploadedAt - b.uploadedAt);
-  const keepNewestExtra = stale.length > 1 ? 1 : 0;
-  const toDelete = stale.slice(0, Math.max(0, stale.length - keepNewestExtra)).slice(0, 15);
+    .filter((blob) => blob.pathname !== keepKey && blob.pathname !== newest)
+    .sort((a, b) => a.pathname.localeCompare(b.pathname))
+    .slice(0, 10);
   await Promise.all(
-    toDelete.map(async (blob) => {
+    stale.map(async (blob) => {
       try {
         await del(blob.pathname, blobAuthOptions());
       } catch {
@@ -150,10 +142,17 @@ export async function readAppStorageBlob<T>(name: string): Promise<T | null> {
 
   const latest = await latestVersion(name);
   if (latest) {
-    for (let attempt = 0; attempt < 5; attempt++) {
+    for (let attempt = 0; attempt < 3; attempt++) {
       try {
         const data = await readListed<T>(latest);
-        if (data !== null) return data;
+        if (data !== null) {
+          try {
+            await writeBlob(currentPointerKey(name), { pathname: latest.pathname, url: latest.url });
+          } catch {
+            /* ďalšie čítanie ešte vie nájsť verziu zoznamom */
+          }
+          return data;
+        }
       } catch {
         /* nový súbor ešte nemusí byť na prvý pokus čitateľný */
       }

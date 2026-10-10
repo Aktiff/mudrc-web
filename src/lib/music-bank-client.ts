@@ -59,7 +59,7 @@ export async function addMusicBankItemAsync(
       cache: "no-store",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ...input, ...(ignoreQuizId ? { ignoreQuizId } : {}) }),
-      signal: AbortSignal.timeout(20000),
+      signal: AbortSignal.timeout(60000),
     });
   } catch (error) {
     throw asUploadError(error, "Uloženie zlyhalo");
@@ -71,6 +71,32 @@ export async function addMusicBankItemAsync(
   const track = normalizeMusicBankItem(data.track);
   if (!track) throw new Error("Neplatná odpoveď servera");
   return track;
+}
+
+export async function addMusicBankItemsAsync(
+  inputs: NewMusicBankItemInput[]
+): Promise<{ added: MusicBankItem[]; errors: { artist: string; title: string; error: string }[] }> {
+  let res: Response;
+  try {
+    res = await fetch("/api/admin/music-bank", {
+      method: "POST",
+      cache: "no-store",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ items: inputs }),
+      signal: AbortSignal.timeout(60000),
+    });
+  } catch (error) {
+    throw asUploadError(error, "Uloženie zlyhalo");
+  }
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(typeof data.error === "string" ? data.error : "Uloženie zlyhalo");
+  }
+  const added = Array.isArray(data.added)
+    ? data.added.map((row: unknown) => normalizeMusicBankItem(row)).filter((row: MusicBankItem | null): row is MusicBankItem => !!row)
+    : [];
+  const errors = Array.isArray(data.errors) ? data.errors : [];
+  return { added, errors };
 }
 
 export async function updateMusicBankItemAsync(

@@ -3,10 +3,9 @@
 import { useMemo, useState } from "react";
 import { ChevronDown, ChevronUp, Plus, Upload } from "lucide-react";
 import AudioUrlField from "@/components/admin/AudioUrlField";
-import { addMusicBankItemAsync, findMusicTrackConflictAsync } from "@/lib/music-bank-client";
+import { addMusicBankItemAsync, addMusicBankItemsAsync } from "@/lib/music-bank-client";
 import {
   formatMusicBankTagsLabel,
-  formatMusicTrackDuplicateMessage,
   musicTrackKey,
   parseMusicTrackFromFileName,
 } from "@/lib/music-bank";
@@ -105,6 +104,13 @@ export default function MusicBankQuestionForm({ onAdded, onMessage }: Props) {
     const failures: string[] = [];
     let okCount = 0;
     const seenInBatch = new Set<string>();
+    const uploadedMusic: {
+      artist: string;
+      title: string;
+      audioUrl: string;
+      note?: string;
+      presentationFade: true;
+    }[] = [];
 
     for (let i = 0; i < valid.length; i += 1) {
       const row = valid[i];
@@ -135,14 +141,10 @@ export default function MusicBankQuestionForm({ onAdded, onMessage }: Props) {
             audioUrl: url,
             note: note.trim() || undefined,
           });
+          okCount += 1;
         } else {
-          const conflict = await findMusicTrackConflictAsync(row.artist, row.title);
-          if (conflict) {
-            failures.push(`${row.file.name}: ${formatMusicTrackDuplicateMessage(conflict)}`);
-            continue;
-          }
           const url = await uploadAudioFileClient(row.file);
-          await addMusicBankItemAsync({
+          uploadedMusic.push({
             artist: row.artist,
             title: row.title,
             audioUrl: url,
@@ -150,15 +152,28 @@ export default function MusicBankQuestionForm({ onAdded, onMessage }: Props) {
             presentationFade: true,
           });
         }
-        okCount += 1;
       } catch (err) {
         const timedOut = err instanceof Error && (err.name === "TimeoutError" || err.name === "AbortError");
         const msg = timedOut
-          ? "Nahrávanie trvalo príliš dlho. Skús to znova."
+          ? "Nahrávanie súboru trvalo príliš dlho. Skús to znova."
           : err instanceof Error
             ? err.message
             : "Upload zlyhal";
         failures.push(`${row.file.name}: ${msg}`);
+      }
+    }
+
+    if (uploadedMusic.length) {
+      setBulkProgress({ done: valid.length - 1, total: valid.length, label: "ukladám do banky" });
+      try {
+        const saved = await addMusicBankItemsAsync(uploadedMusic);
+        okCount += saved.added.length;
+        for (const err of saved.errors) {
+          failures.push(`${err.artist} — ${err.title}: ${err.error}`);
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Uloženie do banky zlyhalo";
+        for (const row of uploadedMusic) failures.push(`${row.artist} — ${row.title}: ${msg}`);
       }
     }
 

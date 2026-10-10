@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 import {
   createMusicBankItem,
+  formatMusicTrackDuplicateMessage,
   musicBankInputFromReturnedAudio,
   musicTrackKey,
   MusicTrackDuplicateError,
@@ -78,22 +79,59 @@ export async function findMusicTrackConflict(
   return null;
 }
 
+export async function addStoredMusicBankItems(
+  inputs: NewMusicBankItemInput[],
+  ignoreQuizId?: string
+): Promise<{
+  added: MusicBankItem[];
+  errors: { artist: string; title: string; error: string; conflict?: MusicTrackDuplicateConflict }[];
+}> {
+  const existing = await readStoredMusicBank();
+  const next = [...existing];
+  const added: MusicBankItem[] = [];
+  const errors: { artist: string; title: string; error: string; conflict?: MusicTrackDuplicateConflict }[] = [];
+
+  for (const input of inputs) {
+    const artist = input.artist?.trim() ?? "";
+    const title = input.title?.trim() ?? "";
+    const audioUrl = input.audioUrl?.trim() ?? "";
+    if (!artist || !title || !audioUrl) {
+      errors.push({ artist, title, error: "Chýba interpret, názov alebo audio." });
+      continue;
+    }
+    const key = musicTrackKey(artist, title);
+    if (next.some((track) => musicTrackKey(track.artist, track.title) === key)) {
+      const conflict: MusicTrackDuplicateConflict = { source: "bank", artist, title };
+      errors.push({ artist, title, error: formatMusicTrackDuplicateMessage(conflict), conflict });
+      continue;
+    }
+    const quizTitle = await findQuizTitleUsingMusicTrack(key, ignoreQuizId);
+    if (quizTitle) {
+      const conflict: MusicTrackDuplicateConflict = { source: "quiz", artist, title, quizTitle };
+      errors.push({ artist, title, error: formatMusicTrackDuplicateMessage(conflict), conflict });
+      continue;
+    }
+    const autoTags = input.tags?.length ? input.tags : quickMusicTrackTags(artist, title);
+    const item = createMusicBankItem({ ...input, artist, title, audioUrl, tags: autoTags });
+    next.unshift(item);
+    added.push(item);
+  }
+
+  if (added.length) await writeStoredMusicBank(next);
+  return { added, errors };
+}
+
 export async function addStoredMusicBankItem(
   input: NewMusicBankItemInput,
   ignoreQuizId?: string
 ): Promise<MusicBankItem> {
-  const artist = input.artist.trim();
-  const title = input.title.trim();
-  const conflict = await findMusicTrackConflict(artist, title, undefined, ignoreQuizId);
-  if (conflict) {
-    throw new MusicTrackDuplicateError(conflict);
+  const { added, errors } = await addStoredMusicBankItems([input], ignoreQuizId);
+  const failed = errors[0];
+  if (!added[0]) {
+    if (failed?.conflict) throw new MusicTrackDuplicateError(failed.conflict);
+    throw new Error(failed?.error ?? "Uloženie zlyhalo");
   }
-
-  const autoTags = input.tags?.length ? input.tags : quickMusicTrackTags(artist, title);
-  const item = createMusicBankItem({ ...input, artist, title, tags: autoTags });
-  const existing = await readStoredMusicBank();
-  await writeStoredMusicBank([item, ...existing.filter((t) => t.id !== item.id)]);
-  return item;
+  return added[0];
 }
 
 export async function updateStoredMusicBankItem(
