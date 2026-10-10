@@ -41,7 +41,7 @@ import MusicBankQuestionForm from "@/components/MusicBankQuestionForm";
 import VideoBankQuestionForm from "@/components/VideoBankQuestionForm";
 import AudioUrlField from "@/components/admin/AudioUrlField";
 import VideoUrlField from "@/components/admin/VideoUrlField";
-import { DEFAULT_MUSIC_QUESTION_BODY, musicBankInputFromReturnedAudio, type MusicBankItem } from "@/lib/music-bank";
+import { artistTitleFromAnswer, DEFAULT_MUSIC_QUESTION_BODY, musicBankInputFromReturnedAudio, type MusicBankItem } from "@/lib/music-bank";
 import { addMusicBankItemAsync, fetchMusicBankFromServer } from "@/lib/music-bank-client";
 import { DEFAULT_SOUND_QUESTION_BODY, type SoundBankItem } from "@/lib/sound-bank";
 import { addSoundBankItemAsync, fetchSoundBankFromServer } from "@/lib/sound-bank-client";
@@ -827,6 +827,65 @@ export default function QuizLibraryEditor({ quizId }: Props) {
       setMsg({ text: "Do banky treba text otázky aj správnu odpoveď.", ok: false });
       return;
     }
+
+    const audioUrl = question.audioUrl?.trim() ?? "";
+    if (audioUrl) {
+      const song = artistTitleFromAnswer(question.answer);
+      const namedSong =
+        song ??
+        (question.musicArtist?.trim() && question.musicTitle?.trim()
+          ? { artist: question.musicArtist.trim(), title: question.musicTitle.trim() }
+          : null);
+      const where = namedSong ? "hudobné ukážky" : "iné ukážky";
+      if (
+        !window.confirm(
+          namedSong
+            ? "Uložiť túto skladbu medzi hudobné ukážky? V kvíze ostane."
+            : "Uložiť túto ukážku medzi iné ukážky? V kvíze ostane."
+        )
+      ) {
+        return;
+      }
+      const fail = (err: unknown) =>
+        setMsg({
+          text: err instanceof Error ? err.message : "Ukážku sa nepodarilo uložiť do banky.",
+          ok: false,
+        });
+      if (namedSong) {
+        void addMusicBankItemAsync(
+          {
+            artist: namedSong.artist,
+            title: namedSong.title,
+            audioUrl,
+            note: question.hostNote?.trim() || undefined,
+            tags: question.tags,
+            presentationFade: question.audioEdgeFade === true ? true : undefined,
+          },
+          quizRef.current?.id
+        )
+          .then(() => {
+            void refreshMusicBank();
+            setMsg({ text: `Skladba je v banke medzi ${where}. V tomto kvíze ostala.`, ok: true });
+          })
+          .catch(fail);
+        return;
+      }
+      void addSoundBankItemAsync({
+        label: question.mediaLabel?.trim() || question.body.trim(),
+        answer: question.answer.trim(),
+        audioUrl,
+        note: question.hostNote?.trim() || undefined,
+        questionBody: question.body.trim(),
+        tags: question.tags,
+      })
+        .then(() => {
+          void refreshSoundBank();
+          setMsg({ text: `Ukážka je v banke medzi ${where}. V tomto kvíze ostala.`, ok: true });
+        })
+        .catch(fail);
+      return;
+    }
+
     if (
       !window.confirm(
         "Uložiť túto otázku do banky? V kvíze ostane. Uloží sa celé znenie, odpoveď a tagy."

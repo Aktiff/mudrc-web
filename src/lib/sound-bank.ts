@@ -1,3 +1,5 @@
+import { normalizeTags } from "@/lib/quiz-question-tags";
+
 export const SOUND_BANK_ID_PREFIX = "sound-bank-";
 
 export type SoundBankItem = {
@@ -7,6 +9,9 @@ export type SoundBankItem = {
   answer: string;
   audioUrl: string;
   note?: string;
+  /** Text otázky z kvízu, ak ukážka vznikla návratom otázky. */
+  questionBody?: string;
+  tags?: string[];
   createdAt: number;
 };
 
@@ -15,6 +20,8 @@ export type NewSoundBankItemInput = {
   answer: string;
   audioUrl: string;
   note?: string;
+  questionBody?: string;
+  tags?: string[];
 };
 
 export type SoundClipDuplicateConflict = {
@@ -71,6 +78,8 @@ export function normalizeSoundBankItem(raw: unknown): SoundBankItem | null {
     answer,
     audioUrl,
     note: typeof row.note === "string" ? row.note.trim() : undefined,
+    questionBody: typeof row.questionBody === "string" && row.questionBody.trim() ? row.questionBody.trim() : undefined,
+    tags: normalizeTags(row.tags),
     createdAt: typeof row.createdAt === "number" ? row.createdAt : Date.now(),
   };
 }
@@ -92,6 +101,8 @@ export function createSoundBankItem(input: NewSoundBankItemInput): SoundBankItem
     answer: input.answer.trim(),
     audioUrl: input.audioUrl.trim(),
     note: input.note?.trim() || undefined,
+    questionBody: input.questionBody?.trim() || undefined,
+    tags: normalizeTags(input.tags),
     createdAt: Date.now(),
   };
 }

@@ -324,7 +324,9 @@ export default function QuizQuestionBankPanel({
       clip.label,
       clip.answer,
       clip.audioUrl,
-      formatSoundBankHostNote(clip)
+      formatSoundBankHostNote(clip),
+      clip.tags,
+      clip.questionBody
     );
     void removeSoundBankItemAsync(clip.id).then(() => onSoundBankChange?.());
     setTargetByBankId((prev) => {
@@ -756,6 +758,7 @@ export default function QuizQuestionBankPanel({
                     <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-sky-100 text-sky-900 border border-sky-200">iné</span>
                     <p className="text-sm font-semibold text-brand-text">{clip.label}</p>
                     <p className="text-sm text-brand-muted">Odpoveď: {clip.answer}</p>
+                    {clip.tags?.length ? <p className="text-[11px] text-brand-muted">{clip.tags.join(" · ")}</p> : null}
                     {clip.audioUrl && (
                       <VolumeAudio hint controls src={playbackMediaSrc(clip.audioUrl)} className="w-full max-w-md" preload="metadata" />
                     )}

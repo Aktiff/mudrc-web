@@ -44,6 +44,15 @@ export function musicTrackKey(artist: string, title: string): string {
 }
 
 /** „Korn - Freak On a Leash“ v popise rozdelí na interpreta a skladbu. */
+/** Odpoveď „Interpret - Názov piesne“. Inak to nie je hudobná ukážka. */
+export function artistTitleFromAnswer(answer: string): { artist: string; title: string } | null {
+  const match = answer.trim().match(/^(.+?)\s+[—–-]\s+(.+)$/);
+  const artist = match?.[1]?.trim() ?? "";
+  const title = match?.[2]?.trim() ?? "";
+  if (!artist || !title) return null;
+  return { artist, title };
+}
+
 export function splitClipIntoArtistTitle(label: string, answer: string): { artist: string; title: string } {
   const raw = label.trim();
   const match = raw.match(/^(.+?)\s+[—–-]\s+(.+)$/);
