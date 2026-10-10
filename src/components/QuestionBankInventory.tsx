@@ -82,7 +82,7 @@ export default function QuestionBankInventory({
   const [hiddenIds, setHiddenIds] = useState<string[]>([]);
   const [usedIds, setUsedIds] = useState<string[]>([]);
   const [usedBodies, setUsedBodies] = useState<string[]>([]);
-  const [questionSourceFilter, setQuestionSourceFilter] = useState<TextBankSourceFilter>("all");
+  const [questionSourceFilter, setQuestionSourceFilter] = useState<TextBankSourceFilter>("custom");
   const [customKind, setCustomKind] = useState<"text" | "photo">("text");
   const [pinned, setPinned] = useState<CustomBankQuestion[]>([]);
   const [highlightId, setHighlightId] = useState<string | null>(null);
@@ -321,28 +321,6 @@ export default function QuestionBankInventory({
       {tab === "questions" && textBankCounts.all > 0 && (
         <div className="px-4 sm:px-5 py-3 border-b border-brand-border bg-brand-warm/20 shrink-0 space-y-2">
           <div className="flex flex-wrap gap-1.5">
-            {(
-              [
-                ["all", "Všetky", textBankCounts.custom],
-                ["custom", "Moje otázky", textBankCounts.custom],
-              ] as const
-            ).map(([key, label, count]) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => setQuestionSourceFilter(key)}
-                className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors ${
-                  questionSourceFilter === key
-                    ? "bg-brand-orange text-brand-btn-fg border-brand-orange"
-                    : "border-brand-border text-brand-muted hover:border-brand-orange"
-                }`}
-              >
-                {label} ({count})
-              </button>
-            ))}
-          </div>
-          {questionSourceFilter === "custom" && (
-            <div className="flex flex-wrap gap-1.5">
               {(
                 [
                   ["text", "Otázky bez fotky", customWithoutPhotoCount],
@@ -363,7 +341,6 @@ export default function QuestionBankInventory({
                 </button>
               ))}
             </div>
-          )}
         </div>
       )}
 

@@ -184,7 +184,7 @@ export default function QuizQuestionBankPanel({
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [excludedTags, setExcludedTags] = useState<string[]>([]);
   const [manualOrderIds, setManualOrderIds] = useState<string[] | null>(null);
-  const [sourceFilter, setSourceFilter] = useState<BankSourceFilter>("all");
+  const [sourceFilter, setSourceFilter] = useState<BankSourceFilter>("custom");
   const [localCustom, setLocalCustom] = useState<CustomBankQuestion[]>([]);
   const [localMusic, setLocalMusic] = useState<MusicBankItem[]>([]);
   const [editCustomQuestion, setEditCustomQuestion] = useState<CustomBankQuestion | null>(null);
@@ -599,18 +599,7 @@ export default function QuizQuestionBankPanel({
                       excludedTags.length && visibleQuestions.length < sourceCounts.all
                         ? ` · ${visibleQuestions.length} po filtri tagov`
                         : ""
-                    }`}
-              {sourceFilter !== "all" && !MEDIA_FILTERS.has(sourceFilter)
-                ? ` · filter: ${sourceFilter === "custom" ? "moje" : "vygenerované"}`
-                : ""}
-              {!MEDIA_FILTERS.has(sourceFilter) && manualOrderIds
-                ? " · premiešané podľa tagov"
-                : !MEDIA_FILTERS.has(sourceFilter) &&
-                    customBankQuestions.some((q) => !usedBankQuestionIds.includes(q.id))
-                  ? " · tvoje otázky navrchu"
-                  : !MEDIA_FILTERS.has(sourceFilter)
-                    ? " · zoradené podľa najmenej použitých tagov"
-                    : ""}
+                    }${manualOrderIds ? " · premiešané podľa tagov" : ""}`}
             </p>
           </div>
           <button
@@ -628,8 +617,7 @@ export default function QuizQuestionBankPanel({
         <div className="flex flex-wrap gap-1.5">
           {(
             [
-              ["all", "Všetky", sourceCounts.all],
-              ["custom", "Moje otázky", sourceCounts.custom],
+              ["custom", "Otázky", sourceCounts.custom],
               ["sound", "Zvukové ukážky", sourceCounts.sound],
               ["video", "Video", sourceCounts.video],
             ] as const

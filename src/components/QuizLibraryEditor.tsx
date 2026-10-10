@@ -873,7 +873,7 @@ export default function QuizLibraryEditor({ quizId }: Props) {
           created,
           ...recentCustomBank.current.filter((item) => item.id !== created.id),
         ];
-        finish("Otázka je v banke v Moje otázky. V tomto kvíze ostala.");
+        finish("Otázka je v banke. V tomto kvíze ostala.");
       })
       .catch((err) =>
         setMsg({
