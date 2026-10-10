@@ -16,7 +16,7 @@ type Props = {
 };
 
 export default function CustomBankQuestionForm({ onAdded }: Props) {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
   const [questionMode, setQuestionMode] = useState<QuestionMode>("choice");
   const [body, setBody] = useState("");
   const [options, setOptions] = useState(["", "", "", "", "", ""]);
