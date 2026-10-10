@@ -239,23 +239,32 @@ export async function optionalReadBlob<T>(key: string): Promise<T | null> {
 
 export async function readBlobJsonFresh<T>(pathname: string): Promise<T | null> {
   const auth = blobAuthOptions();
-  try {
-    const result = await get(pathname, {
-      access: blobStoreAccess(),
-      useCache: false,
-      abortSignal: AbortSignal.timeout(8000),
-      ...auth,
-    });
-    if (!result) return null;
-    if (result.statusCode !== 200 || !result.stream) {
-      throw new Error(`Blob get failed (${pathname}): incomplete response`);
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const result = await get(pathname, {
+        access: blobStoreAccess(),
+        useCache: false,
+        abortSignal: AbortSignal.timeout(6000),
+        ...auth,
+      });
+      if (!result) {
+        lastError = new Error("not found");
+      } else if (result.statusCode !== 200 || !result.stream) {
+        lastError = new Error(`Blob get failed (${pathname}): incomplete response`);
+      } else {
+        const raw = await new Response(result.stream).text();
+        return JSON.parse(raw) as T;
+      }
+    } catch (error) {
+      if (isBlobNotFound(error)) return null;
+      lastError = error;
     }
-    const raw = await new Response(result.stream).text();
-    return JSON.parse(raw) as T;
-  } catch (error) {
-    if (isBlobNotFound(error)) return null;
-    throw error;
+    await sleep(250 * (attempt + 1));
   }
+  if (lastError instanceof Error && isBlobNotFound(lastError)) return null;
+  if (lastError instanceof Error) throw lastError;
+  return null;
 }
 
 export async function writeBlob(

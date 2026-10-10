@@ -278,17 +278,17 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
   }, []);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      refreshCustomBank();
-      refreshMusicBank();
-      refreshSoundBank();
-      refreshVideoBank();
-    }, 1500);
-    window.addEventListener("mudrc-custom-bank-updated", refreshCustomBank);
-    return () => {
-      window.clearTimeout(timer);
-      window.removeEventListener("mudrc-custom-bank-updated", refreshCustomBank);
+    const loadOne = (load: () => Promise<void>) => {
+      void load().catch(() => {
+        window.setTimeout(() => void load().catch(() => undefined), 800);
+      });
     };
+    loadOne(refreshCustomBank);
+    loadOne(refreshMusicBank);
+    loadOne(refreshSoundBank);
+    loadOne(refreshVideoBank);
+    window.addEventListener("mudrc-custom-bank-updated", refreshCustomBank);
+    return () => window.removeEventListener("mudrc-custom-bank-updated", refreshCustomBank);
   }, [refreshCustomBank, refreshMusicBank, refreshSoundBank, refreshVideoBank]);
 
   const load = useCallback(async () => {

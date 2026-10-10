@@ -137,17 +137,22 @@ export async function readAppStorageCurrent<T>(name: string): Promise<T | null> 
   if (!pointer?.pathname && !pointer?.url) return null;
   if (isPointerDocument(pointer) && pointer.pathname === currentPointerKey(name)) return null;
 
-  try {
-    const data = await readBlobJsonFresh<T>(pointer.pathname || pointer.url);
-    if (data !== null && !isPointerDocument(data)) {
-      rememberPayload(name, data);
-      return data;
+  const targets = [pointer.pathname, pointer.url].filter((value): value is string => Boolean(value));
+  let lastError: unknown;
+  for (const target of targets) {
+    try {
+      const data = await readBlobJsonFresh<T>(target);
+      if (data !== null && !isPointerDocument(data)) {
+        rememberPayload(name, data);
+        return data;
+      }
+    } catch (error) {
+      lastError = error;
     }
-  } catch (error) {
-    const stale = recallPayload<T>(name, 10 * 60_000);
-    if (stale !== undefined) return stale;
-    throw error instanceof Error ? error : new Error(`Úložisko ${name} sa nepodarilo načítať.`);
   }
+  const afterMiss = recallPayload<T>(name, 10 * 60_000);
+  if (afterMiss !== undefined) return afterMiss;
+  if (lastError instanceof Error) throw lastError;
 
   const stale = recallPayload<T>(name, 10 * 60_000);
   if (stale !== undefined) return stale;
@@ -171,9 +176,10 @@ async function pruneVersions(name: string, keepKey: string): Promise<void> {
   } catch {
     return;
   }
-  const newest = [...blobs].sort((a, b) => b.pathname.localeCompare(a.pathname))[0]?.pathname;
+  const newest = [...blobs].sort((a, b) => b.pathname.localeCompare(a.pathname)).slice(0, 5).map((blob) => blob.pathname);
+  const keep = new Set([keepKey, ...newest]);
   const stale = blobs
-    .filter((blob) => blob.pathname !== keepKey && blob.pathname !== newest)
+    .filter((blob) => !keep.has(blob.pathname))
     .sort((a, b) => a.pathname.localeCompare(b.pathname))
     .slice(0, 10);
   await Promise.all(

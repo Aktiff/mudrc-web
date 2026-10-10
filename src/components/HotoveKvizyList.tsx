@@ -31,11 +31,24 @@ export default function HotoveKvizyList() {
     if (!res.ok) {
       throw new Error(typeof data.error === "string" ? data.error : "Kvízy sa nepodarilo načítať.");
     }
-    setQuizzes(data.quizzes ?? []);
+    const next = (data.quizzes ?? []) as QuizListItem[];
+    setQuizzes(next);
     setLoadError(null);
+    try {
+      sessionStorage.setItem("mudrc-quiz-list", JSON.stringify(next));
+    } catch {
+      /* prehliadač môže odmietnuť zápis */
+    }
   }, []);
 
   const loadAll = useCallback(async () => {
+    try {
+      const raw = sessionStorage.getItem("mudrc-quiz-list");
+      const parsed = raw ? (JSON.parse(raw) as QuizListItem[]) : [];
+      if (Array.isArray(parsed) && parsed.length) setQuizzes(parsed);
+    } catch {
+      /* prázdna pamäť */
+    }
     setLoading(true);
     setLoadError(null);
     let lastError = "Kvízy sa nepodarilo načítať.";

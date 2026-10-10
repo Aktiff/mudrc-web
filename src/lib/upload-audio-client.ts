@@ -4,7 +4,7 @@ import {
   MAX_AUDIO_BYTES,
   MAX_AUDIO_SERVER_BYTES,
 } from "@/lib/audio-upload";
-import { uploadFileInParts } from "@/lib/upload-media-parts-client";
+import { uploadLargeFileToBlob } from "@/lib/upload-blob-client";
 
 function messageFromUploadResponse(res: Response, text: string): string {
   try {
@@ -50,7 +50,7 @@ export async function uploadAudioFileClient(file: File): Promise<string> {
 
   try {
     if (file.size > MAX_AUDIO_SERVER_BYTES) {
-      return await uploadFileInParts("audio", file);
+      return await uploadLargeFileToBlob("audio", file);
     }
     return await uploadViaServer(file);
   } catch (error) {
