@@ -1010,7 +1010,7 @@ export default function QuizLibraryEditor({ quizId }: Props) {
           : prev.usedBankQuestionIds,
       };
     });
-    setMsg({ text: "Otázka zmazaná.", ok: true });
+    setMsg({ text: "Otázka je preč. Novú pridáš cez Vložiť otázku.", ok: true });
   };
 
   const regenerateTemplate = () => {
@@ -1238,6 +1238,18 @@ export default function QuizLibraryEditor({ quizId }: Props) {
           </h3>
 
           <div className="space-y-1">
+        {roundQuestions.length === 0 && (
+          <div className="flex items-center justify-center py-6">
+            <button
+              type="button"
+              onClick={() => insertEmptyQuestion(0, "normal")}
+              className="text-xs font-semibold text-brand-muted hover:text-brand-orange-readable inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-dashed border-brand-border hover:border-brand-orange bg-brand-card/50 hover:bg-brand-tint/40 transition-colors"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Vložiť otázku
+            </button>
+          </div>
+        )}
         {roundQuestionSections.map((section) => (
           <Fragment key={section.key}>
             {section.title && (
