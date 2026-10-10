@@ -24,11 +24,25 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const [quizzes, storedQuizzes, { events }] = await Promise.all([
-      readAllLibraryQuizzes(),
-      readAllStoredQuizzes(),
-      readAllEventsRaw(),
-    ]);
+    const quizzes = await readAllLibraryQuizzes();
+    if (req.nextUrl.searchParams.get("usage") !== "1") {
+      const items = quizzes
+        .map((quiz) => ({
+          ...quiz,
+          usageCount: 0,
+          usages: [],
+          playedTeamNames: [],
+          conflictingTeams: [],
+          isSafe: true,
+        }))
+        .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+      return NextResponse.json(
+        { quizzes: items, filterTeams },
+        { headers: { "Cache-Control": "no-store, no-cache, must-revalidate" } }
+      );
+    }
+
+    const [storedQuizzes, { events }] = await Promise.all([readAllStoredQuizzes(), readAllEventsRaw()]);
     const usageMap = buildQuizUsageMap(storedQuizzes, events, excludeUsage);
 
     const items = quizzes

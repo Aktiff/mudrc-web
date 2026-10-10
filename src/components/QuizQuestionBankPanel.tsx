@@ -250,13 +250,13 @@ export default function QuizQuestionBankPanel({
 
   const availableQuestions = useMemo(() => {
     const insertable = getInsertableTextBankQuestions(customBankQuestions, usedBankQuestionIds, hiddenIds);
-    const custom = insertable.filter((item) => isCustomBankQuestionId(item.id));
+    const custom = fullTextBank.filter((item) => isCustomBankQuestionId(item.id));
     const generated = excludeQuestionsUsedByBody(
       insertable.filter((item) => !isCustomBankQuestionId(item.id)),
       usedQuestionBodies
     );
     return [...custom, ...generated];
-  }, [usedBankQuestionIds, hiddenIds, customBankQuestions, usedQuestionBodies]);
+  }, [usedBankQuestionIds, hiddenIds, customBankQuestions, usedQuestionBodies, fullTextBank]);
 
   const sourceCounts = useMemo(() => {
     const text = countTextBankSources(availableQuestions);
@@ -507,9 +507,7 @@ export default function QuizQuestionBankPanel({
       delete next[bankId];
       return next;
     });
-    if (isCustomBankQuestionId(bankId)) {
-      void removeCustomBankQuestionAsync(bankId).then(() => onCustomBankChange?.());
-    }
+    if (isCustomBankQuestionId(bankId)) onCustomBankChange?.();
   };
 
   const handleInsert = (item: QuizBankQuestion) => {

@@ -20,6 +20,7 @@ const EVENTS_MANIFEST_KEY = "mudrc/events/_manifest.json";
 const eventBlobKey = (slug: string) => `mudrc/events/${slug}.json`;
 const regBlobKey = (id: string) => `mudrc/registrations/${id}.json`;
 const REGS_VERSION_PREFIX = "mudrc/registrations/versions/";
+const REGS_CURRENT_KEY = "mudrc/registrations/current.json";
 const EVENTS_VERSION_PREFIX = "mudrc/events/versions/";
 const EVENTS_CURRENT_KEY = "mudrc/events/current.json";
 
@@ -368,15 +369,20 @@ async function latestEventsVersion(): Promise<{ pathname: string; uploadedAt: nu
 async function readEventsPointer(): Promise<QuizEvent[] | null> {
   const pointer = await optionalReadBlob<{ pathname?: string; url?: string }>(EVENTS_CURRENT_KEY);
   if (!pointer?.url && !pointer?.pathname) return null;
-  try {
-    const data = await fetchBlobJson<{ events?: QuizEvent[] }>(
-      pointer.url || pointer.pathname || EVENTS_CURRENT_KEY,
-      pointer.pathname || EVENTS_CURRENT_KEY
-    );
-    return data && Array.isArray(data.events) ? data.events : null;
-  } catch {
-    return null;
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const data = await fetchBlobJson<{ events?: QuizEvent[] }>(
+        pointer.url || pointer.pathname || EVENTS_CURRENT_KEY,
+        pointer.pathname || EVENTS_CURRENT_KEY
+      );
+      if (data && Array.isArray(data.events)) return data.events;
+    } catch (error) {
+      lastError = error;
+    }
+    await sleep(200);
   }
+  throw lastError instanceof Error ? lastError : new Error("Udalosti sa nepodarilo načítať.");
 }
 
 async function loadVersionedEvents(): Promise<QuizEvent[] | null> {
@@ -815,14 +821,43 @@ async function latestRegistrationVersion(): Promise<{ pathname: string; uploaded
 }
 
 /** Nový súbor pri každom zápise. Prepísaný pathname ostáva v cache a po refreshi by vrátil zmazané registrácie. */
+async function readRegistrationsPointer(): Promise<Registration[] | null> {
+  const pointer = await optionalReadBlob<{ pathname?: string; url?: string }>(REGS_CURRENT_KEY);
+  if (!pointer?.url && !pointer?.pathname) return null;
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const data = await fetchBlobJson<{ registrations?: Registration[] }>(
+        pointer.url || pointer.pathname || REGS_CURRENT_KEY,
+        pointer.pathname || REGS_CURRENT_KEY
+      );
+      if (data && Array.isArray(data.registrations)) {
+        return data.registrations.map(normalizeRegistration);
+      }
+    } catch (error) {
+      lastError = error;
+    }
+    await sleep(200);
+  }
+  throw lastError instanceof Error ? lastError : new Error("Registrácie sa nepodarilo načítať.");
+}
+
 async function loadVersionedRegistrations(): Promise<Registration[] | null> {
+  const fromPointer = await readRegistrationsPointer();
+  if (fromPointer) return fromPointer;
+
   const latest = await latestRegistrationVersion();
   if (!latest) return null;
 
-  for (let attempt = 0; attempt < 5; attempt++) {
+  for (let attempt = 0; attempt < 3; attempt++) {
     try {
       const data = await readListedBlobJson<{ registrations?: Registration[] }>(latest);
       if (data && Array.isArray(data.registrations)) {
+        try {
+          await writeBlob(REGS_CURRENT_KEY, { pathname: latest.pathname, url: latest.url });
+        } catch {
+          /* ďalšie čítanie ešte prejde zoznamom verzií */
+        }
         return data.registrations.map(normalizeRegistration);
       }
     } catch {
@@ -842,15 +877,6 @@ async function readPathFresh<T>(pathname: string): Promise<T | null> {
   } catch {
     return null;
   }
-}
-
-async function pruneOldRegistrationVersions(keepKey: string): Promise<void> {
-  const blobs = await listBlobsByPrefix(REGS_VERSION_PREFIX);
-  const stale = blobs
-    .filter((blob) => blob.pathname !== keepKey)
-    .sort((a, b) => b.uploadedAt - a.uploadedAt)
-    .slice(1);
-  await Promise.all(stale.map((blob) => deleteBlob(blob.pathname)));
 }
 
 /** `null` = v Blobe ešte nie je úložisko registrácií. Prázdne pole = zámerne žiadne registrácie. */
@@ -881,18 +907,8 @@ async function loadRegsFromBlob(): Promise<Registration[] | null> {
 async function persistRegistrationsBlob(registrations: Registration[]): Promise<void> {
   const normalized = registrations.map(normalizeRegistration);
   const key = `${REGS_VERSION_PREFIX}${Date.now()}-${randomUUID()}.json`;
-  await writeBlob(key, { registrations: normalized });
-
-  for (let attempt = 0; attempt < 8; attempt++) {
-    const latest = await latestRegistrationVersion();
-    if (latest?.pathname === key) {
-      void pruneOldRegistrationVersions(key);
-      return;
-    }
-    await sleep(200);
-  }
-
-  throw new Error("Registrácie sa nepodarilo hneď uložiť. Skús znova.");
+  const stored = await writeBlob(key, { registrations: normalized });
+  await writeBlob(REGS_CURRENT_KEY, { pathname: stored.pathname || key, url: stored.url });
 }
 
 export async function persistRegistrations(registrations: Registration[]): Promise<void> {

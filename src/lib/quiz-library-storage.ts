@@ -218,11 +218,9 @@ async function persistQuiz(quiz: QuizLibraryItem): Promise<void> {
 
 async function loadAllQuizzes(): Promise<QuizLibraryItem[]> {
   const index = await readIndex();
-  const quizzes: QuizLibraryItem[] = [];
-  for (const entry of index.items) {
-    const quiz = await readQuizById(entry.id);
-    if (quiz) quizzes.push(quiz);
-  }
+  const quizzes = (
+    await Promise.all(index.items.map(async (entry) => readQuizById(entry.id)))
+  ).filter((quiz): quiz is QuizLibraryItem => !!quiz);
   return migrateLegacyDecks(quizzes);
 }
 

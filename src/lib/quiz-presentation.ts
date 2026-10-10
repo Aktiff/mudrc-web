@@ -23,7 +23,10 @@ function questionsForRound(questions: QuizQuestionItem[], roundNumber: number): 
 export function buildPresentationSlides(questions: QuizQuestionItem[]): PresentationSlide[] {
   const slides: PresentationSlide[] = [{ type: "rules" }];
 
-  for (let round = 1; round <= 4; round += 1) {
+  const roundNumbers = Array.from(new Set(questions.map((q) => q.roundNumber)))
+    .filter((round) => round >= 1)
+    .sort((a, b) => a - b);
+  for (const round of roundNumbers) {
     const roundQuestions = questionsForRound(questions, round);
     if (!roundQuestions.length) continue;
 

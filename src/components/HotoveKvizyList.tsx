@@ -22,7 +22,10 @@ export default function HotoveKvizyList() {
   const [listMessage, setListMessage] = useState<{ text: string; ok: boolean } | null>(null);
 
   const loadQuizzes = useCallback(async () => {
-    const res = await fetch(`/api/admin/quiz-library?_=${Date.now()}`, { cache: "no-store" });
+    const res = await fetch(`/api/admin/quiz-library?_=${Date.now()}`, {
+      cache: "no-store",
+      signal: AbortSignal.timeout(25000),
+    });
     if (res.ok) {
       const data = await res.json();
       setQuizzes(data.quizzes ?? []);
@@ -31,19 +34,18 @@ export default function HotoveKvizyList() {
 
   const loadAll = useCallback(async () => {
     setLoading(true);
-    await loadQuizzes();
-    setLoading(false);
+    try {
+      await loadQuizzes();
+    } catch {
+      setListMessage({ text: "Kvízy sa nepodarilo načítať. Skús obnoviť stránku.", ok: false });
+    } finally {
+      setLoading(false);
+    }
   }, [loadQuizzes]);
 
   useEffect(() => {
     loadAll();
   }, [loadAll]);
-
-  useEffect(() => {
-    const refresh = () => loadQuizzes();
-    window.addEventListener("focus", refresh);
-    return () => window.removeEventListener("focus", refresh);
-  }, [loadQuizzes]);
 
   const createQuiz = async () => {
     const title = window.prompt("Názov nového kvízu:", "Nový kvíz");

@@ -29,11 +29,9 @@ export function questionRenumberGroupKey(q: QuizQuestionItem): string {
 /** Poradie v kvíze — v 4. kole najprv obsah (text/zvuk/video), potom hudba. */
 export function compareQuizQuestions(a: QuizQuestionItem, b: QuizQuestionItem): number {
   if (a.roundNumber !== b.roundNumber) return a.roundNumber - b.roundNumber;
-  if (a.roundNumber === 4) {
-    const aMusic = a.kind === "music" ? 1 : 0;
-    const bMusic = b.kind === "music" ? 1 : 0;
-    if (aMusic !== bMusic) return aMusic - bMusic;
-  }
+  const aMusic = a.kind === "music" ? 1 : 0;
+  const bMusic = b.kind === "music" ? 1 : 0;
+  if (aMusic !== bMusic) return aMusic - bMusic;
   if (a.questionNumber !== b.questionNumber) return a.questionNumber - b.questionNumber;
   return String(a.id ?? "").localeCompare(String(b.id ?? ""));
 }

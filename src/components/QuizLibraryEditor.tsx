@@ -198,9 +198,9 @@ function NormalQuestionMedia({
   );
 }
 
-export default function QuizLibraryEditor({ quizId }: Props) {
-  const [quiz, setQuiz] = useState<QuizLibraryItem | null>(null);
-  const [loading, setLoading] = useState(true);
+export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props) {
+  const [quiz, setQuiz] = useState<QuizLibraryItem | null>(initialQuiz);
+  const [loading, setLoading] = useState(!initialQuiz);
   const [draftRestored, setDraftRestored] = useState(false);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
@@ -294,12 +294,17 @@ export default function QuizLibraryEditor({ quizId }: Props) {
   }, []);
 
   const load = useCallback(async () => {
-    setLoading(true);
+    const started = quizRef.current;
+    if (!started) setLoading(true);
     const draft = readQuizDraft(quizId);
     const res = await fetch(`/api/admin/quiz-library/${quizId}?_=${Date.now()}`, { cache: "no-store" });
 
     if (res.ok) {
       const serverQuiz = parseQuizPayload(await res.json());
+      if (started && quizRef.current !== started) {
+        setLoading(false);
+        return;
+      }
       const active = draft ? normalizeLibraryQuiz(draft) : serverQuiz;
       lastSavedJson.current = JSON.stringify(serverQuiz);
       if (draft) {
@@ -528,7 +533,6 @@ export default function QuizLibraryEditor({ quizId }: Props) {
       tags,
       DEFAULT_MUSIC_QUESTION_BODY
     );
-    void refreshMusicBank();
   };
 
   const insertFromSoundBank = (
@@ -1007,6 +1011,28 @@ export default function QuizLibraryEditor({ quizId }: Props) {
     return [{ key: "all", title: null as string | null, items: roundQuestions }];
   }, [roundQuestions]);
 
+  const roundNumbers = useMemo(() => {
+    const rounds = new Set<number>([1, 2, 3, 4]);
+    for (const question of questions) {
+      if (question.roundNumber >= 1) rounds.add(question.roundNumber);
+    }
+    return Array.from(rounds).sort((a, b) => a - b);
+  }, [questions]);
+
+  const addRound = () => {
+    const next = Math.max(4, ...questions.map((question) => question.roundNumber), 0) + 1;
+    setOpenRound(next);
+    setQuiz((prev) =>
+      prev
+        ? {
+            ...prev,
+            questions: insertQuestionAfter(prev.questions, next, "normal", 0),
+          }
+        : prev
+    );
+    setMsg({ text: `Kolo ${next} pridané. Vlož doň otázky.`, ok: true });
+  };
+
   const insertEmptyQuestion = (afterQuestionNumber: number, kind: QuizQuestionKind) => {
     setQuiz((prev) =>
       prev
@@ -1261,7 +1287,7 @@ export default function QuizLibraryEditor({ quizId }: Props) {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 min-w-0 max-w-full">
         <div className="min-w-0 max-w-full space-y-4">
           <div className="flex gap-2 flex-wrap">
-            {[1, 2, 3, 4].map((round) => (
+            {roundNumbers.map((round) => (
               <button
                 key={round}
                 type="button"
@@ -1275,10 +1301,18 @@ export default function QuizLibraryEditor({ quizId }: Props) {
                 Kolo {round}
               </button>
             ))}
+            <button
+              type="button"
+              onClick={addRound}
+              className="px-4 py-2 rounded-xl text-sm font-semibold border border-dashed border-brand-border text-brand-muted hover:border-brand-orange hover:text-brand-orange-readable"
+            >
+              + Pridať kolo
+            </button>
           </div>
 
           <h3 className="font-display text-xl text-brand-text">
-            Kolo {openRound} — {roundLabels[openRound]}
+            Kolo {openRound}
+            {roundLabels[openRound] ? ` — ${roundLabels[openRound]}` : ""}
           </h3>
 
           <div className="space-y-1">

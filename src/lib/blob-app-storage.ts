@@ -96,11 +96,19 @@ export async function readAppStorageCurrent<T>(name: string): Promise<T | null> 
   if (!hasBlobStorage()) return null;
   const pointer = await optionalReadBlob<CurrentPointer>(currentPointerKey(name));
   if (!pointer?.url && !pointer?.pathname) return null;
-  try {
-    return await readBlobBody<T>(pointer.url || pointer.pathname, pointer.pathname || currentPointerKey(name));
-  } catch {
-    return null;
+  const target = pointer.url || pointer.pathname;
+  const label = pointer.pathname || currentPointerKey(name);
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const data = await readBlobBody<T>(target, label);
+      if (data !== null) return data;
+    } catch (error) {
+      lastError = error;
+    }
+    await sleep(200);
   }
+  throw lastError instanceof Error ? lastError : new Error(`Úložisko ${name} sa nepodarilo načítať.`);
 }
 
 async function pruneVersions(name: string, keepKey: string): Promise<void> {

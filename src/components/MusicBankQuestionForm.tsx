@@ -112,6 +112,75 @@ export default function MusicBankQuestionForm({ onAdded, onMessage }: Props) {
       presentationFade: true;
     }[] = [];
 
+    if (kind !== "other") {
+      const queue = valid.filter((row) => {
+        const batchKey = musicTrackKey(row.artist, row.title);
+        if (seenInBatch.has(batchKey)) {
+          failures.push(`${row.file.name}: Rovnaká ukážka je vo výbere viackrát.`);
+          return false;
+        }
+        seenInBatch.add(batchKey);
+        return true;
+      });
+      let cursor = 0;
+      let finished = 0;
+      const uploadOne = async () => {
+        while (cursor < queue.length) {
+          const row = queue[cursor];
+          cursor += 1;
+          setBulkProgress({
+            done: finished,
+            total: valid.length,
+            label: `${row.artist} — ${row.title}`,
+          });
+          try {
+            const url = await uploadAudioFileClient(row.file);
+            uploadedMusic.push({
+              artist: row.artist,
+              title: row.title,
+              audioUrl: url,
+              note: note.trim() || undefined,
+              presentationFade: true,
+            });
+          } catch (err) {
+            const timedOut = err instanceof Error && (err.name === "TimeoutError" || err.name === "AbortError");
+            const msg = timedOut
+              ? "Nahrávanie súboru trvalo príliš dlho. Skús to znova."
+              : err instanceof Error
+                ? err.message
+                : "Upload zlyhal";
+            failures.push(`${row.file.name}: ${msg}`);
+          }
+          finished += 1;
+          setBulkProgress({ done: finished, total: valid.length, label: `${row.artist} — ${row.title}` });
+        }
+      };
+      await Promise.all(Array.from({ length: Math.min(3, queue.length) }, () => uploadOne()));
+
+      if (uploadedMusic.length) {
+        setBulkProgress({ done: valid.length - 1, total: valid.length, label: "ukladám do banky" });
+        try {
+          const saved = await addMusicBankItemsAsync(uploadedMusic);
+          okCount += saved.added.length;
+          for (const err of saved.errors) {
+            failures.push(`${err.artist} — ${err.title}: ${err.error}`);
+          }
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : "Uloženie do banky zlyhalo";
+          for (const row of uploadedMusic) failures.push(`${row.artist} — ${row.title}: ${msg}`);
+        }
+      }
+
+      setBulkProgress({ done: valid.length, total: valid.length, label: "" });
+      setBulkUploading(false);
+      if (failures.length) setBulkErrors(failures);
+      if (okCount > 0) {
+        setBulkRows([]);
+        onAdded?.();
+      }
+      return;
+    }
+
     for (let i = 0; i < valid.length; i += 1) {
       const row = valid[i];
       const batchKey =
