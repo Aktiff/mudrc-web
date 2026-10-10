@@ -5,7 +5,8 @@ import type { QuizLibraryItem } from "@/lib/quiz-library";
 import { createLibraryQuizId, defaultLibraryQuiz, normalizeLibraryQuiz } from "@/lib/quiz-library";
 import { readQuizLibraryBackup, writeQuizLibraryBackup } from "@/lib/quiz-library-backup";
 import { readAllQuizDecks } from "@/lib/quiz-deck-storage";
-import { deleteAppStorageBlob, readAppStorageBlob, writeAppStorageBlob } from "@/lib/blob-app-storage";
+import { deleteAppStorageBlob, readAppStorageBlob, readAppStorageCurrent, writeAppStorageBlob } from "@/lib/blob-app-storage";
+import { musicIdentityFromQuestionFields } from "@/lib/music-bank";
 import { shouldWriteBlob } from "@/lib/storage";
 
 const QUIZ_LIBRARY_INDEX_BLOB = "quiz-library-index";
@@ -22,7 +23,20 @@ type QuizLibraryIndexEntry = {
   createdAt: string;
   updatedAt: string;
   slideCount: number;
+  musicTrackKeys?: string[];
 };
+
+function musicTrackKeysOf(quiz: QuizLibraryItem): string[] {
+  const keys: string[] = [];
+  const seen = new Set<string>();
+  for (const question of quiz.questions ?? []) {
+    const identity = musicIdentityFromQuestionFields(question);
+    if (!identity || seen.has(identity.key)) continue;
+    seen.add(identity.key);
+    keys.push(identity.key);
+  }
+  return keys;
+}
 
 function toIndexEntry(quiz: QuizLibraryItem): QuizLibraryIndexEntry {
   return {
@@ -32,7 +46,17 @@ function toIndexEntry(quiz: QuizLibraryItem): QuizLibraryIndexEntry {
     createdAt: quiz.createdAt,
     updatedAt: quiz.updatedAt,
     slideCount: quiz.questions?.length ?? 0,
+    musicTrackKeys: musicTrackKeysOf(quiz),
   };
+}
+
+export async function findQuizTitleUsingMusicTrack(key: string, ignoreQuizId?: string): Promise<string | null> {
+  const index = await readAppStorageCurrent<LibraryIndex>(QUIZ_LIBRARY_INDEX_BLOB);
+  for (const entry of index?.items ?? []) {
+    if (ignoreQuizId && entry.id === ignoreQuizId) continue;
+    if (entry.musicTrackKeys?.includes(key)) return entry.title?.trim() || entry.id;
+  }
+  return null;
 }
 
 function readLocalIndex(): LibraryIndex {

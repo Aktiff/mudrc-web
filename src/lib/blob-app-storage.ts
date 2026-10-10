@@ -24,6 +24,12 @@ function safeName(name: string): string {
   return name.replace(/[^a-zA-Z0-9._-]/g, "_");
 }
 
+function currentPointerKey(name: string): string {
+  return `mudrc/app-storage/current/${safeName(name)}.json`;
+}
+
+type CurrentPointer = { pathname: string; url: string };
+
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -36,7 +42,13 @@ async function listBlobs(prefix: string, strict = false): Promise<ListedBlob[]> 
   let cursor: string | undefined;
   try {
     do {
-      const result = await list({ prefix, limit: 1000, cursor, ...blobAuthOptions() });
+      const result = await list({
+        prefix,
+        limit: 1000,
+        cursor,
+        abortSignal: AbortSignal.timeout(10000),
+        ...blobAuthOptions(),
+      });
       for (const blob of result.blobs) {
         const uploadedAt = new Date(blob.uploadedAt).getTime();
         all.push({
@@ -80,10 +92,21 @@ async function readListed<T>(blob: ListedBlob): Promise<T | null> {
 }
 
 async function latestVersion(name: string): Promise<ListedBlob | null> {
-  const blobs = await listBlobs(versionPrefix(name));
+  const blobs = await listBlobs(versionPrefix(name), true);
   if (!blobs.length) return null;
   blobs.sort((a, b) => b.uploadedAt - a.uploadedAt || b.pathname.localeCompare(a.pathname));
   return blobs[0];
+}
+
+export async function readAppStorageCurrent<T>(name: string): Promise<T | null> {
+  if (!hasBlobStorage()) return null;
+  const pointer = await optionalReadBlob<CurrentPointer>(currentPointerKey(name));
+  if (!pointer?.url && !pointer?.pathname) return null;
+  try {
+    return await readBlobBody<T>(pointer.url || pointer.pathname, pointer.pathname || currentPointerKey(name));
+  } catch {
+    return null;
+  }
 }
 
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
@@ -121,6 +144,9 @@ async function pruneVersions(name: string, keepKey: string): Promise<void> {
 }
 
 export async function readAppStorageBlob<T>(name: string): Promise<T | null> {
+  const current = await readAppStorageCurrent<T>(name);
+  if (current !== null) return current;
+
   const latest = await latestVersion(name);
   if (latest) {
     for (let attempt = 0; attempt < 5; attempt++) {
@@ -153,16 +179,14 @@ export async function writeAppStorageBlob(name: string, data: unknown): Promise<
     throw new Error("BLOB_NOT_CONFIGURED");
   }
   const key = `${versionPrefix(name)}${Date.now()}-${randomUUID()}.json`;
-  await writeBlob(key, data);
-
-  for (let attempt = 0; attempt < 3; attempt++) {
-    try {
-      const latest = await withTimeout(latestVersion(name), 4000);
-      if (latest?.pathname === key) break;
-    } catch {
-      break;
-    }
-    await sleep(150);
+  const stored = await writeBlob(key, data);
+  try {
+    await writeBlob(currentPointerKey(name), {
+      pathname: stored.pathname || key,
+      url: stored.url,
+    });
+  } catch (error) {
+    console.error(`current pointer write failed (${name}):`, error);
   }
   void pruneVersions(name, key);
 }

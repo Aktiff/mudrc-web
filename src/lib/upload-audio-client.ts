@@ -27,6 +27,7 @@ async function uploadViaServer(file: File): Promise<string> {
     method: "POST",
     body: formData,
     credentials: "same-origin",
+    signal: AbortSignal.timeout(45000),
   });
   const text = await res.text();
   if (!res.ok) {
@@ -47,9 +48,15 @@ export async function uploadAudioFileClient(file: File): Promise<string> {
     throw new Error("Maximálna veľkosť audio je 20 MB — skráť ukážku na ~30 s.");
   }
 
-  if (file.size > MAX_AUDIO_SERVER_BYTES) {
-    return uploadFileInParts("audio", file);
+  try {
+    if (file.size > MAX_AUDIO_SERVER_BYTES) {
+      return await uploadFileInParts("audio", file);
+    }
+    return await uploadViaServer(file);
+  } catch (error) {
+    if (error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError")) {
+      throw new Error("Nahrávanie trvalo príliš dlho. Skús to znova.");
+    }
+    throw error;
   }
-
-  return uploadViaServer(file);
 }

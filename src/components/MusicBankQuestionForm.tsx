@@ -152,7 +152,12 @@ export default function MusicBankQuestionForm({ onAdded, onMessage }: Props) {
         }
         okCount += 1;
       } catch (err) {
-        const msg = err instanceof Error ? err.message : "Upload zlyhal";
+        const timedOut = err instanceof Error && (err.name === "TimeoutError" || err.name === "AbortError");
+        const msg = timedOut
+          ? "Nahrávanie trvalo príliš dlho. Skús to znova."
+          : err instanceof Error
+            ? err.message
+            : "Upload zlyhal";
         failures.push(`${row.file.name}: ${msg}`);
       }
     }

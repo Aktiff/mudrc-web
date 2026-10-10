@@ -235,7 +235,10 @@ export async function optionalReadBlob<T>(key: string): Promise<T | null> {
   }
 }
 
-export async function writeBlob(key: string, data: unknown): Promise<void> {
+export async function writeBlob(
+  key: string,
+  data: unknown
+): Promise<{ url: string; pathname: string }> {
   if (!shouldWriteBlob()) {
     throw new Error("BLOB_NOT_CONFIGURED");
   }
@@ -247,7 +250,7 @@ export async function writeBlob(key: string, data: unknown): Promise<void> {
 
   const payload = JSON.stringify(data, null, 2);
   try {
-    await put(key, payload, {
+    const stored = await put(key, payload, {
       access: blobStoreAccess(),
       addRandomSuffix: false,
       allowOverwrite: true,
@@ -255,6 +258,7 @@ export async function writeBlob(key: string, data: unknown): Promise<void> {
       contentType: "application/json",
       ...auth,
     });
+    return { url: stored.url, pathname: stored.pathname };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Blob write failed";
     throw new Error(`Blob write failed (${key}): ${message}`);

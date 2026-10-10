@@ -37,11 +37,9 @@ export async function POST(req: NextRequest) {
     }
     const ignoreQuizId = typeof body.ignoreQuizId === "string" ? body.ignoreQuizId : undefined;
     const track = await addStoredMusicBankItem(body, ignoreQuizId);
-    const tracks = await readStoredMusicBank();
     return NextResponse.json({
       ok: true,
       track,
-      tracks,
       autoTags: track.tags ?? [],
     });
   } catch (error) {

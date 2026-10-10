@@ -3,7 +3,6 @@ import path from "path";
 import {
   createMusicBankItem,
   musicBankInputFromReturnedAudio,
-  musicIdentityFromQuestionFields,
   musicTrackKey,
   MusicTrackDuplicateError,
   parseMusicBankList,
@@ -13,7 +12,7 @@ import {
 } from "@/lib/music-bank";
 import { readStoredSoundBank, removeStoredSoundBankItem } from "@/lib/sound-bank-storage";
 import { enrichMusicTrackAutoTags, quickMusicTrackTags } from "@/lib/music-track-metadata";
-import { readAllLibraryQuizzes } from "@/lib/quiz-library-storage";
+import { findQuizTitleUsingMusicTrack } from "@/lib/quiz-library-storage";
 import { readAppStorageWithFallback, writeAppStorageWithFallback } from "@/lib/app-storage-fallback";
 
 const localPath = path.join(process.cwd(), "src/data/music-bank.local.json");
@@ -71,20 +70,9 @@ export async function findMusicTrackConflict(
     return { source: "bank", artist: artist.trim(), title: title.trim() };
   }
 
-  const quizzes = await readAllLibraryQuizzes();
-  for (const quiz of quizzes) {
-    if (ignoreQuizId && quiz.id === ignoreQuizId) continue;
-    for (const question of quiz.questions ?? []) {
-      const identity = musicIdentityFromQuestionFields(question);
-      if (identity?.key === key) {
-        return {
-          source: "quiz",
-          artist: identity.artist,
-          title: identity.title,
-          quizTitle: quiz.title?.trim() || quiz.id,
-        };
-      }
-    }
+  const quizTitle = await findQuizTitleUsingMusicTrack(key, ignoreQuizId);
+  if (quizTitle) {
+    return { source: "quiz", artist: artist.trim(), title: title.trim(), quizTitle };
   }
 
   return null;

@@ -41,6 +41,7 @@ export async function uploadFileInParts(kind: MediaUploadKind, file: File): Prom
         method: "POST",
         body: formData,
         credentials: "same-origin",
+        signal: AbortSignal.timeout(45000),
       });
       await readJson(res);
     }
@@ -48,6 +49,7 @@ export async function uploadFileInParts(kind: MediaUploadKind, file: File): Prom
     const res = await fetch("/api/admin/upload/parts", {
       method: "POST",
       credentials: "same-origin",
+      signal: AbortSignal.timeout(45000),
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         complete: true,

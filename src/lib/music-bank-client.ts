@@ -20,17 +20,30 @@ export async function fetchMusicBankFromServer(): Promise<MusicBankItem[]> {
   }
 }
 
+function tooSlow(): Error {
+  return new Error("Nahrávanie trvalo príliš dlho. Skús to znova.");
+}
+
+function asUploadError(error: unknown, fallback: string): Error {
+  if (error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError")) return tooSlow();
+  return error instanceof Error ? error : new Error(fallback);
+}
+
 export async function findMusicTrackConflictAsync(
   artist: string,
   title: string
 ): Promise<MusicTrackDuplicateConflict | null> {
   try {
     const params = new URLSearchParams({ artist, title });
-    const res = await fetch(`/api/admin/music-bank?${params.toString()}`, { cache: "no-store" });
+    const res = await fetch(`/api/admin/music-bank?${params.toString()}`, {
+      cache: "no-store",
+      signal: AbortSignal.timeout(20000),
+    });
     if (!res.ok) return null;
     const data = (await res.json()) as { conflict?: MusicTrackDuplicateConflict | null };
     return data.conflict ?? null;
-  } catch {
+  } catch (error) {
+    if (error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError")) throw tooSlow();
     return null;
   }
 }
@@ -39,12 +52,18 @@ export async function addMusicBankItemAsync(
   input: NewMusicBankItemInput,
   ignoreQuizId?: string
 ): Promise<MusicBankItem> {
-  const res = await fetch("/api/admin/music-bank", {
-    method: "POST",
-    cache: "no-store",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ...input, ...(ignoreQuizId ? { ignoreQuizId } : {}) }),
-  });
+  let res: Response;
+  try {
+    res = await fetch("/api/admin/music-bank", {
+      method: "POST",
+      cache: "no-store",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...input, ...(ignoreQuizId ? { ignoreQuizId } : {}) }),
+      signal: AbortSignal.timeout(20000),
+    });
+  } catch (error) {
+    throw asUploadError(error, "Uloženie zlyhalo");
+  }
   const data = await res.json();
   if (!res.ok) {
     throw new Error(typeof data.error === "string" ? data.error : "Uloženie zlyhalo");
