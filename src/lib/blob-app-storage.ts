@@ -86,14 +86,31 @@ async function latestVersion(name: string): Promise<ListedBlob | null> {
   return blobs[0];
 }
 
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error("timeout")), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      }
+    );
+  });
+}
+
 async function pruneVersions(name: string, keepKey: string): Promise<void> {
-  const blobs = await listBlobs(versionPrefix(name));
+  const blobs = await withTimeout(listBlobs(versionPrefix(name)), 4000).catch(() => []);
   const stale = blobs
     .filter((blob) => blob.pathname !== keepKey)
-    .sort((a, b) => b.uploadedAt - a.uploadedAt)
-    .slice(1);
+    .sort((a, b) => a.uploadedAt - b.uploadedAt);
+  const keepNewestExtra = stale.length > 1 ? 1 : 0;
+  const toDelete = stale.slice(0, Math.max(0, stale.length - keepNewestExtra)).slice(0, 15);
   await Promise.all(
-    stale.map(async (blob) => {
+    toDelete.map(async (blob) => {
       try {
         await del(blob.pathname, blobAuthOptions());
       } catch {
@@ -138,16 +155,16 @@ export async function writeAppStorageBlob(name: string, data: unknown): Promise<
   const key = `${versionPrefix(name)}${Date.now()}-${randomUUID()}.json`;
   await writeBlob(key, data);
 
-  for (let attempt = 0; attempt < 8; attempt++) {
-    const latest = await latestVersion(name);
-    if (latest?.pathname === key) {
-      void pruneVersions(name, key);
-      return;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const latest = await withTimeout(latestVersion(name), 4000);
+      if (latest?.pathname === key) break;
+    } catch {
+      break;
     }
-    await sleep(200);
+    await sleep(150);
   }
-
-  throw new Error(`Úložisko ${name} sa nepodarilo hneď uložiť.`);
+  void pruneVersions(name, key);
 }
 
 export async function deleteAppStorageBlob(name: string): Promise<void> {

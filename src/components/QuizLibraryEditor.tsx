@@ -1098,14 +1098,23 @@ export default function QuizLibraryEditor({ quizId }: Props) {
     }
   };
 
+  const saveInflight = useRef(false);
+  const saveQueued = useRef<QuizLibraryItem | null>(null);
+
   const persistQuizNow = useCallback(
     async (snapshot: QuizLibraryItem, seq: number) => {
+      if (saveInflight.current) {
+        saveQueued.current = snapshot;
+        return;
+      }
+      saveInflight.current = true;
       setSaving(true);
       try {
         const res = await fetch(`/api/admin/quiz-library/${quizId}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(snapshot),
+          signal: AbortSignal.timeout(20000),
         });
         if (seq !== saveSeq.current) return;
         if (!res.ok) {
@@ -1121,14 +1130,17 @@ export default function QuizLibraryEditor({ quizId }: Props) {
           setQuiz(saved);
         }
         setMsg({ text: "Uložené.", ok: true });
-        void refreshLibraryQuizzes();
       } catch {
-        if (seq === saveSeq.current) setMsg({ text: "Uloženie zlyhalo.", ok: false });
+        if (seq === saveSeq.current) setMsg({ text: "Uloženie zlyhalo. Skús to znova.", ok: false });
       } finally {
+        saveInflight.current = false;
         if (seq === saveSeq.current) setSaving(false);
+        const next = saveQueued.current;
+        saveQueued.current = null;
+        if (next) void persistQuizNow(next, saveSeq.current);
       }
     },
-    [quizId, refreshLibraryQuizzes]
+    [quizId]
   );
 
   useEffect(() => {

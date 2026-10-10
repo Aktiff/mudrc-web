@@ -242,7 +242,11 @@ export async function saveLibraryQuiz(input: Partial<QuizLibraryItem>): Promise<
     );
   }
 
-  if (existing?.questions?.length) {
+  const shapeChanged =
+    !existing ||
+    (existing.questions?.length ?? 0) !== ((merged as QuizLibraryItem).questions?.length ?? 0) ||
+    existingFilled !== incomingFilled;
+  if (existing?.questions?.length && shapeChanged) {
     try {
       await writeQuizLibraryBackup(existing);
     } catch (error) {
