@@ -3,10 +3,11 @@ import { del, get, list } from "@vercel/blob";
 import {
   blobAuthOptions,
   blobStoreAccess,
+  hasBlobStorage,
   optionalReadBlob,
+  readBlobJsonFresh,
   shouldWriteBlob,
   writeBlob,
-  hasBlobStorage,
 } from "@/lib/storage";
 
 const PREFIX = "mudrc/app-storage/";
@@ -29,6 +30,19 @@ function currentPointerKey(name: string): string {
 }
 
 type CurrentPointer = { pathname: string; url: string };
+
+const freshPayloads = new Map<string, { at: number; data: unknown }>();
+
+function rememberPayload(name: string, data: unknown) {
+  freshPayloads.set(name, { at: Date.now(), data });
+}
+
+function recallPayload<T>(name: string, maxAgeMs: number): T | undefined {
+  const row = freshPayloads.get(name);
+  if (!row) return undefined;
+  if (Date.now() - row.at > maxAgeMs) return undefined;
+  return row.data as T;
+}
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -107,32 +121,36 @@ async function latestVersion(name: string): Promise<ListedBlob | null> {
   return blobs[0];
 }
 
-async function readPointerTarget<T>(pointer: CurrentPointer): Promise<T | null> {
-  const targets = [pointer.pathname, pointer.url].filter((value): value is string => Boolean(value));
-  let lastError: unknown;
-  for (let attempt = 0; attempt < 2; attempt++) {
-    for (const target of targets) {
-      try {
-        const data = await readBlobBody<T>(target, pointer.pathname || target);
-        if (data !== null) return data;
-      } catch (error) {
-        lastError = error;
-      }
-    }
-    await sleep(250);
-  }
-  if (lastError) {
-    console.error("blob pointer read failed:", lastError);
-  }
-  return null;
-}
-
 export async function readAppStorageCurrent<T>(name: string): Promise<T | null> {
   if (!hasBlobStorage()) return null;
-  const pointer = await optionalReadBlob<CurrentPointer>(currentPointerKey(name));
-  if (!pointer?.url && !pointer?.pathname) return null;
-  const data = await readPointerTarget<T>(pointer);
-  if (data !== null) return data;
+  const cached = recallPayload<T>(name, 20_000);
+  if (cached !== undefined) return cached;
+
+  let pointer: CurrentPointer | null;
+  try {
+    pointer = await readBlobJsonFresh<CurrentPointer>(currentPointerKey(name));
+  } catch (error) {
+    const stale = recallPayload<T>(name, 10 * 60_000);
+    if (stale !== undefined) return stale;
+    throw error;
+  }
+  if (!pointer?.pathname && !pointer?.url) return null;
+  if (isPointerDocument(pointer) && pointer.pathname === currentPointerKey(name)) return null;
+
+  try {
+    const data = await readBlobJsonFresh<T>(pointer.pathname || pointer.url);
+    if (data !== null && !isPointerDocument(data)) {
+      rememberPayload(name, data);
+      return data;
+    }
+  } catch (error) {
+    const stale = recallPayload<T>(name, 10 * 60_000);
+    if (stale !== undefined) return stale;
+    throw error instanceof Error ? error : new Error(`Úložisko ${name} sa nepodarilo načítať.`);
+  }
+
+  const stale = recallPayload<T>(name, 10 * 60_000);
+  if (stale !== undefined) return stale;
   throw new Error(`Úložisko ${name} sa nepodarilo načítať.`);
 }
 
@@ -214,10 +232,14 @@ export async function writeAppStorageBlob(name: string, data: unknown): Promise<
   const key = `${versionPrefix(name)}${Date.now()}-${randomUUID()}.json`;
   const stored = await writeBlob(key, data);
   try {
-    await writeBlob(currentPointerKey(name), {
-      pathname: stored.pathname || key,
-      url: stored.url,
-    });
+    await writeBlob(
+      currentPointerKey(name),
+      {
+        pathname: stored.pathname || key,
+        url: stored.url,
+      },
+      { cacheControlMaxAge: 0 }
+    );
   } catch (error) {
     console.error(`current pointer write failed (${name}):`, error);
   }

@@ -39,14 +39,14 @@ export default function HotoveKvizyList() {
     setLoading(true);
     setLoadError(null);
     let lastError = "Kvízy sa nepodarilo načítať.";
-    for (let attempt = 0; attempt < 4; attempt += 1) {
+    for (let attempt = 0; attempt < 2; attempt += 1) {
       try {
         await loadQuizzes();
         setLoading(false);
         return;
       } catch (error) {
         lastError = error instanceof Error ? error.message : lastError;
-        if (attempt < 3) await new Promise((resolve) => setTimeout(resolve, 700));
+        if (attempt < 1) await new Promise((resolve) => setTimeout(resolve, 400));
       }
     }
     setLoadError(lastError);
@@ -178,12 +178,12 @@ export default function HotoveKvizyList() {
                 <MonitorPlay className="w-5 h-5 text-brand-orange" />
               </div>
               <div className="min-w-0">
-                <Link
+                <a
                   href={`/admin/hotove-kvizy/${quiz.id}`}
                   className="font-semibold text-brand-text hover:text-brand-orange-readable transition-colors"
                 >
                   {quiz.title}
-                </Link>
+                </a>
                 {quiz.notes && <p className="text-brand-muted text-sm mt-0.5">{quiz.notes}</p>}
                 <div className="flex flex-wrap items-center gap-2 mt-2 text-xs">
                   <span className="font-semibold px-2.5 py-1 rounded-full inline-flex items-center gap-1 bg-brand-surface text-brand-muted border border-brand-border">
@@ -207,14 +207,14 @@ export default function HotoveKvizyList() {
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-2 shrink-0">
-              <Link
+              <a
                 href={`/admin/hotove-kvizy/${quiz.id}`}
                 className="inline-flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded-xl border border-brand-border text-brand-text hover:border-brand-orange hover:text-brand-orange-readable transition-colors"
               >
                 <Pencil className="w-4 h-4" />
                 Otvoriť
-              </Link>
-              <Link
+              </a>
+              <a
                 href={`/admin/hotove-kvizy/${quiz.id}/prehrat`}
                 className={`inline-flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded-xl transition-colors ${
                   quiz.questions?.length
@@ -224,7 +224,7 @@ export default function HotoveKvizyList() {
               >
                 <Play className="w-4 h-4" />
                 Prehrať
-              </Link>
+              </a>
               <button
                 type="button"
                 onClick={() => renameQuiz(quiz)}

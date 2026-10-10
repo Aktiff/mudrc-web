@@ -224,6 +224,27 @@ async function loadAllQuizzes(): Promise<QuizLibraryItem[]> {
   return migrateLegacyDecks(quizzes);
 }
 
+export async function readLibraryQuizSummaries(): Promise<
+  Array<{
+    id: string;
+    title: string;
+    notes?: string;
+    createdAt: string;
+    updatedAt: string;
+    questionCount: number;
+  }>
+> {
+  const index = await readIndex();
+  return index.items.map((entry) => ({
+    id: entry.id,
+    title: entry.title,
+    notes: entry.notes,
+    createdAt: entry.createdAt,
+    updatedAt: entry.updatedAt,
+    questionCount: typeof entry.slideCount === "number" ? entry.slideCount : 1,
+  }));
+}
+
 export async function readAllLibraryQuizzes(): Promise<QuizLibraryItem[]> {
   return loadAllQuizzes();
 }

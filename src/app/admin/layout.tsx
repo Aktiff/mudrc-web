@@ -79,10 +79,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 ? pathname === item.href
                 : pathname.startsWith(item.href);
             return (
-              <Link key={item.href} href={item.href} className={linkClass(active)}>
+              <a key={item.href} href={item.href} className={linkClass(active)}>
                 <item.icon className="w-4 h-4" />
                 {item.label}
-              </Link>
+              </a>
             );
           })}
         </nav>
@@ -106,10 +106,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 ? pathname === item.href
                 : pathname.startsWith(item.href);
             return (
-              <Link key={item.href} href={item.href} className={linkClass(active)}>
+              <a key={item.href} href={item.href} className={linkClass(active)}>
                 <item.icon className="w-4 h-4" />
                 {item.label}
-              </Link>
+              </a>
             );
           })}
           <button

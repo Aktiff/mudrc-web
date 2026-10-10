@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { collectPlayedTeamNames, getConflictingTeams, isQuizSafeForTeams, parseTeamFilterInput } from "@/lib/quiz-library";
 import { buildQuizUsageMap, type QuizUsageExclude } from "@/lib/quiz-library-usage";
-import { createLibraryQuiz, readAllLibraryQuizzes } from "@/lib/quiz-library-storage";
+import { createLibraryQuiz, readAllLibraryQuizzes, readLibraryQuizSummaries } from "@/lib/quiz-library-storage";
 import { readAllEventsRaw, readAllStoredQuizzes } from "@/lib/storage";
 
 export const runtime = "nodejs";
@@ -24,11 +24,16 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const quizzes = await readAllLibraryQuizzes();
     if (req.nextUrl.searchParams.get("usage") !== "1") {
-      const items = quizzes
+      const summaries = await readLibraryQuizSummaries();
+      const items = summaries
         .map((quiz) => ({
-          ...quiz,
+          id: quiz.id,
+          title: quiz.title,
+          notes: quiz.notes,
+          createdAt: quiz.createdAt,
+          updatedAt: quiz.updatedAt,
+          questions: Array.from({ length: quiz.questionCount }, () => ({ id: "" })),
           usageCount: 0,
           usages: [],
           playedTeamNames: [],
@@ -42,7 +47,11 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const [storedQuizzes, { events }] = await Promise.all([readAllStoredQuizzes(), readAllEventsRaw()]);
+    const [quizzes, storedQuizzes, { events }] = await Promise.all([
+      readAllLibraryQuizzes(),
+      readAllStoredQuizzes(),
+      readAllEventsRaw(),
+    ]);
     const usageMap = buildQuizUsageMap(storedQuizzes, events, excludeUsage);
 
     const items = quizzes

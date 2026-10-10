@@ -211,7 +211,7 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
   const [playEventSlug, setPlayEventSlug] = useState("");
   const [openRound, setOpenRound] = useState<number>(1);
   const [dragQuestionId, setDragQuestionId] = useState<string | null>(null);
-  const [libraryQuizzes, setLibraryQuizzes] = useState<QuizLibraryItem[]>([]);
+  const [libraryQuizzes] = useState<QuizLibraryItem[]>([]);
   const [customBankQuestions, setCustomBankQuestions] = useState<CustomBankQuestion[]>([]);
   const [musicBankTracks, setMusicBankTracks] = useState<MusicBankItem[]>([]);
   const [soundBankClips, setSoundBankClips] = useState<SoundBankItem[]>([]);
@@ -278,20 +278,18 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
   }, []);
 
   useEffect(() => {
-    refreshCustomBank();
-    refreshMusicBank();
-    refreshSoundBank();
-    refreshVideoBank();
+    const timer = window.setTimeout(() => {
+      refreshCustomBank();
+      refreshMusicBank();
+      refreshSoundBank();
+      refreshVideoBank();
+    }, 1500);
     window.addEventListener("mudrc-custom-bank-updated", refreshCustomBank);
-    return () => window.removeEventListener("mudrc-custom-bank-updated", refreshCustomBank);
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener("mudrc-custom-bank-updated", refreshCustomBank);
+    };
   }, [refreshCustomBank, refreshMusicBank, refreshSoundBank, refreshVideoBank]);
-
-  const refreshLibraryQuizzes = useCallback(async () => {
-    const res = await fetch(`/api/admin/quiz-library?_=${Date.now()}`, { cache: "no-store" });
-    if (!res.ok) return;
-    const data = await res.json();
-    setLibraryQuizzes((data.quizzes ?? []).map((entry: unknown) => parseQuizPayload(entry)));
-  }, []);
 
   const load = useCallback(async () => {
     const started = quizRef.current;
@@ -336,7 +334,6 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
 
   useEffect(() => {
     load();
-    refreshLibraryQuizzes();
     fetch(`/api/admin/events?_=${Date.now()}`, { cache: "no-store" })
       .then((r) => r.json())
       .then((d) => setEvents(d.events ?? []));
@@ -348,7 +345,7 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
         }
       })
       .catch(() => {});
-  }, [load, refreshLibraryQuizzes, quizId]);
+  }, [load, quizId]);
 
   useEffect(() => {
     if (!quiz || loading) return;
@@ -1261,13 +1258,13 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
               ))}
             </select>
           </div>
-          <Link
+          <a
             href={`/admin/hotove-kvizy/${quizId}/prehrat${playEventSlug ? `?event=${playEventSlug}` : ""}`}
             className="btn-primary text-sm py-2.5 px-4 inline-flex items-center gap-2"
           >
             <MonitorPlay className="w-4 h-4" />
             Spustiť
-          </Link>
+          </a>
           <button type="button" onClick={restoreFromLocalBackup} className="btn-outline text-sm py-2.5 px-4">
             Obnoviť zálohu z prehliadača
           </button>

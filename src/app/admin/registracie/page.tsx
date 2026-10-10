@@ -51,29 +51,24 @@ export default function RegistraciaPage() {
 
   const load = useCallback(() => {
     setLoading(true);
+    const opts = { cache: "no-store" as const, credentials: "same-origin" as const, signal: AbortSignal.timeout(12000) };
     Promise.all([
-      fetch(`/api/admin/registrations?_=${Date.now()}`, { cache: "no-store", credentials: "same-origin" }).then((r) =>
-        r.ok ? r.json() : { registrations: [] }
-      ),
-      fetch(`/api/admin/events?_=${Date.now()}`, { cache: "no-store", credentials: "same-origin" }).then((r) =>
-        r.ok ? r.json() : { events: [] }
-      ),
+      fetch(`/api/admin/registrations?_=${Date.now()}`, opts).then((r) => (r.ok ? r.json() : Promise.reject())),
+      fetch(`/api/admin/events?_=${Date.now()}`, opts).then((r) => (r.ok ? r.json() : Promise.reject())),
     ])
       .then(([regData, eventData]) => {
         setRegs(regData.registrations ?? []);
         setEvents(eventData.events ?? []);
+        setMsg(null);
+      })
+      .catch(() => {
+        setMsg({ text: "Registrácie sa nepodarilo načítať. Klikni Obnoviť.", ok: false });
       })
       .finally(() => setLoading(false));
   }, []);
 
   useEffect(() => {
     load();
-  }, [load]);
-
-  useEffect(() => {
-    const onFocus = () => load();
-    window.addEventListener("focus", onFocus);
-    return () => window.removeEventListener("focus", onFocus);
   }, [load]);
 
   const sortedEvents = useMemo(() => sortEventsForAdminOverview(events), [events]);
@@ -281,9 +276,11 @@ export default function RegistraciaPage() {
     <div className="w-full min-w-0">
       <h1 className="font-display text-4xl text-brand-text tracking-wide mb-1">Registrácie</h1>
       <p className="text-brand-text text-lg font-semibold mb-1">
-        Nadchádzajúce: {teamCountLabel(upcomingTotals.teams)} · {formatSkPlayerCountTotal(upcomingTotals.players)}
-        {" · "}
-        {formatEuroAmount(upcomingTotals.earned)}
+        {loading
+          ? "Načítavam registrácie…"
+          : msg && !msg.ok && regs.length === 0
+            ? "Registrácie sa nenačítali"
+            : `Nadchádzajúce: ${teamCountLabel(upcomingTotals.teams)} · ${formatSkPlayerCountTotal(upcomingTotals.players)} · ${formatEuroAmount(upcomingTotals.earned)}`}
       </p>
       <p className="text-brand-muted text-xs mb-6">Súčet tímov, ľudí a vstupného vo všetkých budúcich kvízoch, ktoré majú prihlášky.</p>
       {msg && <p className={`text-sm mb-4 ${msg.ok ? "text-green-600" : "text-red-500"}`}>{msg.text}</p>}

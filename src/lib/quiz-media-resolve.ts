@@ -35,7 +35,13 @@ function pickBankAudio(
 
 /** Doplní chýbajúce audioUrl z banky a prepíše staré URL na interný odkaz. */
 export async function hydrateQuizMediaForPlayback(quiz: QuizLibraryItem): Promise<QuizLibraryItem> {
-  const [musicBank, soundBank] = await Promise.all([readStoredMusicBank(), readStoredSoundBank()]);
+  let musicBank: MusicBankItem[] = [];
+  let soundBank: SoundBankItem[] = [];
+  try {
+    [musicBank, soundBank] = await Promise.all([readStoredMusicBank(), readStoredSoundBank()]);
+  } catch {
+    return quiz;
+  }
   const musicById = new Map(musicBank.map((t) => [t.id, t]));
   const soundById = new Map(soundBank.map((c) => [c.id, c]));
   const musicByKey = new Map(musicBank.map((t) => [musicTrackKey(t.artist, t.title), t]));

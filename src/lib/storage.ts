@@ -237,9 +237,31 @@ export async function optionalReadBlob<T>(key: string): Promise<T | null> {
   }
 }
 
+export async function readBlobJsonFresh<T>(pathname: string): Promise<T | null> {
+  const auth = blobAuthOptions();
+  try {
+    const result = await get(pathname, {
+      access: blobStoreAccess(),
+      useCache: false,
+      abortSignal: AbortSignal.timeout(8000),
+      ...auth,
+    });
+    if (!result) return null;
+    if (result.statusCode !== 200 || !result.stream) {
+      throw new Error(`Blob get failed (${pathname}): incomplete response`);
+    }
+    const raw = await new Response(result.stream).text();
+    return JSON.parse(raw) as T;
+  } catch (error) {
+    if (isBlobNotFound(error)) return null;
+    throw error;
+  }
+}
+
 export async function writeBlob(
   key: string,
-  data: unknown
+  data: unknown,
+  options?: { cacheControlMaxAge?: number }
 ): Promise<{ url: string; pathname: string }> {
   if (!shouldWriteBlob()) {
     throw new Error("BLOB_NOT_CONFIGURED");
@@ -256,7 +278,7 @@ export async function writeBlob(
       access: blobStoreAccess(),
       addRandomSuffix: false,
       allowOverwrite: true,
-      cacheControlMaxAge: 60,
+      cacheControlMaxAge: options?.cacheControlMaxAge ?? 60,
       contentType: "application/json",
       ...auth,
     });
@@ -384,11 +406,42 @@ async function readPointedJson<T>(pointer: { pathname?: string; url?: string }, 
   return null;
 }
 
+const pointedPayloads = new Map<string, { at: number; data: unknown }>();
+
+function recallPointed<T>(key: string, maxAgeMs: number): T | undefined {
+  const row = pointedPayloads.get(key);
+  if (!row) return undefined;
+  if (Date.now() - row.at > maxAgeMs) return undefined;
+  return row.data as T;
+}
+
 async function readEventsPointer(): Promise<QuizEvent[] | null> {
-  const pointer = await optionalReadBlob<{ pathname?: string; url?: string }>(EVENTS_CURRENT_KEY);
-  if (!pointer?.url && !pointer?.pathname) return null;
-  const data = await readPointedJson<{ events?: QuizEvent[] }>(pointer, EVENTS_CURRENT_KEY);
-  if (data && Array.isArray(data.events)) return data.events;
+  const cached = recallPointed<QuizEvent[]>(EVENTS_CURRENT_KEY, 20_000);
+  if (cached) return cached;
+
+  let pointer: { pathname?: string; url?: string } | null;
+  try {
+    pointer = await readBlobJsonFresh<{ pathname?: string; url?: string }>(EVENTS_CURRENT_KEY);
+  } catch (error) {
+    const stale = recallPointed<QuizEvent[]>(EVENTS_CURRENT_KEY, 10 * 60_000);
+    if (stale) return stale;
+    throw error;
+  }
+  if (!pointer?.pathname && !pointer?.url) return null;
+
+  try {
+    const data = await readBlobJsonFresh<{ events?: QuizEvent[] }>(pointer.pathname || pointer.url || EVENTS_CURRENT_KEY);
+    if (data && Array.isArray(data.events)) {
+      pointedPayloads.set(EVENTS_CURRENT_KEY, { at: Date.now(), data: data.events });
+      return data.events;
+    }
+  } catch (error) {
+    const stale = recallPointed<QuizEvent[]>(EVENTS_CURRENT_KEY, 10 * 60_000);
+    if (stale) return stale;
+    throw error;
+  }
+  const stale = recallPointed<QuizEvent[]>(EVENTS_CURRENT_KEY, 10 * 60_000);
+  if (stale) return stale;
   throw new Error("Udalosti sa nepodarilo načítať.");
 }
 
@@ -404,7 +457,7 @@ async function loadVersionedEvents(): Promise<QuizEvent[] | null> {
       const data = await fetchBlobJson<{ events?: QuizEvent[] }>(latest.pathname, latest.pathname);
       if (data && Array.isArray(data.events)) {
         try {
-          await writeBlob(EVENTS_CURRENT_KEY, { pathname: latest.pathname, url: latest.url });
+          await writeBlob(EVENTS_CURRENT_KEY, { pathname: latest.pathname, url: latest.url }, { cacheControlMaxAge: 0 });
         } catch {
           /* ďalšie čítanie ešte prejde zoznamom verzií */
         }
@@ -429,7 +482,7 @@ async function persistEventsBlob(events: QuizEvent[]): Promise<void> {
   const prepared = events.map(eventForEventsKey);
   const key = `${EVENTS_VERSION_PREFIX}${Date.now()}-${randomUUID()}.json`;
   const stored = await writeBlob(key, { events: prepared });
-  await writeBlob(EVENTS_CURRENT_KEY, { pathname: stored.pathname || key, url: stored.url });
+  await writeBlob(EVENTS_CURRENT_KEY, { pathname: stored.pathname || key, url: stored.url }, { cacheControlMaxAge: 0 });
 }
 
 async function listRegistrationBlobIds(): Promise<string[]> {
@@ -830,12 +883,35 @@ async function latestRegistrationVersion(): Promise<{ pathname: string; uploaded
 
 /** Nový súbor pri každom zápise. Prepísaný pathname ostáva v cache a po refreshi by vrátil zmazané registrácie. */
 async function readRegistrationsPointer(): Promise<Registration[] | null> {
-  const pointer = await optionalReadBlob<{ pathname?: string; url?: string }>(REGS_CURRENT_KEY);
-  if (!pointer?.url && !pointer?.pathname) return null;
-  const data = await readPointedJson<{ registrations?: Registration[] }>(pointer, REGS_CURRENT_KEY);
-  if (data && Array.isArray(data.registrations)) {
-    return data.registrations.map(normalizeRegistration);
+  const cached = recallPointed<Registration[]>(REGS_CURRENT_KEY, 20_000);
+  if (cached) return cached;
+
+  let pointer: { pathname?: string; url?: string } | null;
+  try {
+    pointer = await readBlobJsonFresh<{ pathname?: string; url?: string }>(REGS_CURRENT_KEY);
+  } catch (error) {
+    const stale = recallPointed<Registration[]>(REGS_CURRENT_KEY, 10 * 60_000);
+    if (stale) return stale;
+    throw error;
   }
+  if (!pointer?.pathname && !pointer?.url) return null;
+
+  try {
+    const data = await readBlobJsonFresh<{ registrations?: Registration[] }>(
+      pointer.pathname || pointer.url || REGS_CURRENT_KEY
+    );
+    if (data && Array.isArray(data.registrations)) {
+      const regs = data.registrations.map(normalizeRegistration);
+      pointedPayloads.set(REGS_CURRENT_KEY, { at: Date.now(), data: regs });
+      return regs;
+    }
+  } catch (error) {
+    const stale = recallPointed<Registration[]>(REGS_CURRENT_KEY, 10 * 60_000);
+    if (stale) return stale;
+    throw error;
+  }
+  const stale = recallPointed<Registration[]>(REGS_CURRENT_KEY, 10 * 60_000);
+  if (stale) return stale;
   throw new Error("Registrácie sa nepodarilo načítať.");
 }
 
@@ -851,7 +927,7 @@ async function loadVersionedRegistrations(): Promise<Registration[] | null> {
       const data = await readListedBlobJson<{ registrations?: Registration[] }>(latest);
       if (data && Array.isArray(data.registrations)) {
         try {
-          await writeBlob(REGS_CURRENT_KEY, { pathname: latest.pathname, url: latest.url });
+          await writeBlob(REGS_CURRENT_KEY, { pathname: latest.pathname, url: latest.url }, { cacheControlMaxAge: 0 });
         } catch {
           /* ďalšie čítanie ešte prejde zoznamom verzií */
         }
@@ -905,7 +981,7 @@ async function persistRegistrationsBlob(registrations: Registration[]): Promise<
   const normalized = registrations.map(normalizeRegistration);
   const key = `${REGS_VERSION_PREFIX}${Date.now()}-${randomUUID()}.json`;
   const stored = await writeBlob(key, { registrations: normalized });
-  await writeBlob(REGS_CURRENT_KEY, { pathname: stored.pathname || key, url: stored.url });
+  await writeBlob(REGS_CURRENT_KEY, { pathname: stored.pathname || key, url: stored.url }, { cacheControlMaxAge: 0 });
 }
 
 export async function persistRegistrations(registrations: Registration[]): Promise<void> {
