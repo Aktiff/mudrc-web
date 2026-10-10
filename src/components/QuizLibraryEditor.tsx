@@ -631,12 +631,16 @@ export default function QuizLibraryEditor({ quizId }: Props) {
     label: string,
     answer: string,
     videoUrl: string,
-    hostNote?: string
+    hostNote?: string,
+    bankTags?: string[],
+    bodyOverride?: string
   ) => {
     const target = questions.find((q) => q.id === targetQuestionId);
     if (!target) return;
     const displacedBankId = target.bankQuestionId;
     const slotIsMusicTail = target.kind === "music";
+    const customBody = bodyOverride?.trim() || "";
+    const keepAsNormalQuestion = target.kind === "normal" && Boolean(customBody);
 
     const restoreToBank =
       displacedBankId &&
@@ -649,6 +653,8 @@ export default function QuizLibraryEditor({ quizId }: Props) {
             answer: target.answer.trim(),
             videoUrl: target.videoUrl.trim(),
             note: target.hostNote?.trim() || undefined,
+            questionBody: target.body.trim() || undefined,
+            tags: target.tags,
           }
         : null;
 
@@ -665,8 +671,8 @@ export default function QuizLibraryEditor({ quizId }: Props) {
           q.id === targetQuestionId
             ? {
                 ...q,
-                kind: slotIsMusicTail ? "music" : "video",
-                body: DEFAULT_VIDEO_QUESTION_BODY,
+                kind: slotIsMusicTail ? "music" : keepAsNormalQuestion ? "normal" : "video",
+                body: customBody || DEFAULT_VIDEO_QUESTION_BODY,
                 answer,
                 mediaLabel: label,
                 videoUrl,
@@ -681,7 +687,7 @@ export default function QuizLibraryEditor({ quizId }: Props) {
                 imageBeforeQuestion: undefined,
                 imageOnNextSlide: undefined,
                 imageOnAnswerSlide: undefined,
-                tags: ["video"],
+                tags: bankTags?.length ? Array.from(new Set([...bankTags, "video"])) : ["video"],
               }
             : q
         ),
@@ -737,6 +743,8 @@ export default function QuizLibraryEditor({ quizId }: Props) {
             answer: question.answer.trim(),
             videoUrl: question.videoUrl.trim(),
             note: question.hostNote?.trim() || undefined,
+            questionBody: question.body.trim() || undefined,
+            tags: question.tags,
           }
         : null;
 
@@ -825,6 +833,30 @@ export default function QuizLibraryEditor({ quizId }: Props) {
     const question = questions.find((q) => q.id === questionId);
     if (!question?.body.trim() || !question.answer.trim()) {
       setMsg({ text: "Do banky treba text otázky aj správnu odpoveď.", ok: false });
+      return;
+    }
+
+    const videoUrl = question.videoUrl?.trim() ?? "";
+    if (videoUrl) {
+      if (!window.confirm("Uložiť toto video medzi videá? V kvíze ostane, aj so súborom.")) return;
+      void addVideoBankItemAsync({
+        label: question.mediaLabel?.trim() || question.body.trim(),
+        answer: question.answer.trim(),
+        videoUrl,
+        note: question.hostNote?.trim() || undefined,
+        questionBody: question.body.trim(),
+        tags: question.tags,
+      })
+        .then(() => {
+          void refreshVideoBank();
+          setMsg({ text: "Video je v banke medzi videami. V tomto kvíze ostalo.", ok: true });
+        })
+        .catch((err) =>
+          setMsg({
+            text: err instanceof Error ? err.message : "Video sa nepodarilo uložiť do banky.",
+            ok: false,
+          })
+        );
       return;
     }
 

@@ -1,3 +1,5 @@
+import { normalizeTags } from "@/lib/quiz-question-tags";
+
 export const VIDEO_BANK_ID_PREFIX = "video-bank-";
 
 export type VideoBankItem = {
@@ -6,6 +8,9 @@ export type VideoBankItem = {
   answer: string;
   videoUrl: string;
   note?: string;
+  /** Text otázky z kvízu, ak ukážka vznikla návratom otázky. */
+  questionBody?: string;
+  tags?: string[];
   createdAt: number;
 };
 
@@ -14,6 +19,8 @@ export type NewVideoBankItemInput = {
   answer: string;
   videoUrl: string;
   note?: string;
+  questionBody?: string;
+  tags?: string[];
 };
 
 export type VideoClipDuplicateConflict = {
@@ -70,6 +77,8 @@ export function normalizeVideoBankItem(raw: unknown): VideoBankItem | null {
     answer,
     videoUrl,
     note: typeof row.note === "string" ? row.note.trim() : undefined,
+    questionBody: typeof row.questionBody === "string" && row.questionBody.trim() ? row.questionBody.trim() : undefined,
+    tags: normalizeTags(row.tags),
     createdAt: typeof row.createdAt === "number" ? row.createdAt : Date.now(),
   };
 }
@@ -91,6 +100,8 @@ export function createVideoBankItem(input: NewVideoBankItemInput): VideoBankItem
     answer: input.answer.trim(),
     videoUrl: input.videoUrl.trim(),
     note: input.note?.trim() || undefined,
+    questionBody: input.questionBody?.trim() || undefined,
+    tags: normalizeTags(input.tags),
     createdAt: Date.now(),
   };
 }

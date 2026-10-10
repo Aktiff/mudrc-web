@@ -127,7 +127,9 @@ type Props = {
     label: string,
     answer: string,
     videoUrl: string,
-    hostNote?: string
+    hostNote?: string,
+    tags?: string[],
+    bodyOverride?: string
   ) => void;
 };
 
@@ -392,7 +394,9 @@ export default function QuizQuestionBankPanel({
       clip.label,
       clip.answer,
       clip.videoUrl,
-      formatVideoBankHostNote(clip)
+      formatVideoBankHostNote(clip),
+      clip.tags,
+      clip.questionBody
     );
     void removeVideoBankItemAsync(clip.id).then(() => onVideoBankChange?.());
     setTargetByBankId((prev) => {
@@ -875,6 +879,7 @@ export default function QuizQuestionBankPanel({
                   <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-200">video</span>
                   <p className="text-sm font-semibold text-brand-text">{clip.label}</p>
                   <p className="text-sm text-brand-muted">Odpoveď: {clip.answer}</p>
+                  {clip.tags?.length ? <p className="text-[11px] text-brand-muted">{clip.tags.join(" · ")}</p> : null}
                   {clip.videoUrl && (
                     <VolumeVideo
                       hint
