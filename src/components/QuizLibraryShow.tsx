@@ -782,6 +782,12 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
     [togglePresentationAudio]
   );
 
+  const onSlideView = useCallback((view: { scale: number; x: number; y: number }) => {
+    setSlideView((prev) =>
+      prev.scale === view.scale && prev.x === view.x && prev.y === view.y ? prev : view
+    );
+  }, []);
+
   const toggleFullscreen = useCallback(async () => {
     if (!rootRef.current) return;
     try {
@@ -979,12 +985,6 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
       : null;
   const showQuestionBadge =
     slide?.type === "question_phase" || slide?.type === "image_slide" || slide?.type === "answer_phase";
-
-  const onSlideView = useCallback((view: { scale: number; x: number; y: number }) => {
-    setSlideView((prev) =>
-      prev.scale === view.scale && prev.x === view.x && prev.y === view.y ? prev : view
-    );
-  }, []);
 
   const stageStyle = presentationStageBoxStyle(aspectMode);
   const slideKey = `${index}-${slide?.type ?? "none"}`;
