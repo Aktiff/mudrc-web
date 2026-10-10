@@ -1,6 +1,7 @@
 import { handleUpload, type HandleUploadBody } from "@vercel/blob/client";
 import { NextResponse } from "next/server";
 import { isAdminRequest } from "@/lib/admin-session";
+import { blobAuthOptions } from "@/lib/storage";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,9 +15,11 @@ export async function POST(request: Request): Promise<NextResponse> {
   const body = (await request.json()) as HandleUploadBody;
 
   try {
+    const auth = blobAuthOptions();
     const jsonResponse = await handleUpload({
       body,
       request,
+      token: auth.token,
       onBeforeGenerateToken: async (pathname) => {
         if (!pathname.startsWith("mudrc/media/")) {
           throw new Error("Neplatná cesta súboru.");
@@ -40,11 +43,10 @@ export async function POST(request: Request): Promise<NextResponse> {
             "image/webp",
             "image/gif",
           ],
-          addRandomSuffix: false,
+          addRandomSuffix: true,
           allowOverwrite: true,
         };
       },
-      onUploadCompleted: async () => {},
     });
     return NextResponse.json(jsonResponse);
   } catch (error) {

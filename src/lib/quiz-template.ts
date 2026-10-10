@@ -40,6 +40,19 @@ export function sortQuizQuestions(questions: QuizQuestionItem[]): QuizQuestionIt
   return [...questions].sort(compareQuizQuestions);
 }
 
+/** Poradie kôl. `orderedRoundNumbers` je staré číslovanie v novom poradí, výsledok je 1…n. */
+export function reorderQuizRounds(
+  questions: QuizQuestionItem[],
+  orderedRoundNumbers: number[]
+): QuizQuestionItem[] {
+  const nextRound = new Map(orderedRoundNumbers.map((round, index) => [round, index + 1]));
+  return questions.map((question) => {
+    const roundNumber = nextRound.get(question.roundNumber);
+    if (!roundNumber || roundNumber === question.roundNumber) return question;
+    return { ...question, roundNumber };
+  });
+}
+
 /** Otázky v tom istom bloku na prehadzovanie poradia (kolo + obsah alebo hudba). */
 export function questionsInSameReorderGroup(
   questions: QuizQuestionItem[],

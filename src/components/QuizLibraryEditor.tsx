@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, Fragment } from "react";
-import { ChevronDown, ChevronUp, GripVertical, MonitorPlay, Plus, RotateCcw, Save, Trash2, X } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, GripVertical, MonitorPlay, Plus, RotateCcw, Save, Trash2, X } from "lucide-react";
 import type { QuizEvent } from "@/lib/data";
 import {
   collectUsedBankQuestionIdsFromQuiz,
@@ -26,6 +26,7 @@ import {
   buildStandardMudrcQuestions,
   describeQuizContent,
   insertQuestionAfter,
+  reorderQuizRounds,
   isSameReorderGroup,
   questionRenumberGroupKey,
   questionsInSameReorderGroup,
@@ -210,6 +211,7 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
   const [events, setEvents] = useState<QuizEvent[]>([]);
   const [playEventSlug, setPlayEventSlug] = useState("");
   const [openRound, setOpenRound] = useState<number>(1);
+  const [dragRound, setDragRound] = useState<number | null>(null);
   const [dragQuestionId, setDragQuestionId] = useState<string | null>(null);
   const [libraryQuizzes] = useState<QuizLibraryItem[]>([]);
   const [customBankQuestions, setCustomBankQuestions] = useState<CustomBankQuestion[]>([]);
@@ -1016,6 +1018,17 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
     return Array.from(rounds).sort((a, b) => a - b);
   }, [questions]);
 
+  const moveRoundTo = (fromRound: number, toIndex: number) => {
+    const fromIndex = roundNumbers.indexOf(fromRound);
+    if (fromIndex < 0 || toIndex < 0 || toIndex >= roundNumbers.length || fromIndex === toIndex) return;
+    const next = [...roundNumbers];
+    const [moved] = next.splice(fromIndex, 1);
+    next.splice(toIndex, 0, moved);
+    setQuiz((prev) => (prev ? { ...prev, questions: reorderQuizRounds(prev.questions, next) } : prev));
+    setOpenRound(toIndex + 1);
+    setMsg({ text: `Kolo presunuté na pozíciu ${toIndex + 1}.`, ok: true });
+  };
+
   const addRound = () => {
     const next = Math.max(4, ...questions.map((question) => question.roundNumber), 0) + 1;
     setOpenRound(next);
@@ -1293,19 +1306,50 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 min-w-0 max-w-full">
         <div className="min-w-0 max-w-full space-y-4">
           <div className="flex gap-2 flex-wrap">
-            {roundNumbers.map((round) => (
-              <button
+            {roundNumbers.map((round, index) => (
+              <div
                 key={round}
-                type="button"
-                onClick={() => setOpenRound(round)}
-                className={`px-4 py-2 rounded-xl text-sm font-semibold border transition-colors ${
+                draggable
+                onDragStart={() => setDragRound(round)}
+                onDragEnd={() => setDragRound(null)}
+                onDragOver={(event) => event.preventDefault()}
+                onDrop={() => {
+                  if (dragRound != null) moveRoundTo(dragRound, index);
+                  setDragRound(null);
+                }}
+                className={`inline-flex items-center rounded-xl border ${
                   openRound === round
                     ? "bg-brand-orange text-brand-btn-fg border-brand-orange"
-                    : "border-brand-border text-brand-muted hover:border-brand-orange"
-                }`}
+                    : "border-brand-border text-brand-muted"
+                } ${dragRound === round ? "opacity-60" : ""}`}
               >
-                Kolo {round}
-              </button>
+                <button
+                  type="button"
+                  title="Posunúť kolo dopredu"
+                  disabled={index === 0}
+                  onClick={() => moveRoundTo(round, index - 1)}
+                  className="px-1.5 py-2 disabled:opacity-30"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setOpenRound(round)}
+                  className="px-1 py-2 text-sm font-semibold"
+                  title="Potiahni sem iné kolo"
+                >
+                  Kolo {round}
+                </button>
+                <button
+                  type="button"
+                  title="Posunúť kolo dozadu"
+                  disabled={index === roundNumbers.length - 1}
+                  onClick={() => moveRoundTo(round, index + 1)}
+                  className="px-1.5 py-2 disabled:opacity-30"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
             ))}
             <button
               type="button"
