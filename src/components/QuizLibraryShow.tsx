@@ -316,10 +316,12 @@ function QuestionContent({
 
   const audioBlock = question.audioUrl?.trim() ? (
       <VolumeAudio
+        key={playbackMediaSrc(question.audioUrl)}
         ref={presentationAudioRef}
         captureWheel={false}
-        edgeFade={question.audioEdgeFade === true}
+        edgeFade={false}
         controls
+        preload="auto"
         src={playbackMediaSrc(question.audioUrl)}
         className="w-full max-w-xl shrink-0 touch-auto pointer-events-auto"
         onClick={(e) => e.stopPropagation()}
