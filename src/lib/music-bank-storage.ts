@@ -12,7 +12,7 @@ import {
   type NewMusicBankItemInput,
 } from "@/lib/music-bank";
 import { readStoredSoundBank, removeStoredSoundBankItem } from "@/lib/sound-bank-storage";
-import { enrichMusicTrackAutoTags, lookupMusicTrackAutoTags } from "@/lib/music-track-metadata";
+import { enrichMusicTrackAutoTags, quickMusicTrackTags } from "@/lib/music-track-metadata";
 import { readAllLibraryQuizzes } from "@/lib/quiz-library-storage";
 import { readAppStorageWithFallback, writeAppStorageWithFallback } from "@/lib/app-storage-fallback";
 
@@ -101,8 +101,7 @@ export async function addStoredMusicBankItem(
     throw new MusicTrackDuplicateError(conflict);
   }
 
-  const autoTags =
-    input.tags?.length ? input.tags : await lookupMusicTrackAutoTags(artist, title);
+  const autoTags = input.tags?.length ? input.tags : quickMusicTrackTags(artist, title);
   const item = createMusicBankItem({ ...input, artist, title, tags: autoTags });
   const existing = await readStoredMusicBank();
   await writeStoredMusicBank([item, ...existing.filter((t) => t.id !== item.id)]);

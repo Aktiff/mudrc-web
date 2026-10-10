@@ -319,7 +319,7 @@ function QuestionContent({
         captureWheel={false}
         controls
         src={playbackMediaSrc(question.audioUrl)}
-        className="w-full max-w-xl shrink-0"
+        className="w-full max-w-xl shrink-0 touch-auto pointer-events-auto"
         onClick={(e) => e.stopPropagation()}
         onContextMenu={(e) => e.stopPropagation()}
       />
@@ -331,7 +331,7 @@ function QuestionContent({
         controls
         playsInline
         src={playbackMediaSrc(question.videoUrl)}
-        className="w-full max-w-4xl max-h-[min(28vh,360px)] rounded-xl border border-white/10 bg-black"
+        className="w-full max-w-4xl max-h-[min(28vh,360px)] rounded-xl border border-white/10 bg-black touch-auto pointer-events-auto"
         onClick={(e) => e.stopPropagation()}
         onContextMenu={(e) => e.stopPropagation()}
       />

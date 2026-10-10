@@ -148,6 +148,7 @@ export default function PresentationZoomLayer({
         return;
       }
       if (scaleRef.current > 1) return;
+      if (isPanBlockedTarget(e.target)) return;
       onBackgroundClick?.(e);
     },
     [onBackgroundClick]

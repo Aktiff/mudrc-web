@@ -41,6 +41,7 @@ async function musicBrainzJson<T>(path: string): Promise<T | null> {
     const res = await fetch(`https://musicbrainz.org/ws/2/${path}`, {
       headers: { Accept: "application/json", "User-Agent": USER_AGENT },
       cache: "no-store",
+      signal: AbortSignal.timeout(4000),
     });
     if (!res.ok) return null;
     return (await res.json()) as T;
@@ -262,7 +263,7 @@ async function collectItunesCandidates(artist: string, title: string): Promise<T
     try {
       const res = await fetch(
         `https://itunes.apple.com/search?term=${encodeURIComponent(q)}&entity=song&limit=20`,
-        { cache: "no-store" }
+        { cache: "no-store", signal: AbortSignal.timeout(4000) }
       );
       if (!res.ok) continue;
       const data = (await res.json()) as { results?: ItunesResult[] };
@@ -305,7 +306,7 @@ async function collectDeezerCandidates(artist: string, title: string): Promise<T
     try {
       const res = await fetch(
         `https://api.deezer.com/search/track?q=${encodeURIComponent(q)}&limit=20`,
-        { cache: "no-store" }
+        { cache: "no-store", signal: AbortSignal.timeout(4000) }
       );
       if (!res.ok) continue;
       const data = (await res.json()) as { data?: DeezerTrack[] };
@@ -391,6 +392,11 @@ function heuristicBuckets(artist: string, title: string): MusicTagBuckets {
     language: inferLanguageTag(artist, title),
     style: style ?? undefined,
   };
+}
+
+/** Tagy bez čakania na iTunes, Deezer a MusicBrainz. Uloženie banky na nich nesmie visieť. */
+export function quickMusicTrackTags(artist: string, title: string): string[] {
+  return normalizeTags(bucketsToTags(heuristicBuckets(artist, title))) ?? [];
 }
 
 /** Doplní chýbajúce tagy — fuzzy match cez iTunes, Deezer, MusicBrainz. */

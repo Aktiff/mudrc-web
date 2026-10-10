@@ -3,7 +3,6 @@ import {
   addStoredMusicBankItem,
   findMusicTrackConflict,
   readStoredMusicBank,
-  rehomeMusicTracksLeftInSoundBank,
   removeStoredMusicBankItem,
   refreshStoredMusicBankItemTags,
   updateStoredMusicBankItem,
@@ -22,7 +21,6 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ conflict });
     }
 
-    await rehomeMusicTracksLeftInSoundBank();
     const tracks = await readStoredMusicBank();
     return NextResponse.json({ tracks });
   } catch (error) {
