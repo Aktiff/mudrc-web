@@ -8,6 +8,7 @@ import {
   collectUsedBankQuestionIdsFromQuiz,
   collectUsedQuestionBodyKeys,
   normalizeLibraryQuiz,
+  quizQuestionBodyKey,
   type QuizLibraryItem,
   type QuizQuestionItem,
   type QuizQuestionKind,
@@ -18,6 +19,7 @@ import {
   addCustomBankQuestionAsync,
   fetchCustomBankQuestionsFromServer,
   isCustomBankQuestionId,
+  updateCustomBankQuestionAsync,
   type CustomBankQuestion,
 } from "@/lib/quiz-custom-bank";
 import {
@@ -801,6 +803,63 @@ export default function QuizLibraryEditor({ quizId }: Props) {
     setMsg({ text: "Otázka vrátená do banky.", ok: true });
   };
 
+  const saveOwnQuestionToBank = (questionId: string) => {
+    const question = questions.find((q) => q.id === questionId);
+    if (!question?.body.trim() || !question.answer.trim()) {
+      setMsg({ text: "Do banky treba text otázky aj správnu odpoveď.", ok: false });
+      return;
+    }
+    if (
+      !window.confirm(
+        "Uložiť túto otázku do banky? V kvíze ostane. Uloží sa celé znenie, odpoveď a tagy."
+      )
+    ) {
+      return;
+    }
+
+    const options = [...(question.options ?? [])];
+    while (options.length < 6) options.push("");
+    const hasChoices = options.some((option) => option.trim());
+    const matched = hasChoices ? options.findIndex((option) => option.trim() === question.answer.trim()) : 0;
+    const input = {
+      body: question.body.trim(),
+      options: options.slice(0, 6),
+      correctIndex: matched >= 0 ? matched : 0,
+      answer: question.answer.trim(),
+      note: question.hostNote?.trim() || undefined,
+      tags: question.tags,
+      isOpenQuestion: !hasChoices,
+      isImageQuestion: Boolean(question.imageUrl?.trim() || question.imageDuringQuestion),
+      suggestedImageUrl: question.imageUrl?.trim() || undefined,
+    };
+    const bodyKey = quizQuestionBodyKey(question.body);
+    const existing = customBankQuestions.find(
+      (item) => isCustomBankQuestionId(item.id) && quizQuestionBodyKey(item.body) === bodyKey
+    );
+
+    const finish = (text: string) => {
+      setMsg({ text, ok: true });
+      void refreshCustomBank();
+    };
+
+    if (existing) {
+      void updateCustomBankQuestionAsync(existing.id, input)
+        .then(() => finish("Otázka v banke je aktualizovaná — znenie, odpoveď aj tagy."))
+        .catch(() => setMsg({ text: "Otázku sa nepodarilo uložiť do banky.", ok: false }));
+      return;
+    }
+
+    void addCustomBankQuestionAsync(input)
+      .then((created) => {
+        recentCustomBank.current = [
+          created,
+          ...recentCustomBank.current.filter((item) => item.id !== created.id),
+        ];
+        finish("Otázka je v banke — celé znenie, odpoveď aj tagy.");
+      })
+      .catch(() => setMsg({ text: "Otázku sa nepodarilo uložiť do banky.", ok: false }));
+  };
+
   const updateQuestionOptions = (id: string, options: string[]) => {
     const cleaned = options.map((option) => option.trim()).filter(Boolean).slice(0, 6);
     updateQuestion(id, { options: cleaned.length ? cleaned : undefined });
@@ -1150,12 +1209,21 @@ export default function QuizLibraryEditor({ quizId }: Props) {
                 </span>
               </div>
               <div className="flex items-center gap-1 shrink-0">
-                {question.bankQuestionId && (
+                {(question.bankQuestionId ||
+                  (question.kind === "normal" && question.body.trim() && question.answer.trim())) && (
                   <button
                     type="button"
-                    onClick={() => returnQuestionToBank(question.id)}
+                    onClick={() =>
+                      question.bankQuestionId
+                        ? returnQuestionToBank(question.id)
+                        : saveOwnQuestionToBank(question.id)
+                    }
                     className="px-2.5 py-1.5 rounded-lg border border-brand-border text-xs font-semibold text-brand-muted hover:text-brand-orange-readable hover:border-brand-orange inline-flex items-center gap-1 transition-colors"
-                    title="Vrátiť otázku do banky"
+                    title={
+                      question.bankQuestionId
+                        ? "Vrátiť otázku do banky"
+                        : "Uložiť túto otázku do banky, v kvíze ostane"
+                    }
                   >
                     <RotateCcw className="w-3.5 h-3.5" />
                     Vrátiť do banky

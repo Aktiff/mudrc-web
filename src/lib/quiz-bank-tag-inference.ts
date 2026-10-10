@@ -80,7 +80,7 @@ export function resolveCustomQuestionTags(
   return inferBankQuestionTags(body, answer, note);
 }
 
-/** Pri načítaní zo servera — doplní nové pravidlá, zruší zastarané meta tagy. */
+/** Pri načítaní zo servera — prázdne tagy doplní, vyplnené nechá tak, ako ich user uložil. */
 export function refreshStoredCustomQuestionTags(
   storedTags: string[] | undefined,
   body: string,
@@ -100,6 +100,5 @@ export function refreshStoredCustomQuestionTags(
     return inferBankQuestionTags(body, answer, note);
   }
 
-  const inferred = inferBankQuestionTags(body, answer, note).filter((t) => t !== "všeobecné");
-  return Array.from(new Set([...cleaned, ...inferred])).slice(0, 8);
+  return Array.from(new Set(cleaned)).slice(0, 8);
 }
