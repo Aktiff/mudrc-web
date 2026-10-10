@@ -3,7 +3,7 @@ import { discardMediaParts, finishMediaUpload, saveMediaPart } from "@/lib/media
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 function errorResponse(error: unknown): NextResponse {
   const message = error instanceof Error ? error.message : "Nepodarilo sa nahrať súbor.";

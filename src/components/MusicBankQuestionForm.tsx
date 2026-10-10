@@ -155,7 +155,7 @@ export default function MusicBankQuestionForm({ onAdded, onMessage }: Props) {
           setBulkProgress({ done: finished, total: valid.length, label: `${row.artist} — ${row.title}` });
         }
       };
-      await Promise.all(Array.from({ length: Math.min(3, queue.length) }, () => uploadOne()));
+      await uploadOne();
 
       if (uploadedMusic.length) {
         setBulkProgress({ done: valid.length - 1, total: valid.length, label: "ukladám do banky" });

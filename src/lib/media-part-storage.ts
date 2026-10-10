@@ -117,10 +117,9 @@ export async function finishMediaUpload(input: {
     throw new Error(kind === "audio" ? "Maximálna veľkosť audio je 20 MB." : "Maximálna veľkosť videa je 80 MB.");
   }
 
-  const parts: Buffer[] = [];
-  for (let index = 0; index < partCount; index += 1) {
-    parts.push(await readPart(kind, uploadId, index));
-  }
+  const parts = await Promise.all(
+    Array.from({ length: partCount }, (_, index) => readPart(kind, uploadId, index))
+  );
   const combined = Buffer.concat(parts);
   if (combined.length !== input.size) {
     throw new Error("Nahrávka prišla neúplná. Skús to znova.");

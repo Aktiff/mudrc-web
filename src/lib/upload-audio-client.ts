@@ -4,7 +4,7 @@ import {
   MAX_AUDIO_BYTES,
   MAX_AUDIO_SERVER_BYTES,
 } from "@/lib/audio-upload";
-import { uploadLargeFileToBlob } from "@/lib/upload-blob-client";
+import { uploadFileInParts } from "@/lib/upload-media-parts-client";
 
 function messageFromUploadResponse(res: Response, text: string): string {
   try {
@@ -27,7 +27,7 @@ async function uploadViaServer(file: File): Promise<string> {
     method: "POST",
     body: formData,
     credentials: "same-origin",
-    signal: AbortSignal.timeout(45000),
+    signal: AbortSignal.timeout(120000),
   });
   const text = await res.text();
   if (!res.ok) {
@@ -50,7 +50,7 @@ export async function uploadAudioFileClient(file: File): Promise<string> {
 
   try {
     if (file.size > MAX_AUDIO_SERVER_BYTES) {
-      return await uploadLargeFileToBlob("audio", file);
+      return await uploadFileInParts("audio", file);
     }
     return await uploadViaServer(file);
   } catch (error) {
