@@ -157,3 +157,9 @@
     display: block !important;
   }
 }
+
+/* Oddialenie prezentácie má ukázať aj to, čo pri 100 % orezal rám alebo televízor. */
+.presentation-zoom-out,
+.presentation-zoom-out * {
+  overflow: visible !important;
+}

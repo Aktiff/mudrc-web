@@ -39,6 +39,8 @@ type Props = {
   onMiddleClick?: (e: MouseEvent<HTMLDivElement>) => void;
   /** zoom = textové slidy, volume = otázka s nahrávkou (koliesko nemení veľkosť). */
   wheelMode?: "zoom" | "volume";
+  /** Aktuálny zoom. Pri oddialení ho aplikuje rodič na celý slide, aby sa ukázalo aj to, čo bolo mimo obrazovky. */
+  onViewChange?: (view: { scale: number; x: number; y: number }) => void;
 };
 
 export default function PresentationZoomLayer({
@@ -49,6 +51,7 @@ export default function PresentationZoomLayer({
   onBackgroundClick,
   onMiddleClick,
   wheelMode = "zoom",
+  onViewChange,
 }: Props) {
   const [transform, setTransform] = useState({ scale: 1, x: 0, y: 0 });
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -68,7 +71,8 @@ export default function PresentationZoomLayer({
   useEffect(() => {
     scaleRef.current = transform.scale;
     transformRef.current = transform;
-  }, [transform]);
+    onViewChange?.(transform);
+  }, [onViewChange, transform]);
 
   useEffect(() => {
     setTransform({ scale: 1, x: 0, y: 0 });
@@ -99,7 +103,11 @@ export default function PresentationZoomLayer({
           return { scale: 1, x: 0, y: 0 };
         }
         if (nextScale <= 1) {
-          return { scale: nextScale, x: 0, y: 0 };
+          return {
+            scale: nextScale,
+            x: Math.abs(nextScale - 1) < 0.001 ? 0 : prev.x,
+            y: Math.abs(nextScale - 1) < 0.001 ? 0 : prev.y,
+          };
         }
         return { ...prev, scale: nextScale };
       });
@@ -110,7 +118,7 @@ export default function PresentationZoomLayer({
   }, [slideKey]);
 
   const onPointerDown = useCallback((e: PointerEvent<HTMLDivElement>) => {
-    if (e.button !== 0 || scaleRef.current <= 1) return;
+    if (e.button !== 0 || Math.abs(scaleRef.current - 1) < 0.001) return;
     if (isPanBlockedTarget(e.target)) return;
     e.preventDefault();
     dragRef.current = {
@@ -162,10 +170,13 @@ export default function PresentationZoomLayer({
     [onMiddleClick]
   );
 
-  const innerStyle: CSSProperties = {
-    transform: `translate3d(${transform.x}px, ${transform.y}px, 0) scale(${transform.scale})`,
-    transformOrigin: "center center",
-  };
+  const zoomedOut = transform.scale < 0.999;
+  const innerStyle: CSSProperties = zoomedOut
+    ? {}
+    : {
+        transform: `translate3d(${transform.x}px, ${transform.y}px, 0) scale(${transform.scale})`,
+        transformOrigin: "center center",
+      };
 
   const isZoomed = transform.scale > 1;
 

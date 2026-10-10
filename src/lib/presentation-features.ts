@@ -7,7 +7,7 @@ import type { PresentationAspectMode } from "@/lib/presentation-aspect";
 export const PRESENTATION_FEATURES = {
   /** Koliesko môže oddialiť pod 100 % (okrem auto-fit na otázkach). */
   manualZoomOut: true,
-  minManualZoomScale: 0.55,
+  minManualZoomScale: 0.4,
   maxManualZoomScale: 4,
 
   /**

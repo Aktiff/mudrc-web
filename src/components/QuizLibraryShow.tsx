@@ -544,6 +544,7 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
   const [index, setIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [slideView, setSlideView] = useState({ scale: 1, x: 0, y: 0 });
   const [showNextQuizModal, setShowNextQuizModal] = useState(false);
   const [nextQuizLines, setNextQuizLines] = useState<string[]>([]);
   const [nextQuizWizardIndex, setNextQuizWizardIndex] = useState(0);
@@ -610,14 +611,8 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
   const venueName = selectedEvent ? `${selectedEvent.venue} · ${selectedEvent.city}` : "";
   const slide = slides[index];
   const progress = slides.length ? ((index + 1) / slides.length) * 100 : 0;
-  const isQuestionPhase = slide?.type === "question_phase";
-  const isCorrectionPhase = slide?.type === "correction";
-  const showSlideTimer = isQuestionPhase || isCorrectionPhase;
-  const slideTimerKey = isQuestionPhase
-    ? slide.question.id
-    : isCorrectionPhase
-      ? `correction-${slide.roundNumber}-${index}`
-      : null;
+  const showSlideTimer = Boolean(started && slide && slide.type !== "rules");
+  const slideTimerKey = showSlideTimer ? `${index}:${slide.type}` : null;
 
   const [slideElapsed, setSlideElapsed] = useState(0);
 
@@ -956,16 +951,33 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
   const showQuestionBadge =
     slide?.type === "question_phase" || slide?.type === "image_slide" || slide?.type === "answer_phase";
 
+  const onSlideView = useCallback((view: { scale: number; x: number; y: number }) => {
+    setSlideView((prev) =>
+      prev.scale === view.scale && prev.x === view.x && prev.y === view.y ? prev : view
+    );
+  }, []);
+
   const stageStyle = presentationStageBoxStyle(aspectMode);
   const slideKey = `${index}-${slide?.type ?? "none"}`;
   const questionAutoFit = shouldAutoFitQuestionSlide(aspectMode, slide?.type);
   const badgeTimer = presentationBadgeTimerSizes(PRESENTATION_FEATURES.badgeTimerSizeMultiplier);
 
+  const zoomedOut = slideView.scale < 0.999;
+  const stageFrameStyle: CSSProperties = {
+    ...stageStyle,
+    transformOrigin: "center center",
+    transform: zoomedOut
+      ? `translate(${slideView.x}px, ${slideView.y}px) scale(${slideView.scale})`
+      : undefined,
+  };
+
   return (
     <div ref={rootRef} className="fixed inset-0 z-[9999] bg-[#030303] flex items-center justify-center overflow-hidden">
       <div
-        className="relative text-white flex flex-col select-none overflow-hidden shadow-[0_0_0_1px_rgba(255,255,255,0.06)]"
-        style={stageStyle}
+        className={`relative text-white flex flex-col select-none shadow-[0_0_0_1px_rgba(255,255,255,0.06)] ${
+          zoomedOut ? "presentation-zoom-out overflow-visible" : "overflow-hidden"
+        }`}
+        style={stageFrameStyle}
         onContextMenu={(e) => {
           e.preventDefault();
           goPrev();
@@ -1030,6 +1042,7 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
       <PresentationZoomLayer
         slideKey={slideKey}
         wheelMode={
+          (slide?.type === "question_phase" || slide?.type === "answer_phase") &&
           activeQuestion &&
           (activeQuestion.kind === "music" ||
             activeQuestion.kind === "sound" ||
@@ -1043,6 +1056,7 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
         innerClassName="min-h-0"
         onBackgroundClick={handleStageClick}
         onMiddleClick={handleStageAuxClick}
+        onViewChange={onSlideView}
       >
         {slide?.type !== "rules" && (
           <PresentationStageAutoFit enabled={questionAutoFit} slideKey={slideKey} className={SLIDE_SAFE_AREA_CLASS}>

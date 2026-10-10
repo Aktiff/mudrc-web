@@ -517,7 +517,16 @@ export default function QuizLibraryEditor({ quizId }: Props) {
     tags?: string[]
   ) => {
     const label = `${artist} — ${title}`;
-    insertFromSoundBank(bankId, targetQuestionId, label, label, audioUrl, hostNote, tags);
+    insertFromSoundBank(
+      bankId,
+      targetQuestionId,
+      label,
+      label,
+      audioUrl,
+      hostNote,
+      tags,
+      DEFAULT_MUSIC_QUESTION_BODY
+    );
     void refreshMusicBank();
   };
 
@@ -528,7 +537,8 @@ export default function QuizLibraryEditor({ quizId }: Props) {
     answer: string,
     audioUrl: string,
     hostNote?: string,
-    bankTags?: string[]
+    bankTags?: string[],
+    bodyOverride?: string
   ) => {
     const target = questions.find((q) => q.id === targetQuestionId);
     if (!target) return;
@@ -566,7 +576,7 @@ export default function QuizLibraryEditor({ quizId }: Props) {
             ? {
                 ...q,
                 kind: slotIsMusicTail ? "music" : "sound",
-                body: slotIsMusicTail ? DEFAULT_MUSIC_QUESTION_BODY : DEFAULT_SOUND_QUESTION_BODY,
+                body: bodyOverride ?? (slotIsMusicTail ? DEFAULT_MUSIC_QUESTION_BODY : DEFAULT_SOUND_QUESTION_BODY),
                 answer,
                 mediaLabel: label,
                 musicArtist: undefined,

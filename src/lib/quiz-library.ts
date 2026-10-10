@@ -7,7 +7,7 @@ import {
 import { normalizeQuestionOptions, parseEmbeddedOptions } from "@/lib/quiz-question-options";
 import { normalizeTags } from "@/lib/quiz-question-tags";
 import { teamKey } from "@/lib/poll";
-import { DEFAULT_MUSIC_QUESTION_BODY, ensureMusicQuestionBody } from "@/lib/music-bank";
+import { DEFAULT_MUSIC_QUESTION_BODY, ensureMusicQuestionBody, isMusicBankId } from "@/lib/music-bank";
 import { DEFAULT_SOUND_QUESTION_BODY } from "@/lib/sound-bank";
 import { DEFAULT_VIDEO_QUESTION_BODY } from "@/lib/video-bank";
 
@@ -106,7 +106,9 @@ function normalizeQuestion(input: Partial<QuizQuestionItem>): QuizQuestionItem |
   }
 
   let body = ensureMusicQuestionBody(
-    input.kind === "music" ? "music" : "",
+    input.kind === "music" || isMusicBankId(typeof input.bankQuestionId === "string" ? input.bankQuestionId : "")
+      ? "music"
+      : "",
     input.body?.trim() ?? ""
   );
   let options = normalizeQuestionOptions(input.options);
