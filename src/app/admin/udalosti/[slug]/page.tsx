@@ -20,6 +20,7 @@ import RegistrationPlayersStepper from "@/components/admin/RegistrationPlayersSt
 import RegistrationShareList from "@/components/admin/RegistrationShareList";
 import QuizTypeField from "@/components/admin/QuizTypeField";
 import { DEFAULT_QUIZ_TYPE, normalizeQuizTypeLabel, quizTypeOrDefault, rememberQuizTypes, venueQuizLabel } from "@/lib/quiz-type";
+import FacebookEventPostButton from "@/components/admin/FacebookEventPostButton";
 import { RuleListEditor } from "@/components/admin/RuleListEditor";
 import { normalizeQuizRules } from "@/lib/quiz-rules";
 import {
@@ -1043,6 +1044,12 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
           </div>
         )}
       </div>
+
+      {!isNew && (
+        <div className="mb-6">
+          <FacebookEventPostButton slug={params.slug} />
+        </div>
+      )}
 
       <div className="flex gap-1 bg-brand-surface p-1 rounded-xl mb-6 w-fit flex-wrap border border-brand-border">
         <button className={tabClass("pridat")} onClick={() => setTab("pridat")}>+ Pridať kvíz</button>

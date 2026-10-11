@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Plus, Calendar, ChevronRight } from "lucide-react";
 import EventPromoChecks from "@/components/admin/EventPromoChecks";
+import FacebookEventPostButton from "@/components/admin/FacebookEventPostButton";
 import { formatEventDateLabel, sortEventsForAdminOverview } from "@/lib/data";
 import { isValidStoredEvent } from "@/lib/event-normalize";
 import { getPollActiveFlagsBySlug } from "@/lib/poll-storage";
@@ -110,7 +111,8 @@ export default async function AdminUdalostitPage() {
                 </Link>
               </div>
             </div>
-            <div className="mt-4 sm:pl-[3.75rem]">
+            <div className="mt-4 sm:pl-[3.75rem] space-y-3">
+              <FacebookEventPostButton slug={e.slug} />
               <EventPromoChecks event={e} />
             </div>
           </article>

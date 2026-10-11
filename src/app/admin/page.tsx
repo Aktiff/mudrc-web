@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Calendar, Plus, PauseCircle } from "lucide-react";
 import EventPromoChecks from "@/components/admin/EventPromoChecks";
+import FacebookEventPostButton from "@/components/admin/FacebookEventPostButton";
 import { formatEventDateLabel, sortEventsForAdminOverview } from "@/lib/data";
 import { estimatedEntryRevenue, formatEuroAmount, formatSkPlayerCountTotal, registrationTotalsForEvent } from "@/lib/registration-utils";
 import { venueQuizLabel } from "@/lib/quiz-type";
@@ -88,7 +89,8 @@ export default async function AdminDashboard() {
                 </div>
               </div>
             </div>
-            <div className="mt-4 sm:pl-14">
+            <div className="mt-4 sm:pl-14 space-y-3">
+              <FacebookEventPostButton slug={e.slug} />
               <EventPromoChecks event={e} />
             </div>
           </article>
