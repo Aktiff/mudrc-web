@@ -10,18 +10,21 @@ export type RegistrationLike = {
   players?: string | number;
 };
 
+/** Rovnaká logika ako zoznam v admine: slug alebo podnik. */
+export function registrationMatchesEvent(registration: RegistrationLike, slug: string, venue: string): boolean {
+  const venueLower = venue.trim().toLowerCase();
+  if (slug && registration.eventSlug === slug) return true;
+  if (venueLower && (registration.venue ?? "").trim().toLowerCase() === venueLower) return true;
+  return false;
+}
+
 /** Rovnaká logika ako GET /api/register?slug=&venue= */
 export function registrationsForEvent(
   registrations: RegistrationLike[],
   slug: string,
   venue: string
 ): RegistrationLike[] {
-  const venueLower = venue.trim().toLowerCase();
-  return registrations.filter((r) => {
-    if (slug && r.eventSlug === slug) return true;
-    if (venueLower && (r.venue ?? "").trim().toLowerCase() === venueLower) return true;
-    return false;
-  });
+  return registrations.filter((registration) => registrationMatchesEvent(registration, slug, venue));
 }
 
 export function registrationTotalsForEvent(

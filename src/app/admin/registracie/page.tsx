@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Calendar, ChevronRight, MapPin, Trash2 } from "lucide-react";
 import type { QuizEvent } from "@/lib/data";
@@ -48,6 +48,7 @@ export default function RegistraciaPage() {
   const [updatingPlayersId, setUpdatingPlayersId] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
+  const removedRegIds = useRef(new Set<string>());
 
   const load = useCallback(() => {
     setLoading(true);
@@ -57,7 +58,8 @@ export default function RegistraciaPage() {
       fetch(`/api/admin/events?_=${Date.now()}`, opts).then((r) => (r.ok ? r.json() : Promise.reject())),
     ])
       .then(([regData, eventData]) => {
-        setRegs(regData.registrations ?? []);
+        const list = (regData.registrations ?? []) as AdminRegistration[];
+        setRegs(list.filter((entry) => !removedRegIds.current.has(entry.id)));
         setEvents(eventData.events ?? []);
         setMsg(null);
       })
@@ -159,13 +161,26 @@ export default function RegistraciaPage() {
 
   const deleteOne = async (id: string, teamName: string) => {
     if (!confirm(`Naozaj zmazať registráciu tímu „${teamName}"?`)) return;
+    const previous = regs;
+    removedRegIds.current.add(id);
+    setRegs((prev) => prev.filter((entry) => entry.id !== id));
     setDeletingId(id);
+    setMsg(null);
     try {
       const res = await fetch(`/api/admin/registrations?id=${encodeURIComponent(id)}`, {
         method: "DELETE",
         credentials: "same-origin",
       });
-      if (res.ok) load();
+      if (!res.ok) {
+        removedRegIds.current.delete(id);
+        setRegs(previous);
+        const data = await res.json().catch(() => ({}));
+        setMsg({ text: data.error ?? "Chyba pri mazaní registrácie", ok: false });
+      }
+    } catch {
+      removedRegIds.current.delete(id);
+      setRegs(previous);
+      setMsg({ text: "Sieťová chyba pri mazaní registrácie", ok: false });
     } finally {
       setDeletingId(null);
     }
@@ -179,13 +194,29 @@ export default function RegistraciaPage() {
     ) {
       return;
     }
+    const ids = (registrationsForEvent(regs, event.slug, event.venue) as AdminRegistration[]).map((entry) => entry.id);
+    const previous = regs;
+    for (const id of ids) removedRegIds.current.add(id);
+    setRegs((prev) => prev.filter((entry) => !removedRegIds.current.has(entry.id)));
     setClearingVenueSlug(event.slug);
+    setMsg(null);
     try {
-      const res = await fetch(
-        `/api/admin/registrations?slug=${encodeURIComponent(event.slug)}&venue=${encodeURIComponent(event.venue)}`,
-        { method: "DELETE", credentials: "same-origin" }
-      );
-      if (res.ok) load();
+      const res = await fetch("/api/admin/registrations", {
+        method: "DELETE",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids }),
+      });
+      if (!res.ok) {
+        for (const id of ids) removedRegIds.current.delete(id);
+        setRegs(previous);
+        const data = await res.json().catch(() => ({}));
+        setMsg({ text: data.error ?? "Chyba pri mazaní registrácií", ok: false });
+      }
+    } catch {
+      for (const id of ids) removedRegIds.current.delete(id);
+      setRegs(previous);
+      setMsg({ text: "Sieťová chyba pri mazaní registrácií", ok: false });
     } finally {
       setClearingVenueSlug(null);
     }

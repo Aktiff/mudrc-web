@@ -10,6 +10,7 @@ import seedEventsBundle from "@/data/events.json";
 import { writeAppStorageBlob, readAppStorageBlob, readAppStorageBlobHistory } from "@/lib/blob-app-storage";
 import { findQuizResult, mergePastResults, normalizeDateKey, quizResultKey } from "@/lib/quiz-result-key";
 import { splitVenueQuizType } from "@/lib/quiz-type";
+import { registrationMatchesEvent } from "@/lib/registration-utils";
 
 const QUIZZES_APP_BLOB = "quizzes";
 
@@ -422,6 +423,10 @@ function recallPointed<T>(key: string, maxAgeMs: number): T | undefined {
   if (!row) return undefined;
   if (Date.now() - row.at > maxAgeMs) return undefined;
   return row.data as T;
+}
+
+function rememberPointed(key: string, data: unknown) {
+  pointedPayloads.set(key, { at: Date.now(), data });
 }
 
 async function readEventsPointer(): Promise<QuizEvent[] | null> {
@@ -890,10 +895,9 @@ async function latestRegistrationVersion(): Promise<{ pathname: string; uploaded
   return blobs[0];
 }
 
-/** Nový súbor pri každom zápise. Prepísaný pathname ostáva v cache a po refreshi by vrátil zmazané registrácie. */
+/** Nový súbor pri každom zápise. Čítanie ide vždy do blobu, inak by zmazané registrácie ostali v pamäti inštancie. */
 async function readRegistrationsPointer(): Promise<Registration[] | null> {
-  const cached = recallPointed<Registration[]>(REGS_CURRENT_KEY, 20_000);
-  if (cached) return cached;
+  const startedAt = Date.now();
 
   let pointer: { pathname?: string; url?: string } | null;
   try {
@@ -911,7 +915,11 @@ async function readRegistrationsPointer(): Promise<Registration[] | null> {
     );
     if (data && Array.isArray(data.registrations)) {
       const regs = data.registrations.map(normalizeRegistration);
-      pointedPayloads.set(REGS_CURRENT_KEY, { at: Date.now(), data: regs });
+      const writtenDuringRead = pointedPayloads.get(REGS_CURRENT_KEY);
+      if (writtenDuringRead && writtenDuringRead.at >= startedAt) {
+        return writtenDuringRead.data as Registration[];
+      }
+      rememberPointed(REGS_CURRENT_KEY, regs);
       return regs;
     }
   } catch (error) {
@@ -994,15 +1002,15 @@ async function persistRegistrationsBlob(registrations: Registration[]): Promise<
 }
 
 export async function persistRegistrations(registrations: Registration[]): Promise<void> {
+  const normalized = registrations.map(normalizeRegistration);
   if (shouldWriteBlob()) {
-    await persistRegistrationsBlob(registrations);
-    return;
-  }
-
-  if (isVercel) {
+    await persistRegistrationsBlob(normalized);
+  } else if (isVercel) {
     throw new Error("STORAGE_NOT_CONFIGURED");
+  } else {
+    writeLocalRegistrations(normalized);
   }
-  writeLocalRegistrations(registrations);
+  rememberPointed(REGS_CURRENT_KEY, normalized);
 }
 
 async function loadRegistrations(): Promise<Registration[]> {
@@ -1392,18 +1400,10 @@ export async function purgeRegistrationsForPlace(slug: string, venue?: string): 
 }
 
 export async function deleteRegistrationsForEvent(slug: string, venue?: string): Promise<number> {
-  const venueLower = venue?.trim().toLowerCase();
   let removed = 0;
 
   await updateRegistrations(async (regs) => {
-    const dropping = regs.filter((reg) => {
-      if (slug && reg.eventSlug === slug) {
-        if (venueLower && reg.venue.trim().toLowerCase() !== venueLower) return false;
-        return true;
-      }
-      if (!slug && venueLower && reg.venue.trim().toLowerCase() === venueLower) return true;
-      return false;
-    });
+    const dropping = regs.filter((reg) => registrationMatchesEvent(reg, slug, venue ?? ""));
     await archiveRegistrationContacts(dropping);
     const next = regs.filter((reg) => !dropping.includes(reg));
     removed = regs.length - next.length;

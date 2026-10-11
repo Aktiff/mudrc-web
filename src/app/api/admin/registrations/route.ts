@@ -110,23 +110,36 @@ export async function PATCH(req: NextRequest) {
   }
 }
 
+async function idsFromDeleteRequest(req: NextRequest): Promise<string[]> {
+  const fromQuery = (req.nextUrl.searchParams.get("ids") ?? "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+  const contentType = req.headers.get("content-type") ?? "";
+  if (!contentType.includes("application/json")) return fromQuery;
+  const body = (await req.json().catch(() => null)) as { ids?: unknown } | null;
+  const fromBody = Array.isArray(body?.ids)
+    ? body.ids.filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+    : [];
+  return Array.from(new Set([...fromQuery, ...fromBody]));
+}
+
 export async function DELETE(req: NextRequest) {
   const id = req.nextUrl.searchParams.get("id");
   const slug = req.nextUrl.searchParams.get("slug");
   const venue = req.nextUrl.searchParams.get("venue");
-  const idsParam = req.nextUrl.searchParams.get("ids");
+  const ids = id ? [] : await idsFromDeleteRequest(req);
 
   try {
     if (id) {
       const ok = await deleteRegistrationById(id);
       if (!ok) return NextResponse.json({ error: "Registrácia neexistuje" }, { status: 404 });
-      return NextResponse.json({ ok: true, removed: 1 });
+      return NextResponse.json({ ok: true, removed: 1, id });
     }
 
-    if (idsParam) {
-      const ids = idsParam.split(",").map((value) => value.trim()).filter(Boolean);
+    if (ids.length > 0) {
       const removed = await deleteRegistrationsByIds(ids);
-      return NextResponse.json({ ok: true, removed });
+      return NextResponse.json({ ok: true, removed, ids });
     }
 
     if (slug || venue) {
