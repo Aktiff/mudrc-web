@@ -62,6 +62,21 @@ function formatWhere(event: Pick<QuizEvent, "venue" | "city" | "address">): stri
   return place || address;
 }
 
+const EMOJI = {
+  brain: String.fromCodePoint(0x1f9e0),
+  pin: String.fromCodePoint(0x1f4cc),
+  place: String.fromCodePoint(0x1f4cd),
+  money: String.fromCodePoint(0x1f4b0),
+  people: String.fromCodePoint(0x1f465),
+  clipboard: String.fromCodePoint(0x1f4cb),
+  beer: String.fromCodePoint(0x1f37b),
+};
+
+/** Zloží emoji, ktoré by inak v texte ostali ako úniková sekvencia. */
+function restoreEmojiEscapes(value: string): string {
+  return value.replace(/\\u([0-9a-fA-F]{4})/g, (_, hex: string) => String.fromCharCode(Number.parseInt(hex, 16)));
+}
+
 /** Text príspevku na Facebook stránku z uložených údajov udalosti. */
 export function buildFacebookEventPost(event: QuizEvent): string {
   const venue = event.venue.trim();
@@ -70,19 +85,21 @@ export function buildFacebookEventPost(event: QuizEvent): string {
   const kind = quizKindPhrase(event.quizType);
   const registrationUrl = absoluteUrl(eventPath(event));
 
-  return [
-    `🧠 KVÍZOVÝ VEČER MUDRC | ${titlePlace}`,
-    "",
-    `Máte radi výzvy, dobrú partiu a atmosféru, kde sa vám z hlavy parí? Príďte si zmerať sily na ďalší ${kind} pod značkou MUDRC! Čakajú vás zaujímavé otázky, skvelá nálada a súboj o titul najväčších mudrcov večera.`,
-    "",
-    `📌 Kedy: ${formatWhen(event.date, event.time)}`,
-    `📍 Kde: ${formatWhere(event)}`,
-    `💰 Vstupné: ${formatFee(event.entryFee)}`,
-    `👥 Počet hráčov: ${formatTeamSize(event.minPlayers, event.maxPlayers)}`,
-    "",
-    "📋 Registrácia:",
-    `Nenechávajte si to na poslednú chvíľu, kapacita stolov je obmedzená. Na kvíz sa treba vopred zaregistrovať na ${registrationUrl} alebo na ${MUDRC_PUBLIC_PHONE}.`,
-    "",
-    "Dajte dokopy partiu a príďte ukázať, čo je vo vás! 🍻",
-  ].join("\n");
+  return restoreEmojiEscapes(
+    [
+      `${EMOJI.brain} KVÍZOVÝ VEČER MUDRC | ${titlePlace}`,
+      "",
+      `Máte radi výzvy, dobrú partiu a atmosféru, kde sa vám z hlavy parí? Príďte si zmerať sily na ďalší ${kind} pod značkou MUDRC! Čakajú vás zaujímavé otázky, skvelá nálada a súboj o titul najväčších mudrcov večera.`,
+      "",
+      `${EMOJI.pin} Kedy: ${formatWhen(event.date, event.time)}`,
+      `${EMOJI.place} Kde: ${formatWhere(event)}`,
+      `${EMOJI.money} Vstupné: ${formatFee(event.entryFee)}`,
+      `${EMOJI.people} Počet hráčov: ${formatTeamSize(event.minPlayers, event.maxPlayers)}`,
+      "",
+      `${EMOJI.clipboard} Registrácia:`,
+      `Nenechávajte si to na poslednú chvíľu, kapacita stolov je obmedzená. Na kvíz sa treba vopred zaregistrovať na ${registrationUrl} alebo na ${MUDRC_PUBLIC_PHONE}.`,
+      "",
+      `Dajte dokopy partiu a príďte ukázať, čo je vo vás! ${EMOJI.beer}`,
+    ].join("\n")
+  );
 }
