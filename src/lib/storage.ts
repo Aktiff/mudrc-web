@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { randomUUID } from "crypto";
-import { del, get, list, put } from "@vercel/blob";
+import { del, get, head, list, put } from "@vercel/blob";
 import type { QuizEvent, LeagueEntry, PastResult, PastResultTeam } from "@/lib/data";
 import { sortEventsByDate, sortLeagueTable } from "@/lib/data";
 import { isValidStoredEvent } from "@/lib/event-normalize";
@@ -888,48 +888,137 @@ async function readListedBlobJson<T>(blob: { pathname: string; url: string }): P
   return fetchBlobJson<T>(blob.url, blob.pathname);
 }
 
-async function latestRegistrationVersion(): Promise<{ pathname: string; uploadedAt: number; url: string } | null> {
-  const blobs = await listBlobsByPrefix(REGS_VERSION_PREFIX);
-  if (!blobs.length) return null;
-  blobs.sort((a, b) => b.uploadedAt - a.uploadedAt || b.pathname.localeCompare(a.pathname));
-  return blobs[0];
+type RegistrationSnapshot = {
+  registrations?: Registration[];
+  pathname?: string;
+  url?: string;
+  savedAt?: number;
+};
+
+type BlobVersion = { pathname: string; uploadedAt: number; url: string };
+
+/** Prepísaný current.json CDN drží starú kópiu. Čítame adresu z API a telo s cache-bust parametrom. */
+async function readBlobUrlUncached<T>(pathname: string): Promise<T | null> {
+  const auth = blobAuthOptions();
+  try {
+    const meta = await head(pathname, {
+      abortSignal: AbortSignal.timeout(8000),
+      ...auth,
+    });
+    if (!meta?.url) return null;
+    const freshUrl = `${meta.url}${meta.url.includes("?") ? "&" : "?"}v=${Date.now()}`;
+    return await fetchBlobJson<T>(freshUrl, pathname);
+  } catch (error) {
+    if (isBlobNotFound(error)) return null;
+    throw error;
+  }
 }
 
-/** Nový súbor pri každom zápise. Čítanie ide vždy do blobu, inak by zmazané registrácie ostali v pamäti inštancie. */
-async function readRegistrationsPointer(): Promise<Registration[] | null> {
-  const startedAt = Date.now();
+function recentRegistrationPrefix(): string {
+  return `${REGS_VERSION_PREFIX}${String(Date.now()).slice(0, 4)}`;
+}
 
-  let pointer: { pathname?: string; url?: string } | null;
+async function listRegistrationVersions(prefix: string): Promise<BlobVersion[] | null> {
+  if (!shouldReadBlob()) return [];
+  const all: BlobVersion[] = [];
+  let cursor: string | undefined;
   try {
-    pointer = await readBlobJsonFresh<{ pathname?: string; url?: string }>(REGS_CURRENT_KEY);
-  } catch (error) {
-    const stale = recallPointed<Registration[]>(REGS_CURRENT_KEY, 10 * 60_000);
-    if (stale) return stale;
-    throw error;
-  }
-  if (!pointer?.pathname && !pointer?.url) return null;
-
-  try {
-    const data = await readBlobJsonFresh<{ registrations?: Registration[] }>(
-      pointer.pathname || pointer.url || REGS_CURRENT_KEY
-    );
-    if (data && Array.isArray(data.registrations)) {
-      const regs = data.registrations.map(normalizeRegistration);
-      const writtenDuringRead = pointedPayloads.get(REGS_CURRENT_KEY);
-      if (writtenDuringRead && writtenDuringRead.at >= startedAt) {
-        return writtenDuringRead.data as Registration[];
+    do {
+      const result = await list({
+        prefix,
+        limit: 1000,
+        cursor,
+        abortSignal: AbortSignal.timeout(8000),
+        ...blobAuthOptions(),
+      });
+      for (const blob of result.blobs) {
+        const uploadedAt = new Date(blob.uploadedAt).getTime();
+        all.push({
+          pathname: blob.pathname,
+          url: blob.url,
+          uploadedAt: Number.isFinite(uploadedAt) ? uploadedAt : 0,
+        });
       }
-      rememberPointed(REGS_CURRENT_KEY, regs);
-      return regs;
-    }
-  } catch (error) {
-    const stale = recallPointed<Registration[]>(REGS_CURRENT_KEY, 10 * 60_000);
-    if (stale) return stale;
-    throw error;
+      cursor = result.hasMore ? result.cursor : undefined;
+    } while (cursor);
+    return all;
+  } catch {
+    return null;
   }
-  const stale = recallPointed<Registration[]>(REGS_CURRENT_KEY, 10 * 60_000);
-  if (stale) return stale;
-  throw new Error("Registrácie sa nepodarilo načítať.");
+}
+
+async function readVersionSnapshot(
+  blob: BlobVersion
+): Promise<{ registrations: Registration[]; savedAt: number } | null> {
+  const data = await readListedBlobJson<RegistrationSnapshot>(blob);
+  if (!data || !Array.isArray(data.registrations)) return null;
+  return {
+    registrations: data.registrations.map(normalizeRegistration),
+    savedAt: typeof data.savedAt === "number" ? data.savedAt : blob.uploadedAt,
+  };
+}
+
+async function newestVersionSnapshot(): Promise<{ registrations: Registration[]; savedAt: number } | null> {
+  const versions = await listRegistrationVersions(recentRegistrationPrefix());
+  if (!versions?.length) return null;
+  versions.sort((a, b) => b.uploadedAt - a.uploadedAt || b.pathname.localeCompare(a.pathname));
+  for (const blob of versions.slice(0, 3)) {
+    try {
+      const snapshot = await readVersionSnapshot(blob);
+      if (snapshot) return snapshot;
+    } catch {
+      /* ďalší súbor */
+    }
+  }
+  return null;
+}
+
+async function currentRegistrationSnapshot(): Promise<{ registrations: Registration[]; savedAt: number } | null> {
+  const current = await readBlobUrlUncached<RegistrationSnapshot>(REGS_CURRENT_KEY);
+  if (!current) return null;
+  if (Array.isArray(current.registrations)) {
+    return {
+      registrations: current.registrations.map(normalizeRegistration),
+      savedAt: typeof current.savedAt === "number" ? current.savedAt : 0,
+    };
+  }
+  const target = current.pathname || current.url;
+  if (!target) return null;
+  const pointed = await readBlobUrlUncached<RegistrationSnapshot>(target);
+  if (!pointed || !Array.isArray(pointed.registrations)) return null;
+  return {
+    registrations: pointed.registrations.map(normalizeRegistration),
+    savedAt: typeof pointed.savedAt === "number" ? pointed.savedAt : 0,
+  };
+}
+
+/** Najnovší súbor verzie. Prepísaný pointer sa nepoužije, ak je starší. */
+async function readRegistrationsPointer(): Promise<Registration[] | null> {
+  const [fromVersion, fromCurrent] = await Promise.all([
+    newestVersionSnapshot().catch(() => null),
+    currentRegistrationSnapshot().catch(() => null),
+  ]);
+  if (fromVersion && fromCurrent) {
+    return (fromVersion.savedAt >= fromCurrent.savedAt ? fromVersion : fromCurrent).registrations;
+  }
+  if (fromVersion) return fromVersion.registrations;
+  if (fromCurrent) return fromCurrent.registrations;
+  return null;
+}
+
+async function pruneRegistrationVersions(keepPath: string): Promise<void> {
+  const versions = await listRegistrationVersions(recentRegistrationPrefix());
+  if (!versions || versions.length <= 5) return;
+  versions.sort((a, b) => b.uploadedAt - a.uploadedAt || b.pathname.localeCompare(a.pathname));
+  const remove = versions.filter((blob) => blob.pathname !== keepPath).slice(5, 35);
+  await Promise.all(remove.map((blob) => deleteBlob(blob.url || blob.pathname).catch(() => undefined)));
+}
+
+async function latestRegistrationVersion(): Promise<BlobVersion | null> {
+  const blobs = await listRegistrationVersions(REGS_VERSION_PREFIX);
+  if (!blobs?.length) return null;
+  blobs.sort((a, b) => b.uploadedAt - a.uploadedAt || b.pathname.localeCompare(a.pathname));
+  return blobs[0];
 }
 
 async function loadVersionedRegistrations(): Promise<Registration[] | null> {
@@ -938,24 +1027,8 @@ async function loadVersionedRegistrations(): Promise<Registration[] | null> {
 
   const latest = await latestRegistrationVersion();
   if (!latest) return null;
-
-  for (let attempt = 0; attempt < 3; attempt++) {
-    try {
-      const data = await readListedBlobJson<{ registrations?: Registration[] }>(latest);
-      if (data && Array.isArray(data.registrations)) {
-        try {
-          await writeBlob(REGS_CURRENT_KEY, { pathname: latest.pathname, url: latest.url }, { cacheControlMaxAge: 0 });
-        } catch {
-          /* ďalšie čítanie ešte prejde zoznamom verzií */
-        }
-        return data.registrations.map(normalizeRegistration);
-      }
-    } catch {
-      // nový súbor ešte nemusí byť na prvý pokus čitateľný
-    }
-    await sleep(200);
-  }
-  throw new Error("Registrácie sa nepodarilo načítať. Skús obnoviť stránku.");
+  const snapshot = await readVersionSnapshot(latest);
+  return snapshot ? snapshot.registrations : null;
 }
 
 async function readPathFresh<T>(pathname: string): Promise<T | null> {
@@ -996,9 +1069,16 @@ async function loadRegsFromBlob(): Promise<Registration[] | null> {
 
 async function persistRegistrationsBlob(registrations: Registration[]): Promise<void> {
   const normalized = registrations.map(normalizeRegistration);
-  const key = `${REGS_VERSION_PREFIX}${Date.now()}-${randomUUID()}.json`;
-  const stored = await writeBlob(key, { registrations: normalized });
-  await writeBlob(REGS_CURRENT_KEY, { pathname: stored.pathname || key, url: stored.url }, { cacheControlMaxAge: 0 });
+  const savedAt = Date.now();
+  const key = `${REGS_VERSION_PREFIX}${savedAt}-${randomUUID()}.json`;
+  const payload = { registrations: normalized, savedAt };
+  const stored = await writeBlob(key, payload, { cacheControlMaxAge: 0 });
+  await writeBlob(
+    REGS_CURRENT_KEY,
+    { ...payload, pathname: stored.pathname || key, url: stored.url },
+    { cacheControlMaxAge: 0 }
+  );
+  await pruneRegistrationVersions(stored.pathname || key);
 }
 
 export async function persistRegistrations(registrations: Registration[]): Promise<void> {
