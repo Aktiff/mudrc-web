@@ -93,11 +93,11 @@ function samePhones(left: string[], right: string[]): boolean {
   return left.length === right.length && left.every((phone, index) => phone === right[index]);
 }
 
-export async function rememberTeamsFromRegistrations(regs: Registration[]): Promise<void> {
-  const useful = regs.filter((reg) => reg.teamName?.trim() && (reg.eventSlug?.trim() || reg.venue?.trim()));
-  if (!useful.length) return;
-
+export async function rememberTeamsFromRegistrations(regs: Registration[]): Promise<VenueTeam[]> {
   const store = await loadStore();
+  const useful = regs.filter((reg) => reg.teamName?.trim() && (reg.eventSlug?.trim() || reg.venue?.trim()));
+  if (!useful.length) return store.teams;
+
   const byKey = new Map(store.teams.map((team) => [teamKey(team.eventSlug, team.venue, team.teamName), team]));
   const now = new Date().toLocaleString("sk-SK", { timeZone: "Europe/Bratislava" });
   let changed = false;
@@ -134,9 +134,11 @@ export async function rememberTeamsFromRegistrations(regs: Registration[]): Prom
     }
   }
 
+  const teams = Array.from(byKey.values());
   if (changed) {
-    await saveStore({ teams: Array.from(byKey.values()), phoneRecovery: store.phoneRecovery });
+    await saveStore({ teams, phoneRecovery: store.phoneRecovery });
   }
+  return teams;
 }
 
 function venueNameKey(venue: string, teamName: string): string {
@@ -205,10 +207,14 @@ export async function readVenueTeams(): Promise<VenueTeam[]> {
   } catch (error) {
     console.error("team phone recovery failed:", error);
   }
-  const { registrations } = await readRegistrations();
-  await rememberTeamsFromRegistrations(registrations);
-  const store = await loadStore();
-  return store.teams.sort((a, b) => a.teamName.localeCompare(b.teamName, "sk"));
+  let registrations: Registration[] = [];
+  try {
+    registrations = (await readRegistrations()).registrations;
+  } catch (error) {
+    console.error("current registrations for teams failed:", error);
+  }
+  const teams = await rememberTeamsFromRegistrations(registrations);
+  return teams.slice().sort((a, b) => a.teamName.localeCompare(b.teamName, "sk"));
 }
 
 export async function deleteVenueTeamsForPlace(eventSlug: string, venue: string): Promise<number> {

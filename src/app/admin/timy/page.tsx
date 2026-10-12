@@ -377,7 +377,7 @@ export default function VenueTeamsPage() {
   return (
     <div className="w-full min-w-0">
       <h1 className="font-display text-4xl text-brand-text tracking-wide mb-1">Tímy</h1>
-      <p className="text-brand-muted text-sm mb-2">Kontakty podľa miest a podnikov. Prepojené názvy sú tí istí ľudia a nedostanú dvakrát ten istý kvíz.</p>
+      <p className="text-brand-muted text-sm mb-2">Sú tu aj tímy z aktuálnych registrácií, nielen zo starých kvízov. Prepojené názvy sú tí istí ľudia a nedostanú dvakrát ten istý kvíz.</p>
       <p className="text-brand-muted text-xs mb-6">
         Uloží sa názov tímu a telefón tak, ako ho napísali. Prázdne pole a samé nuly sa nepridajú. Ďalšie číslo pri
         novej registrácii sa k tímu pridá.

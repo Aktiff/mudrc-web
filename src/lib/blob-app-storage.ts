@@ -249,6 +249,7 @@ export async function writeAppStorageBlob(name: string, data: unknown): Promise<
   } catch (error) {
     console.error(`current pointer write failed (${name}):`, error);
   }
+  rememberPayload(name, data);
   void pruneVersions(name, key);
 }
 
