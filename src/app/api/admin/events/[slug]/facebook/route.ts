@@ -4,6 +4,7 @@ import { readAllEventsRaw } from "@/lib/storage";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 const GRAPH_VERSION = "v23.0";
 
@@ -84,7 +85,7 @@ type GraphPayload = GraphPage & {
 };
 
 const MISSING_PAGE =
-  "Príspevok sa nikam neposlal. Tento token je osobný: Facebook pod ním vracia tvoje meno, nie stránku Mudrc kvíz. V Exploreri zaškrtni aj business_management, klikni Generate Access Token a potom Edit settings. Zaškrtni Mudrc kvíz. V odpovedi me/accounts nájdi objekt Mudrc kvíz a do Vercelu vlož access_token z vnútra toho objektu. Potom daj Redeploy.";
+  "Príspevok sa nikam neposlal. Facebook k tomuto tokenu nevrátil prístup stránky Mudrc kvíz. V Exploreri zavolaj me/accounts a do Vercelu vlož access_token, ktorý je vnútri objektu Mudrc kvíz. Potom daj Redeploy.";
 
 function publishError(payload: GraphPayload | null): string {
   const detail = payload?.error?.message?.trim() ?? "";
@@ -99,7 +100,7 @@ async function refreshLinkPreview(token: string, link: string): Promise<void> {
   url.searchParams.set("id", link);
   url.searchParams.set("scrape", "true");
   url.searchParams.set("access_token", token);
-  await fetch(url, { method: "POST", signal: AbortSignal.timeout(20000) }).catch(() => undefined);
+  await fetch(url, { method: "POST", signal: AbortSignal.timeout(8000) }).catch(() => undefined);
 }
 
 async function publishFeed(pageId: string, token: string, message: string, link: string): Promise<GraphPayload | null> {
@@ -135,11 +136,12 @@ async function listGraphPages(token: string, path: string): Promise<GraphPage[]>
   return pages;
 }
 
-async function mudrcPageToken(token: string): Promise<GraphPage | null> {
-  const withToken = await graphGet(token, "mudrc.sk", "id,name,username,access_token");
-  const page = withToken?.id ? withToken : await graphGet(token, "mudrc.sk", "id,name,username");
-  if (!page?.id || !isMudrcQuizPage(page) || !page.access_token) return null;
-  return page;
+async function mudrcPageInfo(token: string): Promise<GraphPage | null> {
+  const page = await graphGet(token, "mudrc.sk", "id,name,username");
+  if (!page?.id || !isMudrcQuizPage(page)) return null;
+  if (page.access_token) return page;
+  const tokenOnly = await graphGet(token, page.id, "access_token");
+  return tokenOnly?.access_token ? { ...page, access_token: tokenOnly.access_token } : page;
 }
 
 async function mudrcPageFromBusiness(token: string): Promise<GraphPage | null> {
@@ -169,20 +171,28 @@ async function publishToMudrcPage(
   message: string,
   link: string
 ): Promise<{ id?: string; pageName?: string; error: string }> {
-  const pages = await listGraphPages(token, "me/accounts");
-  const managed = pages.find((page) => isMudrcQuizPage(page) && page.id && page.access_token);
-  const direct = managed?.access_token ? managed : await mudrcPageToken(token);
-  const page = direct?.access_token ? direct : await mudrcPageFromBusiness(token);
-  if (page?.id && page.access_token) {
-    const payload = await publishFeed(page.id, page.access_token, message, link);
-    if (payload?.id) return { id: payload.id, pageName: page.name || "Mudrc kvíz", error: "" };
+  const self = await currentTokenPage(token);
+  const info = await mudrcPageInfo(token);
+  const tokenIsPage = Boolean(self?.id && info?.id && self.id === info.id) || Boolean(self?.id && isMudrcQuizPage(self));
+  if (tokenIsPage && self?.id) {
+    const payload = await publishFeed(self.id, token, message, link);
+    if (payload?.id) return { id: payload.id, pageName: self.name || info?.name || "Mudrc kvíz", error: "" };
     return { error: publishError(payload) };
   }
 
-  const self = await currentTokenPage(token);
-  if (self?.id && isMudrcQuizPage(self)) {
-    const payload = await publishFeed(self.id, token, message, link);
-    if (payload?.id) return { id: payload.id, pageName: self.name || "Mudrc kvíz", error: "" };
+  if (info?.id && info.access_token) {
+    const payload = await publishFeed(info.id, info.access_token, message, link);
+    if (payload?.id) return { id: payload.id, pageName: info.name || "Mudrc kvíz", error: "" };
+    return { error: publishError(payload) };
+  }
+
+  const managed = (await listGraphPages(token, "me/accounts")).find(
+    (page) => isMudrcQuizPage(page) && page.id && page.access_token
+  );
+  const page = managed?.access_token ? managed : await mudrcPageFromBusiness(token);
+  if (page?.id && page.access_token) {
+    const payload = await publishFeed(page.id, page.access_token, message, link);
+    if (payload?.id) return { id: payload.id, pageName: page.name || "Mudrc kvíz", error: "" };
     return { error: publishError(payload) };
   }
 
