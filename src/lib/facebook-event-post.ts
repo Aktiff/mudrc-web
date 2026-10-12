@@ -77,13 +77,17 @@ function restoreEmojiEscapes(value: string): string {
   return value.replace(/\\u([0-9a-fA-F]{4})/g, (_, hex: string) => String.fromCharCode(Number.parseInt(hex, 16)));
 }
 
+export function facebookEventLink(event: QuizEvent): string {
+  return absoluteUrl(eventPath(event));
+}
+
 /** Text príspevku na Facebook stránku z uložených údajov udalosti. */
 export function buildFacebookEventPost(event: QuizEvent): string {
   const venue = event.venue.trim();
   const city = event.city.trim();
   const titlePlace = [venue, city].filter(Boolean).join(", ");
   const kind = quizKindPhrase(event.quizType);
-  const registrationUrl = absoluteUrl(eventPath(event));
+  const registrationUrl = facebookEventLink(event);
 
   return restoreEmojiEscapes(
     [

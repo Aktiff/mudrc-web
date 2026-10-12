@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { buildFacebookEventPost } from "@/lib/facebook-event-post";
+import { buildFacebookEventPost, facebookEventLink } from "@/lib/facebook-event-post";
 import { readAllEventsRaw } from "@/lib/storage";
 
 export const runtime = "nodejs";
@@ -58,9 +58,10 @@ export async function POST(_req: Request, { params }: { params: { slug: string }
   }
 
   const message = buildFacebookEventPost(event);
+  const link = facebookEventLink(event);
 
   try {
-    const posted = await publishToMudrcPage(token, message);
+    const posted = await publishToMudrcPage(token, message, link);
     if (!posted.id) {
       return NextResponse.json({ error: posted.error }, { status: 502 });
     }
@@ -93,8 +94,17 @@ function publishError(payload: GraphPayload | null): string {
   return detail ? `Facebook odmietol príspevok: ${detail}` : "Príspevok sa na stránku nepodarilo poslať.";
 }
 
-async function publishFeed(pageId: string, token: string, message: string): Promise<GraphPayload | null> {
-  const body = new URLSearchParams({ message, access_token: token });
+async function refreshLinkPreview(token: string, link: string): Promise<void> {
+  const url = new URL(`https://graph.facebook.com/${GRAPH_VERSION}/`);
+  url.searchParams.set("id", link);
+  url.searchParams.set("scrape", "true");
+  url.searchParams.set("access_token", token);
+  await fetch(url, { method: "POST", signal: AbortSignal.timeout(20000) }).catch(() => undefined);
+}
+
+async function publishFeed(pageId: string, token: string, message: string, link: string): Promise<GraphPayload | null> {
+  await refreshLinkPreview(token, link);
+  const body = new URLSearchParams({ message, link, access_token: token });
   const response = await fetch(`https://graph.facebook.com/${GRAPH_VERSION}/${encodeURIComponent(pageId)}/feed`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -156,21 +166,22 @@ async function currentTokenPage(token: string): Promise<GraphPage | null> {
 
 async function publishToMudrcPage(
   token: string,
-  message: string
+  message: string,
+  link: string
 ): Promise<{ id?: string; pageName?: string; error: string }> {
   const pages = await listGraphPages(token, "me/accounts");
   const managed = pages.find((page) => isMudrcQuizPage(page) && page.id && page.access_token);
   const direct = managed?.access_token ? managed : await mudrcPageToken(token);
   const page = direct?.access_token ? direct : await mudrcPageFromBusiness(token);
   if (page?.id && page.access_token) {
-    const payload = await publishFeed(page.id, page.access_token, message);
+    const payload = await publishFeed(page.id, page.access_token, message, link);
     if (payload?.id) return { id: payload.id, pageName: page.name || "Mudrc kvíz", error: "" };
     return { error: publishError(payload) };
   }
 
   const self = await currentTokenPage(token);
   if (self?.id && isMudrcQuizPage(self)) {
-    const payload = await publishFeed(self.id, token, message);
+    const payload = await publishFeed(self.id, token, message, link);
     if (payload?.id) return { id: payload.id, pageName: self.name || "Mudrc kvíz", error: "" };
     return { error: publishError(payload) };
   }

@@ -21,9 +21,9 @@ export function parseSkDateTime(date: string, time: string): string | undefined 
 
 /** Titulok pre FB / OG — dátum, čas a miesto (nie generický názov webu). */
 export function buildEventShareTitle(event: QuizEvent): string {
-  const when = `${formatEventDateLabel(event.date)} · ${event.time}`;
-  const where = `${event.venue}, ${event.city}`;
-  return `Kvíz ${where} · ${when}`;
+  const when = [formatEventDateLabel(event.date), event.time.trim()].filter(Boolean).join(" - ");
+  const where = [event.venue.trim(), event.city.trim()].filter(Boolean).join(", ");
+  return [`Kvíz ${where}`, when].filter(Boolean).join(" - ");
 }
 
 export function buildEventShareDescription(event: QuizEvent): string {
