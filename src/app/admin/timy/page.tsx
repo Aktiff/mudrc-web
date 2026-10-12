@@ -43,6 +43,10 @@ export default function VenueTeamsPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [selectedCity, setSelectedCity] = useState<string | null>(null);
   const [selectedVenue, setSelectedVenue] = useState<string | null>(null);
+  const [linkingId, setLinkingId] = useState<string | null>(null);
+  const [linkQuery, setLinkQuery] = useState("");
+  const [linkError, setLinkError] = useState("");
+  const [linkingBusy, setLinkingBusy] = useState(false);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -167,6 +171,32 @@ export default function VenueTeamsPage() {
     return sections;
   }, [grouped]);
 
+  const aliasesOf = (team: VenueTeam) =>
+    team.linkId ? teams.filter((other) => other.id !== team.id && other.linkId === team.linkId) : [];
+
+  const saveLink = async (action: "link" | "unlink", teamId: string, otherTeamId?: string) => {
+    setLinkingBusy(true);
+    setLinkError("");
+    try {
+      const res = await fetch("/api/admin/venue-teams", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, teamId, otherTeamId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setLinkError(data.error ?? "Prepojenie sa nepodarilo uložiť.");
+        return;
+      }
+      setTeams(data.teams ?? []);
+      setLinkingId(null);
+      setLinkQuery("");
+    } finally {
+      setLinkingBusy(false);
+    }
+  };
+
   const removeTeam = async (team: VenueTeam) => {
     if (!confirm(`Odstrániť tím „${team.teamName}" z databázy kontaktov? Registrácie to nezmaže.`)) return;
     setDeletingId(team.id);
@@ -219,6 +249,50 @@ export default function VenueTeamsPage() {
             </Link>
           </div>
         ) : null}
+        {linkingId && venueSection.list.some((team) => team.id === linkingId) ? (
+          <div className="mb-6 rounded-2xl border border-brand-border bg-brand-card p-4 space-y-3">
+            <p className="text-sm text-brand-text font-semibold">
+              Prepojiť „{venueSection.list.find((team) => team.id === linkingId)?.teamName}“ s tímom z iného podniku
+            </p>
+            <p className="text-xs text-brand-muted">
+              Rovnakí ľudia pod iným názvom. Kvíz, ktorý už hral jeden názov, nedostane ani druhý.
+            </p>
+            <input
+              className="input text-sm"
+              placeholder="Názov tímu alebo podniku"
+              value={linkQuery}
+              onChange={(event) => setLinkQuery(event.target.value)}
+              autoFocus
+            />
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {teams
+                .filter((team) => {
+                  if (team.id === linkingId) return false;
+                  const current = venueSection.list.find((entry) => entry.id === linkingId);
+                  if (current?.linkId && team.linkId === current.linkId) return false;
+                  const query = linkQuery.trim().toLowerCase();
+                  if (query.length < 1) return false;
+                  return (
+                    team.teamName.toLowerCase().includes(query) || team.venue.toLowerCase().includes(query)
+                  );
+                })
+                .slice(0, 20)
+                .map((team) => (
+                  <button
+                    key={team.id}
+                    type="button"
+                    disabled={linkingBusy}
+                    onClick={() => void saveLink("link", linkingId, team.id)}
+                    className="w-full text-left rounded-xl border border-brand-border px-3 py-2 hover:border-brand-orange"
+                  >
+                    <span className="font-semibold text-brand-text">{team.teamName}</span>
+                    <span className="text-brand-muted text-sm"> — {team.venue}</span>
+                  </button>
+                ))}
+            </div>
+            {linkError ? <p className="text-sm text-red-600">{linkError}</p> : null}
+          </div>
+        ) : null}
         {venueSection.list.length === 0 ? (
           <div className="bg-brand-card rounded-2xl border border-brand-border p-12 text-center">
             <p className="text-brand-muted">Pre tento podnik zatiaľ nemáme uložený tím.</p>
@@ -229,8 +303,16 @@ export default function VenueTeamsPage() {
               <TeamRow
                 key={team.id}
                 team={team}
+                aliases={aliasesOf(team)}
                 deleting={deletingId === team.id}
+                linking={linkingId === team.id}
                 onDelete={() => removeTeam(team)}
+                onLink={() => {
+                  setLinkError("");
+                  setLinkQuery("");
+                  setLinkingId((current) => (current === team.id ? null : team.id));
+                }}
+                onUnlink={() => void saveLink("unlink", team.id)}
               />
             ))}
           </div>
@@ -295,7 +377,7 @@ export default function VenueTeamsPage() {
   return (
     <div className="w-full min-w-0">
       <h1 className="font-display text-4xl text-brand-text tracking-wide mb-1">Tímy</h1>
-      <p className="text-brand-muted text-sm mb-2">Kontakty podľa miest a podnikov — ostanú aj po vymazaní registrácií</p>
+      <p className="text-brand-muted text-sm mb-2">Kontakty podľa miest a podnikov. Prepojené názvy sú tí istí ľudia a nedostanú dvakrát ten istý kvíz.</p>
       <p className="text-brand-muted text-xs mb-6">
         Uloží sa názov tímu a telefón tak, ako ho napísali. Prázdne pole a samé nuly sa nepridajú. Ďalšie číslo pri
         novej registrácii sa k tímu pridá.
@@ -351,13 +433,21 @@ export default function VenueTeamsPage() {
 
 function TeamRow({
   team,
+  aliases = [],
   deleting,
+  linking = false,
   onDelete,
+  onLink,
+  onUnlink,
   showVenue = false,
 }: {
   team: VenueTeam;
+  aliases?: VenueTeam[];
   deleting: boolean;
+  linking?: boolean;
   onDelete: () => void;
+  onLink?: () => void;
+  onUnlink?: () => void;
   showVenue?: boolean;
 }) {
   return (
@@ -365,6 +455,11 @@ function TeamRow({
       <div className="min-w-0">
         <div className="font-display text-xl text-brand-text">{team.teamName}</div>
         {showVenue && <p className="text-brand-muted text-sm mt-1">{team.venue}</p>}
+        {aliases.length > 0 ? (
+          <p className="text-sm text-brand-text mt-1">
+            Rovnakí ľudia: {aliases.map((alias) => `${alias.teamName} (${alias.venue})`).join(", ")}
+          </p>
+        ) : null}
         <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-sm text-brand-muted">
           {team.phones.length === 0 ? (
             <span>Bez telefónu</span>
@@ -387,15 +482,37 @@ function TeamRow({
         </div>
         <p className="text-brand-muted text-xs mt-2">Naposledy {team.updatedAt}</p>
       </div>
-      <button
-        type="button"
-        onClick={onDelete}
-        disabled={deleting}
-        className="shrink-0 flex items-center gap-1.5 text-sm font-medium px-3 py-2 rounded-xl border border-red-200 dark:border-red-900 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 disabled:opacity-50"
-      >
-        <Trash2 className="w-4 h-4" />
-        {deleting ? "..." : "Zmazať"}
-      </button>
+      <div className="flex flex-wrap gap-2 shrink-0">
+        {onLink ? (
+          <button
+            type="button"
+            onClick={onLink}
+            className={`text-sm font-semibold px-3 py-2 rounded-xl border ${
+              linking ? "border-brand-orange text-brand-orange-readable" : "border-brand-border text-brand-text"
+            }`}
+          >
+            {linking ? "Zavrieť" : "Prepojiť"}
+          </button>
+        ) : null}
+        {aliases.length > 0 && onUnlink ? (
+          <button
+            type="button"
+            onClick={onUnlink}
+            className="text-sm font-semibold px-3 py-2 rounded-xl border border-brand-border text-brand-muted"
+          >
+            Zrušiť prepojenie
+          </button>
+        ) : null}
+        <button
+          type="button"
+          onClick={onDelete}
+          disabled={deleting}
+          className="flex items-center gap-1.5 text-sm font-medium px-3 py-2 rounded-xl border border-red-200 dark:border-red-900 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 disabled:opacity-50"
+        >
+          <Trash2 className="w-4 h-4" />
+          {deleting ? "..." : "Zmazať"}
+        </button>
+      </div>
     </div>
   );
 }

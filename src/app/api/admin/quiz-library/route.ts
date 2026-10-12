@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { collectPlayedTeamNames, getConflictingTeams, isQuizSafeForTeams, parseTeamFilterInput } from "@/lib/quiz-library";
+import { collectPlayedTeamNames, parseTeamFilterInput } from "@/lib/quiz-library";
 import { buildQuizUsageMap, type QuizUsageExclude } from "@/lib/quiz-library-usage";
 import { createLibraryQuiz, readAllLibraryQuizzes, readLibraryQuizSummaries } from "@/lib/quiz-library-storage";
+import { describeQuizConflicts } from "@/lib/team-links";
 import { readAllEventsRaw, readAllStoredQuizzes } from "@/lib/storage";
+import { readVenueTeams } from "@/lib/venue-teams";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,48 +26,64 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    const wantsUsage = req.nextUrl.searchParams.get("usage") === "1";
+    const needsUsage = wantsUsage || filterTeams.length > 0;
+    const [storedQuizzes, eventsData, venueTeams] = needsUsage
+      ? await Promise.all([
+          readAllStoredQuizzes(),
+          readAllEventsRaw(),
+          filterTeams.length ? readVenueTeams() : Promise.resolve([]),
+        ])
+      : [[], { events: [] }, []];
+    const usageMap = needsUsage
+      ? buildQuizUsageMap(storedQuizzes, eventsData.events, excludeUsage)
+      : new Map();
+
     if (req.nextUrl.searchParams.get("usage") !== "1") {
       const summaries = await readLibraryQuizSummaries();
       const items = summaries
-        .map((quiz) => ({
-          id: quiz.id,
-          title: quiz.title,
-          notes: quiz.notes,
-          createdAt: quiz.createdAt,
-          updatedAt: quiz.updatedAt,
-          questions: Array.from({ length: quiz.questionCount }, () => ({ id: "" })),
-          usageCount: 0,
-          usages: [],
-          playedTeamNames: [],
-          conflictingTeams: [],
-          isSafe: true,
-        }))
-        .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+        .map((quiz) => {
+          const usages = usageMap.get(quiz.id) ?? [];
+          const playedTeamNames = collectPlayedTeamNames(usages);
+          const conflictingTeams = describeQuizConflicts(playedTeamNames, filterTeams, venueTeams);
+          return {
+            id: quiz.id,
+            title: quiz.title,
+            notes: quiz.notes,
+            createdAt: quiz.createdAt,
+            updatedAt: quiz.updatedAt,
+            questions: Array.from({ length: quiz.questionCount }, () => ({ id: "" })),
+            usageCount: usages.length,
+            usages: [],
+            playedTeamNames,
+            conflictingTeams,
+            isSafe: conflictingTeams.length === 0,
+          };
+        })
+        .sort((a, b) => {
+          if (filterTeams.length && a.isSafe !== b.isSafe) return a.isSafe ? -1 : 1;
+          return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+        });
       return NextResponse.json(
         { quizzes: items, filterTeams },
         { headers: { "Cache-Control": "no-store, no-cache, must-revalidate" } }
       );
     }
 
-    const [quizzes, storedQuizzes, { events }] = await Promise.all([
-      readAllLibraryQuizzes(),
-      readAllStoredQuizzes(),
-      readAllEventsRaw(),
-    ]);
-    const usageMap = buildQuizUsageMap(storedQuizzes, events, excludeUsage);
+    const quizzes = await readAllLibraryQuizzes();
 
     const items = quizzes
       .map((quiz) => {
         const usages = usageMap.get(quiz.id) ?? [];
         const playedTeamNames = collectPlayedTeamNames(usages);
-        const conflictingTeams = getConflictingTeams(playedTeamNames, filterTeams);
+        const conflictingTeams = describeQuizConflicts(playedTeamNames, filterTeams, venueTeams);
         return {
           ...quiz,
           usageCount: usages.length,
           usages,
           playedTeamNames,
           conflictingTeams,
-          isSafe: isQuizSafeForTeams(playedTeamNames, filterTeams),
+          isSafe: filterTeams.length === 0 || conflictingTeams.length === 0,
         };
       })
       .sort((a, b) => {

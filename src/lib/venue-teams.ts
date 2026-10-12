@@ -226,8 +226,50 @@ export async function deleteVenueTeamsForPlace(eventSlug: string, venue: string)
 
 export async function deleteVenueTeam(id: string): Promise<boolean> {
   const store = await loadStore();
-  const next = store.teams.filter((team) => team.id !== id);
-  if (next.length === store.teams.length) return false;
+  const target = store.teams.find((team) => team.id === id);
+  if (!target) return false;
+  let next = store.teams.filter((team) => team.id !== id);
+  if (target.linkId && next.filter((team) => team.linkId === target.linkId).length < 2) {
+    next = next.map((team) => (team.linkId === target.linkId ? { ...team, linkId: undefined } : team));
+  }
   await saveStore({ teams: next, phoneRecovery: store.phoneRecovery });
   return true;
+}
+
+function stampTeams(teams: VenueTeam[]): VenueTeam[] {
+  return teams.sort((a, b) => a.teamName.localeCompare(b.teamName, "sk"));
+}
+
+/** Spojí dva záznamy tímov. Ľudia s prepojeným názvom nedostanú ten istý kvíz. */
+export async function linkVenueTeams(teamId: string, otherTeamId: string): Promise<VenueTeam[]> {
+  if (!teamId || !otherTeamId || teamId === otherTeamId) {
+    throw new Error("Vyber dva rôzne tímy.");
+  }
+  const store = await loadStore();
+  const left = store.teams.find((team) => team.id === teamId);
+  const right = store.teams.find((team) => team.id === otherTeamId);
+  if (!left || !right) throw new Error("Tím sa nenašiel.");
+
+  const linkId = left.linkId || right.linkId || randomUUID();
+  const previous = new Set([left.linkId, right.linkId].filter((id): id is string => Boolean(id)));
+  const now = new Date().toLocaleString("sk-SK", { timeZone: "Europe/Bratislava" });
+  const teams = store.teams.map((team) => {
+    const joins = team.id === left.id || team.id === right.id || (team.linkId && previous.has(team.linkId));
+    return joins ? { ...team, linkId, updatedAt: now } : team;
+  });
+  await saveStore({ teams, phoneRecovery: store.phoneRecovery });
+  return stampTeams(teams);
+}
+
+export async function unlinkVenueTeam(teamId: string): Promise<VenueTeam[]> {
+  const store = await loadStore();
+  const target = store.teams.find((team) => team.id === teamId);
+  if (!target) throw new Error("Tím sa nenašiel.");
+  const linkId = target.linkId;
+  let teams = store.teams.map((team) => (team.id === teamId ? { ...team, linkId: undefined } : team));
+  if (linkId && teams.filter((team) => team.linkId === linkId).length < 2) {
+    teams = teams.map((team) => (team.linkId === linkId ? { ...team, linkId: undefined } : team));
+  }
+  await saveStore({ teams, phoneRecovery: store.phoneRecovery });
+  return stampTeams(teams);
 }

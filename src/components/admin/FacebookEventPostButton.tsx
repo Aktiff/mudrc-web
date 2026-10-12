@@ -11,10 +11,12 @@ export default function FacebookEventPostButton({ slug }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [postedUrl, setPostedUrl] = useState("");
+  const [postedPage, setPostedPage] = useState("");
 
   async function openPreview() {
     setError("");
     setPostedUrl("");
+    setPostedPage("");
     setBusy(true);
     try {
       const res = await fetch(`/api/admin/events/${encodeURIComponent(slug)}/facebook`, {
@@ -44,12 +46,18 @@ export default function FacebookEventPostButton({ slug }: Props) {
       const res = await fetch(`/api/admin/events/${encodeURIComponent(slug)}/facebook`, {
         method: "POST",
       });
-      const data = (await res.json().catch(() => null)) as { url?: string; error?: string; message?: string } | null;
+      const data = (await res.json().catch(() => null)) as {
+        url?: string;
+        error?: string;
+        message?: string;
+        pageName?: string;
+      } | null;
       if (!res.ok || !data?.url) {
         if (data?.message) setMessage(data.message);
         setError(data?.error || "Príspevok sa nepodarilo odoslať.");
         return;
       }
+      setPostedPage(data.pageName || "Mudrc kvíz");
       setPostedUrl(data.url);
     } catch {
       setError("Príspevok sa nepodarilo odoslať.");
@@ -93,7 +101,7 @@ export default function FacebookEventPostButton({ slug }: Props) {
           )}
           {postedUrl ? (
             <p className="text-sm text-green-700 dark:text-green-300">
-              Príspevok je na stránke.{" "}
+              Príspevok je na stránke {postedPage}.{" "}
               <a href={postedUrl} target="_blank" rel="noreferrer" className="underline">
                 Otvoriť
               </a>

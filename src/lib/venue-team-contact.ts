@@ -5,6 +5,8 @@ export type VenueTeam = {
   teamName: string;
   phones: string[];
   updatedAt: string;
+  /** Rovnaké id = tí istí ľudia, aj keď majú v inom podniku iný názov. */
+  linkId?: string;
 };
 
 function digitRun(raw: string): string {
