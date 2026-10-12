@@ -76,17 +76,14 @@ export async function POST(_req: Request, { params }: { params: { slug: string }
 }
 
 type GraphPage = { id?: string; name?: string; username?: string; access_token?: string };
-type GraphPayload = {
-  id?: string;
-  name?: string;
-  username?: string;
+type GraphPayload = GraphPage & {
   error?: { message?: string; code?: number };
   data?: GraphPage[];
   paging?: { next?: string };
 };
 
 const MISSING_PAGE =
-  "Príspevok sa nikam neposlal. Token nevie písať na stránku Mudrc kvíz (facebook.com/mudrc.sk). V me/accounts tá stránka nie je, lebo tento účet nie je jej správca. Token vygeneruj z účtu, ktorý stránku Mudrc kvíz spravuje, a do Vercelu vlož access_token pri nej. Potom daj Redeploy.";
+  "Príspevok sa nikam neposlal. Tento token je osobný: Facebook pod ním vracia tvoje meno, nie stránku Mudrc kvíz. V Exploreri zaškrtni aj business_management, klikni Generate Access Token a potom Edit settings. Zaškrtni Mudrc kvíz. V odpovedi me/accounts nájdi objekt Mudrc kvíz a do Vercelu vlož access_token z vnútra toho objektu. Potom daj Redeploy.";
 
 function publishError(payload: GraphPayload | null): string {
   const detail = payload?.error?.message?.trim() ?? "";
@@ -107,10 +104,18 @@ async function publishFeed(pageId: string, token: string, message: string): Prom
   return (await response.json().catch(() => null)) as GraphPayload | null;
 }
 
-async function listManagedPages(token: string): Promise<GraphPage[]> {
+async function graphGet(token: string, path: string, fields: string): Promise<GraphPayload | null> {
+  const url = new URL(`https://graph.facebook.com/${GRAPH_VERSION}/${path}`);
+  url.searchParams.set("fields", fields);
+  url.searchParams.set("access_token", token);
+  const response = await fetch(url, { signal: AbortSignal.timeout(20000) });
+  return (await response.json().catch(() => null)) as GraphPayload | null;
+}
+
+async function listGraphPages(token: string, path: string): Promise<GraphPage[]> {
   const pages: GraphPage[] = [];
   let next: string | null =
-    `https://graph.facebook.com/${GRAPH_VERSION}/me/accounts?fields=id,name,username,access_token&limit=100&access_token=${encodeURIComponent(token)}`;
+    `https://graph.facebook.com/${GRAPH_VERSION}/${path}?fields=id,name,username,access_token&limit=100&access_token=${encodeURIComponent(token)}`;
   for (let page = 0; page < 5 && next; page += 1) {
     const response = await fetch(next, { signal: AbortSignal.timeout(20000) });
     const payload = (await response.json().catch(() => null)) as GraphPayload | null;
@@ -118,6 +123,25 @@ async function listManagedPages(token: string): Promise<GraphPage[]> {
     next = payload?.paging?.next ?? null;
   }
   return pages;
+}
+
+async function mudrcPageToken(token: string): Promise<GraphPage | null> {
+  const withToken = await graphGet(token, "mudrc.sk", "id,name,username,access_token");
+  const page = withToken?.id ? withToken : await graphGet(token, "mudrc.sk", "id,name,username");
+  if (!page?.id || !isMudrcQuizPage(page) || !page.access_token) return null;
+  return page;
+}
+
+async function mudrcPageFromBusiness(token: string): Promise<GraphPage | null> {
+  const businesses = await graphGet(token, "me/businesses", "id,name");
+  for (const business of (businesses?.data ?? []).slice(0, 10)) {
+    if (!business.id) continue;
+    const owned = await listGraphPages(token, `${business.id}/owned_pages`);
+    const client = await listGraphPages(token, `${business.id}/client_pages`);
+    const found = [...owned, ...client].find((page) => isMudrcQuizPage(page) && page.id && page.access_token);
+    if (found?.id && found.access_token) return found;
+  }
+  return null;
 }
 
 async function currentTokenPage(token: string): Promise<GraphPage | null> {
@@ -134,11 +158,13 @@ async function publishToMudrcPage(
   token: string,
   message: string
 ): Promise<{ id?: string; pageName?: string; error: string }> {
-  const pages = await listManagedPages(token);
+  const pages = await listGraphPages(token, "me/accounts");
   const managed = pages.find((page) => isMudrcQuizPage(page) && page.id && page.access_token);
-  if (managed?.id && managed.access_token) {
-    const payload = await publishFeed(managed.id, managed.access_token, message);
-    if (payload?.id) return { id: payload.id, pageName: managed.name || "Mudrc kvíz", error: "" };
+  const direct = managed?.access_token ? managed : await mudrcPageToken(token);
+  const page = direct?.access_token ? direct : await mudrcPageFromBusiness(token);
+  if (page?.id && page.access_token) {
+    const payload = await publishFeed(page.id, page.access_token, message);
+    if (payload?.id) return { id: payload.id, pageName: page.name || "Mudrc kvíz", error: "" };
     return { error: publishError(payload) };
   }
 
