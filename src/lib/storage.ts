@@ -1236,6 +1236,12 @@ export async function patchEvent(
       };
     }
 
+    const nextDate = typeof patch.date === "string" ? patch.date.trim() : "";
+    const prevDate = (stored.date ?? "").trim();
+    if (nextDate && nextDate !== prevDate && stored.registrationOpen === false) {
+      updated = { ...updated, registrationOpen: true };
+    }
+
     const next = [...base];
     next[idx] = eventForEventsKey(updated);
 

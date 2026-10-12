@@ -158,6 +158,7 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
 
   const removedRegIds = useRef(new Set<string>());
   const registrationOpenLock = useRef<boolean | null>(null);
+  const registrationsReopened = useRef(false);
 
   const loadRegistrations = () => {
     setRegsLoading(true);
@@ -669,8 +670,16 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
           router.push(`/admin/udalosti/${saved.slug}`);
           return;
         }
-        setForm(normalizeEvent(saved as QuizEvent));
-        setMsg({ text: "Uložené!", ok: true });
+        const savedEvent = normalizeEvent(saved as QuizEvent);
+        if (registrationsReopened.current) registrationOpenLock.current = true;
+        setForm(savedEvent);
+        setMsg({
+          text: registrationsReopened.current
+            ? "Uložené. Registrácie sú znova zapnuté k novému termínu."
+            : "Uložené!",
+          ok: true,
+        });
+        registrationsReopened.current = false;
       } else {
         const err = await res.json();
         if (res.status === 409 && err.editUrl) {
@@ -1126,7 +1135,28 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="label">Dátum kvízu</label>
-              <AdminDatePicker value={form.date} onChange={(v) => set("date", v)} placeholder="10.07.2026" />
+              <AdminDatePicker
+                value={form.date}
+                onChange={(v) => {
+                  const nextDate = v.trim();
+                  const reopen =
+                    nextDate.length > 0 &&
+                    nextDate !== form.date.trim() &&
+                    form.registrationOpen === false;
+                  if (reopen) {
+                    registrationOpenLock.current = true;
+                    registrationsReopened.current = true;
+                    setMsg({
+                      text: "Nový termín. Registrácie sú znova zapnuté — ulož zmeny.",
+                      ok: true,
+                    });
+                  }
+                  setForm((current) =>
+                    reopen ? { ...current, date: v, registrationOpen: true } : { ...current, date: v }
+                  );
+                }}
+                placeholder="10.07.2026"
+              />
             </div>
             <div>
               <label className="label">Čas</label>
