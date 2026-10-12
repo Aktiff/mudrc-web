@@ -84,8 +84,21 @@ type GraphPayload = GraphPage & {
   paging?: { next?: string };
 };
 
+const EXPIRED_TOKEN =
+  "Príspevok sa neposlal, lebo token z Graph API Explorera vypršal. Vydrží asi hodinu. Vygeneruj nový, na developers.facebook.com/tools/debug/accesstoken daj Extend Access Token, potom v Exploreri zavolaj me/accounts a do Vercelu vlož access_token z objektu Mudrc kvíz. Potom Redeploy.";
+
 const MISSING_PAGE =
   "Príspevok sa nikam neposlal. Facebook k tomuto tokenu nevrátil prístup stránky Mudrc kvíz. V Exploreri zavolaj me/accounts a do Vercelu vlož access_token, ktorý je vnútri objektu Mudrc kvíz. Potom daj Redeploy.";
+
+function isExpiredToken(payload: GraphPayload | null): boolean {
+  const message = payload?.error?.message?.toLowerCase() ?? "";
+  return (
+    payload?.error?.code === 190 ||
+    message.includes("expired") ||
+    message.includes("error validating access token") ||
+    message.includes("session has been invalidated")
+  );
+}
 
 function publishError(payload: GraphPayload | null): string {
   const detail = payload?.error?.message?.trim() ?? "";
@@ -156,23 +169,15 @@ async function mudrcPageFromBusiness(token: string): Promise<GraphPage | null> {
   return null;
 }
 
-async function currentTokenPage(token: string): Promise<GraphPage | null> {
-  const url = new URL(`https://graph.facebook.com/${GRAPH_VERSION}/me`);
-  url.searchParams.set("fields", "id,name,username");
-  url.searchParams.set("access_token", token);
-  const response = await fetch(url, { signal: AbortSignal.timeout(20000) });
-  const payload = (await response.json().catch(() => null)) as GraphPage | null;
-  if (!payload?.id || payload.name === undefined && !payload.username) return null;
-  return payload;
-}
-
 async function publishToMudrcPage(
   token: string,
   message: string,
   link: string
 ): Promise<{ id?: string; pageName?: string; error: string }> {
-  const self = await currentTokenPage(token);
+  const self = await graphGet(token, "me", "id,name,username");
+  if (isExpiredToken(self)) return { error: EXPIRED_TOKEN };
   const info = await mudrcPageInfo(token);
+  if (isExpiredToken(info)) return { error: EXPIRED_TOKEN };
   const tokenIsPage = Boolean(self?.id && info?.id && self.id === info.id) || Boolean(self?.id && isMudrcQuizPage(self));
   if (tokenIsPage && self?.id) {
     const payload = await publishFeed(self.id, token, message, link);
