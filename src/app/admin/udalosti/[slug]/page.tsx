@@ -157,6 +157,7 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
   );
 
   const removedRegIds = useRef(new Set<string>());
+  const registrationOpenLock = useRef<boolean | null>(null);
 
   const loadRegistrations = () => {
     setRegsLoading(true);
@@ -310,7 +311,9 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
   useEffect(() => {
     if (!isNew) {
       loadEventFromServer(params.slug).then((ev) => {
-        if (ev) setForm(normalizeEvent(ev));
+        if (!ev) return;
+        const locked = registrationOpenLock.current;
+        setForm(normalizeEvent(locked === null ? ev : { ...ev, registrationOpen: locked }));
       });
     }
     fetch(`/api/admin/events?_=${Date.now()}`, { cache: "no-store" })
@@ -715,7 +718,12 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
   const toggleRegistrationOpen = async () => {
     const open = form.registrationOpen !== false;
     const newOpen = !open;
+    registrationOpenLock.current = newOpen;
     setForm((f) => ({ ...f, registrationOpen: newOpen }));
+    setMsg({
+      text: newOpen ? "Registrácie zapnuté" : "Registrácie vypnuté — na webe sa zobrazí „Kvíz je plný“",
+      ok: true,
+    });
     if (!isNew) {
       const res = await fetch(`/api/admin/events/${params.slug}`, {
         method: "PUT",
@@ -724,12 +732,9 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
       });
       if (res.ok) {
         const data = await res.json();
-        setForm(normalizeEvent(data));
-        setMsg({
-          text: newOpen ? "Registrácie zapnuté" : "Registrácie vypnuté — na webe sa zobrazí „Kvíz je plný“",
-          ok: true,
-        });
+        setForm(normalizeEvent({ ...data, registrationOpen: newOpen }));
       } else {
+        registrationOpenLock.current = open;
         setForm((f) => ({ ...f, registrationOpen: open }));
         setMsg({ text: "Chyba pri ukladaní", ok: false });
       }

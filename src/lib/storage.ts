@@ -429,34 +429,79 @@ function rememberPointed(key: string, data: unknown) {
   pointedPayloads.set(key, { at: Date.now(), data });
 }
 
-async function readEventsPointer(): Promise<QuizEvent[] | null> {
-  const cached = recallPointed<QuizEvent[]>(EVENTS_CURRENT_KEY, 20_000);
-  if (cached) return cached;
+type EventsSnapshot = {
+  events?: QuizEvent[];
+  pathname?: string;
+  url?: string;
+  savedAt?: number;
+};
 
-  let pointer: { pathname?: string; url?: string } | null;
-  try {
-    pointer = await readBlobJsonFresh<{ pathname?: string; url?: string }>(EVENTS_CURRENT_KEY);
-  } catch (error) {
-    const stale = recallPointed<QuizEvent[]>(EVENTS_CURRENT_KEY, 10 * 60_000);
-    if (stale) return stale;
-    throw error;
+function recentEventsPrefix(): string {
+  return `${EVENTS_VERSION_PREFIX}${String(Date.now()).slice(0, 4)}`;
+}
+
+async function newestEventsSnapshot(): Promise<{ events: QuizEvent[]; savedAt: number } | null> {
+  const versions = await listRegistrationVersions(recentEventsPrefix());
+  if (!versions?.length) return null;
+  versions.sort((a, b) => b.uploadedAt - a.uploadedAt || b.pathname.localeCompare(a.pathname));
+  for (const blob of versions.slice(0, 3)) {
+    try {
+      const data = await readListedBlobJson<EventsSnapshot>(blob);
+      if (data && Array.isArray(data.events)) {
+        return {
+          events: data.events,
+          savedAt: typeof data.savedAt === "number" ? data.savedAt : blob.uploadedAt,
+        };
+      }
+    } catch {
+      /* ďalší súbor */
+    }
   }
-  if (!pointer?.pathname && !pointer?.url) return null;
+  return null;
+}
 
+async function currentEventsSnapshot(): Promise<{ events: QuizEvent[]; savedAt: number } | null> {
+  const current = await readBlobUrlUncached<EventsSnapshot>(EVENTS_CURRENT_KEY);
+  if (!current) return null;
+  if (Array.isArray(current.events)) {
+    return { events: current.events, savedAt: typeof current.savedAt === "number" ? current.savedAt : 0 };
+  }
+  const target = current.pathname || current.url;
+  if (!target) return null;
+  const pointed = await readBlobUrlUncached<EventsSnapshot>(target);
+  if (!pointed || !Array.isArray(pointed.events)) return null;
+  const savedAt =
+    typeof current.savedAt === "number"
+      ? current.savedAt
+      : typeof pointed.savedAt === "number"
+        ? pointed.savedAt
+        : 0;
+  return { events: pointed.events, savedAt };
+}
+
+/** Najnovší súbor verzie. Prepísaný pointer sa nepoužije, ak je starší. */
+async function readEventsPointer(): Promise<QuizEvent[] | null> {
   try {
-    const data = await readBlobJsonFresh<{ events?: QuizEvent[] }>(pointer.pathname || pointer.url || EVENTS_CURRENT_KEY);
-    if (data && Array.isArray(data.events)) {
-      pointedPayloads.set(EVENTS_CURRENT_KEY, { at: Date.now(), data: data.events });
-      return data.events;
+    const [fromVersion, fromCurrent] = await Promise.all([
+      newestEventsSnapshot().catch(() => null),
+      currentEventsSnapshot().catch(() => null),
+    ]);
+    let events: QuizEvent[] | null = null;
+    if (fromVersion && fromCurrent) {
+      events = (fromVersion.savedAt >= fromCurrent.savedAt ? fromVersion : fromCurrent).events;
+    } else if (fromVersion) {
+      events = fromVersion.events;
+    } else if (fromCurrent) {
+      events = fromCurrent.events;
+    }
+    if (events) {
+      rememberPointed(EVENTS_CURRENT_KEY, events);
+      return events;
     }
   } catch (error) {
-    const stale = recallPointed<QuizEvent[]>(EVENTS_CURRENT_KEY, 10 * 60_000);
-    if (stale) return stale;
-    throw error;
+    console.error("events pointer read failed:", error);
   }
-  const stale = recallPointed<QuizEvent[]>(EVENTS_CURRENT_KEY, 10 * 60_000);
-  if (stale) return stale;
-  throw new Error("Udalosti sa nepodarilo načítať.");
+  return recallPointed<QuizEvent[]>(EVENTS_CURRENT_KEY, 10 * 60_000) ?? null;
 }
 
 async function loadVersionedEvents(): Promise<QuizEvent[] | null> {
@@ -494,9 +539,15 @@ async function loadEventsFromBlobOptional(): Promise<QuizEvent[] | null> {
 
 async function persistEventsBlob(events: QuizEvent[]): Promise<void> {
   const prepared = events.map(eventForEventsKey);
-  const key = `${EVENTS_VERSION_PREFIX}${Date.now()}-${randomUUID()}.json`;
-  const stored = await writeBlob(key, { events: prepared });
-  await writeBlob(EVENTS_CURRENT_KEY, { pathname: stored.pathname || key, url: stored.url }, { cacheControlMaxAge: 0 });
+  const savedAt = Date.now();
+  const key = `${EVENTS_VERSION_PREFIX}${savedAt}-${randomUUID()}.json`;
+  const stored = await writeBlob(key, { events: prepared, savedAt });
+  await writeBlob(
+    EVENTS_CURRENT_KEY,
+    { pathname: stored.pathname || key, url: stored.url, savedAt },
+    { cacheControlMaxAge: 0 }
+  );
+  rememberPointed(EVENTS_CURRENT_KEY, prepared);
 }
 
 async function listRegistrationBlobIds(): Promise<string[]> {
