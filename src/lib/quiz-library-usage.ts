@@ -1,8 +1,40 @@
-import type { QuizEvent } from "@/lib/data";
+import type { PastResultTeam, QuizEvent } from "@/lib/data";
 import type { QuizUsage } from "@/lib/quiz-library";
 import { isAssignedLibraryQuiz } from "@/lib/quiz-result-library";
 import { normalizeDateKey } from "@/lib/quiz-result-key";
+import { teamKey } from "@/lib/poll";
 import type { StoredQuiz } from "@/lib/storage";
+
+export function normalizeGuestTeams(hostName: string, names: unknown): string[] {
+  const host = teamKey(hostName);
+  const seen = new Set<string>();
+  const out: string[] = [];
+  const list = Array.isArray(names) ? names : [];
+  for (const raw of list) {
+    const name = String(raw ?? "").trim();
+    const key = teamKey(name);
+    if (!name || !key || key === host || seen.has(key)) continue;
+    seen.add(key);
+    out.push(name);
+  }
+  return out;
+}
+
+function usageTeamNames(teams: PastResultTeam[]): string[] {
+  const names: string[] = [];
+  const seen = new Set<string>();
+  for (const team of teams) {
+    const guests = normalizeGuestTeams(team.teamName, team.guestTeams);
+    for (const name of [team.teamName, ...guests]) {
+      const trimmed = name.trim();
+      const key = teamKey(trimmed);
+      if (!trimmed || !key || seen.has(key)) continue;
+      seen.add(key);
+      names.push(trimmed);
+    }
+  }
+  return names;
+}
 
 export type QuizUsageExclude = { eventSlug: string; quizResultId: string };
 
@@ -44,7 +76,7 @@ export function buildQuizUsageMap(
       date: stored.date,
       quizResultId: stored.id,
       winnerTeam: stored.winnerTeam,
-      teamNames: stored.teams.map((team) => team.teamName),
+      teamNames: usageTeamNames(stored.teams),
     };
     const list = byLibrary.get(libraryQuizId) ?? [];
     list.push(usage);
@@ -58,6 +90,24 @@ export function buildQuizUsageMap(
   }
 
   return byLibrary;
+}
+
+/** „Lili café - 15.9., Alipub - 17.9.“ od najstaršieho večera. */
+export function formatQuizUsagePlaces(usages: Pick<QuizUsage, "venue" | "date">[]): string {
+  const sorted = [...usages].sort((a, b) => parseUsageDate(a.date) - parseUsageDate(b.date));
+  const seen = new Set<string>();
+  const parts: string[] = [];
+  for (const usage of sorted) {
+    const venue = usage.venue.trim();
+    const match = usage.date.trim().match(/^(\d{1,2})\.(\d{1,2})(?:\.(\d{4}))?$/);
+    const day = match ? `${Number(match[1])}.${Number(match[2])}.` : usage.date.trim();
+    if (!venue || !day) continue;
+    const line = `${venue} - ${day}`;
+    if (seen.has(line)) continue;
+    seen.add(line);
+    parts.push(line);
+  }
+  return parts.join(", ");
 }
 
 export function getQuizUsages(

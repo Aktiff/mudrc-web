@@ -18,6 +18,84 @@ type ResultDetail = {
 
 type EditRow = { name: string; scores: number[]; players: number };
 
+function GuestFromTeam({
+  host,
+  guests,
+  suggestions,
+  onChange,
+}: {
+  host: string;
+  guests: string[];
+  suggestions: string[];
+  onChange: (guestTeams: string[]) => Promise<void>;
+}) {
+  const [draft, setDraft] = useState("");
+  const [saving, setSaving] = useState(false);
+  const hostKey = host.trim().toLowerCase();
+  const taken = new Set(guests.map((name) => name.trim().toLowerCase()));
+
+  const add = async () => {
+    const name = draft.trim();
+    if (!name || name.toLowerCase() === hostKey || taken.has(name.toLowerCase())) return;
+    setSaving(true);
+    try {
+      await onChange([...guests, name]);
+      setDraft("");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="mt-2 space-y-1.5">
+      {guests.map((name) => (
+        <div key={name} className="flex items-center gap-2 text-xs text-brand-muted">
+          <span>hráč z {name}</span>
+          <button
+            type="button"
+            disabled={saving}
+            onClick={async () => {
+              setSaving(true);
+              try {
+                await onChange(guests.filter((guest) => guest !== name));
+              } finally {
+                setSaving(false);
+              }
+            }}
+            className="text-red-400 hover:text-red-500 disabled:opacity-50"
+          >
+            zmazať
+          </button>
+        </div>
+      ))}
+      <div className="flex items-center gap-2">
+        <TeamAutocomplete
+          className="input text-xs py-1.5 w-44"
+          value={draft}
+          onChange={setDraft}
+          suggestions={suggestions.filter(
+            (name) => name.trim().toLowerCase() !== hostKey && !taken.has(name.trim().toLowerCase())
+          )}
+          placeholder="Hráč z iného tímu"
+          onEnter={() => {
+            void add();
+          }}
+        />
+        <button
+          type="button"
+          onClick={() => {
+            void add();
+          }}
+          disabled={saving || !draft.trim()}
+          className="text-xs font-semibold text-brand-orange-readable hover:underline disabled:opacity-40"
+        >
+          Pridať
+        </button>
+      </div>
+    </div>
+  );
+}
+
 async function loadQuizDetail(slug: string, quizParam: string) {
   const res = await fetch(
     `/api/admin/events/${slug}/kviz/${quizParam}?_=${Date.now()}`,
@@ -53,7 +131,9 @@ export default function AdminQuizDetailPage({ params }: { params: { slug: string
       setLoading(false);
       return;
     }
-    setKnownTeams(data.event.leagueTable.map((e) => e.teamName));
+    setKnownTeams((current) =>
+      Array.from(new Set([...current, ...data.event.leagueTable.map((entry) => entry.teamName)]))
+    );
     setRounds(data.event.rounds || 4);
     setResult(data.result as ResultDetail);
     setAssignmentLibraryQuizId(data.result.libraryQuizId ?? CANVAS_LIBRARY_QUIZ_ID);
@@ -64,6 +144,35 @@ export default function AdminQuizDetailPage({ params }: { params: { slug: string
     setLoading(true);
     loadData();
   }, [params.slug, params.date]);
+
+  useEffect(() => {
+    fetch(`/api/admin/venue-teams?_=${Date.now()}`, { cache: "no-store", credentials: "same-origin" })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data) => {
+        const names = ((data?.teams ?? []) as { teamName?: string }[])
+          .map((team) => team.teamName?.trim() ?? "")
+          .filter(Boolean);
+        if (!names.length) return;
+        setKnownTeams((current) => Array.from(new Set([...current, ...names])));
+      })
+      .catch(() => undefined);
+  }, []);
+
+  const saveGuests = async (teamName: string, guestTeams: string[]) => {
+    setSaveError("");
+    const res = await fetch(`/api/admin/events/${params.slug}/kviz/${encodeURIComponent(quizKey)}`, {
+      method: "PATCH",
+      cache: "no-store",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ guestUpdate: { teamName, guestTeams } }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setSaveError(data.error ?? "Hráča z iného tímu sa nepodarilo uložiť.");
+      throw new Error(data.error ?? "save failed");
+    }
+    setResult((current) => (current ? { ...current, teams: data.teams } : current));
+  };
 
   const startEdit = () => {
     if (!result) return;
@@ -326,6 +435,10 @@ export default function AdminQuizDetailPage({ params }: { params: { slug: string
             Víťaz: <span className="font-semibold text-brand-orange">{result.winnerTeam}</span>
             {" · "}{result.teams.length} tímov
           </p>
+          <p className="text-xs text-brand-muted mt-2">
+            Hráč z iného tímu ostane len ako interná poznámka. Pri ďalšom použití tohto kvízu sa zablokuje aj jeho tím.
+          </p>
+          {saveError && <p className="text-sm text-red-500 mt-2">{saveError}</p>}
         </div>
         <table className="w-full">
           <thead>
@@ -344,6 +457,12 @@ export default function AdminQuizDetailPage({ params }: { params: { slug: string
                 </td>
                 <td className="px-2 py-3.5">
                   <span className={`font-semibold text-sm ${i === 0 ? "text-brand-orange" : "text-brand-text"}`}>{team.teamName}</span>
+                  <GuestFromTeam
+                    host={team.teamName}
+                    guests={team.guestTeams ?? []}
+                    suggestions={knownTeams}
+                    onChange={(guestTeams) => saveGuests(team.teamName, guestTeams)}
+                  />
                 </td>
                 <td className="px-6 py-3.5 text-right">
                   <span className={`font-display text-xl ${i === 0 ? "text-brand-orange" : "text-brand-text"}`}>{fmtNum(team.total)}</span>

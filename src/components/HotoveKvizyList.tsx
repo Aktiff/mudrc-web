@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { BookOpen, Layers, MonitorPlay, Pencil, Play, Plus, Trash2 } from "lucide-react";
 import type { QuizLibraryItem, QuizUsage } from "@/lib/quiz-library";
+import { formatQuizUsagePlaces } from "@/lib/quiz-library-usage";
 import { clearQuizDraft } from "@/lib/quiz-editor-draft";
 
 type QuizListItem = QuizLibraryItem & {
@@ -208,14 +209,10 @@ export default function HotoveKvizyList() {
                         ? "otázky"
                         : "otázok"}
                   </span>
-                  <span className="text-brand-muted">
-                    {quiz.usageCount === 0 ? "Ešte nepoužitý" : `${quiz.usageCount}× hraný`}
-                  </span>
+                  {!quiz.usages?.length && <span className="text-brand-muted">Ešte nepoužitý</span>}
                 </div>
-                {quiz.usageCount > 0 && (
-                  <p className="text-xs text-brand-muted mt-1">
-                    Naposledy: {quiz.usages[0]?.venue} ({quiz.usages[0]?.city}) — {quiz.usages[0]?.date}
-                  </p>
+                {quiz.usages?.length > 0 && (
+                  <p className="text-sm text-brand-text mt-2">{formatQuizUsagePlaces(quiz.usages)}</p>
                 )}
               </div>
             </div>

@@ -9,7 +9,8 @@ import { findQuizResultIndex, normalizeDateKey } from "@/lib/quiz-result-key";
 import { buildQuizTeamsDetail } from "@/lib/quiz-save";
 
 import { collectPlayedTeamNames, getConflictingTeams } from "@/lib/quiz-library";
-import { buildQuizUsageMap } from "@/lib/quiz-library-usage";
+import { buildQuizUsageMap, normalizeGuestTeams } from "@/lib/quiz-library-usage";
+import { teamKey } from "@/lib/poll";
 import { isAssignedLibraryQuiz, normalizeResultLibraryQuizId } from "@/lib/quiz-result-library";
 
 import { revalidatePublicEventPaths } from "@/lib/revalidate-public";
@@ -90,7 +91,18 @@ export async function PUT(req: NextRequest, { params }: { params: { slug: string
     const previous = previousPlayers.get(team.name.trim().toLowerCase());
     return previous && previous > 0 ? { ...team, players: previous } : team;
   });
-  const { sorted, teamsDetail, winnerTeam, winnerTotal } = buildQuizTeamsDetail(teamsKeepingPlayers);
+  const built = buildQuizTeamsDetail(teamsKeepingPlayers);
+  const previousGuests = new Map(
+    (existing.result.teams ?? []).map((team) => [
+      teamKey(team.teamName),
+      normalizeGuestTeams(team.teamName, team.guestTeams),
+    ])
+  );
+  const teamsDetail = built.teamsDetail.map((team) => {
+    const guestTeams = previousGuests.get(teamKey(team.teamName)) ?? [];
+    return guestTeams.length ? { ...team, guestTeams } : team;
+  });
+  const { sorted, winnerTeam, winnerTotal } = built;
   const playerCount = teamsDetail.reduce((sum, team) => sum + (team.players ?? 0), 0);
   const quizType = normalizeQuizTypeLabel(body.quizType) || existing.result.quizType;
 
@@ -248,9 +260,59 @@ export async function PUT(req: NextRequest, { params }: { params: { slug: string
 
 
 
+async function updateQuizGuestTeams(
+  slug: string,
+  date: string,
+  guestUpdate: { teamName?: string; guestTeams?: unknown }
+) {
+  const teamName = String(guestUpdate.teamName ?? "").trim();
+  if (!teamName) {
+    return NextResponse.json({ error: "Chýba tím." }, { status: 400 });
+  }
+  const existing = await readQuizResult(slug, date);
+  if (!existing?.result?.teams?.length) {
+    return NextResponse.json({ error: "Result not found" }, { status: 404 });
+  }
+  const key = teamKey(teamName);
+  const guestTeams = normalizeGuestTeams(teamName, guestUpdate.guestTeams);
+  let found = false;
+  const teams = existing.result.teams.map((team) => {
+    if (teamKey(team.teamName) !== key) return team;
+    found = true;
+    if (!guestTeams.length) {
+      const next = { ...team };
+      delete next.guestTeams;
+      return next;
+    }
+    return { ...team, guestTeams };
+  });
+  if (!found) {
+    return NextResponse.json({ error: "Tím na tomto kvíze nie je." }, { status: 404 });
+  }
+  const quizId = existing.result.id ?? normalizeDateKey(existing.result.date);
+  await upsertStoredQuiz({
+    id: quizId,
+    eventSlug: slug,
+    date: existing.result.date,
+    winnerTeam: existing.result.winnerTeam,
+    points: existing.result.points,
+    teams,
+    libraryQuizId: existing.result.libraryQuizId,
+    ...(existing.result.quizType?.trim() ? { quizType: existing.result.quizType.trim() } : {}),
+  });
+  return NextResponse.json({ ok: true, teams });
+}
+
 export async function PATCH(req: NextRequest, { params }: { params: { slug: string; date: string } }) {
 
-  const { libraryQuizId }: { libraryQuizId?: string } = await req.json();
+  const body = (await req.json()) as {
+    libraryQuizId?: string;
+    guestUpdate?: { teamName?: string; guestTeams?: unknown };
+  };
+  if (body.guestUpdate) {
+    return updateQuizGuestTeams(params.slug, params.date, body.guestUpdate);
+  }
+  const { libraryQuizId } = body;
 
   const normalizedLibraryQuizId = normalizeResultLibraryQuizId(libraryQuizId);
 

@@ -58,6 +58,8 @@ export type PastResultTeam = {
   ligaPoints: number;
   /** Počet hráčov v tíme na tomto kvíze. */
   players?: number;
+  /** Iné tímy, ktorých hráč sedel s týmto tímom. Do výsledkov sa nezapočítajú, ale kvíz už nesmú dostať znova. */
+  guestTeams?: string[];
 };
 export type PastResult = {
   id: string;

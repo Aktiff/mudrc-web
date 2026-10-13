@@ -26,18 +26,12 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const wantsUsage = req.nextUrl.searchParams.get("usage") === "1";
-    const needsUsage = wantsUsage || filterTeams.length > 0;
-    const [storedQuizzes, eventsData, venueTeams] = needsUsage
-      ? await Promise.all([
-          readAllStoredQuizzes(),
-          readAllEventsRaw(),
-          filterTeams.length ? readVenueTeams() : Promise.resolve([]),
-        ])
-      : [[], { events: [] }, []];
-    const usageMap = needsUsage
-      ? buildQuizUsageMap(storedQuizzes, eventsData.events, excludeUsage)
-      : new Map();
+    const [storedQuizzes, eventsData, venueTeams] = await Promise.all([
+      readAllStoredQuizzes(),
+      readAllEventsRaw(),
+      filterTeams.length ? readVenueTeams() : Promise.resolve([]),
+    ]);
+    const usageMap = buildQuizUsageMap(storedQuizzes, eventsData.events, excludeUsage);
 
     if (req.nextUrl.searchParams.get("usage") !== "1") {
       const summaries = await readLibraryQuizSummaries();
@@ -54,7 +48,7 @@ export async function GET(req: NextRequest) {
             updatedAt: quiz.updatedAt,
             questions: Array.from({ length: quiz.questionCount }, () => ({ id: "" })),
             usageCount: usages.length,
-            usages: [],
+            usages,
             playedTeamNames,
             conflictingTeams,
             isSafe: conflictingTeams.length === 0,
