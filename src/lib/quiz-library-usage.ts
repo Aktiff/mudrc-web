@@ -92,22 +92,26 @@ export function buildQuizUsageMap(
   return byLibrary;
 }
 
-/** „Lili café - 15.9., Alipub - 17.9.“ od najstaršieho večera. */
-export function formatQuizUsagePlaces(usages: Pick<QuizUsage, "venue" | "date">[]): string {
+export type QuizUsagePlace = { label: string; href: string };
+
+/** „Alipub - 10.10.“ a odkaz na výsledkovú stránku toho večera. */
+export function quizUsagePlaces(usages: QuizUsage[]): QuizUsagePlace[] {
   const sorted = [...usages].sort((a, b) => parseUsageDate(a.date) - parseUsageDate(b.date));
   const seen = new Set<string>();
-  const parts: string[] = [];
+  const places: QuizUsagePlace[] = [];
   for (const usage of sorted) {
     const venue = usage.venue.trim();
+    const slug = usage.eventSlug.trim();
     const match = usage.date.trim().match(/^(\d{1,2})\.(\d{1,2})(?:\.(\d{4}))?$/);
     const day = match ? `${Number(match[1])}.${Number(match[2])}.` : usage.date.trim();
-    if (!venue || !day) continue;
-    const line = `${venue} - ${day}`;
-    if (seen.has(line)) continue;
-    seen.add(line);
-    parts.push(line);
+    const key = usage.quizResultId.trim() || normalizeDateKey(usage.date);
+    if (!venue || !day || !slug || !key) continue;
+    const href = `/admin/udalosti/${encodeURIComponent(slug)}/kviz/${encodeURIComponent(key)}`;
+    if (seen.has(href)) continue;
+    seen.add(href);
+    places.push({ label: `${venue} - ${day}`, href });
   }
-  return parts.join(", ");
+  return places;
 }
 
 export function getQuizUsages(
