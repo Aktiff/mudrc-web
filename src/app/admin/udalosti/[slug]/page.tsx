@@ -29,7 +29,7 @@ import {
   CANVAS_LIBRARY_QUIZ_ID,
   isAssignedLibraryQuiz,
   isCanvasLibraryQuiz,
-  libraryQuizAssignmentLabel,
+  playedQuizLabel,
 } from "@/lib/quiz-result-library";
 
 type Tab = "info" | "liga" | "vysledky" | "pravidla" | "pridat" | "registracie" | "anketa";
@@ -122,6 +122,8 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
   const [quizSubmitting, setQuizSubmitting] = useState(false);
   const [quizMsg, setQuizMsg] = useState<{ text: string; ok: boolean } | null>(null);
   const [libraryQuizId, setLibraryQuizId] = useState("");
+  const [libraryQuizTitles, setLibraryQuizTitles] = useState<Record<string, string>>({});
+  const [libraryTitlesReady, setLibraryTitlesReady] = useState(false);
   const [resultQuizType, setResultQuizType] = useState(DEFAULT_QUIZ_TYPE);
   const [knownQuizTypes, setKnownQuizTypes] = useState<string[]>([DEFAULT_QUIZ_TYPE]);
   type EventRegistration = { id: string; eventSlug: string; venue: string; teamName: string; players: string; phone: string; createdAt: string };
@@ -357,6 +359,28 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
       })
       .catch(() => undefined);
   }, [params.slug, isNew]);
+
+  useEffect(() => {
+    if (isNew) return;
+    let cancelled = false;
+    fetchLibraryQuizList()
+      .then((list) => {
+        if (cancelled) return;
+        const titles: Record<string, string> = {};
+        for (const quiz of list) {
+          const title = quiz.title?.trim();
+          if (quiz.id && title) titles[quiz.id] = title;
+        }
+        setLibraryQuizTitles(titles);
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (!cancelled) setLibraryTitlesReady(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isNew]);
 
   useEffect(() => {
     const next = normalizeQuizTypeLabel(form.quizType);
@@ -1885,8 +1909,8 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
                         <span className="font-semibold text-brand-text text-sm">{r.date}</span>
                         <span className="text-brand-muted text-sm">víťaz</span>
                         <span className="font-semibold text-brand-orange text-sm">{r.winnerTeam}</span>
-                        <span className="text-brand-muted text-xs">
-                          {libraryQuizAssignmentLabel(r.libraryQuizId)}
+                        <span className="text-brand-text text-sm font-medium">
+                          {playedQuizLabel(r, libraryQuizTitles, libraryTitlesReady)}
                         </span>
                         <span className="ml-auto text-brand-muted text-sm">{r.points} bodov</span>
                         <ChevronLeft className="w-4 h-4 text-brand-muted-light group-hover:text-brand-orange rotate-180 transition-all" />

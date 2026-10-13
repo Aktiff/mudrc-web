@@ -27,3 +27,16 @@ export function libraryQuizAssignmentLabel(
       : titleById?.[libraryQuizId];
   return title ?? "Hotový kvíz z knižnice";
 }
+
+/** Názov kvízu z knižnice, ktorý sa pri večeri naozaj použil. */
+export function playedQuizLabel(
+  result: { libraryQuizId?: string; quizType?: string },
+  titleById: Record<string, string>,
+  titlesReady: boolean
+): string {
+  if (!result.libraryQuizId || isCanvasLibraryQuiz(result.libraryQuizId)) return "Kvíz v Canve";
+  const title = titleById[result.libraryQuizId]?.trim();
+  if (title) return title;
+  if (!titlesReady) return "…";
+  return result.quizType?.trim() || "Hotový kvíz z knižnice";
+}
