@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
-import { sortLeagueTable } from "@/lib/data";
+import { addDaysToSkDate, eventDateIsPlayedNight, sortLeagueTable } from "@/lib/data";
 import { normalizeDateKey } from "@/lib/quiz-result-key";
 import { buildQuizTeamsDetail } from "@/lib/quiz-save";
 import { collectPlayedTeamNames, getConflictingTeams } from "@/lib/quiz-library";
@@ -86,12 +86,15 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
     return NextResponse.json({ error: message }, { status: 500 });
   }
 
+  let nextEventDate: string | null = null;
   try {
     await updateEvents((events) => {
       const idx = events.findIndex((e) => e.slug === params.slug);
       if (idx === -1) throw new Error("NOT_FOUND");
 
       const event = events[idx];
+      const advanced = addDaysToSkDate(date, 14);
+      if (advanced && eventDateIsPlayedNight(event.date, date)) nextEventDate = advanced;
       const table = [...(event.leagueTable ?? [])];
       sorted.forEach((team) => {
         const pts = teamsDetail.find((row) => row.teamName === team.name)?.ligaPoints ?? 0;
@@ -111,7 +114,13 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
         { id: resultId, date, winnerTeam, points: winnerTotal, teams: teamsDetail, leagueSynced: true, libraryQuizId: normalizedLibraryQuizId, quizType, ...(playerCount > 0 ? { playerCount } : {}) },
       ];
 
-      events[idx] = { ...event, leagueTable: sortedTable, pastResults, leagueActive: true };
+      events[idx] = {
+        ...event,
+        leagueTable: sortedTable,
+        pastResults,
+        leagueActive: true,
+        ...(nextEventDate ? { date: nextEventDate, registrationOpen: true } : {}),
+      };
       return events;    });
   } catch (error) {
     if (error instanceof Error && error.message === "NOT_FOUND") {
@@ -142,5 +151,6 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
     event: saved,
     ligaPoints: responseLigaPoints,
     canvasQuiz: isCanvasLibraryQuiz(normalizedLibraryQuizId),
+    nextEventDate,
   });
 }

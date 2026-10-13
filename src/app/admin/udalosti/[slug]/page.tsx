@@ -282,14 +282,23 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
         return;
       }
 
+      const nextEventDate = typeof data.nextEventDate === "string" ? data.nextEventDate.trim() : "";
+      if (nextEventDate) {
+        registrationOpenLock.current = true;
+        savedEvent.date = nextEventDate;
+        savedEvent.registrationOpen = true;
+      }
       setForm(normalizeEvent(savedEvent));
       setQuizResult(data);
       setQuizTeams(Array.from({ length: 10 }, emptyRow));
       setLibraryQuizId("");
+      const savedText = isCanvasLibraryQuiz(libraryQuizId)
+        ? "Kvíz uložený do ligy (Canva, bez knižnice)."
+        : "Kvíz uložený do ligy.";
       setMsg({
-        text: isCanvasLibraryQuiz(libraryQuizId)
-          ? "Kvíz uložený do ligy (Canva, bez knižnice)."
-          : "Kvíz uložený do ligy.",
+        text: nextEventDate
+          ? `${savedText} Ďalší termín je ${nextEventDate}, registrácie sú zapnuté.`
+          : savedText,
         ok: true,
       });
       setTab("vysledky");

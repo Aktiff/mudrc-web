@@ -140,6 +140,24 @@ export function sortEventsForAdminOverview(events: QuizEvent[]): QuizEvent[] {
   });
 }
 
+/** Posun slovenského dátumu d.m.yyyy o počet dní. Čas dňa sa nepočíta. */
+export function addDaysToSkDate(date: string, days: number): string | null {
+  const parsed = parseSkEventDateTime(date);
+  if (!parsed || !Number.isFinite(days)) return null;
+  const next = new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate() + days);
+  if (Number.isNaN(next.getTime())) return null;
+  return `${String(next.getDate()).padStart(2, "0")}.${String(next.getMonth() + 1).padStart(2, "0")}.${next.getFullYear()}`;
+}
+
+/** Termín na webe je ešte tento odohratý večer, takže ho treba posunúť. */
+export function eventDateIsPlayedNight(eventDate: string, quizDate: string): boolean {
+  const quiz = parseSkEventDateTime(quizDate);
+  if (!quiz) return false;
+  const current = parseSkEventDateTime(eventDate);
+  if (!current) return true;
+  return current.getTime() <= quiz.getTime();
+}
+
 export function formatSkWeekday(date: string): string | null {
   const match = date.trim().match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
   if (!match) return null;
