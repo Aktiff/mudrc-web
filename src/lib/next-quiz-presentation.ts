@@ -57,6 +57,39 @@ export function formatNextQuizLines(entries: { venue: string; at: Date }[]): str
     .slice(0, MAX_NEXT_QUIZ_LINES);
 }
 
+function calendarDay(date: Date): number {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+}
+
+/** Podnik, v ktorom práve beží kvíz: dnešný termín, inak ten vybraný v úvode. */
+export function findHomeQuizEvent(events: QuizEvent[], eventSlug: string): QuizEvent | undefined {
+  const today = calendarDay(new Date());
+  const todays = events.filter((event) => {
+    const at = parseSkEventDateTime(event.date, event.time);
+    return Boolean(at && calendarDay(at) === today);
+  });
+  const selectedToday = todays.find((event) => event.slug === eventSlug);
+  if (selectedToday) return selectedToday;
+  if (todays.length > 0) return todays[0];
+  return eventSlug ? events.find((event) => event.slug === eventSlug) : undefined;
+}
+
+/**
+ * Domáci podnik s dnešným alebo starším termínom sa ukáže o 14 dní v rovnakom čase.
+ * Ostatné podniky ostanú na dátume a čase z udalosti.
+ */
+export function nextQuizMomentForEvent(event: QuizEvent, home: boolean): Date | null {
+  const at = parseSkEventDateTime(event.date, event.time);
+  if (!at) return null;
+  if (!home) return at;
+  if (calendarDay(at) <= calendarDay(new Date())) {
+    const next = new Date(at);
+    next.setDate(next.getDate() + 14);
+    return next;
+  }
+  return at;
+}
+
 /** Najbližšie budúce termíny z kalendára udalostí (aktívne). */
 export function getUpcomingQuizEvents(events: QuizEvent[], limit = MAX_NEXT_QUIZ_LINES): QuizEvent[] {
   const now = Date.now();

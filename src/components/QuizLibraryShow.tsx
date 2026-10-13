@@ -30,14 +30,11 @@ import {
 } from "@/lib/quiz-presentation";
 import { findCorrectOptionIndex, getQuestionBodyText, getQuestionOptions, optionLetter } from "@/lib/quiz-question-options";
 import {
-  defaultNextQuizDate,
-  defaultNextQuizDateAfter,
-  eventToDatetimeLocalValue,
+  findHomeQuizEvent,
+  formatNextQuizLine,
   formatNextQuizLines,
-  getUpcomingQuizEvents,
   MAX_NEXT_QUIZ_LINES,
-  parseDatetimeLocalValue,
-  toDatetimeLocalValue,
+  nextQuizMomentForEvent,
 } from "@/lib/next-quiz-presentation";
 import {
   PRESENTATION_ASPECT_OPTIONS,
@@ -552,13 +549,8 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
   const [slideView, setSlideView] = useState({ scale: 1, x: 0, y: 0 });
   const [showNextQuizModal, setShowNextQuizModal] = useState(false);
   const [nextQuizLines, setNextQuizLines] = useState<string[]>([]);
-  const [nextQuizWizardIndex, setNextQuizWizardIndex] = useState(0);
-  const [nextQuizDraftVenue, setNextQuizDraftVenue] = useState("");
-  const [nextQuizDraftAtLocal, setNextQuizDraftAtLocal] = useState(() =>
-    toDatetimeLocalValue(defaultNextQuizDate())
-  );
-  const [upcomingEventHints, setUpcomingEventHints] = useState<QuizEvent[]>([]);
-  const [savedNextQuizSteps, setSavedNextQuizSteps] = useState<{ venue: string; atLocal: string }[]>([]);
+  const [selectedNextQuizSlugs, setSelectedNextQuizSlugs] = useState<string[]>([]);
+  const [homeNextQuizSlug, setHomeNextQuizSlug] = useState("");
   const [aspectMode, setAspectMode] = useState<PresentationAspectMode>("tv-16:9");
   useEffect(() => {
     let cancelled = false;
@@ -662,93 +654,44 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
     return () => window.clearInterval(interval);
   }, [slideTimerKey, started]);
 
-  const applyWizardStepPrefill = useCallback(
-    (stepIndex: number, hints: QuizEvent[], saved: { venue: string; atLocal: string }[]) => {
-      const hint = hints[stepIndex];
-      if (hint) {
-        setNextQuizDraftVenue(hint.venue);
-        const local = eventToDatetimeLocalValue(hint);
-        setNextQuizDraftAtLocal(local ?? toDatetimeLocalValue(defaultNextQuizDate()));
-        return;
-      }
-      const lastSaved = saved[saved.length - 1];
-      const prevAt = lastSaved
-        ? parseDatetimeLocalValue(lastSaved.atLocal) ?? defaultNextQuizDate()
-        : defaultNextQuizDate();
-      setNextQuizDraftVenue("");
-      setNextQuizDraftAtLocal(toDatetimeLocalValue(defaultNextQuizDateAfter(prevAt, 1)));
-    },
-    []
-  );
-
-  const stepsToFormattedLines = useCallback((steps: { venue: string; atLocal: string }[]) => {
-    return formatNextQuizLines(
-      steps
-        .filter((row) => row.venue.trim())
-        .map((row) => ({
-          venue: row.venue,
-          at: parseDatetimeLocalValue(row.atLocal) ?? defaultNextQuizDate(),
-        }))
-    );
-  }, []);
-
-  const finishNextQuizWizard = useCallback(
-    (steps: { venue: string; atLocal: string }[]) => {
-      setNextQuizLines(stepsToFormattedLines(steps));
-      setShowNextQuizModal(false);
-      setSavedNextQuizSteps([]);
-      setNextQuizWizardIndex(0);
-      setStarted(true);
-    },
-    [stepsToFormattedLines]
-  );
+  const nextQuizChoices = useMemo(() => {
+    const active = events.filter((event) => event.active !== false && event.venue.trim());
+    const home = active.find((event) => event.slug === homeNextQuizSlug);
+    const rest = active
+      .filter((event) => event.slug !== homeNextQuizSlug)
+      .sort(
+        (a, b) => a.city.localeCompare(b.city, "sk") || a.venue.localeCompare(b.venue, "sk")
+      );
+    return home ? [home, ...rest] : rest;
+  }, [events, homeNextQuizSlug]);
 
   const openNextQuizModal = useCallback(() => {
-    const hints = getUpcomingQuizEvents(events, MAX_NEXT_QUIZ_LINES);
-    setUpcomingEventHints(hints);
-    setSavedNextQuizSteps([]);
-    setNextQuizWizardIndex(0);
-    if (hints.length > 0) {
-      applyWizardStepPrefill(0, hints, []);
-    } else {
-      const current = events.find((event) => event.slug === eventSlug);
-      setNextQuizDraftVenue(current?.venue ?? "");
-      const local = current ? eventToDatetimeLocalValue(current) : null;
-      setNextQuizDraftAtLocal(local ?? toDatetimeLocalValue(defaultNextQuizDate()));
-    }
+    const home = findHomeQuizEvent(events, eventSlug);
+    setHomeNextQuizSlug(home?.slug ?? "");
+    setSelectedNextQuizSlugs(home ? [home.slug] : []);
     setShowNextQuizModal(true);
-  }, [applyWizardStepPrefill, events, eventSlug]);
+  }, [events, eventSlug]);
+
+  const toggleNextQuizSlug = useCallback((slug: string) => {
+    setSelectedNextQuizSlugs((current) => {
+      if (current.includes(slug)) return current.filter((item) => item !== slug);
+      if (current.length >= MAX_NEXT_QUIZ_LINES) return current;
+      return [...current, slug];
+    });
+  }, []);
 
   const confirmStartPresentation = useCallback(() => {
-    const steps = [...savedNextQuizSteps];
-    if (nextQuizDraftVenue.trim()) {
-      steps.push({ venue: nextQuizDraftVenue.trim(), atLocal: nextQuizDraftAtLocal });
-    }
-    finishNextQuizWizard(steps);
-  }, [finishNextQuizWizard, nextQuizDraftAtLocal, nextQuizDraftVenue, savedNextQuizSteps]);
-
-  const goNextQuizWizardStep = useCallback(() => {
-    if (!nextQuizDraftVenue.trim()) return;
-    const nextSaved = [
-      ...savedNextQuizSteps,
-      { venue: nextQuizDraftVenue.trim(), atLocal: nextQuizDraftAtLocal },
-    ];
-    if (nextSaved.length >= MAX_NEXT_QUIZ_LINES) {
-      finishNextQuizWizard(nextSaved);
-      return;
-    }
-    setSavedNextQuizSteps(nextSaved);
-    const nextIndex = nextSaved.length;
-    setNextQuizWizardIndex(nextIndex);
-    applyWizardStepPrefill(nextIndex, upcomingEventHints, nextSaved);
-  }, [
-    applyWizardStepPrefill,
-    finishNextQuizWizard,
-    nextQuizDraftAtLocal,
-    nextQuizDraftVenue,
-    savedNextQuizSteps,
-    upcomingEventHints,
-  ]);
+    const entries = selectedNextQuizSlugs.flatMap((slug) => {
+      const event = events.find((item) => item.slug === slug);
+      if (!event) return [];
+      const at = nextQuizMomentForEvent(event, slug === homeNextQuizSlug);
+      if (!at) return [];
+      return [{ venue: event.venue, at }];
+    });
+    setNextQuizLines(formatNextQuizLines(entries));
+    setShowNextQuizModal(false);
+    setStarted(true);
+  }, [events, homeNextQuizSlug, selectedNextQuizSlugs]);
 
   const goNext = useCallback(() => {
     setIndex((i) => Math.min(slides.length - 1, i + 1));
@@ -900,74 +843,70 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
 
         {showNextQuizModal && (
           <div
-            className="absolute inset-0 z-30 flex items-center justify-center p-6 bg-black/70 backdrop-blur-sm"
+            className="fixed inset-0 z-30 flex items-center justify-center p-4 sm:p-6 bg-black/70 backdrop-blur-sm"
             onClick={() => setShowNextQuizModal(false)}
           >
             <div
-              className="relative w-full max-w-md rounded-2xl border border-white/15 bg-[#121212] p-6 sm:p-8 shadow-2xl space-y-5"
+              className="relative w-full max-w-lg max-h-[min(90vh,760px)] overflow-hidden rounded-2xl border border-white/15 bg-[#121212] p-6 sm:p-8 shadow-2xl flex flex-col gap-4"
               onClick={(e) => e.stopPropagation()}
             >
               <div>
                 <p className="text-[#f0c800]/80 text-xs uppercase tracking-[0.25em] mb-2">Pred projekciou</p>
                 <h2 className="font-display text-2xl tracking-wide">Najbližšie kvízy</h2>
                 <p className="text-white/50 text-sm mt-2">
-                  Zobrazia sa na slidoch „Opravovanie“. Môžeš pridať až {MAX_NEXT_QUIZ_LINES} termínov — každý
-                  potvrď „Ďalší termín“, na záver „Spustiť projekciu“.
-                </p>
-                <p className="text-[#f0c800]/90 text-xs font-semibold mt-3">
-                  Termín {Math.min(nextQuizWizardIndex + 1, MAX_NEXT_QUIZ_LINES)} / {MAX_NEXT_QUIZ_LINES}
+                  Zaklikni podniky v poradí, v akom sa majú ukázať. Prvý je podnik, v ktorom práve si — o dva
+                  týždne v rovnakom čase. Ostatné berú dátum a čas zo svojej udalosti. Najviac {MAX_NEXT_QUIZ_LINES}.
                 </p>
               </div>
-              {savedNextQuizSteps.length > 0 && (
-                <ul className="text-xs text-white/55 space-y-1 rounded-xl bg-white/5 border border-white/10 px-3 py-2">
-                  {stepsToFormattedLines(savedNextQuizSteps).map((line) => (
-                    <li key={line}>✓ {line}</li>
-                  ))}
-                </ul>
-              )}
-              <label className="block space-y-2">
-                <span className="text-sm text-white/70">Podnik / miesto</span>
-                <input
-                  type="text"
-                  value={nextQuizDraftVenue}
-                  onChange={(e) => setNextQuizDraftVenue(e.target.value)}
-                  placeholder="napr. Alipub"
-                  className="w-full rounded-xl bg-white/10 border border-white/20 px-4 py-3 text-white placeholder:text-white/35"
-                />
-              </label>
-              <label className="block space-y-2">
-                <span className="text-sm text-white/70">Dátum a čas</span>
-                <input
-                  type="datetime-local"
-                  value={nextQuizDraftAtLocal}
-                  onChange={(e) => setNextQuizDraftAtLocal(e.target.value)}
-                  className="w-full rounded-xl bg-white/10 border border-white/20 px-4 py-3 text-white [color-scheme:dark]"
-                />
-              </label>
-              <div className="flex flex-col gap-2 pt-2">
-                <div className="flex gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setShowNextQuizModal(false)}
-                    className="flex-1 rounded-xl border border-white/20 py-3 text-white/80 hover:bg-white/10 transition-colors"
-                  >
-                    Zrušiť
-                  </button>
-                  {savedNextQuizSteps.length + 1 < MAX_NEXT_QUIZ_LINES ? (
-                    <button
-                      type="button"
-                      disabled={!nextQuizDraftVenue.trim()}
-                      onClick={goNextQuizWizardStep}
-                      className="flex-1 rounded-xl border border-[#f0c800]/50 py-3 text-[#f0c800] font-semibold hover:bg-[#f0c800]/10 transition-colors disabled:opacity-40"
+              <div className="min-h-0 flex-1 overflow-y-auto space-y-2 pr-1">
+                {nextQuizChoices.map((event) => {
+                  const order = selectedNextQuizSlugs.indexOf(event.slug);
+                  const checked = order >= 0;
+                  const full = !checked && selectedNextQuizSlugs.length >= MAX_NEXT_QUIZ_LINES;
+                  const at = nextQuizMomentForEvent(event, event.slug === homeNextQuizSlug);
+                  const line = at ? formatNextQuizLine(event.venue, at) : event.venue;
+                  return (
+                    <label
+                      key={event.slug}
+                      className={`flex items-start gap-3 rounded-xl border px-3 py-3 ${
+                        checked ? "border-[#f0c800]/60 bg-[#f0c800]/10" : "border-white/10 bg-white/5"
+                      } ${full ? "opacity-40" : "cursor-pointer"}`}
                     >
-                      Ďalší termín
-                    </button>
-                  ) : null}
-                </div>
+                      <input
+                        type="checkbox"
+                        className="mt-1 h-4 w-4 accent-[#f0c800]"
+                        checked={checked}
+                        disabled={full}
+                        onChange={() => toggleNextQuizSlug(event.slug)}
+                      />
+                      <span className="min-w-0">
+                        <span className="flex items-center gap-2 text-sm text-white">
+                          {checked && (
+                            <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[#f0c800] px-1.5 text-xs font-bold text-black">
+                              {order + 1}
+                            </span>
+                          )}
+                          <span className="font-semibold">{event.venue}</span>
+                          <span className="text-white/45">{event.city}</span>
+                        </span>
+                        <span className="block text-sm text-white/70 mt-1">{line}</span>
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+              <div className="flex gap-3 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setShowNextQuizModal(false)}
+                  className="flex-1 rounded-xl border border-white/20 py-3 text-white/80 hover:bg-white/10 transition-colors"
+                >
+                  Zrušiť
+                </button>
                 <button
                   type="button"
                   onClick={confirmStartPresentation}
-                  className="w-full rounded-xl bg-[#f0c800] text-black font-bold py-3 hover:bg-[#ffd54f] transition-colors"
+                  className="flex-1 rounded-xl bg-[#f0c800] text-black font-bold py-3 hover:bg-[#ffd54f] transition-colors"
                 >
                   Spustiť projekciu
                 </button>
