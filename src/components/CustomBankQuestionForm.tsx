@@ -1,8 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ChevronDown, ChevronUp, Plus } from "lucide-react";
 import ImageUrlField from "@/components/admin/ImageUrlField";
+import { BankThemeSelect } from "@/components/BankThemeControls";
+import { DEFAULT_BANK_THEME, DEFAULT_BANK_THEMES } from "@/lib/bank-themes";
+import { fetchBankThemes } from "@/lib/bank-themes-client";
 import { addCustomBankQuestionAsync, type CustomBankQuestion } from "@/lib/quiz-custom-bank";
 import TagSuggestInput from "@/components/TagSuggestInput";
 import { parseTagsInput } from "@/lib/quiz-question-tags";
@@ -24,6 +27,8 @@ export default function CustomBankQuestionForm({ onAdded }: Props) {
   const [correctIndex, setCorrectIndex] = useState(0);
   const [note, setNote] = useState("");
   const [tagsText, setTagsText] = useState("");
+  const [theme, setTheme] = useState<string>(DEFAULT_BANK_THEME);
+  const [themes, setThemes] = useState<string[]>([...DEFAULT_BANK_THEMES]);
   const [difficulty, setDifficulty] = useState(5);
   const [isImageQuestion, setIsImageQuestion] = useState(false);
   const [suggestedImageUrl, setSuggestedImageUrl] = useState("");
@@ -38,10 +43,20 @@ export default function CustomBankQuestionForm({ onAdded }: Props) {
     setCorrectIndex(0);
     setNote("");
     setTagsText("");
+    setTheme(DEFAULT_BANK_THEME);
     setDifficulty(5);
     setIsImageQuestion(false);
     setSuggestedImageUrl("");
   };
+
+  useEffect(() => {
+    void fetchBankThemes().then(setThemes);
+    const refresh = () => {
+      void fetchBankThemes().then(setThemes);
+    };
+    window.addEventListener("mudrc-bank-themes-updated", refresh);
+    return () => window.removeEventListener("mudrc-bank-themes-updated", refresh);
+  }, []);
 
   const handleSubmit = async () => {
     setError("");
@@ -81,6 +96,7 @@ export default function CustomBankQuestionForm({ onAdded }: Props) {
           answer: openAnswer.trim(),
           note: note.trim() || undefined,
           tags: parseTagsInput(tagsText),
+          theme,
           difficulty,
           isImageQuestion,
           isOpenQuestion: true,
@@ -94,6 +110,7 @@ export default function CustomBankQuestionForm({ onAdded }: Props) {
           correctIndex,
           note: note.trim() || undefined,
           tags: parseTagsInput(tagsText),
+          theme,
           difficulty,
           isImageQuestion,
           isOpenQuestion: false,
@@ -216,6 +233,8 @@ export default function CustomBankQuestionForm({ onAdded }: Props) {
               />
             </div>
           )}
+
+          <BankThemeSelect themes={themes} value={theme} onChange={setTheme} onThemesChange={setThemes} />
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div>

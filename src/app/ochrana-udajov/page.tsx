@@ -4,7 +4,7 @@ import { ArrowLeft, Mail } from "lucide-react";
 
 export const metadata: Metadata = {
   title: "Ochrana osobných údajov",
-  description: "Ako Mudrc Kvíz spracúva údaje z registrácie tímu, SMS a príspevkov na Facebooku.",
+  description: "Ako Mudrc Kvíz spracúva údaje z registrácie tímu a príspevkov na Facebooku.",
 };
 
 export default function PrivacyPage() {
@@ -33,7 +33,7 @@ export default function PrivacyPage() {
           <h2 className="font-display text-2xl text-brand-text tracking-wide">Registrácia na kvíz</h2>
           <p>
             Pri prihlásení tímu ukladáme názov tímu, počet hráčov, telefónne číslo a kvíz (podnik, dátum).
-            Číslo slúži na potvrdenie účasti a na správu o danom kvíze, vrátane SMS, ak ju organizátor odošle.
+            Číslo slúži na potvrdenie účasti a na správu o danom kvíze.
           </p>
           <p>
             Údaje držia, kým je tím prihlásený na kvíz. Kontakt tímu si môžeme ponechať aj po kvíze, aby sa dal

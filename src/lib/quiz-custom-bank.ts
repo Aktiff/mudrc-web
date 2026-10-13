@@ -1,3 +1,4 @@
+import { inferBankTheme, normalizeBankThemeName } from "@/lib/bank-themes";
 import type { QuizBankQuestion } from "@/lib/quiz-question-bank";
 import { refreshStoredCustomQuestionTags, resolveCustomQuestionTags } from "@/lib/quiz-bank-tag-inference";
 
@@ -9,6 +10,8 @@ export type CustomBankQuestion = QuizBankQuestion & {
   createdAt: number;
   /** Predvolená fotka pri vložení do foto slotu */
   suggestedImageUrl?: string;
+  /** Všeobecné, Hudobné, Filmové alebo vlastná téma */
+  theme?: string;
 };
 
 export function isCustomBankQuestionId(id: string): boolean {
@@ -95,6 +98,7 @@ export function normalizeStoredCustomQuestion(raw: unknown): CustomBankQuestion 
       typeof row.suggestedImageUrl === "string" && row.suggestedImageUrl.trim()
         ? row.suggestedImageUrl.trim()
         : undefined,
+    theme: typeof row.theme === "string" ? normalizeBankThemeName(row.theme) || undefined : undefined,
     createdAt: typeof row.createdAt === "number" ? row.createdAt : Date.now(),
   };
 }
@@ -120,6 +124,7 @@ export type NewCustomBankQuestionInput = {
   isImageQuestion?: boolean;
   isOpenQuestion?: boolean;
   suggestedImageUrl?: string;
+  theme?: string;
 };
 
 /** Len vyplnené možnosti — pre vloženie a premiešanie. */
@@ -183,6 +188,12 @@ export function createCustomBankQuestion(input: NewCustomBankQuestionInput): Cus
     isImageQuestion: Boolean(input.isImageQuestion),
     isOpenQuestion,
     suggestedImageUrl: input.suggestedImageUrl?.trim() || undefined,
+    theme: inferBankTheme({
+      theme: input.theme,
+      tags: input.tags,
+      body: input.body,
+      note: input.note,
+    }),
     createdAt: Date.now(),
   };
 }
@@ -215,6 +226,16 @@ export async function syncLocalCustomBankToServerOnce(): Promise<void> {
 
   const local = readCustomBankQuestions();
   if (!local.length) {
+    window.sessionStorage.setItem(CUSTOM_BANK_SYNC_FLAG, "1");
+    return;
+  }
+
+  const current = await fetch(`/api/admin/custom-bank?_=${Date.now()}`, { cache: "no-store" });
+  if (!current.ok) return;
+  const currentData = await current.json().catch(() => ({}));
+  const server = parseCustomBankQuestionList(currentData.questions);
+  if (server.length > 0) {
+    writeCustomBankQuestions(server);
     window.sessionStorage.setItem(CUSTOM_BANK_SYNC_FLAG, "1");
     return;
   }
@@ -306,23 +327,20 @@ export async function updateCustomBankQuestionAsync(
 export async function removeCustomBankQuestionAsync(id: string): Promise<void> {
   if (!isCustomBankQuestionId(id)) return;
 
-  try {
-    const res = await fetch(`/api/admin/custom-bank?id=${encodeURIComponent(id)}`, {
-      method: "DELETE",
-      cache: "no-store",
-    });
-    if (res.ok) {
-      const data = await res.json();
-      const questions = parseCustomBankQuestionList(data.questions);
-      writeCustomBankQuestions(questions);
-      notifyCustomBankUpdated();
-      return;
-    }
-  } catch {
-    /* fallback local */
+  const res = await fetch(`/api/admin/custom-bank?id=${encodeURIComponent(id)}`, {
+    method: "DELETE",
+    cache: "no-store",
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(typeof data.error === "string" ? data.error : "Vymazanie zlyhalo");
   }
-
-  removeCustomBankQuestion(id);
+  const questions = parseCustomBankQuestionList(data.questions);
+  if (questions.some((question) => question.id === id)) {
+    throw new Error("Otázka v banke zostala. Skús vymazať znova.");
+  }
+  writeCustomBankQuestions(questions);
+  notifyCustomBankUpdated();
 }
 
 export function removeCustomBankQuestion(id: string): void {

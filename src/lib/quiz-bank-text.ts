@@ -10,7 +10,7 @@ export function getFullTextBankQuestions(
   return filterVisibleBankQuestions([], hiddenIds, customQuestions);
 }
 
-/** Otázky ponúkané na vloženie do aktuálneho kvízu. */
+/** Otázky ponúkané na vloženie. Otázka už použitá v kvíze (id aj znenie) sa vynechá. */
 export function getInsertableTextBankQuestions(
   customQuestions: QuizBankQuestion[],
   usedIds: string[],

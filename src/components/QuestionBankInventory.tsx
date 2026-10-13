@@ -10,6 +10,9 @@ import {
 } from "@/components/BankMediaEditDialogs";
 import EditCustomBankQuestionDialog from "@/components/EditCustomBankQuestionDialog";
 import BankMediaPreview from "@/components/BankMediaPreview";
+import { BankThemeFilters } from "@/components/BankThemeControls";
+import { bankQuestionTheme, DEFAULT_BANK_THEME, DEFAULT_BANK_THEMES, mergeBankThemes } from "@/lib/bank-themes";
+import { fetchBankThemes } from "@/lib/bank-themes-client";
 import {
   countTextBankSources,
   excludeQuestionsUsedByBody,
@@ -17,7 +20,6 @@ import {
   getInsertableTextBankQuestions,
   type TextBankSourceFilter,
 } from "@/lib/quiz-bank-text";
-import { collectGlobalUsedBankQuestionIds, collectUsedQuestionBodyKeys, type QuizLibraryItem } from "@/lib/quiz-library";
 import {
   fetchCustomBankQuestionsFromServer,
   isCustomBankQuestionId,
@@ -84,6 +86,10 @@ export default function QuestionBankInventory({
   const [usedBodies, setUsedBodies] = useState<string[]>([]);
   const [questionSourceFilter, setQuestionSourceFilter] = useState<TextBankSourceFilter>("custom");
   const [customKind, setCustomKind] = useState<"text" | "photo">("text");
+  const [questionTheme, setQuestionTheme] = useState<string>(DEFAULT_BANK_THEME);
+  const [bankThemes, setBankThemes] = useState<string[]>([...DEFAULT_BANK_THEMES]);
+  const [removedIds, setRemovedIds] = useState<string[]>([]);
+  const removedIdsRef = useRef(new Set<string>());
   const [pinned, setPinned] = useState<CustomBankQuestion[]>([]);
   const [highlightId, setHighlightId] = useState<string | null>(null);
   const pendingAdded = useRef<CustomBankQuestion[]>([]);
@@ -95,24 +101,24 @@ export default function QuestionBankInventory({
     setHiddenIds(readHiddenBankQuestionIds());
   }, []);
 
+  const removedIdSet = useMemo(() => new Set(removedIds), [removedIds]);
+
   const sourceQuestions = useMemo(() => {
     const byId = new Map<string, CustomBankQuestion>();
     for (const item of questions) byId.set(item.id, item);
-    for (const item of pinned) byId.set(item.id, item);
-    if (addedQuestion) byId.set(addedQuestion.id, addedQuestion);
+    for (const item of pinned) {
+      if (!removedIdSet.has(item.id)) byId.set(item.id, item);
+    }
+    if (addedQuestion && !removedIdSet.has(addedQuestion.id)) byId.set(addedQuestion.id, addedQuestion);
+    for (const id of removedIds) byId.delete(id);
     return Array.from(byId.values()).sort((a, b) => b.createdAt - a.createdAt);
-  }, [questions, pinned, addedQuestion]);
+  }, [questions, pinned, addedQuestion, removedIds, removedIdSet]);
 
   const usedIdSet = useMemo(() => new Set(usedIds), [usedIds]);
 
   const fullTextBank = useMemo(() => {
     const available = getInsertableTextBankQuestions(sourceQuestions, usedIds, hiddenIds);
-    const custom = available.filter((item) => isCustomBankQuestionId(item.id));
-    const generated = excludeQuestionsUsedByBody(
-      available.filter((item) => !isCustomBankQuestionId(item.id)),
-      usedBodies
-    );
-    return [...custom, ...generated];
+    return excludeQuestionsUsedByBody(available, usedBodies);
   }, [sourceQuestions, hiddenIds, usedIds, usedBodies]);
 
   const availableSound = useMemo(
@@ -135,26 +141,44 @@ export default function QuestionBankInventory({
     [fullTextBank, questionSourceFilter]
   );
 
+  const themeChoices = useMemo(
+    () => mergeBankThemes([...bankThemes, ...visibleTextQuestions.map((item) => bankQuestionTheme(item))]),
+    [bankThemes, visibleTextQuestions]
+  );
+  const themeCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const theme of themeChoices) counts[theme] = 0;
+    for (const item of visibleTextQuestions) {
+      const theme = bankQuestionTheme(item);
+      counts[theme] = (counts[theme] ?? 0) + 1;
+    }
+    return counts;
+  }, [themeChoices, visibleTextQuestions]);
+  const themedTextQuestions = useMemo(
+    () => visibleTextQuestions.filter((item) => bankQuestionTheme(item) === questionTheme),
+    [visibleTextQuestions, questionTheme]
+  );
+
   const shownTextQuestions = useMemo(() => {
-    if (questionSourceFilter !== "custom") return visibleTextQuestions;
-    return visibleTextQuestions.filter((item) =>
+    if (questionSourceFilter !== "custom") return themedTextQuestions;
+    return themedTextQuestions.filter((item) =>
       customKind === "photo" ? customQuestionHasPhoto(item) : !customQuestionHasPhoto(item)
     );
-  }, [visibleTextQuestions, questionSourceFilter, customKind]);
+  }, [themedTextQuestions, questionSourceFilter, customKind]);
 
   const customWithoutPhotoCount = useMemo(
     () =>
       questionSourceFilter === "custom"
-        ? visibleTextQuestions.filter((item) => !customQuestionHasPhoto(item)).length
+        ? themedTextQuestions.filter((item) => !customQuestionHasPhoto(item)).length
         : 0,
-    [visibleTextQuestions, questionSourceFilter]
+    [themedTextQuestions, questionSourceFilter]
   );
   const customWithPhotoCount = useMemo(
     () =>
       questionSourceFilter === "custom"
-        ? visibleTextQuestions.filter((item) => customQuestionHasPhoto(item)).length
+        ? themedTextQuestions.filter((item) => customQuestionHasPhoto(item)).length
         : 0,
-    [visibleTextQuestions, questionSourceFilter]
+    [themedTextQuestions, questionSourceFilter]
   );
 
   const filteredMusic = useMemo(
@@ -165,26 +189,32 @@ export default function QuestionBankInventory({
   const load = useCallback(async () => {
     const seq = ++loadSeq.current;
     if (!loadedOnce.current) setLoading(true);
-    const [q, s, v, m, quizRes] = await Promise.all([
+    const [q, s, v, m, quizRes, themes] = await Promise.all([
       fetchCustomBankQuestionsFromServer(),
       fetchSoundBankFromServer(),
       fetchVideoBankFromServer(),
       fetchMusicBankFromServer(),
-      fetch(`/api/admin/quiz-library?_=${Date.now()}`, { cache: "no-store" }),
+      fetch(`/api/admin/quiz-library?usedKeys=1&_=${Date.now()}`, { cache: "no-store" }),
+      fetchBankThemes(),
     ]);
     if (seq !== loadSeq.current) return;
-    const quizzes: QuizLibraryItem[] = quizRes.ok ? ((await quizRes.json()).quizzes ?? []) : [];
-    const server = q.filter((item) => isCustomBankQuestionId(item.id));
+    const used = quizRes.ok
+      ? ((await quizRes.json()) as { usedBankQuestionIds?: unknown; usedBodies?: unknown })
+      : {};
+    const server = q.filter((item) => isCustomBankQuestionId(item.id) && !removedIdsRef.current.has(item.id));
     const serverIds = new Set(server.map((item) => item.id));
-    const missing = pendingAdded.current.filter((item) => !serverIds.has(item.id));
+    const missing = pendingAdded.current.filter(
+      (item) => !serverIds.has(item.id) && !removedIdsRef.current.has(item.id)
+    );
     const toSave = missing.filter((item) => !reinjected.current.has(item.id));
     for (const item of toSave) reinjected.current.add(item.id);
     setQuestions([...missing, ...server.filter((item) => !missing.some((extra) => extra.id === item.id))]);
     setSound(s);
     setVideo(v);
     setMusic(m);
-    setUsedIds(collectGlobalUsedBankQuestionIds(quizzes));
-    setUsedBodies(collectUsedQuestionBodyKeys(quizzes));
+    setBankThemes(themes);
+    setUsedIds(Array.isArray(used.usedBankQuestionIds) ? used.usedBankQuestionIds.filter((id) => typeof id === "string") : []);
+    setUsedBodies(Array.isArray(used.usedBodies) ? used.usedBodies.filter((id) => typeof id === "string") : []);
     loadedOnce.current = true;
     setLoading(false);
     if (toSave.length > 0) {
@@ -236,9 +266,19 @@ export default function QuestionBankInventory({
     if (!window.confirm("Odstrániť otázku z banky?")) return;
     pendingAdded.current = pendingAdded.current.filter((item) => item.id !== id);
     reinjected.current.delete(id);
+    removedIdsRef.current.add(id);
+    setRemovedIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
     setPinned((prev) => prev.filter((item) => item.id !== id));
-    await removeCustomBankQuestionAsync(id);
-    afterEdit();
+    setQuestions((prev) => prev.filter((item) => item.id !== id));
+    try {
+      await removeCustomBankQuestionAsync(id);
+      afterEdit();
+    } catch (error) {
+      removedIdsRef.current.delete(id);
+      setRemovedIds((prev) => prev.filter((item) => item !== id));
+      window.alert(error instanceof Error ? error.message : "Otázku sa nepodarilo vymazať.");
+      afterEdit();
+    }
   };
 
   const hideGeneratedQuestion = (bankId: string) => {
@@ -288,7 +328,7 @@ export default function QuestionBankInventory({
         <div>
           <p className="font-semibold text-brand-text">Obsah banky</p>
           <p className="text-brand-muted text-xs mt-0.5">
-            Vlastná otázka uložená z kvízu tu zostane, aj keď v kvíze ostala. Otázka vložená z banky do kvízu sa skryje, kým ju nevrátiš.
+            Otázka, ktorá je v nejakom kvíze, sa tu nezobrazí. Keď ju z kvízu vymažeš alebo vrátiš, znova sa ukáže vo svojej téme.
           </p>
         </div>
         <button
@@ -318,8 +358,16 @@ export default function QuestionBankInventory({
         ))}
       </div>
 
-      {tab === "questions" && textBankCounts.all > 0 && (
+      {tab === "questions" && (
         <div className="px-4 sm:px-5 py-3 border-b border-brand-border bg-brand-warm/20 shrink-0 space-y-2">
+          <BankThemeFilters
+            themes={themeChoices}
+            value={questionTheme}
+            counts={themeCounts}
+            onChange={setQuestionTheme}
+            onThemesChange={setBankThemes}
+          />
+          {textBankCounts.all > 0 && (
           <div className="flex flex-wrap gap-1.5">
               {(
                 [
@@ -341,6 +389,7 @@ export default function QuestionBankInventory({
                 </button>
               ))}
             </div>
+          )}
         </div>
       )}
 
@@ -367,11 +416,11 @@ export default function QuestionBankInventory({
             <p className="text-sm text-brand-muted text-center py-8">V banke zatiaľ nie sú textové otázky.</p>
           ) : shownTextQuestions.length === 0 ? (
             <p className="text-sm text-brand-muted text-center py-8">
-              {questionSourceFilter === "custom" && visibleTextQuestions.length > 0
-                ? customKind === "photo"
+              {themedTextQuestions.length === 0
+                ? `V téme ${questionTheme} zatiaľ nie sú voľné otázky.`
+                : customKind === "photo"
                   ? "Žiadne otázky s fotkou."
-                  : "Žiadne otázky bez fotky."
-                : "V tomto filtri nie sú otázky."}
+                  : "Žiadne otázky bez fotky."}
             </p>
           ) : (
             <ul className="space-y-3">
@@ -389,7 +438,7 @@ export default function QuestionBankInventory({
                   <div className="flex flex-wrap items-center gap-1.5">
                     {isCustom && (
                       <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-brand-orange/15 text-brand-orange-readable border border-brand-orange/40">
-                        moja otázka
+                        {bankQuestionTheme(q)}
                       </span>
                     )}
                     {isGenerated && (

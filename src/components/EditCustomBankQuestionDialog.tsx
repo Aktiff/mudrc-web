@@ -3,6 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 import ImageUrlField from "@/components/admin/ImageUrlField";
+import { BankThemeSelect } from "@/components/BankThemeControls";
+import { bankQuestionTheme, DEFAULT_BANK_THEMES } from "@/lib/bank-themes";
+import { fetchBankThemes } from "@/lib/bank-themes-client";
 import TagSuggestInput from "@/components/TagSuggestInput";
 import type { CustomBankQuestion } from "@/lib/quiz-custom-bank";
 import { updateCustomBankQuestionAsync } from "@/lib/quiz-custom-bank";
@@ -24,6 +27,8 @@ export default function EditCustomBankQuestionDialog({ question, onClose, onSave
   const [correctIndex, setCorrectIndex] = useState(0);
   const [note, setNote] = useState("");
   const [tagsText, setTagsText] = useState("");
+  const [theme, setTheme] = useState("");
+  const [themes, setThemes] = useState<string[]>([...DEFAULT_BANK_THEMES]);
   const [difficulty, setDifficulty] = useState(5);
   const [isImageQuestion, setIsImageQuestion] = useState(false);
   const [suggestedImageUrl, setSuggestedImageUrl] = useState("");
@@ -44,6 +49,7 @@ export default function EditCustomBankQuestionDialog({ question, onClose, onSave
       correctIndex,
       note,
       tagsText,
+      theme,
       difficulty,
       isImageQuestion,
       suggestedImageUrl,
@@ -55,6 +61,7 @@ export default function EditCustomBankQuestionDialog({ question, onClose, onSave
     const nextOptions = [...question.options];
     const nextAnswer = question.isOpenQuestion ? question.answer : "";
     const nextTags = formatTagsInput(question.tags);
+    const nextTheme = bankQuestionTheme(question);
     const nextNote = question.note ?? "";
     const nextImage = Boolean(question.isImageQuestion);
     const nextUrl = question.suggestedImageUrl ?? "";
@@ -65,6 +72,7 @@ export default function EditCustomBankQuestionDialog({ question, onClose, onSave
     setCorrectIndex(question.correctIndex);
     setNote(nextNote);
     setTagsText(nextTags);
+    setTheme(nextTheme);
     setDifficulty(question.difficulty);
     setIsImageQuestion(nextImage);
     setSuggestedImageUrl(nextUrl);
@@ -77,6 +85,7 @@ export default function EditCustomBankQuestionDialog({ question, onClose, onSave
       correctIndex: question.correctIndex,
       note: nextNote,
       tagsText: nextTags,
+      theme: nextTheme,
       difficulty: question.difficulty,
       isImageQuestion: nextImage,
       suggestedImageUrl: nextUrl,
@@ -91,7 +100,16 @@ export default function EditCustomBankQuestionDialog({ question, onClose, onSave
       void persistRef.current(false);
     }, 400);
     return () => window.clearTimeout(timer);
-  }, [question, questionMode, body, options, openAnswer, correctIndex, note, tagsText, difficulty, isImageQuestion, suggestedImageUrl]);
+  }, [question, questionMode, body, options, openAnswer, correctIndex, note, tagsText, theme, difficulty, isImageQuestion, suggestedImageUrl]);
+
+  useEffect(() => {
+    void fetchBankThemes().then(setThemes);
+    const refresh = () => {
+      void fetchBankThemes().then(setThemes);
+    };
+    window.addEventListener("mudrc-bank-themes-updated", refresh);
+    return () => window.removeEventListener("mudrc-bank-themes-updated", refresh);
+  }, []);
 
   if (!question) return null;
 
@@ -134,6 +152,7 @@ export default function EditCustomBankQuestionDialog({ question, onClose, onSave
               answer: openAnswer.trim(),
               note: note.trim() || undefined,
               tags: parseTagsInput(tagsText),
+              theme,
               difficulty,
               isImageQuestion,
               isOpenQuestion: true,
@@ -145,6 +164,7 @@ export default function EditCustomBankQuestionDialog({ question, onClose, onSave
               correctIndex,
               note: note.trim() || undefined,
               tags: parseTagsInput(tagsText),
+              theme,
               difficulty,
               isImageQuestion,
               isOpenQuestion: false,
@@ -207,6 +227,8 @@ export default function EditCustomBankQuestionDialog({ question, onClose, onSave
             Otvorená
           </button>
         </div>
+
+        <BankThemeSelect themes={themes} value={theme} onChange={setTheme} onThemesChange={setThemes} />
 
         <div>
           <label className="label">Otázka</label>

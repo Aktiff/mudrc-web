@@ -71,12 +71,11 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: "Chýba id otázky" }, { status: 400 });
   }
   try {
-    const ok = await removeStoredCustomBankQuestion(id);
-    if (!ok) return NextResponse.json({ error: "Otázka neexistuje" }, { status: 404 });
-    const questions = await readStoredCustomBankQuestions();
+    const questions = await removeStoredCustomBankQuestion(id);
     return NextResponse.json({ ok: true, questions });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Chyba pri mazaní otázky";
-    return NextResponse.json({ error: message }, { status: 500 });
+    const status = message === "NOT_FOUND" ? 404 : 500;
+    return NextResponse.json({ error: message === "NOT_FOUND" ? "Otázka neexistuje" : message }, { status });
   }
 }

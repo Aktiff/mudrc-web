@@ -89,7 +89,10 @@ async function mutateStoredCustomBank(
       }
       const after = await readStoredCustomBankQuestions();
       const afterIds = new Set(after.map((question) => question.id));
-      if (next.every((question) => afterIds.has(question.id))) return after;
+      const nextIds = new Set(next.map((question) => question.id));
+      if (afterIds.size === nextIds.size && next.every((question) => afterIds.has(question.id))) {
+        return after;
+      }
     }
     throw lastError ?? new Error("Otázku sa nepodarilo uložiť. Skús to znova.");
   });
@@ -129,11 +132,14 @@ export async function updateStoredCustomBankQuestion(
   return saved;
 }
 
-export async function removeStoredCustomBankQuestion(id: string): Promise<boolean> {
+export async function removeStoredCustomBankQuestion(id: string): Promise<CustomBankQuestion[]> {
   const before = await readStoredCustomBankQuestions();
-  if (!before.some((question) => question.id === id)) return false;
-  await mutateStoredCustomBank((existing) => existing.filter((question) => question.id !== id));
-  return true;
+  if (!before.some((question) => question.id === id)) throw new Error("NOT_FOUND");
+  const after = await mutateStoredCustomBank((existing) => existing.filter((question) => question.id !== id));
+  if (after.some((question) => question.id === id)) {
+    throw new Error("Otázku sa nepodarilo vymazať. Skús to znova.");
+  }
+  return after;
 }
 
 export async function mergeStoredCustomBankQuestions(incoming: CustomBankQuestion[]): Promise<CustomBankQuestion[]> {

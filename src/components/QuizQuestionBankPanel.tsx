@@ -32,10 +32,12 @@ import {
   writeHiddenBankQuestionIds,
   type QuizBankQuestion,
 } from "@/lib/quiz-question-bank";
+import { BankThemeFilters } from "@/components/BankThemeControls";
+import { bankQuestionTheme, DEFAULT_BANK_THEME, DEFAULT_BANK_THEMES, mergeBankThemes } from "@/lib/bank-themes";
+import { fetchBankThemes } from "@/lib/bank-themes-client";
 import {
   countTextBankSources,
   excludeQuestionsUsedByBody,
-  getFullTextBankQuestions,
   getInsertableTextBankQuestions,
 } from "@/lib/quiz-bank-text";
 import {
@@ -198,6 +200,8 @@ export default function QuizQuestionBankPanel({
   const [musicTagFilters, setMusicTagFilters] = useState(EMPTY_MUSIC_BANK_TAG_FILTERS);
   const [soundKind, setSoundKind] = useState<"music" | "other">("music");
   const [customKind, setCustomKind] = useState<"text" | "photo">("text");
+  const [questionTheme, setQuestionTheme] = useState<string>(DEFAULT_BANK_THEME);
+  const [bankThemes, setBankThemes] = useState<string[]>([...DEFAULT_BANK_THEMES]);
 
   const customBankQuestions = customBankQuestionsProp ?? localCustom;
   const musicBankTracks = musicBankTracksProp ?? localMusic;
@@ -243,20 +247,10 @@ export default function QuizQuestionBankPanel({
     [customBankQuestions]
   );
 
-  const fullTextBank = useMemo(
-    () => getFullTextBankQuestions(customBankQuestions, hiddenIds),
-    [customBankQuestions, hiddenIds]
-  );
-
   const availableQuestions = useMemo(() => {
     const insertable = getInsertableTextBankQuestions(customBankQuestions, usedBankQuestionIds, hiddenIds);
-    const custom = fullTextBank.filter((item) => isCustomBankQuestionId(item.id));
-    const generated = excludeQuestionsUsedByBody(
-      insertable.filter((item) => !isCustomBankQuestionId(item.id)),
-      usedQuestionBodies
-    );
-    return [...custom, ...generated];
-  }, [usedBankQuestionIds, hiddenIds, customBankQuestions, usedQuestionBodies, fullTextBank]);
+    return excludeQuestionsUsedByBody(insertable, usedQuestionBodies);
+  }, [usedBankQuestionIds, hiddenIds, customBankQuestions, usedQuestionBodies]);
 
   const sourceCounts = useMemo(() => {
     const text = countTextBankSources(availableQuestions);
@@ -275,7 +269,16 @@ export default function QuizQuestionBankPanel({
     return { all: text.all, custom, generated, sound, video };
   }, [availableQuestions, musicBankTracks, soundBankClips, videoBankClips, usedBankQuestionIds]);
 
-  const bankTags = useMemo(() => collectTagsFromBank(fullTextBank), [fullTextBank]);
+  const bankTags = useMemo(() => collectTagsFromBank(availableQuestions), [availableQuestions]);
+
+  useEffect(() => {
+    void fetchBankThemes().then(setBankThemes);
+    const refreshThemes = () => {
+      void fetchBankThemes().then(setBankThemes);
+    };
+    window.addEventListener("mudrc-bank-themes-updated", refreshThemes);
+    return () => window.removeEventListener("mudrc-bank-themes-updated", refreshThemes);
+  }, []);
 
   /** Všetky sloty v kole — vrátane konca 4. kola (bývalá hudba). */
   const bankTargetSlots = useMemo(
@@ -445,20 +448,45 @@ export default function QuizQuestionBankPanel({
     return sortWithCustomPriority(filteredQuestions);
   }, [filteredQuestions, manualOrderIds, tagCounts, sourceFilter]);
 
+  const themeChoices = useMemo(
+    () => mergeBankThemes([...bankThemes, ...filteredQuestions.map((item) => bankQuestionTheme(item))]),
+    [bankThemes, filteredQuestions]
+  );
+  const themeCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const theme of themeChoices) counts[theme] = 0;
+    for (const item of filteredQuestions) {
+      if (!isCustomBankQuestionId(item.id)) continue;
+      const theme = bankQuestionTheme(item);
+      counts[theme] = (counts[theme] ?? 0) + 1;
+    }
+    return counts;
+  }, [themeChoices, filteredQuestions]);
+
   const listedQuestions = useMemo(() => {
     if (sourceFilter !== "custom") return visibleQuestions;
-    return visibleQuestions.filter((item) =>
-      customKind === "photo" ? customQuestionHasPhoto(item) : !customQuestionHasPhoto(item)
+    return visibleQuestions.filter(
+      (item) =>
+        bankQuestionTheme(item) === questionTheme &&
+        (customKind === "photo" ? customQuestionHasPhoto(item) : !customQuestionHasPhoto(item))
     );
-  }, [visibleQuestions, sourceFilter, customKind]);
+  }, [visibleQuestions, sourceFilter, customKind, questionTheme]);
 
   const customWithoutPhotoCount = useMemo(
-    () => (sourceFilter === "custom" ? filteredQuestions.filter((item) => !customQuestionHasPhoto(item)).length : 0),
-    [filteredQuestions, sourceFilter]
+    () =>
+      sourceFilter === "custom"
+        ? filteredQuestions.filter((item) => bankQuestionTheme(item) === questionTheme && !customQuestionHasPhoto(item))
+            .length
+        : 0,
+    [filteredQuestions, sourceFilter, questionTheme]
   );
   const customWithPhotoCount = useMemo(
-    () => (sourceFilter === "custom" ? filteredQuestions.filter((item) => customQuestionHasPhoto(item)).length : 0),
-    [filteredQuestions, sourceFilter]
+    () =>
+      sourceFilter === "custom"
+        ? filteredQuestions.filter((item) => bankQuestionTheme(item) === questionTheme && customQuestionHasPhoto(item))
+            .length
+        : 0,
+    [filteredQuestions, sourceFilter, questionTheme]
   );
 
   const toggleTagExclusion = (tag: string) => {
@@ -576,7 +604,11 @@ export default function QuizQuestionBankPanel({
   const dismissQuestion = (bankId: string) => {
     if (isCustomBankQuestionId(bankId)) {
       if (!window.confirm("Odstrániť túto vlastnú otázku z banky?")) return;
-      void removeCustomBankQuestionAsync(bankId).then(() => onCustomBankChange?.());
+      void removeCustomBankQuestionAsync(bankId)
+        .then(() => onCustomBankChange?.())
+        .catch((error) => {
+          window.alert(error instanceof Error ? error.message : "Otázku sa nepodarilo vymazať.");
+        });
       return;
     }
     if (!window.confirm("Odstrániť túto otázku z banky? (Zmizne aj v iných kvízoch.)")) return;
@@ -640,6 +672,16 @@ export default function QuizQuestionBankPanel({
             </button>
           ))}
         </div>
+
+        {sourceFilter === "custom" && (
+          <BankThemeFilters
+            themes={themeChoices}
+            value={questionTheme}
+            counts={themeCounts}
+            onChange={setQuestionTheme}
+            onThemesChange={setBankThemes}
+          />
+        )}
 
         {sourceFilter === "custom" && (
           <div className="flex flex-wrap gap-1.5">
@@ -928,9 +970,11 @@ export default function QuizQuestionBankPanel({
         ) : listedQuestions.length === 0 ? (
           <p className="text-brand-muted text-sm text-center py-8">
             {sourceFilter === "custom" && filteredQuestions.length > 0
-              ? customKind === "photo"
-                ? "Žiadne otázky s fotkou."
-                : "Žiadne otázky bez fotky."
+              ? filteredQuestions.every((item) => bankQuestionTheme(item) !== questionTheme)
+                ? `V téme ${questionTheme} zatiaľ nie sú voľné otázky.`
+                : customKind === "photo"
+                  ? "Žiadne otázky s fotkou."
+                  : "Žiadne otázky bez fotky."
               : excludedTags.length
                 ? "Po vylúčení zvolených tagov nie sú dostupné otázky."
                 : "Všetky otázky z banky sú vložené alebo odstránené."}
@@ -946,7 +990,7 @@ export default function QuizQuestionBankPanel({
                   <div className="flex flex-wrap items-center gap-1.5 mb-1">
                     {isCustomBankQuestionId(item.id) && (
                       <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-brand-orange/15 text-brand-orange-readable border border-brand-orange/40">
-                        moja otázka
+                        {bankQuestionTheme(item)}
                       </span>
                     )}
                     {item.isOpenQuestion && (

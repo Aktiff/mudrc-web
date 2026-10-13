@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { collectPlayedTeamNames, parseTeamFilterInput } from "@/lib/quiz-library";
+import {
+  collectGlobalUsedBankQuestionIds,
+  collectPlayedTeamNames,
+  collectUsedQuestionBodyKeys,
+  parseTeamFilterInput,
+} from "@/lib/quiz-library";
 import { buildQuizUsageMap, type QuizUsageExclude } from "@/lib/quiz-library-usage";
 import { createLibraryQuiz, readAllLibraryQuizzes, readLibraryQuizSummaries } from "@/lib/quiz-library-storage";
 import { describeQuizConflicts } from "@/lib/team-links";
@@ -11,6 +16,19 @@ export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   try {
+    if (req.nextUrl.searchParams.get("usedKeys") === "1") {
+      const exclude = req.nextUrl.searchParams.get("exclude")?.trim() ?? "";
+      const quizzes = await readAllLibraryQuizzes();
+      const relevant = exclude ? quizzes.filter((quiz) => quiz.id !== exclude) : quizzes;
+      return NextResponse.json(
+        {
+          usedBankQuestionIds: collectGlobalUsedBankQuestionIds(relevant),
+          usedBodies: collectUsedQuestionBodyKeys(relevant),
+        },
+        { headers: { "Cache-Control": "no-store, no-cache, must-revalidate" } }
+      );
+    }
+
     const teamsParam = req.nextUrl.searchParams.get("teams") ?? "";
     const filterTeams = parseTeamFilterInput(teamsParam);
 

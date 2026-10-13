@@ -13,6 +13,7 @@ import {
   type QuizQuestionItem,
   type QuizQuestionKind,
 } from "@/lib/quiz-library";
+import { inferBankTheme } from "@/lib/bank-themes";
 import { findBankQuestionById, findRawBankQuestionById } from "@/lib/quiz-question-bank";
 import { shuffleQuestionOptionsForBankInsert } from "@/lib/quiz-question-options";
 import {
@@ -213,7 +214,8 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
   const [openRound, setOpenRound] = useState<number>(1);
   const [dragRound, setDragRound] = useState<number | null>(null);
   const [dragQuestionId, setDragQuestionId] = useState<string | null>(null);
-  const [libraryQuizzes] = useState<QuizLibraryItem[]>([]);
+  const [otherUsedIds, setOtherUsedIds] = useState<string[]>([]);
+  const [otherUsedBodies, setOtherUsedBodies] = useState<string[]>([]);
   const [customBankQuestions, setCustomBankQuestions] = useState<CustomBankQuestion[]>([]);
   const [musicBankTracks, setMusicBankTracks] = useState<MusicBankItem[]>([]);
   const [soundBankClips, setSoundBankClips] = useState<SoundBankItem[]>([]);
@@ -275,6 +277,10 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
   const refreshCustomBank = useCallback(async () => {
     const questions = await fetchCustomBankQuestionsFromServer();
     const ids = new Set(questions.map((item) => item.id));
+    const now = Date.now();
+    recentCustomBank.current = recentCustomBank.current.filter(
+      (item) => ids.has(item.id) || now - item.createdAt < 20_000
+    );
     const extra = recentCustomBank.current.filter((item) => !ids.has(item.id));
     setCustomBankQuestions([...extra, ...questions]);
   }, []);
@@ -363,17 +369,37 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
   }, [draftRestored]);
 
   const questions = useMemo(() => quiz?.questions ?? [], [quiz?.questions]);
+  useEffect(() => {
+    let cancelled = false;
+    void fetch(`/api/admin/quiz-library?usedKeys=1&exclude=${encodeURIComponent(quizId)}&_=${Date.now()}`, {
+      cache: "no-store",
+    })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data: { usedBankQuestionIds?: unknown; usedBodies?: unknown } | null) => {
+        if (cancelled || !data) return;
+        setOtherUsedIds(
+          Array.isArray(data.usedBankQuestionIds)
+            ? data.usedBankQuestionIds.filter((id): id is string => typeof id === "string")
+            : []
+        );
+        setOtherUsedBodies(
+          Array.isArray(data.usedBodies) ? data.usedBodies.filter((id): id is string => typeof id === "string") : []
+        );
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [quizId]);
+
   const globalUsedBankQuestionIds = useMemo(() => {
-    const fromOthers = libraryQuizzes
-      .filter((entry) => entry.id !== quizId)
-      .flatMap(collectUsedBankQuestionIdsFromQuiz);
     const fromCurrent = quiz ? collectUsedBankQuestionIdsFromQuiz(quiz) : [];
-    return Array.from(new Set([...fromOthers, ...fromCurrent]));
-  }, [libraryQuizzes, quiz, quizId]);
+    return Array.from(new Set([...otherUsedIds, ...fromCurrent]));
+  }, [otherUsedIds, quiz]);
   const usedQuestionBodies = useMemo(() => {
-    const others = libraryQuizzes.filter((entry) => entry.id !== quizId);
-    return collectUsedQuestionBodyKeys(quiz ? [...others, quiz] : others);
-  }, [libraryQuizzes, quiz, quizId]);
+    const current = quiz ? collectUsedQuestionBodyKeys([quiz]) : [];
+    return Array.from(new Set([...otherUsedBodies, ...current]));
+  }, [otherUsedBodies, quiz]);
   const presentationCount = useMemo(
     () => (questions.length ? buildPresentationSlides(questions).length : 0),
     [questions]
@@ -773,6 +799,12 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
               isOpenQuestion: !hasChoices,
               isImageQuestion: Boolean(question.imageUrl?.trim() || question.imageDuringQuestion),
               suggestedImageUrl: question.imageUrl?.trim() || undefined,
+              theme: inferBankTheme({
+                tags: question.tags,
+                body: question.body,
+                note: question.hostNote,
+                hint: quizRef.current?.title,
+              }),
             };
           })()
         : null;
@@ -822,11 +854,18 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
           setMsg({ text: "Slot vyprázdnený, video sa nepodarilo vrátiť do banky.", ok: false });
         });
     } else if (customRestore) {
-      void addCustomBankQuestionAsync(customRestore)
-        .then(() => refreshCustomBank())
-        .catch(() => {
-          setMsg({ text: "Slot vyprázdnený, ale otázku sa nepodarilo vrátiť do banky.", ok: false });
-        });
+      const bodyKey = quizQuestionBodyKey(customRestore.body);
+      const alreadyThere =
+        customBankQuestions.some(
+          (item) => item.id === bankId || quizQuestionBodyKey(item.body) === bodyKey
+        ) || recentCustomBank.current.some((item) => quizQuestionBodyKey(item.body) === bodyKey);
+      if (!alreadyThere) {
+        void addCustomBankQuestionAsync(customRestore)
+          .then(() => refreshCustomBank())
+          .catch(() => {
+            setMsg({ text: "Slot vyprázdnený, ale otázku sa nepodarilo vrátiť do banky.", ok: false });
+          });
+      }
     }
 
     setMsg({ text: "Otázka vrátená do banky.", ok: true });
@@ -923,7 +962,7 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
 
     if (
       !window.confirm(
-        "Uložiť túto otázku do banky? V kvíze ostane. Uloží sa celé znenie, odpoveď a tagy."
+        "Uložiť túto otázku do banky? V kvíze ostane a v banke sa ukáže, až keď v kvíze nebude."
       )
     ) {
       return;
@@ -933,6 +972,10 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
     while (options.length < 6) options.push("");
     const hasChoices = options.some((option) => option.trim());
     const matched = hasChoices ? options.findIndex((option) => option.trim() === question.answer.trim()) : -1;
+    const bodyKey = quizQuestionBodyKey(question.body);
+    const existing = customBankQuestions.find(
+      (item) => isCustomBankQuestionId(item.id) && quizQuestionBodyKey(item.body) === bodyKey
+    );
     const input = {
       body: question.body.trim(),
       options: options.slice(0, 6),
@@ -940,14 +983,18 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
       answer: question.answer.trim(),
       note: question.hostNote?.trim() || undefined,
       tags: question.tags,
+      theme:
+        existing?.theme ||
+        inferBankTheme({
+          tags: question.tags,
+          body: question.body,
+          note: question.hostNote,
+          hint: quiz?.title,
+        }),
       isOpenQuestion: matched < 0,
       isImageQuestion: Boolean(question.imageUrl?.trim() || question.imageDuringQuestion),
       suggestedImageUrl: question.imageUrl?.trim() || undefined,
     };
-    const bodyKey = quizQuestionBodyKey(question.body);
-    const existing = customBankQuestions.find(
-      (item) => isCustomBankQuestionId(item.id) && quizQuestionBodyKey(item.body) === bodyKey
-    );
 
     const finish = (text: string) => {
       setMsg({ text, ok: true });
@@ -967,7 +1014,7 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
           created,
           ...recentCustomBank.current.filter((item) => item.id !== created.id),
         ];
-        finish("Otázka je v banke. V tomto kvíze ostala.");
+        finish("Otázka je uložená v banke. Kým ostáva v kvíze, v banke sa nezobrazí.");
       })
       .catch((err) =>
         setMsg({

@@ -21,8 +21,6 @@ import RegistrationShareList from "@/components/admin/RegistrationShareList";
 import QuizTypeField from "@/components/admin/QuizTypeField";
 import { DEFAULT_QUIZ_TYPE, normalizeQuizTypeLabel, quizTypeFromLibraryTitle, quizTypeOrDefault, rememberQuizTypes, splitVenueQuizType, venueQuizLabel } from "@/lib/quiz-type";
 import FacebookEventPostButton from "@/components/admin/FacebookEventPostButton";
-import { TeamSmsPanel } from "@/components/admin/TeamSmsPanel";
-import { extractTeamPhones } from "@/lib/venue-team-contact";
 import { RuleListEditor } from "@/components/admin/RuleListEditor";
 import { normalizeQuizRules } from "@/lib/quiz-rules";
 import {
@@ -128,7 +126,6 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
   const [knownQuizTypes, setKnownQuizTypes] = useState<string[]>([DEFAULT_QUIZ_TYPE]);
   type EventRegistration = { id: string; eventSlug: string; venue: string; teamName: string; players: string; phone: string; createdAt: string };
   const [registrations, setRegistrations] = useState<EventRegistration[]>([]);
-  const [smsIds, setSmsIds] = useState<string[]>([]);
   const [regsLoading, setRegsLoading] = useState(false);
   const [deletingRegId, setDeletingRegId] = useState<string | null>(null);
   const [updatingPlayersRegId, setUpdatingPlayersRegId] = useState<string | null>(null);
@@ -1614,15 +1611,6 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
           )}
           {!regsLoading && registrations.length > 0 && (
             <>
-              <TeamSmsPanel
-                recipients={registrations.map((reg) => ({
-                  id: reg.id,
-                  name: reg.teamName,
-                  phones: extractTeamPhones(reg.phone),
-                }))}
-                selectedIds={smsIds}
-                onSelectedIds={setSmsIds}
-              />
               <p className="text-brand-muted text-xs mb-4">
                 Počet hráčov upravíš pri každom tíme tlačidlami <strong className="text-brand-text">− / +</strong> (oranžový
                 box) — uloží sa hneď, netreba „Uložiť zmeny“ dole.
@@ -1640,19 +1628,7 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
                 key={r.id}
                 className="rounded-xl border border-brand-border p-4 flex flex-col sm:flex-row sm:items-start justify-between gap-4"
               >
-                <div className="min-w-0 flex-1 flex gap-3">
-                  <input
-                    type="checkbox"
-                    className="mt-1.5 h-4 w-4 shrink-0 accent-orange-500"
-                    checked={smsIds.includes(r.id)}
-                    disabled={extractTeamPhones(r.phone).length === 0}
-                    title={extractTeamPhones(r.phone).length === 0 ? "Bez telefónu" : "Označiť na SMS"}
-                    onChange={() =>
-                      setSmsIds((current) =>
-                        current.includes(r.id) ? current.filter((id) => id !== r.id) : [...current, r.id]
-                      )
-                    }
-                  />
+                <div className="min-w-0 flex-1">
                   <div className="min-w-0 flex-1 space-y-3">
                   <div className="font-display text-xl text-brand-text">{r.teamName}</div>
                   <RegistrationPlayersStepper

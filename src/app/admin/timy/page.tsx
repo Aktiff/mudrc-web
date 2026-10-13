@@ -6,7 +6,6 @@ import { ArrowLeft, Calendar, ChevronRight, MapPin, Phone, Trash2 } from "lucide
 import type { QuizEvent } from "@/lib/data";
 import { formatEventDateLabel, sortEventsForAdminOverview } from "@/lib/data";
 import { formatTeamPhone, type VenueTeam } from "@/lib/venue-team-contact";
-import { TeamSmsPanel } from "@/components/admin/TeamSmsPanel";
 
 function teamCountLabel(count: number): string {
   if (count === 1) return "1 tím";
@@ -48,7 +47,6 @@ export default function VenueTeamsPage() {
   const [linkQuery, setLinkQuery] = useState("");
   const [linkError, setLinkError] = useState("");
   const [linkingBusy, setLinkingBusy] = useState(false);
-  const [smsIds, setSmsIds] = useState<string[]>([]);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -295,15 +293,6 @@ export default function VenueTeamsPage() {
             {linkError ? <p className="text-sm text-red-600">{linkError}</p> : null}
           </div>
         ) : null}
-        <TeamSmsPanel
-          recipients={venueSection.list.map((team) => ({
-            id: team.id,
-            name: team.teamName,
-            phones: team.phones,
-          }))}
-          selectedIds={smsIds}
-          onSelectedIds={setSmsIds}
-        />
         {venueSection.list.length === 0 ? (
           <div className="bg-brand-card rounded-2xl border border-brand-border p-12 text-center">
             <p className="text-brand-muted">Pre tento podnik zatiaľ nemáme uložený tím.</p>
@@ -317,12 +306,6 @@ export default function VenueTeamsPage() {
                 aliases={aliasesOf(team)}
                 deleting={deletingId === team.id}
                 linking={linkingId === team.id}
-                selected={smsIds.includes(team.id)}
-                onToggleSelect={() =>
-                  setSmsIds((current) =>
-                    current.includes(team.id) ? current.filter((id) => id !== team.id) : [...current, team.id]
-                  )
-                }
                 onDelete={() => removeTeam(team)}
                 onLink={() => {
                   setLinkError("");
@@ -453,8 +436,6 @@ function TeamRow({
   aliases = [],
   deleting,
   linking = false,
-  selected = false,
-  onToggleSelect,
   onDelete,
   onLink,
   onUnlink,
@@ -464,28 +445,14 @@ function TeamRow({
   aliases?: VenueTeam[];
   deleting: boolean;
   linking?: boolean;
-  selected?: boolean;
-  onToggleSelect?: () => void;
   onDelete: () => void;
   onLink?: () => void;
   onUnlink?: () => void;
   showVenue?: boolean;
 }) {
-  const canSms = team.phones.length > 0;
   return (
     <div className="rounded-xl border border-brand-border bg-brand-card p-4 flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-      <div className="min-w-0 flex gap-3">
-        {onToggleSelect ? (
-          <input
-            type="checkbox"
-            className="mt-1.5 h-4 w-4 shrink-0 accent-orange-500"
-            checked={selected && canSms}
-            disabled={!canSms || deleting}
-            title={canSms ? "Označiť na SMS" : "Bez telefónu"}
-            onChange={onToggleSelect}
-          />
-        ) : null}
-        <div className="min-w-0">
+      <div className="min-w-0">
         <div className="font-display text-xl text-brand-text">{team.teamName}</div>
         {showVenue && <p className="text-brand-muted text-sm mt-1">{team.venue}</p>}
         {aliases.length > 0 ? (
@@ -514,7 +481,6 @@ function TeamRow({
           )}
         </div>
         <p className="text-brand-muted text-xs mt-2">Naposledy {team.updatedAt}</p>
-        </div>
       </div>
       <div className="flex flex-wrap gap-2 shrink-0">
         {onLink ? (
