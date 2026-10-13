@@ -121,7 +121,7 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
   const [quizResult, setQuizResult] = useState<{ winnerTeam: string; ligaPoints: {name:string;total:number;liga:number}[] } | null>(null);
   const [quizSubmitting, setQuizSubmitting] = useState(false);
   const [quizMsg, setQuizMsg] = useState<{ text: string; ok: boolean } | null>(null);
-  const [libraryQuizId, setLibraryQuizId] = useState(CANVAS_LIBRARY_QUIZ_ID);
+  const [libraryQuizId, setLibraryQuizId] = useState("");
   const [resultQuizType, setResultQuizType] = useState(DEFAULT_QUIZ_TYPE);
   const [knownQuizTypes, setKnownQuizTypes] = useState<string[]>([DEFAULT_QUIZ_TYPE]);
   type EventRegistration = { id: string; eventSlug: string; venue: string; teamName: string; players: string; phone: string; createdAt: string };
@@ -196,10 +196,35 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
     );
   const getTotal = (scores: number[]) => scores.reduce((a, b) => a + (Number(b) || 0), 0);
 
+  const loadTeamsFromRegistrations = async () => {
+    const res = await fetch(
+      `/api/register?slug=${params.slug}&venue=${encodeURIComponent(form.venue)}&_=${Date.now()}`,
+      { cache: "no-store" }
+    );
+    const data = await res.json();
+    const regs = ((data.registrations ?? []) as EventRegistration[]).filter((reg) => reg.teamName?.trim());
+    if (!regs.length) {
+      setQuizMsg({ text: "Žiadne registrácie — pridaj tímy ručne.", ok: false });
+      return;
+    }
+    setQuizTeams((rows) => {
+      const next = [...rows];
+      regs.forEach((reg, index) => {
+        const players = parseRegistrationPlayerCount(reg.players);
+        if (index < next.length) next[index] = { ...next[index], name: reg.teamName, players };
+        else next.push({ name: reg.teamName, scores: Array(form.rounds || 4).fill(0), players });
+      });
+      return next;
+    });
+    setQuizMsg({ text: `Načítaných ${regs.length} tímov z registrácií. Teraz vyber kvíz.`, ok: true });
+  };
+
   const submitQuiz = async () => {
     const validTeams = quizTeams.filter((t) => t.name.trim());
     if (!libraryQuizId) {
-      setQuizMsg({ text: "Vyber hotový kvíz alebo „Kvíz v Canve“.", ok: false });
+      const text = "Nevybral si kvíz. Je to povinné pole.";
+      setQuizMsg({ text, ok: false });
+      setMsg({ text, ok: false });
       return;
     }
     if (!quizDate || validTeams.length < 2) {
@@ -258,7 +283,7 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
       setForm(normalizeEvent(savedEvent));
       setQuizResult(data);
       setQuizTeams(Array.from({ length: 10 }, emptyRow));
-      setLibraryQuizId(CANVAS_LIBRARY_QUIZ_ID);
+      setLibraryQuizId("");
       setMsg({
         text: isCanvasLibraryQuiz(libraryQuizId)
           ? "Kvíz uložený do ligy (Canva, bez knižnice)."
@@ -1318,14 +1343,16 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
 
       {tab === "pridat" && !isNew && (
         <div className="bg-brand-card rounded-2xl border border-brand-border p-6">
-          <p className="text-brand-muted text-sm mb-6">
-            Zadaj výsledky kvízu. Prázdne riadky sa automaticky ignorujú.
+          <p className="text-brand-muted text-sm mb-4">
+            Najprv načítaj tímy z registrácií, potom vyber kvíz. Bez vybraného kvízu sa výsledok neuloží.
           </p>
-          <LibraryQuizPicker
-            value={libraryQuizId}
-            onChange={setLibraryQuizId}
-            teamNames={quizTeams.map((team) => team.name)}
-          />
+          <button
+            type="button"
+            onClick={() => void loadTeamsFromRegistrations()}
+            className="btn-primary text-sm py-2.5 px-5 mb-6"
+          >
+            <Users className="w-4 h-4" /> Načítať tímy z registrácií
+          </button>
           <div className="grid gap-4 sm:grid-cols-2 mb-6">
             <div>
               <label className="label">Dátum kvízu</label>
@@ -1399,35 +1426,13 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
             <button onClick={addQuizTeam} className="btn-outline text-sm py-2.5 px-5">
               <Plus className="w-4 h-4" /> Pridať tím
             </button>
-            <button
-              type="button"
-              onClick={async () => {
-                const res = await fetch(
-                  `/api/register?slug=${params.slug}&venue=${encodeURIComponent(form.venue)}&_=${Date.now()}`,
-                  { cache: "no-store" }
-                );
-                const data = await res.json();
-                const regs = ((data.registrations ?? []) as EventRegistration[]).filter((reg) => reg.teamName?.trim());
-                if (!regs.length) {
-                  setQuizMsg({ text: "Žiadne registrácie — pridaj tímy ručne.", ok: false });
-                  return;
-                }
-                setQuizTeams((rows) => {
-                  const next = [...rows];
-                  regs.forEach((reg, index) => {
-                    const players = parseRegistrationPlayerCount(reg.players);
-                    if (index < next.length) next[index] = { ...next[index], name: reg.teamName, players };
-                    else next.push({ name: reg.teamName, scores: Array(form.rounds || 4).fill(0), players });
-                  });
-                  return next;
-                });
-                setQuizMsg({ text: `Načítaných ${regs.length} tímov z registrácií.`, ok: true });
-              }}
-              className="btn-outline text-sm py-2.5 px-5"
-            >
-              <Users className="w-4 h-4" /> Načítať tímy z registrácií
-            </button>
           </div>
+          <LibraryQuizPicker
+            value={libraryQuizId}
+            onChange={setLibraryQuizId}
+            teamNames={quizTeams.map((team) => team.name)}
+            invalid={!libraryQuizId && quizMsg?.ok === false}
+          />
           {quizMsg && (
             <div className={`mb-4 px-4 py-3 rounded-xl text-sm font-medium ${quizMsg.ok ? "bg-green-50 text-green-700 border border-green-200" : "bg-red-50 text-red-600 border border-red-200"}`}>
               {quizMsg.text}

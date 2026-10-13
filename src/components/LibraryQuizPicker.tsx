@@ -17,6 +17,7 @@ type Props = {
   excludeUsage?: QuizUsageExclude | null;
   /** Kratší text pri detaile výsledku */
   variant?: "default" | "editResult";
+  invalid?: boolean;
 };
 
 export default function LibraryQuizPicker({
@@ -25,6 +26,7 @@ export default function LibraryQuizPicker({
   teamNames,
   excludeUsage = null,
   variant = "default",
+  invalid = false,
 }: Props) {
   const [options, setOptions] = useState<QuizOption[]>([]);
   const [loading, setLoading] = useState(true);
@@ -83,14 +85,14 @@ export default function LibraryQuizPicker({
     <div className="mb-6 bg-brand-warm border border-brand-border rounded-2xl p-5 space-y-3">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <label className="label mb-1">Hotový kvíz {variant === "editResult" ? "" : "(voliteľné)"}</label>
+          <label className="label mb-1">Hotový kvíz {variant === "editResult" ? "" : "(povinné)"}</label>
           <p className="text-brand-muted text-xs max-w-xl">
             {variant === "editResult" ? (
               <>Kvíz priradený k tomuto večeru. Ak si sa pomýlil, zvoľ iný a ulož priradenie.</>
             ) : (
               <>
-                Ak si kvíz robil v Canve, vyber „Kvíz v Canve“ — výsledky sa uložia bez priradenia ku knižnici a kvíz
-                v knižnici zostane voľný. Inak vyber, ktorý hotový kvíz si použil.
+                Po načítaní tímov vyber, ktorý kvíz im dáš. Bez výberu sa výsledok neuloží. „Kvíz v Canve“ zvoľ len
+                vtedy, keď si ho naozaj robil mimo knižnice.
               </>
             )}
           </p>
@@ -101,7 +103,7 @@ export default function LibraryQuizPicker({
       </div>
 
       <select
-        className="input"
+        className={`input ${invalid && !value ? "border-red-500" : ""}`}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         disabled={loading}
