@@ -458,25 +458,25 @@ function PresentationView({
   if (slide.type === "correction") {
     const lineSizeClass =
       nextQuizLines.length >= 4
-        ? "text-[clamp(1rem,2.4vw,2.25rem)]"
+        ? "text-[clamp(1.45rem,3.4vw,3.35rem)]"
         : nextQuizLines.length >= 2
-          ? "text-[clamp(1.15rem,2.85vw,2.85rem)]"
-          : "text-[clamp(1.35rem,3.5vw,3.5rem)]";
+          ? "text-[clamp(1.7rem,4vw,4.25rem)]"
+          : "text-[clamp(2rem,4.8vw,5.25rem)]";
     return (
-      <div className="text-center px-1 sm:px-3 w-full max-w-[min(98vw,1680px)] mx-auto">
-        <p className="font-display text-7xl sm:text-9xl text-[#f0c800] tracking-wide mb-12 sm:mb-16 md:mb-20">
+      <div className="text-center px-2 sm:px-6 w-full max-w-[min(98vw,1680px)] mx-auto">
+        <p className="font-display text-6xl sm:text-8xl text-[#f0c800] tracking-wide mb-6 sm:mb-8">
           Opravovanie
         </p>
         {nextQuizLines.length > 0 ? (
-          <div className="space-y-5 sm:space-y-7 md:space-y-9 w-full">
-            <p className="text-2xl sm:text-4xl md:text-5xl text-white/60 font-semibold tracking-normal normal-case">
+          <div className="space-y-4 sm:space-y-6 w-full">
+            <p className="text-3xl sm:text-5xl text-white/70 font-semibold tracking-normal normal-case">
               {nextQuizLines.length === 1 ? "Najbližší kvíz:" : "Najbližšie kvízy:"}
             </p>
-            <ul className="space-y-3 sm:space-y-4 w-full max-w-full">
+            <ul className="space-y-3 sm:space-y-5 w-full max-w-full">
               {nextQuizLines.map((line) => (
                 <li
                   key={line}
-                  className={`font-sans font-semibold text-white normal-case tracking-normal leading-none whitespace-nowrap ${lineSizeClass}`}
+                  className={`font-sans font-semibold text-white normal-case tracking-normal leading-tight whitespace-nowrap ${lineSizeClass}`}
                 >
                   {line}
                 </li>
@@ -854,13 +854,21 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
                 <p className="text-[#f0c800]/80 text-xs uppercase tracking-[0.25em] mb-2">Pred projekciou</p>
                 <h2 className="font-display text-2xl tracking-wide">Najbližšie kvízy</h2>
                 <p className="text-white/50 text-sm mt-2">
-                  Zaklikni podniky v poradí, v akom sa majú ukázať. Prvý je podnik, v ktorom práve si — o dva
+                  Zaklikni podniky. Na plátne budú zoradené podľa dátumu. Podnik, v ktorom práve si, je o dva
                   týždne v rovnakom čase. Ostatné berú dátum a čas zo svojej udalosti. Najviac {MAX_NEXT_QUIZ_LINES}.
                 </p>
               </div>
               <div className="min-h-0 flex-1 overflow-y-auto space-y-2 pr-1">
-                {nextQuizChoices.map((event) => {
-                  const order = selectedNextQuizSlugs.indexOf(event.slug);
+                {(() => {
+                  const selectedByDate = nextQuizChoices
+                    .filter((item) => selectedNextQuizSlugs.includes(item.slug))
+                    .map((item) => ({
+                      slug: item.slug,
+                      at: nextQuizMomentForEvent(item, item.slug === homeNextQuizSlug)?.getTime() ?? 0,
+                    }))
+                    .sort((a, b) => a.at - b.at);
+                  return nextQuizChoices.map((event) => {
+                  const order = selectedByDate.findIndex((item) => item.slug === event.slug);
                   const checked = order >= 0;
                   const full = !checked && selectedNextQuizSlugs.length >= MAX_NEXT_QUIZ_LINES;
                   const at = nextQuizMomentForEvent(event, event.slug === homeNextQuizSlug);
@@ -893,7 +901,8 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
                       </span>
                     </label>
                   );
-                })}
+                  });
+                })()}
               </div>
               <div className="flex gap-3 pt-1">
                 <button

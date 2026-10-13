@@ -51,10 +51,11 @@ export function formatNextQuizLine(venue: string, date: Date): string {
 }
 
 export function formatNextQuizLines(entries: { venue: string; at: Date }[]): string[] {
-  return entries
-    .filter((e) => e.venue.trim() || e.at)
-    .map((e) => formatNextQuizLine(e.venue, e.at))
-    .slice(0, MAX_NEXT_QUIZ_LINES);
+  return [...entries]
+    .filter((entry) => entry.venue.trim() && entry.at && !Number.isNaN(entry.at.getTime()))
+    .sort((a, b) => a.at.getTime() - b.at.getTime() || a.venue.localeCompare(b.venue, "sk"))
+    .slice(0, MAX_NEXT_QUIZ_LINES)
+    .map((entry) => formatNextQuizLine(entry.venue, entry.at));
 }
 
 function calendarDay(date: Date): number {
