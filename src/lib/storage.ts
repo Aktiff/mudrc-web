@@ -624,9 +624,20 @@ function enrichEventsWithQuizzes(events: QuizEvent[], quizzes: StoredQuiz[]): Qu
       .filter((q) => q.eventSlug === event.slug)
       .map(storedQuizToPastResult);
     if (!eventQuizzes.length) return event;
+    const storedByKey = new Map(eventQuizzes.map((result) => [quizResultKey(result), result]));
+    const merged = mergePastResults(event.pastResults ?? [], eventQuizzes);
     return {
       ...event,
-      pastResults: mergePastResults(event.pastResults ?? [], eventQuizzes),
+      pastResults: merged.map((result) => {
+        const stored = storedByKey.get(quizResultKey(result));
+        if (!stored?.teams?.length) return result;
+        const playerCount = stored.teams.reduce((sum, team) => sum + (team.players ?? 0), 0);
+        return {
+          ...result,
+          teams: stored.teams,
+          ...(playerCount > 0 ? { playerCount } : {}),
+        };
+      }),
     };
   });
 }

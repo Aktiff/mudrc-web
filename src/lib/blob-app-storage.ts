@@ -1,5 +1,5 @@
 import { randomUUID } from "crypto";
-import { del, get, list } from "@vercel/blob";
+import { del, get, head, list } from "@vercel/blob";
 import {
   blobAuthOptions,
   blobStoreAccess,
@@ -121,6 +121,19 @@ async function latestVersion(name: string): Promise<ListedBlob | null> {
   return blobs[0];
 }
 
+/** Prepísaný pointer CDN drží starú kópiu. Adresa z head a telo s cache-bust. */
+async function readUncachedJson<T>(pathname: string): Promise<T | null> {
+  const meta = await head(pathname, {
+    abortSignal: AbortSignal.timeout(8000),
+    ...blobAuthOptions(),
+  });
+  if (!meta?.url) return null;
+  const freshUrl = `${meta.url}${meta.url.includes("?") ? "&" : "?"}v=${Date.now()}`;
+  const response = await fetch(freshUrl, { cache: "no-store", signal: AbortSignal.timeout(8000) });
+  if (!response.ok) return null;
+  return (await response.json()) as T;
+}
+
 export async function readAppStorageCurrent<T>(name: string): Promise<T | null> {
   if (!hasBlobStorage()) return null;
   const cached = recallPayload<T>(name, 20_000);
@@ -128,7 +141,10 @@ export async function readAppStorageCurrent<T>(name: string): Promise<T | null> 
 
   let pointer: CurrentPointer | null;
   try {
-    pointer = await readBlobJsonFresh<CurrentPointer>(currentPointerKey(name));
+    pointer = await readUncachedJson<CurrentPointer>(currentPointerKey(name));
+    if (!pointer?.pathname && !pointer?.url) {
+      pointer = await readBlobJsonFresh<CurrentPointer>(currentPointerKey(name));
+    }
   } catch (error) {
     const stale = recallPayload<T>(name, 10 * 60_000);
     if (stale !== undefined) return stale;
