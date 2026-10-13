@@ -1,6 +1,6 @@
 "use client";
 
-import { normalizeQuizTypeLabel } from "@/lib/quiz-type";
+import { quizTypeOrDefault } from "@/lib/quiz-type";
 
 export default function QuizTypeField({
   id,
@@ -13,24 +13,24 @@ export default function QuizTypeField({
   onChange: (value: string) => void;
   knownTypes: string[];
 }) {
+  const selected = quizTypeOrDefault(value);
+  const selectedKey = selected.toLocaleLowerCase("sk");
+  const options = knownTypes.some((type) => type.toLocaleLowerCase("sk") === selectedKey)
+    ? knownTypes
+    : [selected, ...knownTypes];
+
   return (
-    <>
-      <input
-        className="input"
-        list={id}
-        value={value}
-        placeholder="Všeobecný kvíz"
-        onChange={(e) => onChange(e.target.value)}
-        onBlur={() => {
-          const next = normalizeQuizTypeLabel(value);
-          if (next && next !== value) onChange(next);
-        }}
-      />
-      <datalist id={id}>
-        {knownTypes.map((type) => (
-          <option key={type} value={type} />
-        ))}
-      </datalist>
-    </>
+    <select
+      id={id}
+      className="input"
+      value={options.find((type) => type.toLocaleLowerCase("sk") === selectedKey) ?? selected}
+      onChange={(event) => onChange(event.target.value)}
+    >
+      {options.map((type) => (
+        <option key={type} value={type}>
+          {type}
+        </option>
+      ))}
+    </select>
   );
 }

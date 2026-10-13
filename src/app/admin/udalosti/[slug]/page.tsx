@@ -19,7 +19,7 @@ import { fetchLibraryQuizList } from "@/lib/quiz-library-client";
 import RegistrationPlayersStepper from "@/components/admin/RegistrationPlayersStepper";
 import RegistrationShareList from "@/components/admin/RegistrationShareList";
 import QuizTypeField from "@/components/admin/QuizTypeField";
-import { DEFAULT_QUIZ_TYPE, normalizeQuizTypeLabel, quizTypeOrDefault, rememberQuizTypes, venueQuizLabel } from "@/lib/quiz-type";
+import { DEFAULT_QUIZ_TYPE, normalizeQuizTypeLabel, quizTypeFromLibraryTitle, quizTypeOrDefault, rememberQuizTypes, splitVenueQuizType, venueQuizLabel } from "@/lib/quiz-type";
 import FacebookEventPostButton from "@/components/admin/FacebookEventPostButton";
 import { TeamSmsPanel } from "@/components/admin/TeamSmsPanel";
 import { extractTeamPhones } from "@/lib/venue-team-contact";
@@ -352,10 +352,10 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
       .then((data) => {
         const events = (data?.events ?? []) as QuizEvent[];
         const used = events.flatMap((event) => [
-          event.quizType,
+          splitVenueQuizType(event.venue, event.quizType).quizType || event.quizType,
           ...(event.pastResults ?? []).map((result) => result.quizType),
         ]);
-        setKnownQuizTypes(rememberQuizTypes(used));
+        setKnownQuizTypes((current) => rememberQuizTypes([...current, ...used]));
       })
       .catch(() => undefined);
   }, [params.slug, isNew]);
@@ -372,6 +372,9 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
           if (quiz.id && title) titles[quiz.id] = title;
         }
         setLibraryQuizTitles(titles);
+        setKnownQuizTypes((current) =>
+          rememberQuizTypes([...current, ...list.map((quiz) => quizTypeFromLibraryTitle(quiz.title))])
+        );
       })
       .catch(() => undefined)
       .finally(() => {

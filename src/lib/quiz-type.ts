@@ -37,6 +37,14 @@ export function splitVenueQuizType(venue: string, quizType?: string): { venue: s
   return { venue: nextPlace, quizType: nextType };
 }
 
+/** „Hudobný kvíz 1“ je typ Hudobný kvíz. */
+export function quizTypeFromLibraryTitle(title: string | undefined | null): string {
+  const stripped = String(title ?? "")
+    .trim()
+    .replace(/\s+\d+$/, "");
+  return normalizeQuizTypeLabel(stripped);
+}
+
 export function rememberQuizTypes(values: Array<string | undefined | null>): string[] {
   const seen = new Map<string, string>();
   const add = (value: string | undefined | null) => {
