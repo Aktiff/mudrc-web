@@ -8,57 +8,76 @@ import {
   type CustomBankQuestion,
   type NewCustomBankQuestionInput,
 } from "@/lib/quiz-custom-bank";
-import { readAppStorageWithFallback, writeAppStorageWithFallback } from "@/lib/app-storage-fallback";
+import { readLatestAppStorageBlob } from "@/lib/blob-app-storage";
+import { quizQuestionBodyKey } from "@/lib/quiz-library";
+import { writeAppStorageWithFallback } from "@/lib/app-storage-fallback";
+import { hasBlobStorage } from "@/lib/storage";
 
 const localPath = path.join(process.cwd(), "src/data/custom-bank.local.json");
 const BLOB_NAME = "custom-bank-questions";
 
-function readLocalCustomBank(): CustomBankQuestion[] {
+function readLocalBankFile(): BankFile {
   try {
-    if (!fs.existsSync(localPath)) return [];
-    const raw = JSON.parse(fs.readFileSync(localPath, "utf-8")) as { questions?: unknown[] };
-    const list = Array.isArray(raw.questions) ? raw.questions : [];
-    return list
-      .map(normalizeStoredCustomQuestion)
-      .filter((item): item is CustomBankQuestion => item !== null)
-      .sort((a, b) => b.createdAt - a.createdAt);
+    if (!fs.existsSync(localPath)) return { questions: [], deletedIds: [] };
+    const raw = JSON.parse(fs.readFileSync(localPath, "utf-8")) as { questions?: unknown[]; deletedIds?: unknown };
+    return parseBankFile(raw);
   } catch {
-    return [];
+    return { questions: [], deletedIds: [] };
   }
 }
 
-function writeLocalCustomBank(questions: CustomBankQuestion[]): void {
+function writeLocalBankFile(file: BankFile): void {
   fs.mkdirSync(path.dirname(localPath), { recursive: true });
-  fs.writeFileSync(localPath, JSON.stringify({ questions }, null, 2), "utf-8");
+  fs.writeFileSync(
+    localPath,
+    JSON.stringify({ questions: file.questions, deletedIds: file.deletedIds }, null, 2),
+    "utf-8"
+  );
 }
 
-function parseCustomBankPayload(data: { questions?: unknown[] }): CustomBankQuestion[] {
-  const list = Array.isArray(data.questions) ? data.questions : [];
-  return list
+type BankFile = { questions: CustomBankQuestion[]; deletedIds: string[] };
+
+function parseDeletedIds(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter((id): id is string => typeof id === "string" && id.length > 0).slice(-2000);
+}
+
+function parseBankFile(data: { questions?: unknown[]; deletedIds?: unknown } | null): BankFile {
+  const deletedIds = parseDeletedIds(data?.deletedIds);
+  const deleted = new Set(deletedIds);
+  const list = Array.isArray(data?.questions) ? data.questions : [];
+  const questions = list
     .map(normalizeStoredCustomQuestion)
-    .filter((item): item is CustomBankQuestion => item !== null)
+    .filter((item): item is CustomBankQuestion => item !== null && !deleted.has(item.id))
     .sort((a, b) => b.createdAt - a.createdAt);
+  return { questions, deletedIds };
 }
 
-export async function readStoredCustomBankQuestions(): Promise<CustomBankQuestion[]> {
-  const data = await readAppStorageWithFallback({
-    label: "custom-bank",
-    blobName: BLOB_NAME,
-    readLocal: () => ({ questions: readLocalCustomBank() }),
-    empty: { questions: [] },
-  });
-  return parseCustomBankPayload(data);
+function rememberDeleted(existing: string[], ids: string[]): string[] {
+  return parseDeletedIds([...existing, ...ids]);
 }
 
-export async function writeStoredCustomBankQuestions(questions: CustomBankQuestion[]): Promise<void> {
-  const sorted = [...questions].sort((a, b) => b.createdAt - a.createdAt);
-  const payload = { questions: sorted };
+async function readBankFile(): Promise<BankFile> {
+  if (hasBlobStorage()) {
+    const data = await readLatestAppStorageBlob<{ questions?: unknown[]; deletedIds?: unknown }>(BLOB_NAME);
+    if (data) return parseBankFile(data);
+  }
+  return readLocalBankFile();
+}
+
+async function writeBankFile(file: BankFile): Promise<void> {
+  const questions = [...file.questions].sort((a, b) => b.createdAt - a.createdAt);
+  const payload = { questions, deletedIds: file.deletedIds };
   await writeAppStorageWithFallback({
     label: "custom-bank",
     blobName: BLOB_NAME,
     payload,
-    writeLocal: () => writeLocalCustomBank(sorted),
+    writeLocal: () => writeLocalBankFile({ questions, deletedIds: file.deletedIds }),
   });
+}
+
+export async function readStoredCustomBankQuestions(): Promise<CustomBankQuestion[]> {
+  return (await readBankFile()).questions;
 }
 
 let bankWriteQueue: Promise<void> = Promise.resolve();
@@ -72,30 +91,44 @@ function enqueueBankWrite<T>(job: () => Promise<T>): Promise<T> {
   return run;
 }
 
+function sameQuestionIds(left: CustomBankQuestion[], right: CustomBankQuestion[]): boolean {
+  if (left.length !== right.length) return false;
+  const ids = new Set(right.map((question) => question.id));
+  return left.every((question) => ids.has(question.id));
+}
+
 /** Zapíše celý zoznam a znova ho prečíta. Keď medzitým prišiel iný zápis, skúsi to znova. */
 async function mutateStoredCustomBank(
-  mutate: (current: CustomBankQuestion[]) => CustomBankQuestion[]
+  mutate: (current: BankFile) => BankFile
 ): Promise<CustomBankQuestion[]> {
   return enqueueBankWrite(async () => {
     let lastError: Error | null = null;
     for (let attempt = 0; attempt < 6; attempt++) {
-      const current = await readStoredCustomBankQuestions();
+      const current = await readBankFile();
       const next = mutate(current);
       try {
-        await writeStoredCustomBankQuestions(next);
+        await writeBankFile(next);
       } catch (error) {
         lastError = error instanceof Error ? error : new Error("Uloženie banky zlyhalo");
+        await sleep(200);
         continue;
       }
-      const after = await readStoredCustomBankQuestions();
-      const afterIds = new Set(after.map((question) => question.id));
-      const nextIds = new Set(next.map((question) => question.id));
-      if (afterIds.size === nextIds.size && next.every((question) => afterIds.has(question.id))) {
-        return after;
+      const after = await readBankFile();
+      const deleted = new Set(next.deletedIds);
+      if (
+        sameQuestionIds(next.questions, after.questions) &&
+        after.questions.every((question) => !deleted.has(question.id))
+      ) {
+        return after.questions;
       }
+      await sleep(250);
     }
     throw lastError ?? new Error("Otázku sa nepodarilo uložiť. Skús to znova.");
   });
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 export async function addStoredCustomBankQuestion(
@@ -105,10 +138,10 @@ export async function addStoredCustomBankQuestion(
   if (!item.body.trim() || !item.answer.trim()) {
     throw new Error("Chýba text otázky alebo správna odpoveď");
   }
-  const questions = await mutateStoredCustomBank((current) => [
-    item,
-    ...current.filter((question) => question.id !== item.id),
-  ]);
+  const questions = await mutateStoredCustomBank((current) => ({
+    ...current,
+    questions: [item, ...current.questions.filter((question) => question.id !== item.id)],
+  }));
   const saved = questions.find((question) => question.id === item.id);
   if (!saved) throw new Error("Otázku sa nepodarilo uložiť. Skús to znova.");
   return { question: saved, questions };
@@ -122,10 +155,13 @@ export async function updateStoredCustomBankQuestion(
   if (!input?.body?.trim()) throw new Error("Chýba text otázky");
 
   const questions = await mutateStoredCustomBank((existing) => {
-    const current = existing.find((q) => q.id === id);
+    const current = existing.questions.find((q) => q.id === id);
     if (!current) throw new Error("NOT_FOUND");
     const updated = applyCustomBankQuestionUpdate(current, input);
-    return existing.map((q) => (q.id === id ? updated : q));
+    return {
+      ...existing,
+      questions: existing.questions.map((q) => (q.id === id ? updated : q)),
+    };
   });
   const saved = questions.find((q) => q.id === id);
   if (!saved) throw new Error("NOT_FOUND");
@@ -133,10 +169,25 @@ export async function updateStoredCustomBankQuestion(
 }
 
 export async function removeStoredCustomBankQuestion(id: string): Promise<CustomBankQuestion[]> {
-  const before = await readStoredCustomBankQuestions();
-  if (!before.some((question) => question.id === id)) throw new Error("NOT_FOUND");
-  const after = await mutateStoredCustomBank((existing) => existing.filter((question) => question.id !== id));
-  if (after.some((question) => question.id === id)) {
+  const before = await readBankFile();
+  const target = before.questions.find((question) => question.id === id);
+  const bodyKey = target ? quizQuestionBodyKey(target.body) : "";
+  const dropIds = before.questions
+    .filter((question) => question.id === id || (bodyKey && quizQuestionBodyKey(question.body) === bodyKey))
+    .map((question) => question.id);
+  if (!dropIds.includes(id)) dropIds.push(id);
+
+  const after = await mutateStoredCustomBank((existing) => {
+    const gone = new Set(dropIds);
+    return {
+      deletedIds: rememberDeleted(existing.deletedIds, dropIds),
+      questions: existing.questions.filter((question) => {
+        if (gone.has(question.id)) return false;
+        return !bodyKey || quizQuestionBodyKey(question.body) !== bodyKey;
+      }),
+    };
+  });
+  if (after.some((question) => question.id === id || (bodyKey && quizQuestionBodyKey(question.body) === bodyKey))) {
     throw new Error("Otázku sa nepodarilo vymazať. Skús to znova.");
   }
   return after;
@@ -144,12 +195,14 @@ export async function removeStoredCustomBankQuestion(id: string): Promise<Custom
 
 export async function mergeStoredCustomBankQuestions(incoming: CustomBankQuestion[]): Promise<CustomBankQuestion[]> {
   return mutateStoredCustomBank((existing) => {
+    const deleted = new Set(existing.deletedIds);
     const byId = new Map<string, CustomBankQuestion>();
-    for (const item of existing) byId.set(item.id, item);
+    for (const item of existing.questions) byId.set(item.id, item);
     for (const item of incoming) {
       const normalized = normalizeStoredCustomQuestion(item);
-      if (normalized && !byId.has(normalized.id)) byId.set(normalized.id, normalized);
+      if (!normalized || deleted.has(normalized.id) || byId.has(normalized.id)) continue;
+      byId.set(normalized.id, normalized);
     }
-    return Array.from(byId.values());
+    return { ...existing, questions: Array.from(byId.values()) };
   });
 }

@@ -1,8 +1,10 @@
 import { inferBankTheme, normalizeBankThemeName } from "@/lib/bank-themes";
 import type { QuizBankQuestion } from "@/lib/quiz-question-bank";
 import { refreshStoredCustomQuestionTags, resolveCustomQuestionTags } from "@/lib/quiz-bank-tag-inference";
+import { quizQuestionBodyKey } from "@/lib/quiz-library";
 
 export const CUSTOM_BANK_STORAGE_KEY = "mudrc-custom-bank-questions";
+const DELETED_CUSTOM_BANK_KEY = "mudrc-deleted-custom-bank-ids";
 
 export const CUSTOM_BANK_ID_PREFIX = "custom-";
 
@@ -52,6 +54,34 @@ export function writeCustomBankQuestions(questions: CustomBankQuestion[]): void 
   } catch {
     /* localStorage nedostupné alebo plné */
   }
+}
+
+export function readDeletedCustomBankIds(): string[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(DELETED_CUSTOM_BANK_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as unknown;
+    return Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+export function rememberDeletedCustomBankIds(ids: string[]): void {
+  if (typeof window === "undefined" || !ids.length) return;
+  const next = [...readDeletedCustomBankIds(), ...ids].filter((id, index, all) => id && all.indexOf(id) === index);
+  try {
+    window.localStorage.setItem(DELETED_CUSTOM_BANK_KEY, JSON.stringify(next.slice(-2000)));
+  } catch {
+    /* localStorage plné */
+  }
+}
+
+export function withoutDeletedCustomQuestions<T extends { id: string }>(questions: T[]): T[] {
+  const deleted = new Set(readDeletedCustomBankIds());
+  if (!deleted.size) return questions;
+  return questions.filter((question) => !deleted.has(question.id));
 }
 
 export function notifyCustomBankUpdated(): void {
@@ -224,7 +254,7 @@ export async function syncLocalCustomBankToServerOnce(): Promise<void> {
   if (typeof window === "undefined") return;
   if (window.sessionStorage.getItem(CUSTOM_BANK_SYNC_FLAG)) return;
 
-  const local = readCustomBankQuestions();
+  const local = withoutDeletedCustomQuestions(readCustomBankQuestions());
   if (!local.length) {
     window.sessionStorage.setItem(CUSTOM_BANK_SYNC_FLAG, "1");
     return;
@@ -233,7 +263,7 @@ export async function syncLocalCustomBankToServerOnce(): Promise<void> {
   const current = await fetch(`/api/admin/custom-bank?_=${Date.now()}`, { cache: "no-store" });
   if (!current.ok) return;
   const currentData = await current.json().catch(() => ({}));
-  const server = parseCustomBankQuestionList(currentData.questions);
+  const server = withoutDeletedCustomQuestions(parseCustomBankQuestionList(currentData.questions));
   if (server.length > 0) {
     writeCustomBankQuestions(server);
     window.sessionStorage.setItem(CUSTOM_BANK_SYNC_FLAG, "1");
@@ -244,7 +274,7 @@ export async function syncLocalCustomBankToServerOnce(): Promise<void> {
     method: "POST",
     cache: "no-store",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ merge: true, questions: local }),
+    body: JSON.stringify({ merge: true, questions: withoutDeletedCustomQuestions(local) }),
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
@@ -263,7 +293,9 @@ export async function fetchCustomBankQuestionsFromServer(): Promise<CustomBankQu
     const res = await fetch(`/api/admin/custom-bank?_=${Date.now()}`, { cache: "no-store" });
     if (!res.ok) return readCustomBankQuestions();
     const data = await res.json();
-    const questions = parseCustomBankQuestionList(data.questions).sort((a, b) => b.createdAt - a.createdAt);
+    const questions = withoutDeletedCustomQuestions(
+      parseCustomBankQuestionList(data.questions).sort((a, b) => b.createdAt - a.createdAt)
+    );
     writeCustomBankQuestions(questions);
     notifyCustomBankUpdated();
     return questions;
@@ -287,7 +319,9 @@ export async function addCustomBankQuestionAsync(input: NewCustomBankQuestionInp
   }
   const created = normalizeStoredCustomQuestion(data.question);
   if (!created) throw new Error("Uloženie zlyhalo");
-  const questions = parseCustomBankQuestionList(Array.isArray(data.questions) ? data.questions : []);
+  const questions = withoutDeletedCustomQuestions(
+    parseCustomBankQuestionList(Array.isArray(data.questions) ? data.questions : [])
+  );
   if (!questions.some((question) => question.id === created.id)) {
     questions.unshift(created);
   }
@@ -315,7 +349,7 @@ export async function updateCustomBankQuestionAsync(
   }
   const updated = normalizeStoredCustomQuestion(data.question);
   if (!updated) throw new Error("Uloženie zlyhalo");
-  const questions = parseCustomBankQuestionList(data.questions ?? [updated]).map((item) =>
+  const questions = withoutDeletedCustomQuestions(parseCustomBankQuestionList(data.questions ?? [updated])).map((item) =>
     item.id === updated.id ? updated : item
   );
   if (!questions.some((item) => item.id === updated.id)) questions.unshift(updated);
@@ -327,6 +361,14 @@ export async function updateCustomBankQuestionAsync(
 export async function removeCustomBankQuestionAsync(id: string): Promise<void> {
   if (!isCustomBankQuestionId(id)) return;
 
+  const local = readCustomBankQuestions();
+  const target = local.find((question) => question.id === id);
+  const bodyKey = target ? quizQuestionBodyKey(target.body) : "";
+  const dropIds = local
+    .filter((question) => question.id === id || (bodyKey && quizQuestionBodyKey(question.body) === bodyKey))
+    .map((question) => question.id);
+  if (!dropIds.includes(id)) dropIds.push(id);
+
   const res = await fetch(`/api/admin/custom-bank?id=${encodeURIComponent(id)}`, {
     method: "DELETE",
     cache: "no-store",
@@ -335,11 +377,16 @@ export async function removeCustomBankQuestionAsync(id: string): Promise<void> {
   if (!res.ok) {
     throw new Error(typeof data.error === "string" ? data.error : "Vymazanie zlyhalo");
   }
-  const questions = parseCustomBankQuestionList(data.questions);
-  if (questions.some((question) => question.id === id)) {
+  const returned = parseCustomBankQuestionList(data.questions);
+  if (
+    returned.some(
+      (question) => question.id === id || (bodyKey && quizQuestionBodyKey(question.body) === bodyKey)
+    )
+  ) {
     throw new Error("Otázka v banke zostala. Skús vymazať znova.");
   }
-  writeCustomBankQuestions(questions);
+  rememberDeletedCustomBankIds(dropIds);
+  writeCustomBankQuestions(withoutDeletedCustomQuestions(returned));
   notifyCustomBankUpdated();
 }
 

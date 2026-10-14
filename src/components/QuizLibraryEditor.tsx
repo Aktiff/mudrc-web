@@ -20,6 +20,8 @@ import {
   addCustomBankQuestionAsync,
   fetchCustomBankQuestionsFromServer,
   isCustomBankQuestionId,
+  readCustomBankQuestions,
+  readDeletedCustomBankIds,
   updateCustomBankQuestionAsync,
   type CustomBankQuestion,
 } from "@/lib/quiz-custom-bank";
@@ -277,9 +279,10 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
   const refreshCustomBank = useCallback(async () => {
     const questions = await fetchCustomBankQuestionsFromServer();
     const ids = new Set(questions.map((item) => item.id));
-    const now = Date.now();
+    const deleted = new Set(readDeletedCustomBankIds());
+    const localIds = new Set(readCustomBankQuestions().map((item) => item.id));
     recentCustomBank.current = recentCustomBank.current.filter(
-      (item) => ids.has(item.id) || now - item.createdAt < 20_000
+      (item) => !deleted.has(item.id) && (ids.has(item.id) || localIds.has(item.id))
     );
     const extra = recentCustomBank.current.filter((item) => !ids.has(item.id));
     setCustomBankQuestions([...extra, ...questions]);

@@ -209,6 +209,39 @@ async function pruneVersions(name: string, keepKey: string): Promise<void> {
   );
 }
 
+/**
+ * Najnovší súbor verzie, nie prepísaný pointer. Pointer CDN drží starú kópiu
+ * a po zmazaní by otázka v banke ostala.
+ */
+export async function readLatestAppStorageBlob<T>(name: string): Promise<T | null> {
+  if (!hasBlobStorage()) return null;
+  const cached = recallPayload<T>(name, 20_000);
+  const cachedAt = freshPayloads.get(name)?.at ?? 0;
+
+  let latest: ListedBlob | null = null;
+  try {
+    latest = await latestVersion(name);
+  } catch {
+    latest = null;
+  }
+
+  if (cached !== undefined && (!latest || latest.uploadedAt <= cachedAt)) {
+    return cached;
+  }
+
+  if (latest) {
+    try {
+      const data = await readListed<T>(latest);
+      if (data !== null && !isPointerDocument(data)) return data;
+    } catch {
+      /* skús pamäť alebo pointer */
+    }
+  }
+
+  if (cached !== undefined) return cached;
+  return readAppStorageBlob<T>(name);
+}
+
 export async function readAppStorageBlob<T>(name: string): Promise<T | null> {
   const current = await readAppStorageCurrent<T>(name);
   if (current !== null) return current;

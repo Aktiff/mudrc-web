@@ -12,6 +12,7 @@ import EditCustomBankQuestionDialog from "@/components/EditCustomBankQuestionDia
 import BankMediaPreview from "@/components/BankMediaPreview";
 import { BankThemeFilters } from "@/components/BankThemeControls";
 import { bankQuestionTheme, DEFAULT_BANK_THEME, DEFAULT_BANK_THEMES, mergeBankThemes } from "@/lib/bank-themes";
+import { quizQuestionBodyKey } from "@/lib/quiz-library";
 import { fetchBankThemes } from "@/lib/bank-themes-client";
 import {
   countTextBankSources,
@@ -25,6 +26,7 @@ import {
   isCustomBankQuestionId,
   isGeneratedBankQuestion,
   customQuestionHasPhoto,
+  readDeletedCustomBankIds,
   removeCustomBankQuestionAsync,
   type CustomBankQuestion,
 } from "@/lib/quiz-custom-bank";
@@ -111,6 +113,7 @@ export default function QuestionBankInventory({
     }
     if (addedQuestion && !removedIdSet.has(addedQuestion.id)) byId.set(addedQuestion.id, addedQuestion);
     for (const id of removedIds) byId.delete(id);
+    for (const id of readDeletedCustomBankIds()) byId.delete(id);
     return Array.from(byId.values()).sort((a, b) => b.createdAt - a.createdAt);
   }, [questions, pinned, addedQuestion, removedIds, removedIdSet]);
 
@@ -203,8 +206,9 @@ export default function QuestionBankInventory({
       : {};
     const server = q.filter((item) => isCustomBankQuestionId(item.id) && !removedIdsRef.current.has(item.id));
     const serverIds = new Set(server.map((item) => item.id));
+    const deletedNow = new Set(readDeletedCustomBankIds());
     const missing = pendingAdded.current.filter(
-      (item) => !serverIds.has(item.id) && !removedIdsRef.current.has(item.id)
+      (item) => !serverIds.has(item.id) && !removedIdsRef.current.has(item.id) && !deletedNow.has(item.id)
     );
     const toSave = missing.filter((item) => !reinjected.current.has(item.id));
     for (const item of toSave) reinjected.current.add(item.id);
@@ -264,18 +268,24 @@ export default function QuestionBankInventory({
 
   const removeQuestion = async (id: string) => {
     if (!window.confirm("Odstrániť otázku z banky?")) return;
-    pendingAdded.current = pendingAdded.current.filter((item) => item.id !== id);
-    reinjected.current.delete(id);
-    removedIdsRef.current.add(id);
-    setRemovedIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
-    setPinned((prev) => prev.filter((item) => item.id !== id));
-    setQuestions((prev) => prev.filter((item) => item.id !== id));
+    const current = sourceQuestions.find((item) => item.id === id);
+    const bodyKey = current ? quizQuestionBodyKey(current.body) : "";
+    const dropIds = sourceQuestions
+      .filter((item) => item.id === id || (bodyKey && quizQuestionBodyKey(item.body) === bodyKey))
+      .map((item) => item.id);
+    if (!dropIds.includes(id)) dropIds.push(id);
+    pendingAdded.current = pendingAdded.current.filter((item) => !dropIds.includes(item.id));
+    for (const dropId of dropIds) reinjected.current.delete(dropId);
+    for (const dropId of dropIds) removedIdsRef.current.add(dropId);
+    setRemovedIds((prev) => Array.from(new Set([...prev, ...dropIds])));
+    setPinned((prev) => prev.filter((item) => !dropIds.includes(item.id)));
+    setQuestions((prev) => prev.filter((item) => !dropIds.includes(item.id)));
     try {
       await removeCustomBankQuestionAsync(id);
       afterEdit();
     } catch (error) {
-      removedIdsRef.current.delete(id);
-      setRemovedIds((prev) => prev.filter((item) => item !== id));
+      for (const dropId of dropIds) removedIdsRef.current.delete(dropId);
+      setRemovedIds((prev) => prev.filter((item) => !dropIds.includes(item)));
       window.alert(error instanceof Error ? error.message : "Otázku sa nepodarilo vymazať.");
       afterEdit();
     }

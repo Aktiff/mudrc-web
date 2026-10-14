@@ -45,6 +45,7 @@ import {
   isCustomBankQuestionId,
   isGeneratedBankQuestion,
   customQuestionHasPhoto,
+  readDeletedCustomBankIds,
   removeCustomBankQuestionAsync,
   type CustomBankQuestion,
 } from "@/lib/quiz-custom-bank";
@@ -201,6 +202,7 @@ export default function QuizQuestionBankPanel({
   const [soundKind, setSoundKind] = useState<"music" | "other">("music");
   const [customKind, setCustomKind] = useState<"text" | "photo">("text");
   const [questionTheme, setQuestionTheme] = useState<string>(DEFAULT_BANK_THEME);
+  const [goneIds, setGoneIds] = useState<string[]>([]);
   const [bankThemes, setBankThemes] = useState<string[]>([...DEFAULT_BANK_THEMES]);
 
   const customBankQuestions = customBankQuestionsProp ?? localCustom;
@@ -248,9 +250,12 @@ export default function QuizQuestionBankPanel({
   );
 
   const availableQuestions = useMemo(() => {
-    const insertable = getInsertableTextBankQuestions(customBankQuestions, usedBankQuestionIds, hiddenIds);
+    const deleted = new Set([...readDeletedCustomBankIds(), ...goneIds]);
+    const insertable = getInsertableTextBankQuestions(customBankQuestions, usedBankQuestionIds, hiddenIds).filter(
+      (question) => !deleted.has(question.id)
+    );
     return excludeQuestionsUsedByBody(insertable, usedQuestionBodies);
-  }, [usedBankQuestionIds, hiddenIds, customBankQuestions, usedQuestionBodies]);
+  }, [usedBankQuestionIds, hiddenIds, customBankQuestions, usedQuestionBodies, goneIds]);
 
   const sourceCounts = useMemo(() => {
     const text = countTextBankSources(availableQuestions);
@@ -604,9 +609,11 @@ export default function QuizQuestionBankPanel({
   const dismissQuestion = (bankId: string) => {
     if (isCustomBankQuestionId(bankId)) {
       if (!window.confirm("Odstrániť túto vlastnú otázku z banky?")) return;
+      setGoneIds((prev) => (prev.includes(bankId) ? prev : [...prev, bankId]));
       void removeCustomBankQuestionAsync(bankId)
         .then(() => onCustomBankChange?.())
         .catch((error) => {
+          setGoneIds((prev) => prev.filter((id) => id !== bankId));
           window.alert(error instanceof Error ? error.message : "Otázku sa nepodarilo vymazať.");
         });
       return;
