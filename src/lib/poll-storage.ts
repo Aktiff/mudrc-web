@@ -93,8 +93,12 @@ function getPollStorageMode(): PollAdminData["storage"] {
 }
 
 async function loadStoredPollConfigs(): Promise<PollConfig[]> {
-  const fromBlob = await readAppStorageBlob<{ configs?: PollConfig[] }>("poll-configs");
-  if (fromBlob?.configs) return fromBlob.configs.map(normalizeStoredConfig);
+  try {
+    const fromBlob = await readAppStorageBlob<{ configs?: PollConfig[] }>("poll-configs");
+    if (fromBlob?.configs) return fromBlob.configs.map(normalizeStoredConfig);
+  } catch (error) {
+    console.error("poll configs read failed:", error);
+  }
   return readLocalPollConfigs();
 }
 

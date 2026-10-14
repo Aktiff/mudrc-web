@@ -17,7 +17,7 @@ export function isGeneralQuizType(value: string | undefined | null): boolean {
 
 /** Názov podniku a typ kvízu v jednom riadku, napr. Alipub - Hudobný kvíz. */
 export function venueQuizLabel(venue: string, quizType?: string | null): string {
-  const place = venue.trim();
+  const place = String(venue ?? "").trim();
   const type = normalizeQuizTypeLabel(quizType);
   if (!place) return type;
   if (!type || isGeneralQuizType(type)) return place;
@@ -26,7 +26,7 @@ export function venueQuizLabel(venue: string, quizType?: string | null): string 
 
 /** Ak je typ kvízu pripísaný za pomlčkou v názve podniku, oddelí ho. */
 export function splitVenueQuizType(venue: string, quizType?: string): { venue: string; quizType: string } {
-  const place = venue.trim();
+  const place = String(venue ?? "").trim();
   const existing = normalizeQuizTypeLabel(quizType);
   if (existing) return { venue: place, quizType: existing };
   const match = place.match(/^(.+?)\s*[-–—]\s*(.+kvíz)\s*$/i);

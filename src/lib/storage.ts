@@ -877,7 +877,12 @@ async function loadEvents(): Promise<QuizEvent[]> {
       splittingVenueQuizType = false;
     }
   }
-  const quizzes = await loadQuizzes();
+  let quizzes: StoredQuiz[] = [];
+  try {
+    quizzes = await loadQuizzes();
+  } catch (error) {
+    console.error("loadQuizzes failed:", error);
+  }
   return enrichEventsWithQuizzes(changed ? split : base, quizzes);
 }
 

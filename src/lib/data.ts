@@ -135,8 +135,10 @@ export function sortEventsForAdminOverview(events: QuizEvent[]): QuizEvent[] {
     const futureA = tA >= now;
     const futureB = tB >= now;
     if (futureA !== futureB) return futureA ? -1 : 1;
-    if (futureA) return tA - tB || a.venue.localeCompare(b.venue, "sk");
-    return tB - tA || a.venue.localeCompare(b.venue, "sk");
+    const venueA = typeof a.venue === "string" ? a.venue : "";
+    const venueB = typeof b.venue === "string" ? b.venue : "";
+    if (futureA) return tA - tB || venueA.localeCompare(venueB, "sk");
+    return tB - tA || venueA.localeCompare(venueB, "sk");
   });
 }
 
@@ -159,6 +161,7 @@ export function eventDateIsPlayedNight(eventDate: string, quizDate: string): boo
 }
 
 export function formatSkWeekday(date: string): string | null {
+  if (typeof date !== "string") return null;
   const match = date.trim().match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
   if (!match) return null;
   const [, day, month, year] = match;

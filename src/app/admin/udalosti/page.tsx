@@ -2,21 +2,34 @@ import Link from "next/link";
 import { Plus, Calendar, ChevronRight } from "lucide-react";
 import EventPromoChecks from "@/components/admin/EventPromoChecks";
 import FacebookEventPostButton from "@/components/admin/FacebookEventPostButton";
-import { formatEventDateLabel, sortEventsForAdminOverview } from "@/lib/data";
+import { formatEventDateLabel, sortEventsForAdminOverview, type QuizEvent } from "@/lib/data";
 import { isValidStoredEvent } from "@/lib/event-normalize";
 import { getPollActiveFlagsBySlug } from "@/lib/poll-storage";
 import { estimatedEntryRevenue, formatEuroAmount, formatSkPlayerCountTotal, registrationTotalsForEvent } from "@/lib/registration-utils";
 import { venueQuizLabel } from "@/lib/quiz-type";
-import { readAllEventsRaw, readRegistrations } from "@/lib/storage";
+import { readAllEventsRaw, readRegistrations, type Registration } from "@/lib/storage";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminUdalostitPage() {
-  const [{ events }, { registrations }] = await Promise.all([
-    readAllEventsRaw(),
-    readRegistrations(),
-  ]);
-  const pollActiveBySlug = await getPollActiveFlagsBySlug(events.map((event) => event.slug));
+  let events: QuizEvent[] = [];
+  let registrations: Registration[] = [];
+  try {
+    events = (await readAllEventsRaw()).events.filter((event) => event && typeof event.slug === "string");
+  } catch (error) {
+    console.error("admin events list:", error);
+  }
+  try {
+    registrations = (await readRegistrations()).registrations ?? [];
+  } catch (error) {
+    console.error("admin events registrations:", error);
+  }
+  let pollActiveBySlug: Record<string, boolean> = {};
+  try {
+    pollActiveBySlug = await getPollActiveFlagsBySlug(events.map((event) => event.slug));
+  } catch (error) {
+    console.error("admin events polls:", error);
+  }
   const sortedEvents = sortEventsForAdminOverview(events);
 
   return (
@@ -51,7 +64,7 @@ export default async function AdminUdalostitPage() {
                     {venueQuizLabel(e.venue, e.quizType)}
                   </div>
                   <div className="text-brand-muted text-sm mt-1">
-                    {e.city} &mdash; {formatEventDateLabel(e.date)} o {e.time}
+                    {e.city} &mdash; {formatEventDateLabel(e.date ?? "")} o {e.time ?? ""}
                   </div>
                   <div className="text-brand-muted-light text-xs mt-1 font-mono">/{e.slug}{invalid ? " · neúplný záznam" : ""}</div>
                 </div>
@@ -103,7 +116,7 @@ export default async function AdminUdalostitPage() {
                     Predpokladaný príjem {formatEuroAmount(estimatedEntryRevenue(e.entryFee, regTotals.players))}
                   </span>
                   <span className="text-brand-muted-light">
-                    {e.leagueTable.length} v lige · {e.pastResults.length} výsledkov
+                    {(e.leagueTable ?? []).length} v lige · {(e.pastResults ?? []).length} výsledkov
                   </span>
                 </div>
                 <Link href={`/admin/udalosti/${e.slug}`} aria-label={`Otvoriť ${e.venue}`} className="text-brand-muted-light hover:text-brand-orange">

@@ -243,10 +243,22 @@ export async function readLatestAppStorageBlob<T>(name: string): Promise<T | nul
 }
 
 export async function readAppStorageBlob<T>(name: string): Promise<T | null> {
-  const current = await readAppStorageCurrent<T>(name);
-  if (current !== null) return current;
+  try {
+    const current = await readAppStorageCurrent<T>(name);
+    if (current !== null) return current;
+  } catch (error) {
+    console.error(`app storage current read failed (${name}):`, error);
+    const stale = recallPayload<T>(name, 10 * 60_000);
+    if (stale !== undefined) return stale;
+  }
 
-  const latest = await latestVersion(name);
+  let latest: ListedBlob | null = null;
+  try {
+    latest = await latestVersion(name);
+  } catch (error) {
+    console.error(`app storage version list failed (${name}):`, error);
+    return recallPayload<T>(name, 10 * 60_000) ?? null;
+  }
   if (latest) {
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
@@ -264,7 +276,8 @@ export async function readAppStorageBlob<T>(name: string): Promise<T | null> {
       }
       await sleep(200);
     }
-    throw new Error(`Úložisko ${name} sa nepodarilo načítať.`);
+    console.error(`app storage version read failed (${name})`);
+    return recallPayload<T>(name, 10 * 60_000) ?? null;
   }
 
   const legacyKey = blobKey(name);
