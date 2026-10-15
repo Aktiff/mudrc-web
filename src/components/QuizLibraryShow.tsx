@@ -476,7 +476,7 @@ function PresentationView({
               {nextQuizLines.map((line) => (
                 <li
                   key={line}
-                  className={`font-sans font-semibold text-white normal-case tracking-normal leading-tight whitespace-nowrap ${lineSizeClass}`}
+                  className={`font-sans font-semibold text-white normal-case tracking-normal leading-tight ${lineSizeClass}`}
                 >
                   {line}
                 </li>
@@ -686,7 +686,7 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
       if (!event) return [];
       const at = nextQuizMomentForEvent(event, slug === homeNextQuizSlug);
       if (!at) return [];
-      return [{ venue: event.venue, at }];
+      return [{ venue: event.venue, city: event.city, at }];
     });
     setNextQuizLines(formatNextQuizLines(entries));
     setShowNextQuizModal(false);
@@ -872,7 +872,7 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
                   const checked = order >= 0;
                   const full = !checked && selectedNextQuizSlugs.length >= MAX_NEXT_QUIZ_LINES;
                   const at = nextQuizMomentForEvent(event, event.slug === homeNextQuizSlug);
-                  const line = at ? formatNextQuizLine(event.venue, at) : event.venue;
+                  const line = at ? formatNextQuizLine(event.venue, at, event.city) : event.venue;
                   return (
                     <label
                       key={event.slug}

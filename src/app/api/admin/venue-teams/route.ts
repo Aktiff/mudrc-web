@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isAdminRequest } from "@/lib/admin-session";
-import { deleteVenueTeam, linkVenueTeams, readVenueTeams, unlinkVenueTeam } from "@/lib/venue-teams";
+import {
+  deleteVenueTeam,
+  linkVenueTeams,
+  mergeLinkedTeamLeague,
+  readVenueTeams,
+  setLeagueDisplayName,
+  unlinkVenueTeam,
+} from "@/lib/venue-teams";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -25,6 +32,17 @@ export async function POST(req: NextRequest) {
   try {
     if (action === "link") {
       const teams = await linkVenueTeams(teamId, body?.otherTeamId?.trim() ?? "");
+      return NextResponse.json({ ok: true, teams }, { headers: NO_STORE });
+    }
+    if (action === "merge") {
+      const otherTeamId = body?.otherTeamId?.trim() ?? "";
+      const teams = otherTeamId
+        ? await linkVenueTeams(teamId, otherTeamId, "full")
+        : await mergeLinkedTeamLeague(teamId);
+      return NextResponse.json({ ok: true, teams }, { headers: NO_STORE });
+    }
+    if (action === "league-name") {
+      const teams = await setLeagueDisplayName(teamId);
       return NextResponse.json({ ok: true, teams }, { headers: NO_STORE });
     }
     if (action === "unlink") {

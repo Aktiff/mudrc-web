@@ -7,6 +7,10 @@ export type VenueTeam = {
   updatedAt: string;
   /** Rovnaké id = tí istí ľudia, aj keď majú v inom podniku iný názov. */
   linkId?: string;
+  /** Body oboch názvov sa v lige počítajú ako jeden tím. */
+  leagueMerge?: boolean;
+  /** Názov, pod ktorým sa zlúčený tím ukáže v lige. */
+  leagueName?: string;
 };
 
 function digitRun(raw: string): string {

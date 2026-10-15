@@ -4,6 +4,8 @@ import { buildBreadcrumbJsonLd, buildEventJsonLd, buildEventMetadata } from "@/l
 import { isPollActive } from "@/lib/poll-storage";
 import { getEventRegionSlug, getRegion, isRegionSlug } from "@/lib/regions";
 import { getPublicEventBySlug } from "@/lib/public-events";
+import { leagueMergeGroups } from "@/lib/team-links";
+import { readTeamLinkRecords } from "@/lib/venue-teams";
 import EventDetailPage from "@/components/EventDetailPage";
 import JsonLd from "@/components/JsonLd";
 
@@ -47,7 +49,12 @@ export default async function QuizEventPage({ params }: PageProps) {
           ]),
         ]}
       />
-      <EventDetailPage event={event} region={regionSlug} pollHref={pollHref} />
+      <EventDetailPage
+        event={event}
+        region={regionSlug}
+        pollHref={pollHref}
+        leagueMerges={leagueMergeGroups(await readTeamLinkRecords())}
+      />
     </>
   );
 }

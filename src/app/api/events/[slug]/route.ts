@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { getEventsStorageMeta, readEvents } from "@/lib/storage";
+import { collapseLeagueTable, leagueMergeGroups } from "@/lib/team-links";
+import { readTeamLinkRecords } from "@/lib/venue-teams";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -9,7 +11,9 @@ export async function GET(_req: Request, { params }: { params: { slug: string } 
   const storage = await getEventsStorageMeta();
   const event = data.events.find((e) => e.slug === params.slug);
   if (!event) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  return NextResponse.json({ ...event, _storage: storage }, {
+  const groups = leagueMergeGroups(await readTeamLinkRecords());
+  const leagueTable = collapseLeagueTable(event.leagueTable ?? [], groups);
+  return NextResponse.json({ ...event, leagueTable, _storage: storage }, {
     headers: { "Cache-Control": "no-store, no-cache, must-revalidate" },
   });
 }

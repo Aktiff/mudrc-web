@@ -9,6 +9,8 @@ import {
   type Registration,
 } from "@/lib/storage";
 import { readAppStorageBlob, readAppStorageBlobHistory, writeAppStorageBlob } from "@/lib/blob-app-storage";
+import { teamKey as nameKey } from "@/lib/poll";
+import type { TeamLinkRecord } from "@/lib/team-links";
 import { extractTeamPhones, type VenueTeam } from "@/lib/venue-team-contact";
 
 export type { VenueTeam } from "@/lib/venue-team-contact";
@@ -234,12 +236,72 @@ export async function deleteVenueTeam(id: string): Promise<boolean> {
   const store = await loadStore();
   const target = store.teams.find((team) => team.id === id);
   if (!target) return false;
-  let next = store.teams.filter((team) => team.id !== id);
-  if (target.linkId && next.filter((team) => team.linkId === target.linkId).length < 2) {
-    next = next.map((team) => (team.linkId === target.linkId ? { ...team, linkId: undefined } : team));
-  }
+  const next = normalizeLeagueGroups(store.teams.filter((team) => team.id !== id));
   await saveStore({ teams: next, phoneRecovery: store.phoneRecovery });
   return true;
+}
+
+/** Len prepojenia, bez dopĺňania telefónov. Používa verejná liga. */
+export async function readTeamLinkRecords(): Promise<TeamLinkRecord[]> {
+  const store = await loadStore();
+  return store.teams.map((team) => ({
+    teamName: team.teamName,
+    linkId: team.linkId,
+    venue: team.venue,
+    leagueMerge: team.leagueMerge,
+    leagueName: team.leagueName,
+  }));
+}
+
+function normalizeLeagueGroups(teams: VenueTeam[]): VenueTeam[] {
+  const byLink = new Map<string, VenueTeam[]>();
+  for (const team of teams) {
+    const linkId = team.linkId?.trim();
+    if (!linkId) continue;
+    const bucket = byLink.get(linkId) ?? [];
+    bucket.push(team);
+    byLink.set(linkId, bucket);
+  }
+
+  const dropLink = new Set<string>();
+  const clearMerge = new Set<string>();
+  const leagueNameByLink = new Map<string, string>();
+  for (const [linkId, members] of Array.from(byLink.entries())) {
+    if (members.length < 2) {
+      dropLink.add(linkId);
+      continue;
+    }
+    const merged = members.filter((team) => team.leagueMerge);
+    const distinct = new Set(merged.map((team) => nameKey(team.teamName)));
+    if (distinct.size < 2) {
+      clearMerge.add(linkId);
+      continue;
+    }
+    const stored = merged.find((team) => team.leagueName?.trim())?.leagueName?.trim() ?? "";
+    const primary = merged.find((team) => nameKey(team.teamName) === nameKey(stored))?.teamName ?? merged[0].teamName;
+    leagueNameByLink.set(linkId, primary.trim());
+  }
+
+  return teams.map((team) => {
+    const linkId = team.linkId?.trim();
+    if (!linkId || dropLink.has(linkId)) {
+      if (team.linkId || team.leagueMerge || team.leagueName) {
+        return { ...team, linkId: undefined, leagueMerge: undefined, leagueName: undefined };
+      }
+      return team;
+    }
+    if (clearMerge.has(linkId)) {
+      if (team.leagueMerge || team.leagueName) {
+        return { ...team, leagueMerge: undefined, leagueName: undefined };
+      }
+      return team;
+    }
+    const leagueName = leagueNameByLink.get(linkId);
+    if (team.leagueMerge && leagueName && team.leagueName !== leagueName) {
+      return { ...team, leagueName };
+    }
+    return team;
+  });
 }
 
 function stampTeams(teams: VenueTeam[]): VenueTeam[] {
@@ -247,7 +309,11 @@ function stampTeams(teams: VenueTeam[]): VenueTeam[] {
 }
 
 /** Spojí dva záznamy tímov. Ľudia s prepojeným názvom nedostanú ten istý kvíz. */
-export async function linkVenueTeams(teamId: string, otherTeamId: string): Promise<VenueTeam[]> {
+export async function linkVenueTeams(
+  teamId: string,
+  otherTeamId: string,
+  mode: "quiz" | "full" = "quiz"
+): Promise<VenueTeam[]> {
   if (!teamId || !otherTeamId || teamId === otherTeamId) {
     throw new Error("Vyber dva rôzne tímy.");
   }
@@ -255,14 +321,58 @@ export async function linkVenueTeams(teamId: string, otherTeamId: string): Promi
   const left = store.teams.find((team) => team.id === teamId);
   const right = store.teams.find((team) => team.id === otherTeamId);
   if (!left || !right) throw new Error("Tím sa nenašiel.");
+  if (mode === "full" && nameKey(left.teamName) === nameKey(right.teamName)) {
+    throw new Error("V lige treba spojiť dva rôzne názvy.");
+  }
 
   const linkId = left.linkId || right.linkId || randomUUID();
   const previous = new Set([left.linkId, right.linkId].filter((id): id is string => Boolean(id)));
   const now = new Date().toLocaleString("sk-SK", { timeZone: "Europe/Bratislava" });
-  const teams = store.teams.map((team) => {
-    const joins = team.id === left.id || team.id === right.id || (team.linkId && previous.has(team.linkId));
-    return joins ? { ...team, linkId, updatedAt: now } : team;
-  });
+  const leagueName = left.teamName.trim();
+  const teams = normalizeLeagueGroups(
+    store.teams.map((team) => {
+      const joins = team.id === left.id || team.id === right.id || (team.linkId && previous.has(team.linkId));
+      if (!joins) return team;
+      if (mode === "full") return { ...team, linkId, leagueMerge: true, leagueName, updatedAt: now };
+      return { ...team, linkId, updatedAt: now };
+    })
+  );
+  await saveStore({ teams, phoneRecovery: store.phoneRecovery });
+  return stampTeams(teams);
+}
+
+/** Už prepojené názvy začnú v lige počítať body ako jeden tím. Hlavný názov je ten, z ktorého sa zlúčenie spustí. */
+export async function mergeLinkedTeamLeague(teamId: string): Promise<VenueTeam[]> {
+  const store = await loadStore();
+  const target = store.teams.find((team) => team.id === teamId);
+  if (!target) throw new Error("Tím sa nenašiel.");
+  if (!target.linkId) throw new Error("Najprv tím s niekým prepoj, alebo vyber druhý názov.");
+  const names = new Set(
+    store.teams.filter((team) => team.linkId === target.linkId).map((team) => nameKey(team.teamName))
+  );
+  if (names.size < 2) throw new Error("Na zlúčenie v lige treba dva rôzne názvy.");
+
+  const now = new Date().toLocaleString("sk-SK", { timeZone: "Europe/Bratislava" });
+  const leagueName = target.teamName.trim();
+  const teams = normalizeLeagueGroups(
+    store.teams.map((team) =>
+      team.linkId === target.linkId ? { ...team, leagueMerge: true, leagueName, updatedAt: now } : team
+    )
+  );
+  await saveStore({ teams, phoneRecovery: store.phoneRecovery });
+  return stampTeams(teams);
+}
+
+/** V ligovej tabuľke sa zlúčená skupina ukáže pod názvom tohto tímu. */
+export async function setLeagueDisplayName(teamId: string): Promise<VenueTeam[]> {
+  const store = await loadStore();
+  const target = store.teams.find((team) => team.id === teamId);
+  if (!target?.linkId || !target.leagueMerge) throw new Error("Tento tím nie je zlúčený v lige.");
+  const now = new Date().toLocaleString("sk-SK", { timeZone: "Europe/Bratislava" });
+  const leagueName = target.teamName.trim();
+  const teams = store.teams.map((team) =>
+    team.linkId === target.linkId && team.leagueMerge ? { ...team, leagueName, updatedAt: now } : team
+  );
   await saveStore({ teams, phoneRecovery: store.phoneRecovery });
   return stampTeams(teams);
 }
@@ -271,11 +381,11 @@ export async function unlinkVenueTeam(teamId: string): Promise<VenueTeam[]> {
   const store = await loadStore();
   const target = store.teams.find((team) => team.id === teamId);
   if (!target) throw new Error("Tím sa nenašiel.");
-  const linkId = target.linkId;
-  let teams = store.teams.map((team) => (team.id === teamId ? { ...team, linkId: undefined } : team));
-  if (linkId && teams.filter((team) => team.linkId === linkId).length < 2) {
-    teams = teams.map((team) => (team.linkId === linkId ? { ...team, linkId: undefined } : team));
-  }
+  const teams = normalizeLeagueGroups(
+    store.teams.map((team) =>
+      team.id === teamId ? { ...team, linkId: undefined, leagueMerge: undefined, leagueName: undefined } : team
+    )
+  );
   await saveStore({ teams, phoneRecovery: store.phoneRecovery });
   return stampTeams(teams);
 }

@@ -20,6 +20,7 @@ import { getRegion } from "@/lib/regions";
 import { mediaUrlForBrowser } from "@/lib/media-url";
 import { venueQuizLabel } from "@/lib/quiz-type";
 import { visibleRuleTexts } from "@/lib/quiz-rules";
+import { collapseLeagueTable, type LeagueMergeGroup } from "@/lib/team-links";
 import Breadcrumbs from "@/components/Breadcrumbs";
 import RegistrationAction from "@/components/RegistrationAction";
 import RegistrationModal from "./RegistrationModal";
@@ -35,16 +36,17 @@ type EventDetailPageProps = {
   event: QuizEvent;
   region: RegionSlug;
   pollHref?: string;
+  leagueMerges?: LeagueMergeGroup[];
 };
 
-export default function EventDetailPage({ event, region, pollHref }: EventDetailPageProps) {
+export default function EventDetailPage({ event, region, pollHref, leagueMerges = [] }: EventDetailPageProps) {
   const [showModal, setShowModal] = useState(false);
   const rules = visibleRuleTexts(event.rules);
   const specialRules = event.thematic ? visibleRuleTexts(event.specialRules) : [];
   const venueTitle = venueQuizLabel(event.venue, event.quizType);
   const regionConfig = getRegion(region)!;
   const leagueTable = event.leagueTable ?? [];
-  const topThree = leagueTable.slice(0, 3);
+  const topThree = collapseLeagueTable(leagueTable, leagueMerges).slice(0, 3);
   const teamSuggestions = leagueTeamNameSuggestions(leagueTable);
 
   return (

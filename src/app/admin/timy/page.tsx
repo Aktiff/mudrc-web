@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ArrowLeft, Calendar, ChevronRight, MapPin, Phone, Trash2 } from "lucide-react";
 import type { QuizEvent } from "@/lib/data";
 import { formatEventDateLabel, sortEventsForAdminOverview } from "@/lib/data";
+import { teamKey } from "@/lib/poll";
 import { formatTeamPhone, type VenueTeam } from "@/lib/venue-team-contact";
 
 function teamCountLabel(count: number): string {
@@ -44,6 +45,7 @@ export default function VenueTeamsPage() {
   const [selectedCity, setSelectedCity] = useState<string | null>(null);
   const [selectedVenue, setSelectedVenue] = useState<string | null>(null);
   const [linkingId, setLinkingId] = useState<string | null>(null);
+  const [linkMode, setLinkMode] = useState<"quiz" | "full">("quiz");
   const [linkQuery, setLinkQuery] = useState("");
   const [linkError, setLinkError] = useState("");
   const [linkingBusy, setLinkingBusy] = useState(false);
@@ -174,7 +176,11 @@ export default function VenueTeamsPage() {
   const aliasesOf = (team: VenueTeam) =>
     team.linkId ? teams.filter((other) => other.id !== team.id && other.linkId === team.linkId) : [];
 
-  const saveLink = async (action: "link" | "unlink", teamId: string, otherTeamId?: string) => {
+  const saveLink = async (
+    action: "link" | "unlink" | "merge" | "league-name",
+    teamId: string,
+    otherTeamId?: string
+  ) => {
     setLinkingBusy(true);
     setLinkError("");
     try {
@@ -191,6 +197,7 @@ export default function VenueTeamsPage() {
       }
       setTeams(data.teams ?? []);
       setLinkingId(null);
+      setLinkMode("quiz");
       setLinkQuery("");
     } finally {
       setLinkingBusy(false);
@@ -209,6 +216,17 @@ export default function VenueTeamsPage() {
     } finally {
       setDeletingId(null);
     }
+  };
+
+  const openLink = (teamId: string, mode: "quiz" | "full") => {
+    setLinkError("");
+    setLinkQuery("");
+    if (linkingId === teamId && linkMode === mode) {
+      setLinkingId(null);
+      return;
+    }
+    setLinkingId(teamId);
+    setLinkMode(mode);
   };
 
   const citySection = citySections.find((section) => section.key === selectedCity) ?? null;
@@ -252,10 +270,13 @@ export default function VenueTeamsPage() {
         {linkingId && venueSection.list.some((team) => team.id === linkingId) ? (
           <div className="mb-6 rounded-2xl border border-brand-border bg-brand-card p-4 space-y-3">
             <p className="text-sm text-brand-text font-semibold">
-              Prepojiť „{venueSection.list.find((team) => team.id === linkingId)?.teamName}“ s tímom z iného podniku
+              {linkMode === "full" ? "Úplne prepojiť" : "Prepojiť"} „
+              {venueSection.list.find((team) => team.id === linkingId)?.teamName}“
             </p>
             <p className="text-xs text-brand-muted">
-              Rovnakí ľudia pod iným názvom. Kvíz, ktorý už hral jeden názov, nedostane ani druhý.
+              {linkMode === "full"
+                ? "Nájdi druhý názov, aj z tohto podniku. V lige sa body oboch názvov sčítajú do jedného tímu pod týmto názvom. Druhý ostane v zátvorke."
+                : "Rovnakí ľudia pod iným názvom. Kvíz, ktorý už hral jeden názov, nedostane ani druhý."}
             </p>
             <input
               className="input text-sm"
@@ -282,7 +303,7 @@ export default function VenueTeamsPage() {
                     key={team.id}
                     type="button"
                     disabled={linkingBusy}
-                    onClick={() => void saveLink("link", linkingId, team.id)}
+                    onClick={() => void saveLink(linkMode === "full" ? "merge" : "link", linkingId, team.id)}
                     className="w-full text-left rounded-xl border border-brand-border px-3 py-2 hover:border-brand-orange"
                   >
                     <span className="font-semibold text-brand-text">{team.teamName}</span>
@@ -305,13 +326,21 @@ export default function VenueTeamsPage() {
                 team={team}
                 aliases={aliasesOf(team)}
                 deleting={deletingId === team.id}
-                linking={linkingId === team.id}
+                linking={linkingId === team.id && linkMode === "quiz"}
                 onDelete={() => removeTeam(team)}
-                onLink={() => {
-                  setLinkError("");
-                  setLinkQuery("");
-                  setLinkingId((current) => (current === team.id ? null : team.id));
-                }}
+                linkingFull={linkingId === team.id && linkMode === "full"}
+                onLink={() => openLink(team.id, "quiz")}
+                onFullLink={() => openLink(team.id, "full")}
+                onMergeLeague={
+                  aliasesOf(team).length > 0 && !team.leagueMerge
+                    ? () => void saveLink("merge", team.id)
+                    : undefined
+                }
+                onUseLeagueName={
+                  team.leagueMerge && teamKey(team.teamName) !== teamKey(team.leagueName ?? "")
+                    ? () => void saveLink("league-name", team.id)
+                    : undefined
+                }
                 onUnlink={() => void saveLink("unlink", team.id)}
               />
             ))}
@@ -377,7 +406,7 @@ export default function VenueTeamsPage() {
   return (
     <div className="w-full min-w-0">
       <h1 className="font-display text-4xl text-brand-text tracking-wide mb-1">Tímy</h1>
-      <p className="text-brand-muted text-sm mb-2">Sú tu aj tímy z aktuálnych registrácií, nielen zo starých kvízov. Prepojené názvy sú tí istí ľudia a nedostanú dvakrát ten istý kvíz.</p>
+      <p className="text-brand-muted text-sm mb-2">Sú tu aj tímy z aktuálnych registrácií, nielen zo starých kvízov. Prepojené názvy sú tí istí ľudia a nedostanú dvakrát ten istý kvíz. Úplné prepojenie navyše sčíta ich body v lige do jedného tímu.</p>
       <p className="text-brand-muted text-xs mb-6">
         Uloží sa názov tímu a telefón tak, ako ho napísali. Prázdne pole a samé nuly sa nepridajú. Ďalšie číslo pri
         novej registrácii sa k tímu pridá.
@@ -431,13 +460,29 @@ export default function VenueTeamsPage() {
   );
 }
 
+function leagueRowLabel(team: VenueTeam, aliases: VenueTeam[]): string | null {
+  if (!team.leagueMerge) return null;
+  const names = [team, ...aliases].filter((entry) => entry.leagueMerge);
+  const stored = team.leagueName?.trim() ?? "";
+  const primary =
+    names.find((entry) => teamKey(entry.teamName) === teamKey(stored))?.teamName ?? (stored || team.teamName);
+  const extras = names
+    .map((entry) => entry.teamName)
+    .filter((name, index, all) => teamKey(name) !== teamKey(primary) && all.findIndex((item) => teamKey(item) === teamKey(name)) === index);
+  return extras.length ? `${primary} (${extras.join(", ")})` : primary;
+}
+
 function TeamRow({
   team,
   aliases = [],
   deleting,
   linking = false,
+  linkingFull = false,
   onDelete,
   onLink,
+  onFullLink,
+  onMergeLeague,
+  onUseLeagueName,
   onUnlink,
   showVenue = false,
 }: {
@@ -445,11 +490,16 @@ function TeamRow({
   aliases?: VenueTeam[];
   deleting: boolean;
   linking?: boolean;
+  linkingFull?: boolean;
   onDelete: () => void;
   onLink?: () => void;
+  onFullLink?: () => void;
+  onMergeLeague?: () => void;
+  onUseLeagueName?: () => void;
   onUnlink?: () => void;
   showVenue?: boolean;
 }) {
+  const leagueLabel = leagueRowLabel(team, aliases);
   return (
     <div className="rounded-xl border border-brand-border bg-brand-card p-4 flex flex-col sm:flex-row sm:items-start justify-between gap-4">
       <div className="min-w-0">
@@ -460,6 +510,7 @@ function TeamRow({
             Rovnakí ľudia: {aliases.map((alias) => `${alias.teamName} (${alias.venue})`).join(", ")}
           </p>
         ) : null}
+        {leagueLabel ? <p className="text-sm text-brand-text mt-1">V lige ako jeden tím: {leagueLabel}</p> : null}
         <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-sm text-brand-muted">
           {team.phones.length === 0 ? (
             <span>Bez telefónu</span>
@@ -492,6 +543,35 @@ function TeamRow({
             }`}
           >
             {linking ? "Zavrieť" : "Prepojiť"}
+          </button>
+        ) : null}
+        {onFullLink ? (
+          <button
+            type="button"
+            onClick={onFullLink}
+            className={`text-sm font-semibold px-3 py-2 rounded-xl border ${
+              linkingFull ? "border-brand-orange text-brand-orange-readable" : "border-brand-border text-brand-text"
+            }`}
+          >
+            {linkingFull ? "Zavrieť" : "Úplne prepojiť"}
+          </button>
+        ) : null}
+        {onMergeLeague ? (
+          <button
+            type="button"
+            onClick={onMergeLeague}
+            className="text-sm font-semibold px-3 py-2 rounded-xl border border-brand-border text-brand-text"
+          >
+            Zlúčiť body v lige
+          </button>
+        ) : null}
+        {onUseLeagueName ? (
+          <button
+            type="button"
+            onClick={onUseLeagueName}
+            className="text-sm font-semibold px-3 py-2 rounded-xl border border-brand-border text-brand-text"
+          >
+            Tento názov v lige
           </button>
         ) : null}
         {aliases.length > 0 && onUnlink ? (

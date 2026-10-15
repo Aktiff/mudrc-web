@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { readEvents, getEventsStorageMeta } from "@/lib/storage";
-import { getVisibleLeagues, isQuizVisible, sortEventsByDate } from "@/lib/data";
+import { getVisibleLeagues, isQuizVisible, sortEventsByDate, type QuizEvent } from "@/lib/data";
+import { collapseLeagueTable, leagueMergeGroups } from "@/lib/team-links";
+import { readTeamLinkRecords } from "@/lib/venue-teams";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,7 +14,7 @@ export async function GET(req: Request) {
 
   const filtered =
     view === "liga"
-      ? getVisibleLeagues(events)
+      ? await withMergedLeagueTables(getVisibleLeagues(events))
       : sortEventsByDate(events.filter(isQuizVisible));
 
   return NextResponse.json(
@@ -23,4 +25,13 @@ export async function GET(req: Request) {
       },
     }
   );
+}
+
+async function withMergedLeagueTables(events: QuizEvent[]): Promise<QuizEvent[]> {
+  const groups = leagueMergeGroups(await readTeamLinkRecords());
+  if (!groups.length) return events;
+  return events.map((event) => ({
+    ...event,
+    leagueTable: collapseLeagueTable(event.leagueTable ?? [], groups),
+  }));
 }

@@ -39,9 +39,9 @@ export function normalizeShoutingVenue(venue: string): string {
   return t;
 }
 
-/** Napr. „Alipub – piatok 26.9. o 20:00“ */
-export function formatNextQuizLine(venue: string, date: Date): string {
-  const place = normalizeShoutingVenue(venue.trim()) || "—";
+/** Napr. „Alipub, Bratislava – piatok 26.9. o 20:00“ */
+export function formatNextQuizLine(venue: string, date: Date, city?: string): string {
+  const place = venueWithCity(venue, city);
   const weekdayRaw = date.toLocaleDateString("sk-SK", { weekday: "long" });
   const weekday = weekdayRaw.charAt(0).toUpperCase() + weekdayRaw.slice(1);
   const day = date.getDate();
@@ -50,12 +50,22 @@ export function formatNextQuizLine(venue: string, date: Date): string {
   return `${place} – ${weekday} ${day}.${month}. o ${time}`;
 }
 
-export function formatNextQuizLines(entries: { venue: string; at: Date }[]): string[] {
+function venueWithCity(venue: string, city?: string): string {
+  const place = normalizeShoutingVenue(venue.trim()) || "—";
+  const town = city?.trim() ?? "";
+  if (!town) return place;
+  const placeKey = place.toLocaleLowerCase("sk");
+  const townKey = town.toLocaleLowerCase("sk");
+  if (placeKey === townKey || placeKey.includes(townKey)) return place;
+  return `${place}, ${town}`;
+}
+
+export function formatNextQuizLines(entries: { venue: string; at: Date; city?: string }[]): string[] {
   return [...entries]
     .filter((entry) => entry.venue.trim() && entry.at && !Number.isNaN(entry.at.getTime()))
     .sort((a, b) => a.at.getTime() - b.at.getTime() || a.venue.localeCompare(b.venue, "sk"))
     .slice(0, MAX_NEXT_QUIZ_LINES)
-    .map((entry) => formatNextQuizLine(entry.venue, entry.at));
+    .map((entry) => formatNextQuizLine(entry.venue, entry.at, entry.city));
 }
 
 function calendarDay(date: Date): number {
