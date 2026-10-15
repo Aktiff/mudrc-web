@@ -279,7 +279,7 @@ function normalizeLeagueGroups(teams: VenueTeam[]): VenueTeam[] {
     }
     const stored = merged.find((team) => team.leagueName?.trim())?.leagueName?.trim() ?? "";
     const primary = merged.find((team) => nameKey(team.teamName) === nameKey(stored))?.teamName ?? merged[0].teamName;
-    leagueNameByLink.set(linkId, primary.trim());
+    leagueNameByLink.set(linkId, (stored || primary).trim());
   }
 
   return teams.map((team) => {
@@ -358,6 +358,27 @@ export async function mergeLinkedTeamLeague(teamId: string): Promise<VenueTeam[]
     store.teams.map((team) =>
       team.linkId === target.linkId ? { ...team, leagueMerge: true, leagueName, updatedAt: now } : team
     )
+  );
+  await saveStore({ teams, phoneRecovery: store.phoneRecovery });
+  return stampTeams(teams);
+}
+
+/** Vlastný názov spoločného tímu v lige. Pôvodné mená z večerov ostanú. */
+export async function renameLeagueGroup(teamName: string, leagueName: string): Promise<VenueTeam[]> {
+  const label = leagueName.trim();
+  if (!label) throw new Error("Názov nemôže byť prázdny.");
+  const store = await loadStore();
+  const key = nameKey(teamName);
+  const target = store.teams.find(
+    (team) =>
+      team.leagueMerge &&
+      team.linkId &&
+      (nameKey(team.teamName) === key || nameKey(team.leagueName ?? "") === key)
+  );
+  if (!target?.linkId) throw new Error("Tento tím nie je zlúčený v lige.");
+  const now = new Date().toLocaleString("sk-SK", { timeZone: "Europe/Bratislava" });
+  const teams = store.teams.map((team) =>
+    team.linkId === target.linkId && team.leagueMerge ? { ...team, leagueName: label, updatedAt: now } : team
   );
   await saveStore({ teams, phoneRecovery: store.phoneRecovery });
   return stampTeams(teams);

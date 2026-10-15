@@ -110,18 +110,63 @@ function leagueRowsForEditor(table: LeagueEntry[], groups: LeagueMergeGroup[]) {
     const sourceNames = Array.from(
       new Set(indexes.map((index) => table[index]?.teamName?.trim()).filter((name): name is string => Boolean(name)))
     );
+    const sourceKeys = Array.from(new Set(sourceNames.map((name) => teamKey(name))));
     const mergedHere =
       sourceNames.length > 1 ||
       (sourceNames.length === 1 && teamKey(sourceNames[0]) !== teamKey(row.teamName));
+    const linked = Boolean(group);
+    const rowId = `${linked ? "link" : "spell"}:${sourceKeys.slice().sort().join("|")}`;
     if (mergedHere) {
       indexes.forEach((index) => used.add(index));
       const included = sourceNames.filter((name) => teamKey(name) !== teamKey(row.teamName));
-      return { row, indexes, merged: true as const, included };
+      return { row, indexes, merged: true as const, included, linked, sourceNames, sourceKeys, rowId };
     }
     const index = table.findIndex((entry, itemIndex) => !used.has(itemIndex) && teamKey(entry.teamName) === teamKey(row.teamName));
     if (index >= 0) used.add(index);
-    return { row, indexes: index >= 0 ? [index] : [], merged: false as const, included: [] as string[] };
+    return {
+      row,
+      indexes: index >= 0 ? [index] : [],
+      merged: false as const,
+      included: [] as string[],
+      linked: false,
+      sourceNames,
+      sourceKeys,
+      rowId,
+    };
   });
+}
+
+function applyMergedNameDrafts(
+  event: QuizEvent,
+  rows: ReturnType<typeof leagueRowsForEditor>,
+  drafts: Record<string, string>
+): { event: QuizEvent; linked: { teamName: string; leagueName: string }[] } {
+  let leagueTable = (event.leagueTable ?? []).map((row) => ({ ...row }));
+  let pastResults = (event.pastResults ?? []).map((result) => ({
+    ...result,
+    teams: result.teams?.map((team) => ({ ...team })),
+  }));
+  const linked: { teamName: string; leagueName: string }[] = [];
+
+  for (const item of rows) {
+    if (!item.merged) continue;
+    const next = drafts[item.rowId]?.trim();
+    if (!next || next === item.row.teamName.trim()) continue;
+    if (item.linked) {
+      const teamName = item.sourceNames[0];
+      if (teamName) linked.push({ teamName, leagueName: next });
+      continue;
+    }
+    const keys = new Set(item.sourceKeys);
+    leagueTable = leagueTable.map((row) => (keys.has(teamKey(row.teamName)) ? { ...row, teamName: next } : row));
+    pastResults = pastResults.map((result) => ({
+      ...result,
+      winnerTeam: keys.has(teamKey(result.winnerTeam ?? "")) ? next : result.winnerTeam,
+      teams: result.teams?.map((team) => (keys.has(teamKey(team.teamName)) ? { ...team, teamName: next } : team)),
+    }));
+  }
+
+  return { event: { ...event, leagueTable, pastResults }, linked };
 }
 
 function formatDuration(minutes: number): string {
@@ -173,6 +218,7 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
   const [deletingPollTeam, setDeletingPollTeam] = useState<string | null>(null);
   const [pollSelectedDates, setPollSelectedDates] = useState<string[]>([]);
   const [leagueMerges, setLeagueMerges] = useState<LeagueMergeGroup[]>([]);
+  const [leagueNameDrafts, setLeagueNameDrafts] = useState<Record<string, string>>({});
   const [pollOptionsSaving, setPollOptionsSaving] = useState(false);
 
   useEffect(() => {
@@ -756,6 +802,31 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
     const includeLeagueData = tab === "liga" || tab === "vysledky";
     let toSave: QuizEvent & { _includeLeagueData?: boolean } = { ...form };
     if (includeLeagueData) {
+      if (tab === "liga") {
+        const renamed = applyMergedNameDrafts(toSave, leagueEditorRows, leagueNameDrafts);
+        toSave = renamed.event;
+        try {
+          for (const item of renamed.linked) {
+            const renameRes = await fetch("/api/admin/venue-teams", {
+              method: "POST",
+              credentials: "same-origin",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ action: "rename-league", teamName: item.teamName, leagueName: item.leagueName }),
+            });
+            const renameData = await renameRes.json().catch(() => ({}));
+            if (!renameRes.ok) {
+              setSaving(false);
+              setMsg({ text: renameData.error ?? "Názov spoločného tímu sa nepodarilo uložiť.", ok: false });
+              return;
+            }
+            setLeagueMerges(leagueMergeGroups(renameData.teams ?? []));
+          }
+        } catch {
+          setSaving(false);
+          setMsg({ text: "Sieťová chyba pri ukladaní názvu.", ok: false });
+          return;
+        }
+      }
       toSave.leagueTable = sortLeagueTable(toSave.leagueTable ?? []);
       toSave._includeLeagueData = true;
     }
@@ -779,6 +850,7 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
         }
         const savedEvent = normalizeEvent(saved as QuizEvent);
         if (registrationsReopened.current) registrationOpenLock.current = true;
+        setLeagueNameDrafts({});
         setForm(savedEvent);
         setMsg({
           text: registrationsReopened.current
@@ -1404,12 +1476,19 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
             )}
             {leagueEditorRows.map((item) =>
               item.merged ? (
-                <div key={`merged-${item.row.teamName}`} className="grid grid-cols-[2rem_1fr_6rem_6rem_2rem] gap-2 items-center">
+                <div key={item.rowId} className="grid grid-cols-[2rem_1fr_6rem_6rem_2rem] gap-2 items-center">
                   <span className="text-brand-muted text-sm text-center">{item.row.rank}.</span>
-                  <div className="min-w-0 py-1">
-                    <div className="font-semibold text-brand-text text-sm">{item.row.teamName}</div>
+                  <div className="min-w-0">
+                    <input
+                      className="input text-sm py-2"
+                      value={leagueNameDrafts[item.rowId] ?? item.row.teamName}
+                      onChange={(e) =>
+                        setLeagueNameDrafts((current) => ({ ...current, [item.rowId]: e.target.value }))
+                      }
+                      placeholder="Názov tímu"
+                    />
                     {item.included.length > 0 ? (
-                      <p className="text-xs text-brand-muted">Body z {item.included.join(", ")} sú už v tomto riadku.</p>
+                      <p className="text-xs text-brand-muted mt-1">Body z {item.included.join(", ")} sú už v tomto riadku.</p>
                     ) : null}
                   </div>
                   <div className="text-center text-sm font-semibold text-brand-text">{item.row.points}</div>

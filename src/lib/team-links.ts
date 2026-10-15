@@ -107,7 +107,7 @@ export function leagueMergeGroups(teams: TeamLinkRecord[]): LeagueMergeGroup[] {
     const primary = names.find((name) => teamKey(name) === teamKey(stored)) ?? names[0];
     groups.push({
       names,
-      displayName: primary,
+      displayName: stored || primary,
     });
   }
   return groups;

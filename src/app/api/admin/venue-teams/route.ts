@@ -5,6 +5,7 @@ import {
   linkVenueTeams,
   mergeLinkedTeamLeague,
   readVenueTeams,
+  renameLeagueGroup,
   setLeagueDisplayName,
   unlinkVenueTeam,
 } from "@/lib/venue-teams";
@@ -26,7 +27,13 @@ export async function POST(req: NextRequest) {
   if (!isAdminRequest(req)) {
     return NextResponse.json({ error: "Neautorizované" }, { status: 401 });
   }
-  const body = (await req.json().catch(() => null)) as { action?: string; teamId?: string; otherTeamId?: string } | null;
+  const body = (await req.json().catch(() => null)) as {
+    action?: string;
+    teamId?: string;
+    otherTeamId?: string;
+    teamName?: string;
+    leagueName?: string;
+  } | null;
   const action = body?.action;
   const teamId = body?.teamId?.trim() ?? "";
   try {
@@ -43,6 +50,10 @@ export async function POST(req: NextRequest) {
     }
     if (action === "league-name") {
       const teams = await setLeagueDisplayName(teamId);
+      return NextResponse.json({ ok: true, teams }, { headers: NO_STORE });
+    }
+    if (action === "rename-league") {
+      const teams = await renameLeagueGroup(body?.teamName?.trim() ?? "", body?.leagueName?.trim() ?? "");
       return NextResponse.json({ ok: true, teams }, { headers: NO_STORE });
     }
     if (action === "unlink") {
