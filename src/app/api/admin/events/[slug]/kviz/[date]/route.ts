@@ -178,7 +178,7 @@ export async function PUT(req: NextRequest, { params }: { params: { slug: string
 
         const pts = teamsDetail.find((row) => row.teamName === team.name)?.ligaPoints ?? 0;
 
-        const row = table.find((r) => r.teamName === team.name);
+        const row = table.find((r) => teamKey(r.teamName) === teamKey(team.name));
 
         if (row) {
 

@@ -1,5 +1,6 @@
 import type { LeagueEntry, PastResult, PastResultTeam } from "@/lib/data";
 import { sortLeagueTable } from "@/lib/data";
+import { teamKey } from "@/lib/poll";
 import { quizResultKey } from "@/lib/quiz-result-key";
 
 export function roundQuizTotal(value: number): number {
@@ -47,7 +48,7 @@ export function sumLeagueFromDetailedResults(pastResults: PastResult[]): LeagueE
     for (const team of teams) {
       const name = team.teamName.trim();
       if (!name) continue;
-      const existing = table.find((row) => row.teamName === name);
+      const existing = table.find((row) => teamKey(row.teamName) === teamKey(name));
       if (existing) {
         existing.points += team.ligaPoints;
         existing.quizzesPlayed += 1;

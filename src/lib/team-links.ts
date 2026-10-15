@@ -113,9 +113,49 @@ export function leagueMergeGroups(teams: TeamLinkRecord[]): LeagueMergeGroup[] {
   return groups;
 }
 
+/** „Kolektívna Neistota“ a „Kolektívna neistota“ sú jeden tím. Nechá sa zápis s vyšším počtom bodov. */
+export function collapseSameTeamSpellings(table: LeagueEntry[]): LeagueEntry[] {
+  if (table.length < 2) return table;
+  const groups = new Map<string, LeagueEntry[]>();
+  const order: string[] = [];
+  for (const row of table) {
+    const name = row.teamName.trim();
+    const key = teamKey(name);
+    if (!key) continue;
+    const bucket = groups.get(key);
+    if (bucket) bucket.push(row);
+    else {
+      groups.set(key, [{ ...row, teamName: name }]);
+      order.push(key);
+    }
+  }
+
+  let changed = false;
+  const out: LeagueEntry[] = [];
+  for (const key of order) {
+    const rows = groups.get(key) ?? [];
+    if (rows.length < 2) {
+      if (rows[0]) out.push(rows[0]);
+      continue;
+    }
+    changed = true;
+    const best = [...rows].sort(
+      (a, b) => b.points - a.points || b.quizzesPlayed - a.quizzesPlayed || a.teamName.localeCompare(b.teamName, "sk")
+    )[0];
+    out.push({
+      rank: 0,
+      teamName: best.teamName,
+      points: rows.reduce((sum, row) => sum + row.points, 0),
+      quizzesPlayed: rows.reduce((sum, row) => sum + row.quizzesPlayed, 0),
+    });
+  }
+  return changed ? sortLeagueTable(out) : table;
+}
+
 /** Sčíta body a počet kvízov zlúčených názvov. Ostatné riadky nechá. */
 export function collapseLeagueTable(table: LeagueEntry[], groups: LeagueMergeGroup[]): LeagueEntry[] {
-  if (!table.length || !groups.length) return table;
+  const folded = collapseSameTeamSpellings(table);
+  if (!folded.length || !groups.length) return folded;
   const keyToGroup = new Map<string, LeagueMergeGroup>();
   for (const group of groups) {
     for (const name of group.names) keyToGroup.set(teamKey(name), group);
@@ -123,7 +163,7 @@ export function collapseLeagueTable(table: LeagueEntry[], groups: LeagueMergeGro
 
   const merged = new Map<LeagueMergeGroup, LeagueEntry>();
   const out: LeagueEntry[] = [];
-  for (const row of table) {
+  for (const row of folded) {
     const group = keyToGroup.get(teamKey(row.teamName));
     if (!group) {
       out.push(row);

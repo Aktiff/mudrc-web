@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { addDaysToSkDate, eventDateIsPlayedNight, sortLeagueTable } from "@/lib/data";
+import { teamKey } from "@/lib/poll";
 import { normalizeDateKey } from "@/lib/quiz-result-key";
 import { buildQuizTeamsDetail } from "@/lib/quiz-save";
 import { collectPlayedTeamNames, getConflictingTeams } from "@/lib/quiz-library";
@@ -98,7 +99,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
       const table = [...(event.leagueTable ?? [])];
       sorted.forEach((team) => {
         const pts = teamsDetail.find((row) => row.teamName === team.name)?.ligaPoints ?? 0;
-        const existing = table.find((r) => r.teamName === team.name);
+        const existing = table.find((r) => teamKey(r.teamName) === teamKey(team.name));
         if (existing) {
           existing.points += pts;
           existing.quizzesPlayed += 1;

@@ -1,3 +1,4 @@
+import { teamKey } from "@/lib/poll";
 import type { StoredQuizRule } from "@/lib/quiz-rules";
 
 export type QuizEvent = {
@@ -279,7 +280,7 @@ export function applyUnsyncedDetailedResultsToLeague(
   const addContribution = (teamName: string, ligaPoints: number, quizzes = 1) => {
     const name = teamName.trim();
     if (!name) return;
-    const existing = table.find((row) => row.teamName === name);
+    const existing = table.find((row) => teamKey(row.teamName) === teamKey(name));
     if (existing) {
       existing.points += ligaPoints;
       existing.quizzesPlayed += quizzes;
@@ -314,7 +315,7 @@ export function rebuildLeagueTableFromResults(
   const addContribution = (teamName: string, ligaPoints: number, quizzes = 1) => {
     const name = teamName.trim();
     if (!name) return;
-    const existing = table.find((row) => row.teamName === name);
+    const existing = table.find((row) => teamKey(row.teamName) === teamKey(name));
     if (existing) {
       existing.points += ligaPoints;
       existing.quizzesPlayed += quizzes;

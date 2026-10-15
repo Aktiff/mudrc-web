@@ -99,18 +99,21 @@ function leagueRowsForEditor(table: LeagueEntry[], groups: LeagueMergeGroup[]) {
   const used = new Set<number>();
   return collapsed.map((row) => {
     const group = groups.find((item) => teamKey(item.displayName) === teamKey(row.teamName));
-    const indexes = group
-      ? table
-          .map((entry, index) => (group.names.some((name) => teamKey(name) === teamKey(entry.teamName)) ? index : -1))
-          .filter((index) => index >= 0)
-      : [];
+    const indexes = table
+      .map((entry, index) => {
+        if (used.has(index)) return -1;
+        const sameSpelling = teamKey(entry.teamName) === teamKey(row.teamName);
+        const inGroup = group?.names.some((name) => teamKey(name) === teamKey(entry.teamName)) ?? false;
+        return sameSpelling || inGroup ? index : -1;
+      })
+      .filter((index) => index >= 0);
     const sourceNames = Array.from(
       new Set(indexes.map((index) => table[index]?.teamName?.trim()).filter((name): name is string => Boolean(name)))
     );
     const mergedHere =
       sourceNames.length > 1 ||
       (sourceNames.length === 1 && teamKey(sourceNames[0]) !== teamKey(row.teamName));
-    if (group && mergedHere) {
+    if (mergedHere) {
       indexes.forEach((index) => used.add(index));
       const included = sourceNames.filter((name) => teamKey(name) !== teamKey(row.teamName));
       return { row, indexes, merged: true as const, included };
