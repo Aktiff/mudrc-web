@@ -6,7 +6,7 @@ import Link from "next/link";
 import type { QuizEvent, LeagueEntry, PastResult } from "@/lib/data";
 import { eventTeamNameSuggestions, formatEventDateLabel, sortLeagueTable } from "@/lib/data";
 import { teamKey } from "@/lib/poll";
-import { collapseLeagueTable, leagueMergeGroups, type LeagueMergeGroup } from "@/lib/team-links";
+import { collapseLeagueTable, leagueMergeGroups, type LeagueMergeGroup, type TeamLinkRecord } from "@/lib/team-links";
 import { hasSeedLeagueBackup } from "@/lib/league-seed";
 import { formatPollOptionLabel, pollOptionsMatch } from "@/lib/poll";
 import { findQuizResult, mergePastResults, normalizeDateKey, quizResultKey } from "@/lib/quiz-result-key";
@@ -219,6 +219,7 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
   const [pollSelectedDates, setPollSelectedDates] = useState<string[]>([]);
   const [leagueMerges, setLeagueMerges] = useState<LeagueMergeGroup[]>([]);
   const [leagueNameDrafts, setLeagueNameDrafts] = useState<Record<string, string>>({});
+  const [savedTeamNames, setSavedTeamNames] = useState<string[]>([]);
   const [pollOptionsSaving, setPollOptionsSaving] = useState(false);
 
   useEffect(() => {
@@ -415,6 +416,11 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
     () => eventTeamNameSuggestions({ leagueTable: form.leagueTable, pastResults: form.pastResults }),
     [form.leagueTable, form.pastResults]
   );
+  const leagueNameSuggestions = useMemo(() => {
+    const names = Array.from(new Set([...savedTeamNames, ...teamNameSuggestions]));
+    names.sort((a, b) => a.localeCompare(b, "sk"));
+    return names;
+  }, [savedTeamNames, teamNameSuggestions]);
 
   const registrationPlayerTotal = useMemo(() => {
     const minPlayers = Math.max(1, form.minPlayers ?? 2);
@@ -480,7 +486,15 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
     if (isNew) return;
     fetch(`/api/admin/venue-teams?_=${Date.now()}`, { cache: "no-store", credentials: "same-origin" })
       .then((response) => (response.ok ? response.json() : { teams: [] }))
-      .then((data) => setLeagueMerges(leagueMergeGroups(data.teams ?? [])))
+      .then((data) => {
+        const teams = Array.isArray(data.teams) ? (data.teams as TeamLinkRecord[]) : [];
+        setLeagueMerges(leagueMergeGroups(teams));
+        const names = Array.from(
+          new Set(teams.map((team) => team.teamName.trim()).filter((name) => name.length > 0))
+        );
+        names.sort((a, b) => a.localeCompare(b, "sk"));
+        setSavedTeamNames(names);
+      })
       .catch(() => undefined);
   }, [isNew, tab]);
 
@@ -1479,12 +1493,13 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
                 <div key={item.rowId} className="grid grid-cols-[2rem_1fr_6rem_6rem_2rem] gap-2 items-center">
                   <span className="text-brand-muted text-sm text-center">{item.row.rank}.</span>
                   <div className="min-w-0">
-                    <input
+                    <TeamAutocomplete
                       className="input text-sm py-2"
                       value={leagueNameDrafts[item.rowId] ?? item.row.teamName}
-                      onChange={(e) =>
-                        setLeagueNameDrafts((current) => ({ ...current, [item.rowId]: e.target.value }))
+                      onChange={(value) =>
+                        setLeagueNameDrafts((current) => ({ ...current, [item.rowId]: value }))
                       }
+                      suggestions={leagueNameSuggestions}
                       placeholder="Názov tímu"
                     />
                     {item.included.length > 0 ? (
@@ -1498,7 +1513,13 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
               ) : (
                 <div key={item.indexes[0] ?? item.row.teamName} className="grid grid-cols-[2rem_1fr_6rem_6rem_2rem] gap-2 items-center">
                   <span className="text-brand-muted text-sm text-center">{item.row.rank}.</span>
-                  <input className="input text-sm py-2" value={form.leagueTable[item.indexes[0]]?.teamName ?? item.row.teamName} onChange={(e) => updateLeagueRow(item.indexes[0], "teamName", e.target.value)} placeholder="Názov tímu" />
+                  <TeamAutocomplete
+                    className="input text-sm py-2"
+                    value={form.leagueTable[item.indexes[0]]?.teamName ?? item.row.teamName}
+                    onChange={(value) => updateLeagueRow(item.indexes[0], "teamName", value)}
+                    suggestions={leagueNameSuggestions}
+                    placeholder="Názov tímu"
+                  />
                   <input className="input text-sm py-2 text-center" type="number" value={form.leagueTable[item.indexes[0]]?.points ?? item.row.points} onChange={(e) => updateLeagueRow(item.indexes[0], "points", Number(e.target.value))} />
                   <input className="input text-sm py-2 text-center" type="number" value={form.leagueTable[item.indexes[0]]?.quizzesPlayed ?? item.row.quizzesPlayed} onChange={(e) => updateLeagueRow(item.indexes[0], "quizzesPlayed", Number(e.target.value))} />
                   <button onClick={() => removeLeagueRow(item.indexes[0])} className="text-brand-muted-light hover:text-red-400 transition-colors">
