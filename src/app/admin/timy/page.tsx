@@ -275,7 +275,7 @@ export default function VenueTeamsPage() {
             </p>
             <p className="text-xs text-brand-muted">
               {linkMode === "full"
-                ? "Nájdi druhý názov, aj z tohto podniku. V lige sa body oboch názvov sčítajú do jedného tímu pod týmto názvom. Druhý ostane v zátvorke."
+                ? "Nájdi druhý názov, aj z tohto podniku. V lige ostane len tento tím a body z druhého názvu sa k nemu pripočítajú."
                 : "Rovnakí ľudia pod iným názvom. Kvíz, ktorý už hral jeden názov, nedostane ani druhý."}
             </p>
             <input
@@ -469,7 +469,7 @@ function leagueRowLabel(team: VenueTeam, aliases: VenueTeam[]): string | null {
   const extras = names
     .map((entry) => entry.teamName)
     .filter((name, index, all) => teamKey(name) !== teamKey(primary) && all.findIndex((item) => teamKey(item) === teamKey(name)) === index);
-  return extras.length ? `${primary} (${extras.join(", ")})` : primary;
+  return extras.length ? `${primary}. Body z ${extras.join(", ")} sa pripočítajú sem` : primary;
 }
 
 function TeamRow({

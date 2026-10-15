@@ -105,10 +105,9 @@ export function leagueMergeGroups(teams: TeamLinkRecord[]): LeagueMergeGroup[] {
     if (names.length < 2) continue;
     const stored = members.find((member) => member.leagueName?.trim())?.leagueName?.trim() ?? "";
     const primary = names.find((name) => teamKey(name) === teamKey(stored)) ?? names[0];
-    const extras = names.filter((name) => teamKey(name) !== teamKey(primary));
     groups.push({
       names,
-      displayName: extras.length ? `${primary} (${extras.join(", ")})` : primary,
+      displayName: primary,
     });
   }
   return groups;

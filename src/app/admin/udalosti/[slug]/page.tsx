@@ -5,6 +5,8 @@ import { Plus, Trash2, ChevronLeft, Save, PauseCircle, PlayCircle, Upload, Image
 import Link from "next/link";
 import type { QuizEvent, LeagueEntry, PastResult } from "@/lib/data";
 import { eventTeamNameSuggestions, formatEventDateLabel, sortLeagueTable } from "@/lib/data";
+import { teamKey } from "@/lib/poll";
+import { collapseLeagueTable, leagueMergeGroups, type LeagueMergeGroup } from "@/lib/team-links";
 import { hasSeedLeagueBackup } from "@/lib/league-seed";
 import { formatPollOptionLabel, pollOptionsMatch } from "@/lib/poll";
 import { findQuizResult, mergePastResults, normalizeDateKey, quizResultKey } from "@/lib/quiz-result-key";
@@ -92,6 +94,33 @@ function mergeFormWithServer(local: QuizEvent, server: QuizEvent): QuizEvent {
   return normalizeEvent(merged);
 }
 
+function leagueRowsForEditor(table: LeagueEntry[], groups: LeagueMergeGroup[]) {
+  const collapsed = collapseLeagueTable(table, groups);
+  const used = new Set<number>();
+  return collapsed.map((row) => {
+    const group = groups.find((item) => teamKey(item.displayName) === teamKey(row.teamName));
+    const indexes = group
+      ? table
+          .map((entry, index) => (group.names.some((name) => teamKey(name) === teamKey(entry.teamName)) ? index : -1))
+          .filter((index) => index >= 0)
+      : [];
+    const sourceNames = Array.from(
+      new Set(indexes.map((index) => table[index]?.teamName?.trim()).filter((name): name is string => Boolean(name)))
+    );
+    const mergedHere =
+      sourceNames.length > 1 ||
+      (sourceNames.length === 1 && teamKey(sourceNames[0]) !== teamKey(row.teamName));
+    if (group && mergedHere) {
+      indexes.forEach((index) => used.add(index));
+      const included = sourceNames.filter((name) => teamKey(name) !== teamKey(row.teamName));
+      return { row, indexes, merged: true as const, included };
+    }
+    const index = table.findIndex((entry, itemIndex) => !used.has(itemIndex) && teamKey(entry.teamName) === teamKey(row.teamName));
+    if (index >= 0) used.add(index);
+    return { row, indexes: index >= 0 ? [index] : [], merged: false as const, included: [] as string[] };
+  });
+}
+
 function formatDuration(minutes: number): string {
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
@@ -140,6 +169,7 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
   const [pollResetting, setPollResetting] = useState(false);
   const [deletingPollTeam, setDeletingPollTeam] = useState<string | null>(null);
   const [pollSelectedDates, setPollSelectedDates] = useState<string[]>([]);
+  const [leagueMerges, setLeagueMerges] = useState<LeagueMergeGroup[]>([]);
   const [pollOptionsSaving, setPollOptionsSaving] = useState(false);
 
   useEffect(() => {
@@ -396,6 +426,19 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
     if (!next) return;
     setResultQuizType((current) => (current === DEFAULT_QUIZ_TYPE ? next : current));
   }, [form.quizType]);
+
+  useEffect(() => {
+    if (isNew) return;
+    fetch(`/api/admin/venue-teams?_=${Date.now()}`, { cache: "no-store", credentials: "same-origin" })
+      .then((response) => (response.ok ? response.json() : { teams: [] }))
+      .then((data) => setLeagueMerges(leagueMergeGroups(data.teams ?? [])))
+      .catch(() => undefined);
+  }, [isNew, tab]);
+
+  const leagueEditorRows = useMemo(
+    () => leagueRowsForEditor(form.leagueTable ?? [], leagueMerges),
+    [form.leagueTable, leagueMerges]
+  );
 
   useEffect(() => {
     if (isNew || (tab !== "liga" && tab !== "vysledky")) return;
@@ -1138,7 +1181,7 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
       <div className="flex gap-1 bg-brand-surface p-1 rounded-xl mb-6 w-fit flex-wrap border border-brand-border">
         <button className={tabClass("pridat")} onClick={() => setTab("pridat")}>+ Pridať kvíz</button>
         <button className={tabClass("info")} onClick={() => setTab("info")}>Základné info</button>
-        <button className={tabClass("liga")} onClick={() => setTab("liga")}>Liga ({form.leagueTable.length})</button>
+        <button className={tabClass("liga")} onClick={() => setTab("liga")}>Liga ({leagueEditorRows.length})</button>
         <button className={tabClass("vysledky")} onClick={() => setTab("vysledky")}>Výsledky ({form.pastResults.length})</button>
         <button className={tabClass("registracie")} onClick={() => setTab("registracie")}>Registrácie ({registrations.length})</button>
         <button className={tabClass("anketa")} onClick={() => setTab("anketa")}>Anketa ({pollAdmin?.teamCount ?? 0})</button>
@@ -1341,7 +1384,7 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
               )}
             </div>
           )}
-          {form.leagueTable.length > 0 && (
+          {leagueEditorRows.length > 0 && (
             <div className="grid grid-cols-[2rem_1fr_6rem_6rem_2rem] gap-2 text-xs text-brand-muted mb-2 px-0.5">
               <span>#</span>
               <span>Názov tímu</span>
@@ -1351,22 +1394,37 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
             </div>
           )}
           <div className="space-y-2 mb-4">
-            {form.leagueTable.length === 0 && (
+            {leagueEditorRows.length === 0 && (
               <p className="text-brand-muted text-sm py-4 text-center">
                 Zatiaľ žiadne tímy v lige. Použi zelené tlačidlo „Obnoviť ligu zo zálohy“ vyššie.
               </p>
             )}
-            {form.leagueTable.map((row, i) => (
-              <div key={i} className="grid grid-cols-[2rem_1fr_6rem_6rem_2rem] gap-2 items-center">
-                <span className="text-brand-muted text-sm text-center">{row.rank}.</span>
-                <input className="input text-sm py-2" value={row.teamName} onChange={(e) => updateLeagueRow(i, "teamName", e.target.value)} placeholder="Názov tímu" />
-                <input className="input text-sm py-2 text-center" type="number" value={row.points} onChange={(e) => updateLeagueRow(i, "points", Number(e.target.value))} />
-                <input className="input text-sm py-2 text-center" type="number" value={row.quizzesPlayed} onChange={(e) => updateLeagueRow(i, "quizzesPlayed", Number(e.target.value))} />
-                <button onClick={() => removeLeagueRow(i)} className="text-brand-muted-light hover:text-red-400 transition-colors">
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </div>
-            ))}
+            {leagueEditorRows.map((item) =>
+              item.merged ? (
+                <div key={`merged-${item.row.teamName}`} className="grid grid-cols-[2rem_1fr_6rem_6rem_2rem] gap-2 items-center">
+                  <span className="text-brand-muted text-sm text-center">{item.row.rank}.</span>
+                  <div className="min-w-0 py-1">
+                    <div className="font-semibold text-brand-text text-sm">{item.row.teamName}</div>
+                    {item.included.length > 0 ? (
+                      <p className="text-xs text-brand-muted">Body z {item.included.join(", ")} sú už v tomto riadku.</p>
+                    ) : null}
+                  </div>
+                  <div className="text-center text-sm font-semibold text-brand-text">{item.row.points}</div>
+                  <div className="text-center text-sm font-semibold text-brand-text">{item.row.quizzesPlayed}</div>
+                  <span />
+                </div>
+              ) : (
+                <div key={item.indexes[0] ?? item.row.teamName} className="grid grid-cols-[2rem_1fr_6rem_6rem_2rem] gap-2 items-center">
+                  <span className="text-brand-muted text-sm text-center">{item.row.rank}.</span>
+                  <input className="input text-sm py-2" value={form.leagueTable[item.indexes[0]]?.teamName ?? item.row.teamName} onChange={(e) => updateLeagueRow(item.indexes[0], "teamName", e.target.value)} placeholder="Názov tímu" />
+                  <input className="input text-sm py-2 text-center" type="number" value={form.leagueTable[item.indexes[0]]?.points ?? item.row.points} onChange={(e) => updateLeagueRow(item.indexes[0], "points", Number(e.target.value))} />
+                  <input className="input text-sm py-2 text-center" type="number" value={form.leagueTable[item.indexes[0]]?.quizzesPlayed ?? item.row.quizzesPlayed} onChange={(e) => updateLeagueRow(item.indexes[0], "quizzesPlayed", Number(e.target.value))} />
+                  <button onClick={() => removeLeagueRow(item.indexes[0])} className="text-brand-muted-light hover:text-red-400 transition-colors">
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              )
+            )}
           </div>
           <button onClick={addLeagueRow} className="btn-outline text-sm py-2 px-4 w-full justify-center">
             <Plus className="w-4 h-4" /> Pridať tím

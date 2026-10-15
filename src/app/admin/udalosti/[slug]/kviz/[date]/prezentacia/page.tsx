@@ -2,6 +2,7 @@
 import { useState, useEffect, useLayoutEffect, useRef, useMemo, type CSSProperties } from "react";
 import Link from "next/link";
 import type { LeagueEntry, PastResultTeam } from "@/lib/data";
+import { collapseLeagueTable, leagueMergeGroups, type LeagueMergeGroup } from "@/lib/team-links";
 
 type TeamDisplay = PastResultTeam & { totalWithBonus: number; rowId: number };
 type ScoreGroup = { teams: TeamDisplay[]; baseTotal: number; startRank: number };
@@ -36,8 +37,18 @@ export default function PrezentaciaPage({ params }: { params: { slug: string; da
   const [bonus, setBonus] = useState<Record<number, number>>({});
   const [saving, setSaving] = useState(false);
   const [leagueTable, setLeagueTable] = useState<LeagueEntry[]>([]);
+  const [leagueMerges, setLeagueMerges] = useState<LeagueMergeGroup[]>([]);
   const listRef = useRef<HTMLDivElement>(null);
   const [listHeight, setListHeight] = useState(0);
+
+  useEffect(() => {
+    fetch(`/api/admin/venue-teams?_=${Date.now()}`, { cache: "no-store", credentials: "same-origin" })
+      .then((response) => (response.ok ? response.json() : { teams: [] }))
+      .then((data) => setLeagueMerges(leagueMergeGroups(data.teams ?? [])))
+      .catch(() => undefined);
+  }, []);
+
+  const shownLeague = useMemo(() => collapseLeagueTable(leagueTable, leagueMerges), [leagueTable, leagueMerges]);
 
   useEffect(() => {
     const prevHtml = document.documentElement.style.overflow;
@@ -109,7 +120,7 @@ export default function PrezentaciaPage({ params }: { params: { slug: string; da
   const visibleRowCount = isStartScreen
     ? 0
     : isLeague
-    ? leagueTable.length
+    ? shownLeague.length
     : isFinal
     ? finalSorted.length
     : displayGroups.reduce((sum, group) => sum + group.teams.length, 0);
@@ -263,13 +274,13 @@ export default function PrezentaciaPage({ params }: { params: { slug: string; da
                 Ligová tabuľka
               </div>
             </div>
-            {leagueTable.length === 0 ? (
+            {shownLeague.length === 0 ? (
               <div className="flex-1 flex items-center justify-center text-stone-400 text-2xl text-center px-6">
                 Tento podnik zatiaľ nemá ligovú tabuľku.
               </div>
             ) : (
               <div ref={listRef} className="flex-1 min-h-0 flex flex-col overflow-hidden w-full" style={listGapStyle}>
-                {leagueTable.map((entry) => (
+                {shownLeague.map((entry) => (
                   <div
                     key={`${entry.rank}-${entry.teamName}`}
                     className={`grid items-center gap-3 rounded-xl w-full ${entry.rank === 1 ? "border-2 border-[#f0b429] bg-[#211900]" : "border border-[#2a2a2a] bg-[#1a1a1a]"}`}
