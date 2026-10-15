@@ -12,6 +12,7 @@ import {
   type MouseEvent,
   type RefObject,
 } from "react";
+import { Maximize2 } from "lucide-react";
 import type { QuizEvent } from "@/lib/data";
 import { playbackMediaSrc } from "@/lib/media-url";
 import { attachVolumeWheel } from "@/lib/media-volume";
@@ -967,6 +968,23 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
         role="presentation"
       >
         <SlideBackdrop />
+
+      {!isFullscreen && (
+        <div className="absolute top-0 inset-x-0 flex items-center justify-end p-4 sm:p-5 z-[80] pointer-events-none">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              void toggleFullscreen();
+            }}
+            className="pointer-events-auto p-2.5 rounded-full bg-black/70 border border-white/20 hover:bg-white/15 backdrop-blur-sm transition-colors"
+            title="Zväčšiť"
+          >
+            <Maximize2 className="w-5 h-5" />
+          </button>
+        </div>
+      )}
 
       {showQuestionBadge && activeQuestion && (
         <div className="absolute top-4 sm:top-5 left-4 sm:left-5 z-[1] pointer-events-none">
