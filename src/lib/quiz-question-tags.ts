@@ -147,39 +147,44 @@ function recentTagOverlapScore(item: QuizBankQuestion, recent: QuizBankQuestion[
   return score;
 }
 
-/** Premieša otázky — preferuje menej použité tagy, ale vyhýba sa opakovaným tagom za sebou. */
+function shuffleInPlace<T>(items: T[]): void {
+  for (let index = items.length - 1; index > 0; index -= 1) {
+    const swap = Math.floor(Math.random() * (index + 1));
+    const current = items[index]!;
+    items[index] = items[swap]!;
+    items[swap] = current;
+  }
+}
+
+/** Premieša otázky. Rovnaký tag nejde hneď za sebou, každé kliknutie dá iné poradie. */
 export function shuffleBankQuestionsByTagBalance(
   items: QuizBankQuestion[],
   tagCounts: Record<string, number>,
   options?: { separationWindow?: number }
 ): QuizBankQuestion[] {
-  const separationWindow = options?.separationWindow ?? 8;
-  const pool = sortBankQuestionsByTagBalance(items, tagCounts);
+  const separationWindow = options?.separationWindow ?? 3;
+  const remaining = [...items];
+  shuffleInPlace(remaining);
   const result: QuizBankQuestion[] = [];
-  const remaining = [...pool];
 
   while (remaining.length > 0) {
     const recent = result.slice(-separationWindow);
-    let bestIndex = 0;
-    let bestScore = Number.POSITIVE_INFINITY;
-
+    let pick = 0;
     for (let index = 0; index < remaining.length; index += 1) {
       const item = remaining[index]!;
-      let score =
-        bankQuestionTagScore(item, tagCounts) * 10_000 +
-        bankQuestionTagUsageSum(item, tagCounts) * 500 +
-        bankQuestionUsedTagCount(item, tagCounts) * 50 +
-        recentTagOverlapScore(item, recent) * 2;
-
-      score += Math.random() * 5;
-
-      if (score < bestScore) {
-        bestScore = score;
-        bestIndex = index;
+      const overlap = recentTagOverlapScore(item, recent);
+      const currentOverlap = recentTagOverlapScore(remaining[pick]!, recent);
+      if (overlap < currentOverlap) {
+        pick = index;
+        continue;
+      }
+      if (overlap === currentOverlap && overlap === 0) {
+        const unusedBias =
+          bankQuestionTagScore(item, tagCounts) - bankQuestionTagScore(remaining[pick]!, tagCounts);
+        if (unusedBias < 0 && Math.random() < 0.35) pick = index;
       }
     }
-
-    result.push(remaining.splice(bestIndex, 1)[0]!);
+    result.push(remaining.splice(pick, 1)[0]!);
   }
 
   return result;

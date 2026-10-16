@@ -501,20 +501,16 @@ export default function QuizQuestionBankPanel({
   };
 
   const shuffleQuestions = () => {
-    const custom = filteredQuestions.filter((item) => isCustomBankQuestionId(item.id));
-    const generated = filteredQuestions.filter((item) => isGeneratedBankQuestion(item));
-    const mixedGenerated = shuffleBankQuestionsByTagBalance(generated, tagCounts);
-    const customSorted = [...custom].sort((a, b) => {
-      const aTime = "createdAt" in a && typeof a.createdAt === "number" ? a.createdAt : 0;
-      const bTime = "createdAt" in b && typeof b.createdAt === "number" ? b.createdAt : 0;
-      return bTime - aTime;
-    });
-    const mixed =
-      sourceFilter === "generated"
-        ? mixedGenerated
-        : sourceFilter === "custom"
-          ? customSorted
-          : [...customSorted, ...mixedGenerated];
+    const pool =
+      sourceFilter === "custom"
+        ? filteredQuestions.filter(
+            (item) =>
+              bankQuestionTheme(item) === questionTheme &&
+              (customKind === "photo" ? customQuestionHasPhoto(item) : !customQuestionHasPhoto(item))
+          )
+        : filteredQuestions;
+    if (pool.length < 2) return;
+    const mixed = shuffleBankQuestionsByTagBalance(pool, tagCounts);
     setManualOrderIds(mixed.map((item) => item.id));
   };
 
@@ -648,7 +644,16 @@ export default function QuizQuestionBankPanel({
           <button
             type="button"
             onClick={shuffleQuestions}
-            disabled={MEDIA_FILTERS.has(sourceFilter) || filteredQuestions.length < 2}
+            disabled={
+              MEDIA_FILTERS.has(sourceFilter) ||
+              (sourceFilter === "custom"
+                ? filteredQuestions.filter(
+                    (item) =>
+                      bankQuestionTheme(item) === questionTheme &&
+                      (customKind === "photo" ? customQuestionHasPhoto(item) : !customQuestionHasPhoto(item))
+                  ).length < 2
+                : filteredQuestions.length < 2)
+            }
             className="btn-outline text-xs py-2 px-2.5 inline-flex items-center gap-1.5 shrink-0 disabled:opacity-40"
             title="Premieša poradie — menej použité tagy navrchu, rovnaké tagy nie hneď za sebou"
           >
