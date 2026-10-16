@@ -278,12 +278,15 @@ export function findFirstEmptyQuestionSlot(questions: QuizQuestionItem[]): QuizQ
 }
 
 export function collectUsedBankQuestionIdsFromQuiz(quiz: QuizLibraryItem): string[] {
-  const ids = new Set<string>();
-  for (const id of quiz.usedBankQuestionIds ?? []) {
-    if (id) ids.add(id);
-  }
+  const live = new Set<string>();
   for (const question of quiz.questions ?? []) {
-    if (question.bankQuestionId) ids.add(question.bankQuestionId);
+    if (question.bankQuestionId) live.add(question.bankQuestionId);
+  }
+  const ids = new Set<string>(live);
+  for (const id of quiz.usedBankQuestionIds ?? []) {
+    if (!id) continue;
+    if (isMusicBankId(id) && !live.has(id)) continue;
+    ids.add(id);
   }
   return Array.from(ids);
 }

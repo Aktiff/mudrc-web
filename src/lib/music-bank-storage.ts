@@ -15,44 +15,110 @@ import { readStoredSoundBank, removeStoredSoundBankItem } from "@/lib/sound-bank
 import { enrichMusicTrackAutoTags, quickMusicTrackTags } from "@/lib/music-track-metadata";
 import { findQuizTitleUsingMusicTrack } from "@/lib/quiz-library-storage";
 import { readAppStorageWithFallback, writeAppStorageWithFallback } from "@/lib/app-storage-fallback";
+import { readAppStorageBlobHistory, readLatestAppStorageBlob } from "@/lib/blob-app-storage";
+import { hasBlobStorage } from "@/lib/storage";
 
 const localPath = path.join(process.cwd(), "src/data/music-bank.local.json");
 const BLOB_NAME = "music-bank";
+const MUSIC_RECOVERY = 1;
+const DELETED_CAP = 2000;
 
-function readLocalMusicBank(): MusicBankItem[] {
+type MusicBankFile = {
+  tracks?: unknown;
+  musicRecovery?: number;
+  deletedIds?: string[];
+};
+
+function sortTracks(tracks: MusicBankItem[]): MusicBankItem[] {
+  return [...tracks].sort((a, b) => b.createdAt - a.createdAt);
+}
+
+function deletedIdsOf(file: MusicBankFile | null | undefined): string[] {
+  if (!file || !Array.isArray(file.deletedIds)) return [];
+  return file.deletedIds.filter((id): id is string => typeof id === "string" && id.length > 0).slice(0, DELETED_CAP);
+}
+
+function readLocalFile(): MusicBankFile {
   try {
-    if (!fs.existsSync(localPath)) return [];
-    const raw = JSON.parse(fs.readFileSync(localPath, "utf-8")) as { tracks?: unknown[] };
-    return parseMusicBankList(raw.tracks).sort((a, b) => b.createdAt - a.createdAt);
+    if (!fs.existsSync(localPath)) return { tracks: [] };
+    const raw = JSON.parse(fs.readFileSync(localPath, "utf-8")) as MusicBankFile;
+    return raw && typeof raw === "object" ? raw : { tracks: [] };
   } catch {
-    return [];
+    return { tracks: [] };
   }
 }
 
-function writeLocalMusicBank(tracks: MusicBankItem[]): void {
+function writeLocalFile(file: MusicBankFile): void {
   fs.mkdirSync(path.dirname(localPath), { recursive: true });
-  fs.writeFileSync(localPath, JSON.stringify({ tracks }, null, 2), "utf-8");
+  fs.writeFileSync(localPath, JSON.stringify(file, null, 2), "utf-8");
 }
 
-export async function readStoredMusicBank(): Promise<MusicBankItem[]> {
-  const data = await readAppStorageWithFallback({
+async function readMusicFile(): Promise<MusicBankFile> {
+  if (hasBlobStorage()) {
+    const latest = await readLatestAppStorageBlob<MusicBankFile>(BLOB_NAME);
+    if (latest && typeof latest === "object" && !Array.isArray(latest)) return latest;
+  }
+  return readAppStorageWithFallback<MusicBankFile>({
     label: "music-bank",
     blobName: BLOB_NAME,
-    readLocal: () => ({ tracks: readLocalMusicBank() }),
+    readLocal: readLocalFile,
     empty: { tracks: [] },
   });
-  return parseMusicBankList(data.tracks).sort((a, b) => b.createdAt - a.createdAt);
 }
 
-export async function writeStoredMusicBank(tracks: MusicBankItem[]): Promise<void> {
-  const sorted = [...tracks].sort((a, b) => b.createdAt - a.createdAt);
-  const payload = { tracks: sorted };
+async function writeMusicFile(
+  tracks: MusicBankItem[],
+  meta: { musicRecovery?: number; deletedIds?: string[] }
+): Promise<void> {
+  const file: MusicBankFile = {
+    tracks: sortTracks(tracks),
+    musicRecovery: meta.musicRecovery,
+    deletedIds: (meta.deletedIds ?? []).slice(0, DELETED_CAP),
+  };
   await writeAppStorageWithFallback({
     label: "music-bank",
     blobName: BLOB_NAME,
-    payload,
-    writeLocal: () => writeLocalMusicBank(sorted),
+    payload: file,
+    writeLocal: () => writeLocalFile(file),
   });
+}
+
+function visibleTracks(file: MusicBankFile): MusicBankItem[] {
+  const deleted = new Set(deletedIdsOf(file));
+  return parseMusicBankList(file.tracks).filter((track) => !deleted.has(track.id));
+}
+
+export async function readStoredMusicBank(): Promise<MusicBankItem[]> {
+  const file = await readMusicFile();
+  const current = visibleTracks(file);
+  if (file.musicRecovery === MUSIC_RECOVERY || !hasBlobStorage()) return sortTracks(current);
+
+  const deleted = new Set(deletedIdsOf(file));
+  const byId = new Map(current.map((track) => [track.id, track]));
+  try {
+    const history = await readAppStorageBlobHistory<MusicBankFile>(BLOB_NAME);
+    for (const version of history) {
+      for (const track of parseMusicBankList(version?.tracks)) {
+        if (deleted.has(track.id) || byId.has(track.id)) continue;
+        byId.set(track.id, track);
+      }
+    }
+    const merged = sortTracks(Array.from(byId.values()));
+    await writeMusicFile(merged, { musicRecovery: MUSIC_RECOVERY, deletedIds: Array.from(deleted) });
+    return merged;
+  } catch (error) {
+    console.error("music bank recovery failed:", error);
+    return sortTracks(current);
+  }
+}
+
+export async function writeStoredMusicBank(tracks: MusicBankItem[]): Promise<void> {
+  const file = await readMusicFile();
+  const deleted = new Set(deletedIdsOf(file));
+  await writeMusicFile(
+    tracks.filter((track) => !deleted.has(track.id)),
+    { musicRecovery: file.musicRecovery, deletedIds: Array.from(deleted) }
+  );
 }
 
 export async function findMusicTrackConflict(
@@ -212,7 +278,8 @@ async function moveReturnedMusicOutOfSoundBank(): Promise<void> {
 export async function removeStoredMusicBankItem(id: string): Promise<boolean> {
   const existing = await readStoredMusicBank();
   const next = existing.filter((t) => t.id !== id);
-  if (next.length === existing.length) return false;
-  await writeStoredMusicBank(next);
-  return true;
+  const file = await readMusicFile();
+  const deletedIds = Array.from(new Set([...deletedIdsOf(file), id]));
+  await writeMusicFile(next, { musicRecovery: file.musicRecovery ?? MUSIC_RECOVERY, deletedIds });
+  return next.length !== existing.length;
 }

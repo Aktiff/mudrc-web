@@ -357,7 +357,6 @@ export default function QuizQuestionBankPanel({
       DEFAULT_MUSIC_QUESTION_BODY,
       track.presentationFade === true
     );
-    void removeMusicBankItemAsync(track.id).then(() => onMusicBankChange?.());
     setTargetByBankId((prev) => {
       const next = { ...prev };
       delete next[track.id];
