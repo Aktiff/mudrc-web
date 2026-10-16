@@ -239,16 +239,6 @@ export default function QuizQuestionBankPanel({
     setHiddenIds(readHiddenBankQuestionIds());
   }, []);
 
-  const usedBankKey = useMemo(
-    () => [...usedBankQuestionIds].sort().join("\0"),
-    [usedBankQuestionIds]
-  );
-
-  const customBankKey = useMemo(
-    () => customBankQuestions.map((q) => q.id).sort().join("\0"),
-    [customBankQuestions]
-  );
-
   const availableQuestions = useMemo(() => {
     const deleted = new Set([...readDeletedCustomBankIds(), ...goneIds]);
     const insertable = getInsertableTextBankQuestions(customBankQuestions, usedBankQuestionIds, hiddenIds).filter(
@@ -421,7 +411,7 @@ export default function QuizQuestionBankPanel({
 
   useEffect(() => {
     setManualOrderIds(null);
-  }, [excludedTags, sourceFilter, usedBankKey, customBankKey]);
+  }, [excludedTags, sourceFilter]);
 
   const filteredQuestions = useMemo(() => {
     let list = filterBankQuestionsByTags(availableQuestions, excludedTags);
