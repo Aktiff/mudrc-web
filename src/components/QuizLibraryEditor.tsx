@@ -39,6 +39,7 @@ import {
   displayQuestionNumber,
 } from "@/lib/quiz-template";
 import { buildPresentationSlides } from "@/lib/quiz-presentation";
+import QuizAnswerKey from "@/components/QuizAnswerKey";
 import QuizQuestionBankPanel from "@/components/QuizQuestionBankPanel";
 import CustomBankQuestionForm from "@/components/CustomBankQuestionForm";
 import MusicBankQuestionForm from "@/components/MusicBankQuestionForm";
@@ -213,6 +214,7 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
   >({});
   const [events, setEvents] = useState<QuizEvent[]>([]);
   const [playEventSlug, setPlayEventSlug] = useState("");
+  const [answerKeyOpen, setAnswerKeyOpen] = useState(false);
   const [openRound, setOpenRound] = useState<number>(1);
   const [dragRound, setDragRound] = useState<number | null>(null);
   const [dragQuestionId, setDragQuestionId] = useState<string | null>(null);
@@ -1321,6 +1323,13 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
               ))}
             </select>
           </div>
+          <button
+            type="button"
+            onClick={() => setAnswerKeyOpen(true)}
+            className="btn-outline text-sm py-2.5 px-4"
+          >
+            Správne odpovede
+          </button>
           <a
             href={`/admin/hotove-kvizy/${quizId}/prehrat${playEventSlug ? `?event=${playEventSlug}` : ""}`}
             className="btn-primary text-sm py-2.5 px-4 inline-flex items-center gap-2"
@@ -1882,6 +1891,9 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
           />
         </div>
       </div>
+      {answerKeyOpen ? (
+        <QuizAnswerKey title={quiz.title} questions={questions} onClose={() => setAnswerKeyOpen(false)} />
+      ) : null}
     </div>
   );
 }
