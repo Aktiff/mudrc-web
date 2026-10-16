@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isAdminRequest } from "@/lib/admin-session";
 import {
+  addVenueTeamPhone,
   deleteVenueTeam,
   linkVenueTeams,
   mergeLinkedTeamLeague,
@@ -33,6 +34,7 @@ export async function POST(req: NextRequest) {
     otherTeamId?: string;
     teamName?: string;
     leagueName?: string;
+    phone?: string;
   } | null;
   const action = body?.action;
   const teamId = body?.teamId?.trim() ?? "";
@@ -58,6 +60,10 @@ export async function POST(req: NextRequest) {
     }
     if (action === "unlink") {
       const teams = await unlinkVenueTeam(teamId);
+      return NextResponse.json({ ok: true, teams }, { headers: NO_STORE });
+    }
+    if (action === "add-phone") {
+      const teams = await addVenueTeamPhone(teamId, body?.phone ?? "");
       return NextResponse.json({ ok: true, teams }, { headers: NO_STORE });
     }
     return NextResponse.json({ error: "Neznáma akcia." }, { status: 400 });

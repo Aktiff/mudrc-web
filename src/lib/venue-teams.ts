@@ -398,6 +398,23 @@ export async function setLeagueDisplayName(teamId: string): Promise<VenueTeam[]>
   return stampTeams(teams);
 }
 
+/** Doplní číslo, ktoré sa zistilo neskôr. Existujúce čísla ostanú. */
+export async function addVenueTeamPhone(teamId: string, rawPhone: string): Promise<VenueTeam[]> {
+  const incoming = extractTeamPhones(rawPhone);
+  if (!incoming.length) throw new Error("Zadaj telefónne číslo. Prázdne pole a samé nuly sa neuložia.");
+  const store = await loadStore();
+  const target = store.teams.find((team) => team.id === teamId);
+  if (!target) throw new Error("Tím sa nenašiel.");
+  const nextPhones = mergePhones(target.phones, incoming);
+  if (samePhones(nextPhones, target.phones)) throw new Error("Toto číslo už tím má.");
+  const now = new Date().toLocaleString("sk-SK", { timeZone: "Europe/Bratislava" });
+  const teams = store.teams.map((team) =>
+    team.id === teamId ? { ...team, phones: nextPhones, updatedAt: now } : team
+  );
+  await saveStore({ teams, phoneRecovery: store.phoneRecovery });
+  return stampTeams(teams);
+}
+
 export async function unlinkVenueTeam(teamId: string): Promise<VenueTeam[]> {
   const store = await loadStore();
   const target = store.teams.find((team) => team.id === teamId);

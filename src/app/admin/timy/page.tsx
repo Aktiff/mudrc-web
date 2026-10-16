@@ -204,6 +204,19 @@ export default function VenueTeamsPage() {
     }
   };
 
+  const addPhone = async (team: VenueTeam, phone: string): Promise<string | null> => {
+    const res = await fetch("/api/admin/venue-teams", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "add-phone", teamId: team.id, phone }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return data.error ?? "Číslo sa nepodarilo uložiť.";
+    setTeams(data.teams ?? []);
+    return null;
+  };
+
   const removeTeam = async (team: VenueTeam) => {
     if (!confirm(`Odstrániť tím „${team.teamName}" z databázy kontaktov? Registrácie to nezmaže.`)) return;
     setDeletingId(team.id);
@@ -342,6 +355,7 @@ export default function VenueTeamsPage() {
                     : undefined
                 }
                 onUnlink={() => void saveLink("unlink", team.id)}
+                onAddPhone={(phone) => addPhone(team, phone)}
               />
             ))}
           </div>
@@ -409,7 +423,7 @@ export default function VenueTeamsPage() {
       <p className="text-brand-muted text-sm mb-2">Sú tu aj tímy z aktuálnych registrácií, nielen zo starých kvízov. Prepojené názvy sú tí istí ľudia a nedostanú dvakrát ten istý kvíz. Úplné prepojenie navyše sčíta ich body v lige do jedného tímu.</p>
       <p className="text-brand-muted text-xs mb-6">
         Uloží sa názov tímu a telefón tak, ako ho napísali. Prázdne pole a samé nuly sa nepridajú. Ďalšie číslo pri
-        novej registrácii sa k tímu pridá.
+        novej registrácii sa k tímu pridá. Číslo, ktoré zistíš neskôr, doplníš priamo pri tíme.
       </p>
       <div className="flex flex-wrap items-center gap-3 mb-8">
         <input
@@ -484,6 +498,7 @@ function TeamRow({
   onMergeLeague,
   onUseLeagueName,
   onUnlink,
+  onAddPhone,
   showVenue = false,
 }: {
   team: VenueTeam;
@@ -497,9 +512,31 @@ function TeamRow({
   onMergeLeague?: () => void;
   onUseLeagueName?: () => void;
   onUnlink?: () => void;
+  onAddPhone?: (phone: string) => Promise<string | null>;
   showVenue?: boolean;
 }) {
+  const [phoneDraft, setPhoneDraft] = useState("");
+  const [phoneError, setPhoneError] = useState("");
+  const [savingPhone, setSavingPhone] = useState(false);
   const leagueLabel = leagueRowLabel(team, aliases);
+
+  const savePhone = async () => {
+    const value = phoneDraft.trim();
+    if (!value) {
+      setPhoneError("Zadaj telefónne číslo.");
+      return;
+    }
+    if (!onAddPhone) return;
+    setSavingPhone(true);
+    setPhoneError("");
+    const error = await onAddPhone(value);
+    setSavingPhone(false);
+    if (error) {
+      setPhoneError(error);
+      return;
+    }
+    setPhoneDraft("");
+  };
   return (
     <div className="rounded-xl border border-brand-border bg-brand-card p-4 flex flex-col sm:flex-row sm:items-start justify-between gap-4">
       <div className="min-w-0">
@@ -531,6 +568,34 @@ function TeamRow({
             })
           )}
         </div>
+        {onAddPhone ? (
+          <form
+            className="mt-3 flex flex-wrap items-center gap-2"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void savePhone();
+            }}
+          >
+            <input
+              className="input text-sm w-44"
+              inputMode="tel"
+              placeholder="Doplniť telefón"
+              value={phoneDraft}
+              onChange={(event) => {
+                setPhoneDraft(event.target.value);
+                if (phoneError) setPhoneError("");
+              }}
+            />
+            <button
+              type="submit"
+              disabled={savingPhone}
+              className="text-sm font-semibold px-3 py-2 rounded-xl border border-brand-border text-brand-text disabled:opacity-50"
+            >
+              {savingPhone ? "Ukladám..." : "Uložiť číslo"}
+            </button>
+            {phoneError ? <p className="text-sm text-red-600 w-full">{phoneError}</p> : null}
+          </form>
+        ) : null}
         <p className="text-brand-muted text-xs mt-2">Naposledy {team.updatedAt}</p>
       </div>
       <div className="flex flex-wrap gap-2 shrink-0">
