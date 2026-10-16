@@ -623,7 +623,7 @@ export default function QuizQuestionBankPanel({
               {sourceFilter === "sound"
                 ? `${visibleSoundClips.length + visibleMusicTracks.length} zvukových ukážok`
                 : sourceFilter === "video"
-                  ? `${visibleVideoClips.length} video ukážok · vlož do ľubovoľného slotu v kole`
+                  ? `${visibleVideoClips.length} video ukážok`
                   : `${sourceCounts.all} textových otázok na vloženie${
                       excludedTags.length && visibleQuestions.length < sourceCounts.all
                         ? ` · ${visibleQuestions.length} po filtri tagov`
@@ -750,12 +750,6 @@ export default function QuizQuestionBankPanel({
               </div>
             )}
           </>
-        )}
-
-        {sourceFilter === "video" && (
-          <p className="text-xs font-semibold text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-2 leading-relaxed">
-            Video môže ísť do ľubovoľného slotu otázky v kole — rovnako ako text alebo zvuk.
-          </p>
         )}
 
         {bankTags.length > 0 && !MEDIA_FILTERS.has(sourceFilter) && (
