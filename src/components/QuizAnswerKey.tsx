@@ -53,14 +53,14 @@ export default function QuizAnswerKey({
 
   return (
     <div
-      className="fixed inset-0 z-[90] bg-black/60 flex items-start justify-center p-3 sm:p-6 overflow-y-auto"
+      className="fixed inset-0 z-[110] bg-black/60 flex items-center justify-center p-3 sm:p-6"
       onClick={onClose}
     >
       <div
         role="dialog"
         aria-modal="true"
         aria-label="Správne odpovede"
-        className="w-full max-w-3xl bg-brand-card border border-brand-border rounded-2xl shadow-xl"
+        className="w-full max-w-3xl max-h-[90vh] overflow-y-auto bg-brand-card border border-brand-border rounded-2xl shadow-xl"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-brand-border">

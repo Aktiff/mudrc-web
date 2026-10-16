@@ -3,9 +3,10 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { BookOpen, Layers, MonitorPlay, Pencil, Play, Plus, Trash2 } from "lucide-react";
-import type { QuizLibraryItem, QuizUsage } from "@/lib/quiz-library";
+import type { QuizLibraryItem, QuizQuestionItem, QuizUsage } from "@/lib/quiz-library";
 import { quizUsagePlaces } from "@/lib/quiz-library-usage";
 import { clearQuizDraft } from "@/lib/quiz-editor-draft";
+import QuizAnswerKey from "@/components/QuizAnswerKey";
 
 type QuizListItem = QuizLibraryItem & {
   usageCount: number;
@@ -22,6 +23,8 @@ export default function HotoveKvizyList() {
   const [actionQuizId, setActionQuizId] = useState<string | null>(null);
   const [listMessage, setListMessage] = useState<{ text: string; ok: boolean } | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [answerKeyQuizId, setAnswerKeyQuizId] = useState<string | null>(null);
+  const [answerKey, setAnswerKey] = useState<{ title: string; questions: QuizQuestionItem[] } | null>(null);
 
   const loadQuizzes = useCallback(async () => {
     const res = await fetch(`/api/admin/quiz-library?_=${Date.now()}`, {
@@ -92,6 +95,30 @@ export default function HotoveKvizyList() {
       setCreateError("Sieťová chyba pri vytváraní kvízu.");
     } finally {
       setCreating(false);
+    }
+  };
+
+  const openAnswers = async (quiz: QuizListItem) => {
+    setAnswerKeyQuizId(quiz.id);
+    setListMessage(null);
+    try {
+      const res = await fetch(`/api/admin/quiz-library/${quiz.id}?_=${Date.now()}`, {
+        cache: "no-store",
+        credentials: "same-origin",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setListMessage({ text: data.error ?? "Odpovede sa nepodarilo načítať.", ok: false });
+        return;
+      }
+      setAnswerKey({
+        title: typeof data.title === "string" ? data.title : quiz.title,
+        questions: Array.isArray(data.questions) ? data.questions : [],
+      });
+    } catch {
+      setListMessage({ text: "Odpovede sa nepodarilo načítať.", ok: false });
+    } finally {
+      setAnswerKeyQuizId(null);
     }
   };
 
@@ -236,6 +263,14 @@ export default function HotoveKvizyList() {
                 <Pencil className="w-4 h-4" />
                 Otvoriť
               </a>
+              <button
+                type="button"
+                onClick={() => void openAnswers(quiz)}
+                disabled={answerKeyQuizId === quiz.id}
+                className="inline-flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded-xl border border-brand-border text-brand-text hover:border-brand-orange hover:text-brand-orange-readable transition-colors disabled:opacity-50"
+              >
+                {answerKeyQuizId === quiz.id ? "Načítavam…" : "Správne odpovede"}
+              </button>
               <a
                 href={`/admin/hotove-kvizy/${quiz.id}/prehrat`}
                 className={`inline-flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded-xl transition-colors ${
@@ -283,6 +318,9 @@ export default function HotoveKvizyList() {
           Zatiaľ nemáš žiadne kvízy. Vytvor prvý kliknutím na „Nový kvíz“.
         </div>
       )}
+      {answerKey ? (
+        <QuizAnswerKey title={answerKey.title} questions={answerKey.questions} onClose={() => setAnswerKey(null)} />
+      ) : null}
     </div>
   );
 }
