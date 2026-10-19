@@ -967,7 +967,7 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
 
     if (
       !window.confirm(
-        "Uložiť túto otázku do banky? V kvíze ostane a v banke sa ukáže, až keď v kvíze nebude."
+        "Uložiť túto otázku do banky? V tomto kvíze ostane a v banke sa hneď ukáže, aby si ju mohol dať aj do iného kvízu."
       )
     ) {
       return;
@@ -1003,6 +1003,11 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
 
     const finish = (text: string) => {
       setMsg({ text, ok: true });
+      window.dispatchEvent(
+        new CustomEvent("mudrc-show-bank-question", {
+          detail: { theme: input.theme, photo: input.isImageQuestion === true },
+        })
+      );
       void refreshCustomBank();
     };
 
@@ -1019,7 +1024,7 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
           created,
           ...recentCustomBank.current.filter((item) => item.id !== created.id),
         ];
-        finish("Otázka je uložená v banke. Kým ostáva v kvíze, v banke sa nezobrazí.");
+        finish("Otázka je v banke. V tomto kvíze ostala a môžeš ju použiť aj v ďalšom kvíze.");
       })
       .catch((err) =>
         setMsg({
@@ -1507,7 +1512,7 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
                     }
                   >
                     <RotateCcw className="w-3.5 h-3.5" />
-                    Vrátiť do banky
+                    {question.bankQuestionId ? "Vrátiť do banky" : "Do banky"}
                   </button>
                 )}
                 <button

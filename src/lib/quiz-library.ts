@@ -314,13 +314,14 @@ const GENERIC_MEDIA_QUESTION_BODIES = new Set(
   ].map((body) => quizQuestionBodyKey(body))
 );
 
-/** Texty otázok, ktoré už sú v nejakom kvíze — aj keď slot nemá id z banky. */
+/** Znenie otázky, ktorá už prišla z banky. Otázka napísaná v editore banku neschová. */
 export function collectUsedQuestionBodyKeys(
-  quizzes: Array<{ questions?: Array<{ body?: string }> }>
+  quizzes: Array<{ questions?: Array<{ body?: string; bankQuestionId?: string }> }>
 ): string[] {
   const keys = new Set<string>();
   for (const quiz of quizzes) {
     for (const question of quiz.questions ?? []) {
+      if (!question.bankQuestionId) continue;
       const key = quizQuestionBodyKey(question.body);
       if (!key || GENERIC_MEDIA_QUESTION_BODIES.has(key)) continue;
       keys.add(key);

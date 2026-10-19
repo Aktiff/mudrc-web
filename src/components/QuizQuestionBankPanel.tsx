@@ -239,6 +239,17 @@ export default function QuizQuestionBankPanel({
     setHiddenIds(readHiddenBankQuestionIds());
   }, []);
 
+  useEffect(() => {
+    const show = (event: Event) => {
+      const detail = (event as CustomEvent<{ theme?: string; photo?: boolean }>).detail;
+      setSourceFilter("custom");
+      setCustomKind(detail?.photo ? "photo" : "text");
+      if (detail?.theme) setQuestionTheme(detail.theme);
+    };
+    window.addEventListener("mudrc-show-bank-question", show);
+    return () => window.removeEventListener("mudrc-show-bank-question", show);
+  }, []);
+
   const availableQuestions = useMemo(() => {
     const deleted = new Set([...readDeletedCustomBankIds(), ...goneIds]);
     const insertable = getInsertableTextBankQuestions(customBankQuestions, usedBankQuestionIds, hiddenIds).filter(
