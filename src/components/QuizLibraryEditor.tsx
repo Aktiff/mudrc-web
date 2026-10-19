@@ -743,6 +743,44 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
     setMsg({ text: "Video ukážka vložená.", ok: true });
   };
 
+  const takeQuestionOutOfQuiz = (questionId: string, bankId?: string) => {
+    setQuiz((prev) =>
+      prev
+        ? {
+            ...prev,
+            questions: prev.questions.map((q) =>
+              q.id === questionId
+                ? {
+                    ...q,
+                    kind: "normal",
+                    body: "",
+                    answer: "",
+                    musicArtist: undefined,
+                    musicTitle: undefined,
+                    audioUrl: undefined,
+                    audioEdgeFade: undefined,
+                    videoUrl: undefined,
+                    mediaLabel: undefined,
+                    options: undefined,
+                    bankQuestionId: undefined,
+                    tags: undefined,
+                    hostNote: undefined,
+                    imageUrl: undefined,
+                    imageBeforeQuestion: undefined,
+                    imageDuringQuestion: false,
+                    imageOnNextSlide: undefined,
+                    imageOnAnswerSlide: undefined,
+                  }
+                : q
+            ),
+            usedBankQuestionIds: bankId
+              ? (prev.usedBankQuestionIds ?? []).filter((id) => id !== bankId)
+              : prev.usedBankQuestionIds,
+          }
+        : prev
+    );
+  };
+
   const returnQuestionToBank = (questionId: string) => {
     const question = questions.find((q) => q.id === questionId);
     const bankId = question?.bankQuestionId;
@@ -814,39 +852,7 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
           })()
         : null;
 
-    setQuiz((prev) =>
-      prev
-        ? {
-            ...prev,
-            questions: prev.questions.map((q) =>
-              q.id === questionId
-                ? {
-                    ...q,
-                    kind: "normal",
-                    body: "",
-                    answer: "",
-                    musicArtist: undefined,
-                    musicTitle: undefined,
-                    audioUrl: undefined,
-                    audioEdgeFade: undefined,
-                    videoUrl: undefined,
-                    mediaLabel: undefined,
-                    options: undefined,
-                    bankQuestionId: undefined,
-                    tags: undefined,
-                    hostNote: undefined,
-                    imageUrl: undefined,
-                    imageBeforeQuestion: undefined,
-                    imageDuringQuestion: false,
-                    imageOnNextSlide: undefined,
-                    imageOnAnswerSlide: undefined,
-                  }
-                : q
-            ),
-            usedBankQuestionIds: (prev.usedBankQuestionIds ?? []).filter((id) => id !== bankId),
-          }
-        : prev
-    );
+    takeQuestionOutOfQuiz(questionId, bankId);
 
     if (soundRestore) {
       void restoreAudioClip(soundRestore).catch(() => {
@@ -864,12 +870,19 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
         customBankQuestions.some(
           (item) => item.id === bankId || quizQuestionBodyKey(item.body) === bodyKey
         ) || recentCustomBank.current.some((item) => quizQuestionBodyKey(item.body) === bodyKey);
+      window.dispatchEvent(
+        new CustomEvent("mudrc-show-bank-question", {
+          detail: { theme: customRestore.theme, photo: customRestore.isImageQuestion === true },
+        })
+      );
       if (!alreadyThere) {
         void addCustomBankQuestionAsync(customRestore)
           .then(() => refreshCustomBank())
           .catch(() => {
             setMsg({ text: "Slot vyprázdnený, ale otázku sa nepodarilo vrátiť do banky.", ok: false });
           });
+      } else {
+        void refreshCustomBank();
       }
     }
 
@@ -967,7 +980,7 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
 
     if (
       !window.confirm(
-        "Uložiť túto otázku do banky? V tomto kvíze ostane a v banke sa hneď ukáže, aby si ju mohol dať aj do iného kvízu."
+        "Prehodiť otázku do banky? Z tohto kvízu zmizne a ostane len v banke."
       )
     ) {
       return;
@@ -1001,8 +1014,9 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
       suggestedImageUrl: question.imageUrl?.trim() || undefined,
     };
 
-    const finish = (text: string) => {
-      setMsg({ text, ok: true });
+    const finish = () => {
+      takeQuestionOutOfQuiz(questionId);
+      setMsg({ text: "Otázka je v banke a z tohto kvízu je preč.", ok: true });
       window.dispatchEvent(
         new CustomEvent("mudrc-show-bank-question", {
           detail: { theme: input.theme, photo: input.isImageQuestion === true },
@@ -1013,7 +1027,7 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
 
     if (existing) {
       void updateCustomBankQuestionAsync(existing.id, input)
-        .then(() => finish("Otázka v banke je aktualizovaná — znenie, odpoveď aj tagy."))
+        .then(() => finish())
         .catch(() => setMsg({ text: "Otázku sa nepodarilo uložiť do banky.", ok: false }));
       return;
     }
@@ -1024,7 +1038,7 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
           created,
           ...recentCustomBank.current.filter((item) => item.id !== created.id),
         ];
-        finish("Otázka je v banke. V tomto kvíze ostala a môžeš ju použiť aj v ďalšom kvíze.");
+        finish();
       })
       .catch((err) =>
         setMsg({
@@ -1505,14 +1519,10 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
                         : saveOwnQuestionToBank(question.id)
                     }
                     className="px-2.5 py-1.5 rounded-lg border border-brand-border text-xs font-semibold text-brand-muted hover:text-brand-orange-readable hover:border-brand-orange inline-flex items-center gap-1 transition-colors"
-                    title={
-                      question.bankQuestionId
-                        ? "Vrátiť otázku do banky"
-                        : "Uložiť túto otázku do banky, v kvíze ostane"
-                    }
+                    title="Prehodí otázku do banky a z tohto kvízu ju vymaže"
                   >
                     <RotateCcw className="w-3.5 h-3.5" />
-                    {question.bankQuestionId ? "Vrátiť do banky" : "Do banky"}
+                    Vrátiť do banky
                   </button>
                 )}
                 <button

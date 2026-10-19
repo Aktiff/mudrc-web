@@ -338,7 +338,7 @@ export default function QuestionBankInventory({
         <div>
           <p className="font-semibold text-brand-text">Obsah banky</p>
           <p className="text-brand-muted text-xs mt-0.5">
-            Otázka vložená z banky do kvízu sa tu skryje. Otázka uložená z editora tu ostane, aby si ju dal aj do iného kvízu.
+            Otázka vrátená z kvízu je len tu. Otázka vložená z banky do kvízu sa tu skryje.
           </p>
         </div>
         <button
