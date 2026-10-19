@@ -9,10 +9,13 @@ import { fetchBankThemes } from "@/lib/bank-themes-client";
 import { addCustomBankQuestionAsync, type CustomBankQuestion } from "@/lib/quiz-custom-bank";
 import TagSuggestInput from "@/components/TagSuggestInput";
 import { parseTagsInput } from "@/lib/quiz-question-tags";
+import { formatOrderAnswer } from "@/lib/quiz-question-options";
+import OrderItemFields from "@/components/OrderItemFields";
 
 const OPTION_LETTERS = ["A", "B", "C", "D", "E", "F"] as const;
+const EMPTY_ORDER = ["", "", "", ""];
 
-type QuestionMode = "choice" | "open";
+type QuestionMode = "choice" | "open" | "order";
 
 type Props = {
   onAdded?: (question: CustomBankQuestion) => void;
@@ -23,6 +26,7 @@ export default function CustomBankQuestionForm({ onAdded }: Props) {
   const [questionMode, setQuestionMode] = useState<QuestionMode>("choice");
   const [body, setBody] = useState("");
   const [options, setOptions] = useState(["", "", "", "", "", ""]);
+  const [orderItems, setOrderItems] = useState(EMPTY_ORDER);
   const [openAnswer, setOpenAnswer] = useState("");
   const [correctIndex, setCorrectIndex] = useState(0);
   const [note, setNote] = useState("");
@@ -39,6 +43,7 @@ export default function CustomBankQuestionForm({ onAdded }: Props) {
   const resetForm = () => {
     setBody("");
     setOptions(["", "", "", "", "", ""]);
+    setOrderItems([...EMPTY_ORDER]);
     setOpenAnswer("");
     setCorrectIndex(0);
     setNote("");
@@ -67,10 +72,16 @@ export default function CustomBankQuestionForm({ onAdded }: Props) {
       return;
     }
 
+    const filledOrder = orderItems.map((item) => item.trim()).filter(Boolean);
     if (questionMode === "open") {
       const answer = openAnswer.trim();
       if (!answer) {
         setError("Zadaj správnu odpoveď.");
+        return;
+      }
+    } else if (questionMode === "order") {
+      if (filledOrder.length < 2) {
+        setError("Zadaj aspoň dve položky v správnom poradí.");
         return;
       }
     } else {
@@ -100,6 +111,21 @@ export default function CustomBankQuestionForm({ onAdded }: Props) {
           difficulty,
           isImageQuestion,
           isOpenQuestion: true,
+          suggestedImageUrl: suggestedImageUrl.trim() || undefined,
+        });
+      } else if (questionMode === "order") {
+        created = await addCustomBankQuestionAsync({
+          body: trimmedBody,
+          options: filledOrder,
+          correctIndex: 0,
+          answer: formatOrderAnswer(filledOrder),
+          note: note.trim() || undefined,
+          tags: parseTagsInput(tagsText),
+          theme,
+          difficulty,
+          isImageQuestion,
+          isOpenQuestion: false,
+          isOrderQuestion: true,
           suggestedImageUrl: suggestedImageUrl.trim() || undefined,
         });
       } else {
@@ -174,6 +200,17 @@ export default function CustomBankQuestionForm({ onAdded }: Props) {
               >
                 Bez možností (otvorená)
               </button>
+              <button
+                type="button"
+                onClick={() => setQuestionMode("order")}
+                className={`text-sm font-semibold px-4 py-2 rounded-xl border transition-colors ${
+                  questionMode === "order"
+                    ? "bg-brand-orange text-brand-btn-fg border-brand-orange"
+                    : "border-brand-border text-brand-muted hover:border-brand-orange"
+                }`}
+              >
+                Usporiadaj
+              </button>
             </div>
           </div>
 
@@ -187,7 +224,12 @@ export default function CustomBankQuestionForm({ onAdded }: Props) {
             />
           </div>
 
-          {questionMode === "choice" ? (
+          {questionMode === "order" ? (
+            <div>
+              <label className="label">Položky v správnom poradí</label>
+              <OrderItemFields items={orderItems} onChange={setOrderItems} />
+            </div>
+          ) : questionMode === "choice" ? (
             <div>
               <label className="label">Možnosti A–F</label>
               <div className="space-y-2">

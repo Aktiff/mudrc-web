@@ -1,6 +1,7 @@
 import { inferBankTheme, normalizeBankThemeName } from "@/lib/bank-themes";
 import type { QuizBankQuestion } from "@/lib/quiz-question-bank";
 import { refreshStoredCustomQuestionTags, resolveCustomQuestionTags } from "@/lib/quiz-bank-tag-inference";
+import { formatOrderAnswer, ORDER_OPTION_MAX } from "@/lib/quiz-question-options";
 import { quizQuestionBodyKey } from "@/lib/quiz-library";
 
 export const CUSTOM_BANK_STORAGE_KEY = "mudrc-custom-bank-questions";
@@ -94,19 +95,31 @@ export function normalizeStoredCustomQuestion(raw: unknown): CustomBankQuestion 
   const row = raw as Record<string, unknown>;
   if (typeof row.id !== "string" || !isCustomBankQuestionId(row.id)) return null;
   if (typeof row.body !== "string" || !row.body.trim()) return null;
-  const isOpenQuestion = Boolean(row.isOpenQuestion);
+  const isOpenQuestion = Boolean(row.isOpenQuestion) && !row.isOrderQuestion;
+  const isOrderQuestion = Boolean(row.isOrderQuestion);
   const optionsRaw = Array.isArray(row.options) ? row.options : [];
-  const optionsPadded = optionsRaw.map((o) => (typeof o === "string" ? o : "")).slice(0, 6);
-  while (optionsPadded.length < 6) optionsPadded.push("");
-  const options = optionsPadded as QuizBankQuestion["options"];
+  const optionLimit = isOrderQuestion ? ORDER_OPTION_MAX : 6;
+  const options = optionsRaw
+    .map((o) => (typeof o === "string" ? o : ""))
+    .slice(0, optionLimit);
+  if (!isOrderQuestion) {
+    while (options.length < 6) options.push("");
+  } else {
+    const filled = options.map((option) => option.trim()).filter(Boolean);
+    options.splice(0, options.length, ...filled);
+  }
   const correctIndex = typeof row.correctIndex === "number" ? row.correctIndex : 0;
-  const answer =
-    typeof row.answer === "string" && row.answer.trim()
+  const answer = isOrderQuestion
+    ? (typeof row.answer === "string" && row.answer.trim()
+        ? row.answer.trim()
+        : formatOrderAnswer(options))
+    : typeof row.answer === "string" && row.answer.trim()
       ? row.answer.trim()
       : isOpenQuestion
         ? ""
         : options[correctIndex]?.trim() ?? "";
   if (!answer) return null;
+  if (isOrderQuestion && options.filter((option) => option.trim()).length < 2) return null;
 
   const tagsRaw = Array.isArray(row.tags)
     ? row.tags.filter((t): t is string => typeof t === "string").map((t) => t.trim().toLowerCase()).filter(Boolean)
@@ -123,7 +136,8 @@ export function normalizeStoredCustomQuestion(raw: unknown): CustomBankQuestion 
     note: typeof row.note === "string" ? row.note.trim() : "",
     tags: tags.length ? tags : resolveCustomQuestionTags(undefined, row.body as string, answer),
     isImageQuestion: Boolean(row.isImageQuestion),
-    isOpenQuestion: Boolean(row.isOpenQuestion),
+    isOpenQuestion,
+    isOrderQuestion,
     suggestedImageUrl:
       typeof row.suggestedImageUrl === "string" && row.suggestedImageUrl.trim()
         ? row.suggestedImageUrl.trim()
@@ -153,6 +167,7 @@ export type NewCustomBankQuestionInput = {
   difficulty?: number;
   isImageQuestion?: boolean;
   isOpenQuestion?: boolean;
+  isOrderQuestion?: boolean;
   suggestedImageUrl?: string;
   theme?: string;
 };
@@ -190,14 +205,24 @@ export function applyCustomBankQuestionUpdate(
 }
 
 export function createCustomBankQuestion(input: NewCustomBankQuestionInput): CustomBankQuestion {
-  const isOpenQuestion = Boolean(input.isOpenQuestion);
-  const options = [...input.options].slice(0, 6) as QuizBankQuestion["options"];
-  while (options.length < 6) options.push("");
+  const isOrderQuestion = Boolean(input.isOrderQuestion);
+  const isOpenQuestion = Boolean(input.isOpenQuestion) && !isOrderQuestion;
+  const options = [...input.options]
+    .map((option) => option.trim())
+    .slice(0, isOrderQuestion ? ORDER_OPTION_MAX : 6);
+  if (isOrderQuestion) {
+    const filled = options.filter(Boolean);
+    options.splice(0, options.length, ...filled);
+  } else {
+    while (options.length < 6) options.push("");
+  }
 
   let correctIndex = 0;
   let answer = "";
 
-  if (isOpenQuestion) {
+  if (isOrderQuestion) {
+    answer = input.answer?.trim() || formatOrderAnswer(options);
+  } else if (isOpenQuestion) {
     answer = input.answer?.trim() ?? "";
   } else {
     correctIndex = Math.min(Math.max(0, input.correctIndex), 5);
@@ -217,6 +242,7 @@ export function createCustomBankQuestion(input: NewCustomBankQuestionInput): Cus
     tags: tags.slice(0, 8),
     isImageQuestion: Boolean(input.isImageQuestion),
     isOpenQuestion,
+    isOrderQuestion,
     suggestedImageUrl: input.suggestedImageUrl?.trim() || undefined,
     theme: inferBankTheme({
       theme: input.theme,

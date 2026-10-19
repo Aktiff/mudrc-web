@@ -15,7 +15,7 @@ import {
 } from "@/lib/quiz-library";
 import { inferBankTheme } from "@/lib/bank-themes";
 import { findBankQuestionById, findRawBankQuestionById } from "@/lib/quiz-question-bank";
-import { shuffleQuestionOptionsForBankInsert } from "@/lib/quiz-question-options";
+import { formatOrderAnswer, orderItemsFromAnswer, ORDER_OPTION_MAX, shuffleOrderItems, shuffleQuestionOptionsForBankInsert } from "@/lib/quiz-question-options";
 import {
   addCustomBankQuestionAsync,
   fetchCustomBankQuestionsFromServer,
@@ -464,11 +464,19 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
     let finalAnswer = answer;
     let finalOptions = options;
     let optionsShuffledFromBank = false;
+    let isOrderQuestion = false;
 
     const rawBank = findRawBankQuestionById(bankId, customBankQuestions);
     const sourceOptions = rawBank?.options?.length ? [...rawBank.options] : options;
     const hasChoices = sourceOptions.some((o) => o.trim());
-    if (rawBank && hasChoices && !rawBank.isOpenQuestion) {
+    if (rawBank?.isOrderQuestion) {
+      const ordered = sourceOptions.map((option) => option.trim()).filter(Boolean);
+      finalBody = rawBank.body;
+      finalAnswer = rawBank.answer.trim() || formatOrderAnswer(ordered);
+      finalOptions = shuffleOrderItems(ordered);
+      optionsShuffledFromBank = finalOptions.length >= 2;
+      isOrderQuestion = true;
+    } else if (rawBank && hasChoices && !rawBank.isOpenQuestion) {
       const shuffled = shuffleQuestionOptionsForBankInsert({
         options: sourceOptions,
         correctIndex: rawBank.correctIndex,
@@ -502,6 +510,7 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
                 answer: finalAnswer,
                 options: finalOptions.length ? finalOptions : undefined,
                 optionsShuffledFromBank: optionsShuffledFromBank || undefined,
+                isOrderQuestion: isOrderQuestion || undefined,
                 bankQuestionId: bankId,
                 tags: tags.length ? tags : undefined,
                 hostNote: hostNote?.trim() || undefined,
@@ -762,6 +771,8 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
                     videoUrl: undefined,
                     mediaLabel: undefined,
                     options: undefined,
+                    optionsShuffledFromBank: undefined,
+                    isOrderQuestion: undefined,
                     bankQuestionId: undefined,
                     tags: undefined,
                     hostNote: undefined,
@@ -826,20 +837,24 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
       question.body.trim() &&
       question.answer.trim()
         ? (() => {
-            const options = [...(question.options ?? [])];
-            while (options.length < 6) options.push("");
+            const ordered = question.isOrderQuestion ? orderItemsFromAnswer(question.answer) : [];
+            const options = ordered.length >= 2 ? ordered : [...(question.options ?? [])];
+            while (!question.isOrderQuestion && options.length < 6) options.push("");
             const hasChoices = options.some((o) => o.trim());
             const correctIndex = hasChoices
               ? Math.max(0, options.findIndex((o) => o.trim() === question.answer.trim()))
               : 0;
             return {
               body: question.body.trim(),
-              options: options.slice(0, 6),
-              correctIndex,
-              answer: question.answer.trim(),
+              options: question.isOrderQuestion ? options.filter((option) => option.trim()) : options.slice(0, 6),
+              correctIndex: question.isOrderQuestion ? 0 : correctIndex,
+              answer: question.isOrderQuestion
+                ? question.answer.trim() || formatOrderAnswer(options)
+                : question.answer.trim(),
               note: question.hostNote?.trim() || undefined,
               tags: question.tags,
-              isOpenQuestion: !hasChoices,
+              isOpenQuestion: question.isOrderQuestion ? false : !hasChoices,
+              isOrderQuestion: question.isOrderQuestion === true,
               isImageQuestion: Boolean(question.imageUrl?.trim() || question.imageDuringQuestion),
               suggestedImageUrl: question.imageUrl?.trim() || undefined,
               theme: inferBankTheme({
@@ -986,8 +1001,9 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
       return;
     }
 
-    const options = [...(question.options ?? [])];
-    while (options.length < 6) options.push("");
+    const ordered = question.isOrderQuestion ? orderItemsFromAnswer(question.answer) : [];
+    const options = ordered.length >= 2 ? ordered : [...(question.options ?? [])];
+    while (!question.isOrderQuestion && options.length < 6) options.push("");
     const hasChoices = options.some((option) => option.trim());
     const matched = hasChoices ? options.findIndex((option) => option.trim() === question.answer.trim()) : -1;
     const bodyKey = quizQuestionBodyKey(question.body);
@@ -996,9 +1012,11 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
     );
     const input = {
       body: question.body.trim(),
-      options: options.slice(0, 6),
-      correctIndex: matched >= 0 ? matched : 0,
-      answer: question.answer.trim(),
+      options: question.isOrderQuestion ? options.filter((option) => option.trim()) : options.slice(0, 6),
+      correctIndex: question.isOrderQuestion ? 0 : matched >= 0 ? matched : 0,
+      answer: question.isOrderQuestion
+        ? question.answer.trim() || formatOrderAnswer(options)
+        : question.answer.trim(),
       note: question.hostNote?.trim() || undefined,
       tags: question.tags,
       theme:
@@ -1009,7 +1027,8 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
           note: question.hostNote,
           hint: quiz?.title,
         }),
-      isOpenQuestion: matched < 0,
+      isOpenQuestion: question.isOrderQuestion ? false : matched < 0,
+      isOrderQuestion: question.isOrderQuestion === true,
       isImageQuestion: Boolean(question.imageUrl?.trim() || question.imageDuringQuestion),
       suggestedImageUrl: question.imageUrl?.trim() || undefined,
     };
@@ -1049,7 +1068,9 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
   };
 
   const updateQuestionOptions = (id: string, options: string[]) => {
-    const cleaned = options.map((option) => option.trim()).filter(Boolean).slice(0, 6);
+    const question = questions.find((q) => q.id === id);
+    const cap = question?.isOrderQuestion ? ORDER_OPTION_MAX : 6;
+    const cleaned = options.map((option) => option.trim()).filter(Boolean).slice(0, cap);
     updateQuestion(id, { options: cleaned.length ? cleaned : undefined });
   };
 
@@ -1057,8 +1078,21 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
     const question = questions.find((q) => q.id === id);
     if (!question) return;
     const current = question.options ?? [];
-    if (current.length >= 6) return;
+    const cap = question.isOrderQuestion ? ORDER_OPTION_MAX : 6;
+    if (current.length >= cap) return;
     updateQuestion(id, { options: [...current, ""] });
+  };
+
+  const moveQuestionOption = (id: string, index: number, direction: -1 | 1) => {
+    const question = questions.find((q) => q.id === id);
+    if (!question) return;
+    const next = [...(question.options ?? [])];
+    const target = index + direction;
+    if (target < 0 || target >= next.length) return;
+    const current = next[index] ?? "";
+    next[index] = next[target] ?? "";
+    next[target] = current;
+    updateQuestion(id, { options: next });
   };
 
   const removeQuestionOption = (id: string, index: number) => {
@@ -1571,13 +1605,22 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
               />
             </div>
             <div>
-              <label className="label">Správna odpoveď</label>
-              <input
-                className="input"
-                value={question.answer}
-                onChange={(e) => updateQuestion(question.id, { answer: e.target.value })}
-                placeholder="Správna odpoveď"
-              />
+              <label className="label">{question.isOrderQuestion ? "Správne poradie" : "Správna odpoveď"}</label>
+              {question.isOrderQuestion ? (
+                <textarea
+                  className="input min-h-[96px] resize-y"
+                  value={question.answer}
+                  onChange={(e) => updateQuestion(question.id, { answer: e.target.value })}
+                  placeholder={"1. prvá\n2. druhá"}
+                />
+              ) : (
+                <input
+                  className="input"
+                  value={question.answer}
+                  onChange={(e) => updateQuestion(question.id, { answer: e.target.value })}
+                  placeholder="Správna odpoveď"
+                />
+              )}
             </div>
             {(question.kind === "sound" || question.kind === "video" || question.kind === "music") && (
               <div>
@@ -1615,8 +1658,10 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
             {(question.kind === "normal" || question.kind === "video") && (
               <div className="space-y-2">
                 <div className="flex items-center justify-between gap-2">
-                  <label className="label mb-0">Možnosti (voliteľné)</label>
-                  {(question.options?.length ?? 0) < 6 && (
+                  <label className="label mb-0">
+                    {question.isOrderQuestion ? "Položky na plátne" : "Možnosti (voliteľné)"}
+                  </label>
+                  {(question.options?.length ?? 0) < (question.isOrderQuestion ? ORDER_OPTION_MAX : 6) && (
                     <button
                       type="button"
                       onClick={() => addQuestionOption(question.id)}
@@ -1627,6 +1672,11 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
                     </button>
                   )}
                 </div>
+                {question.isOrderQuestion ? (
+                  <p className="text-brand-muted text-xs">
+                    Toto poradie ide na plátno. Správne poradie ostáva v odpovedi.
+                  </p>
+                ) : null}
                 {(question.options ?? []).length === 0 ? (
                   <p className="text-brand-muted text-xs">Bez možností — otázka sa zobrazí len ako text.</p>
                 ) : (
@@ -1634,15 +1684,37 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
                     {(question.options ?? []).map((option, optionIndex) => (
                       <div key={optionIndex} className="flex items-center gap-2">
                         <span className="text-xs font-mono font-bold text-brand-muted w-6 shrink-0">
-                          {optionLetter(optionIndex)})
+                          {question.isOrderQuestion ? `${optionIndex + 1}.` : `${optionLetter(optionIndex)})`}
                         </span>
                         <input
                           className="input flex-1 min-w-0"
                           value={option}
                           onChange={(e) => setQuestionOption(question.id, optionIndex, e.target.value)}
-                          placeholder={`Možnosť ${optionLetter(optionIndex)}`}
+                          placeholder={question.isOrderQuestion ? `Položka ${optionIndex + 1}` : `Možnosť ${optionLetter(optionIndex)}`}
                           onBlur={() => updateQuestionOptions(question.id, question.options ?? [])}
                         />
+                        {question.isOrderQuestion ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => moveQuestionOption(question.id, optionIndex, -1)}
+                              disabled={optionIndex === 0}
+                              className="p-2 rounded-lg border border-brand-border text-brand-muted disabled:opacity-30 shrink-0"
+                              title="Vyššie"
+                            >
+                              <ChevronUp className="w-4 h-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => moveQuestionOption(question.id, optionIndex, 1)}
+                              disabled={optionIndex === (question.options?.length ?? 0) - 1}
+                              className="p-2 rounded-lg border border-brand-border text-brand-muted disabled:opacity-30 shrink-0"
+                              title="Nižšie"
+                            >
+                              <ChevronDown className="w-4 h-4" />
+                            </button>
+                          </>
+                        ) : null}
                         <button
                           type="button"
                           onClick={() => removeQuestionOption(question.id, optionIndex)}

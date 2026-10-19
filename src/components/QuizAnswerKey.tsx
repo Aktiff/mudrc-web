@@ -14,6 +14,7 @@ function choicesOf(question: QuizQuestionItem): string[] {
 
 function answerLine(question: QuizQuestionItem): { letter: string; text: string } {
   const answer = question.answer.trim();
+  if (question.isOrderQuestion) return { letter: "", text: answer || "bez odpovede" };
   const choices = choicesOf(question);
   if (choices.length && answer) {
     const index = findCorrectOptionIndex(choices, answer);
@@ -95,7 +96,7 @@ export default function QuizAnswerKey({
                         {line.letter ? (
                           <span className="w-4 shrink-0 font-bold text-brand-orange-readable">{line.letter}</span>
                         ) : null}
-                        <span className={line.text === "bez odpovede" ? "text-brand-muted" : "text-brand-text"}>
+                        <span className={`whitespace-pre-line ${line.text === "bez odpovede" ? "text-brand-muted" : "text-brand-text"}`}>
                           {line.text}
                         </span>
                       </li>

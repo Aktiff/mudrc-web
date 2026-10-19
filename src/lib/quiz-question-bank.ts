@@ -2,7 +2,7 @@ export type QuizBankQuestion = {
   id: string;
   body: string;
   answer: string;
-  options: [string, string, string, string, string, string];
+  options: string[];
   correctIndex: number;
   /** Obtiažnosť 1–10 pre tím cca 5 hráčov */
   difficulty: number;
@@ -14,6 +14,8 @@ export type QuizBankQuestion = {
   isImageQuestion?: boolean;
   /** Otvorená odpoveď bez možností A–F */
   isOpenQuestion?: boolean;
+  /** Položky v správnom poradí. Do kvízu sa zamiešajú. */
+  isOrderQuestion?: boolean;
 };
 
 /** Vygenerovaná banka je vypnutá. V banke ostávajú len otázky, ktoré pridáš ty. */
@@ -29,18 +31,27 @@ export function isImageQuestionSlot(questionNumber: number): boolean {
 export function formatBankQuestionBody(item: QuizBankQuestion): string {
   const letters = ["A", "B", "C", "D", "E", "F"] as const;
   const optionsBlock = item.options
-    .map((option, index) => `${letters[index]}) ${option}`)
+    .map((option, index) => {
+      const text = option.trim();
+      if (!text) return "";
+      const mark = item.isOrderQuestion ? `${index + 1}.` : `${letters[index] ?? index + 1})`;
+      return `${mark} ${text}`;
+    })
+    .filter(Boolean)
     .join("\n");
-  return `${item.body}\n\n${optionsBlock}`;
+  return optionsBlock ? `${item.body}\n\n${optionsBlock}` : item.body;
 }
 
 export function formatBankQuestionClipboard(item: QuizBankQuestion): string {
   const letters = ["A", "B", "C", "D", "E", "F"] as const;
   const correctLetter = letters[item.correctIndex];
+  const answerLine = item.isOrderQuestion
+    ? `Správne poradie:\n${item.answer}`
+    : `Správna odpoveď: ${correctLetter}) ${item.answer}`;
   return [
     formatBankQuestionBody(item),
     "",
-    `Správna odpoveď: ${correctLetter}) ${item.answer}`,
+    answerLine,
     `Obtiažnosť (tím 5): ${item.difficulty}/10`,
     "",
     `Poznámka: ${item.note}`,

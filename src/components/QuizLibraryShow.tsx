@@ -303,7 +303,11 @@ function QuestionContent({
   const questionText = fixSlovakLineBreaks(getQuestionBodyText(question) || "Otázka");
   const options = getQuestionOptions(question);
   const correctOptionIndex =
-    phase === "answer" ? findCorrectOptionIndex(options, question.answer) : -1;
+    question.isOrderQuestion
+      ? -1
+      : phase === "answer"
+        ? findCorrectOptionIndex(options, question.answer)
+        : -1;
   const imageHero = showImage && options.length === 0;
   const imageWithOptions = showImage && options.length > 0;
   const imageFocusedLayout = imageHero || imageWithOptions;
@@ -370,7 +374,7 @@ function QuestionContent({
 
       {phase === "answer" && options.length > 0 && correctOptionIndex < 0 && question.answer.trim() && (
         <div className={answerBoxClass}>
-          <p className="font-sans font-bold tracking-normal break-words normal-case" style={ANSWER_TEXT_STYLE}>
+          <p className="font-sans font-bold tracking-normal break-words normal-case whitespace-pre-line" style={ANSWER_TEXT_STYLE}>
             {fixSlovakLineBreaks(question.answer)}
           </p>
         </div>

@@ -461,8 +461,12 @@ export default function QuestionBankInventory({
                   {q.tags.length > 0 && (
                     <p className="text-[11px] text-brand-muted">{q.tags.join(" · ")}</p>
                   )}
-                  <p className="text-xs text-brand-muted">
-                    {q.isOpenQuestion ? `Odpoveď: ${q.answer}` : `Správne: ${q.options[q.correctIndex] || q.answer}`}
+                  <p className="text-xs text-brand-muted whitespace-pre-line">
+                    {q.isOrderQuestion
+                      ? q.answer
+                      : q.isOpenQuestion
+                        ? `Odpoveď: ${q.answer}`
+                        : `Správne: ${q.options[q.correctIndex] || q.answer}`}
                   </p>
                   <div className="flex flex-wrap gap-2">
                     {isCustom ? (

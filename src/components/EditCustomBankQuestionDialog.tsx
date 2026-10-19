@@ -10,8 +10,19 @@ import TagSuggestInput from "@/components/TagSuggestInput";
 import type { CustomBankQuestion } from "@/lib/quiz-custom-bank";
 import { updateCustomBankQuestionAsync } from "@/lib/quiz-custom-bank";
 import { formatTagsInput, parseTagsInput } from "@/lib/quiz-question-tags";
+import { formatOrderAnswer, orderItemsFromAnswer } from "@/lib/quiz-question-options";
+import OrderItemFields from "@/components/OrderItemFields";
 
 const OPTION_LETTERS = ["A", "B", "C", "D", "E", "F"] as const;
+
+function orderFieldsFromQuestion(question: CustomBankQuestion): string[] {
+  const fromOptions = question.options.map((option) => option.trim()).filter(Boolean);
+  const fromAnswer = orderItemsFromAnswer(question.answer);
+  const items = fromOptions.length >= 2 ? fromOptions : fromAnswer;
+  const next = items.length ? [...items] : ["", "", "", ""];
+  while (next.length < 2) next.push("");
+  return next;
+}
 
 type Props = {
   question: CustomBankQuestion | null;
@@ -20,9 +31,10 @@ type Props = {
 };
 
 export default function EditCustomBankQuestionDialog({ question, onClose, onSaved }: Props) {
-  const [questionMode, setQuestionMode] = useState<"choice" | "open">("choice");
+  const [questionMode, setQuestionMode] = useState<"choice" | "open" | "order">("choice");
   const [body, setBody] = useState("");
   const [options, setOptions] = useState(["", "", "", "", "", ""]);
+  const [orderItems, setOrderItems] = useState(["", "", "", ""]);
   const [openAnswer, setOpenAnswer] = useState("");
   const [correctIndex, setCorrectIndex] = useState(0);
   const [note, setNote] = useState("");
@@ -45,6 +57,7 @@ export default function EditCustomBankQuestionDialog({ question, onClose, onSave
       questionMode,
       body,
       options,
+      orderItems,
       openAnswer,
       correctIndex,
       note,
@@ -57,9 +70,11 @@ export default function EditCustomBankQuestionDialog({ question, onClose, onSave
 
   useEffect(() => {
     if (!question) return;
-    const nextMode = question.isOpenQuestion ? "open" : "choice";
-    const nextOptions = [...question.options];
-    const nextAnswer = question.isOpenQuestion ? question.answer : "";
+    const nextMode = question.isOrderQuestion ? "order" : question.isOpenQuestion ? "open" : "choice";
+    const nextOptions = question.isOrderQuestion ? ["", "", "", "", "", ""] : [...question.options];
+    while (nextOptions.length < 6) nextOptions.push("");
+    const nextOrder = orderFieldsFromQuestion(question);
+    const nextAnswer = question.isOpenQuestion && !question.isOrderQuestion ? question.answer : "";
     const nextTags = formatTagsInput(question.tags);
     const nextTheme = bankQuestionTheme(question);
     const nextNote = question.note ?? "";
@@ -67,7 +82,8 @@ export default function EditCustomBankQuestionDialog({ question, onClose, onSave
     const nextUrl = question.suggestedImageUrl ?? "";
     setQuestionMode(nextMode);
     setBody(question.body);
-    setOptions(nextOptions);
+    setOptions(nextOptions.slice(0, 6));
+    setOrderItems(nextOrder);
     setOpenAnswer(nextAnswer);
     setCorrectIndex(question.correctIndex);
     setNote(nextNote);
@@ -80,7 +96,8 @@ export default function EditCustomBankQuestionDialog({ question, onClose, onSave
     baseline.current = JSON.stringify({
       questionMode: nextMode,
       body: question.body,
-      options: nextOptions,
+      options: nextOptions.slice(0, 6),
+      orderItems: nextOrder,
       openAnswer: nextAnswer,
       correctIndex: question.correctIndex,
       note: nextNote,
@@ -100,7 +117,7 @@ export default function EditCustomBankQuestionDialog({ question, onClose, onSave
       void persistRef.current(false);
     }, 400);
     return () => window.clearTimeout(timer);
-  }, [question, questionMode, body, options, openAnswer, correctIndex, note, tagsText, theme, difficulty, isImageQuestion, suggestedImageUrl]);
+  }, [question, questionMode, body, options, orderItems, openAnswer, correctIndex, note, tagsText, theme, difficulty, isImageQuestion, suggestedImageUrl]);
 
   useEffect(() => {
     void fetchBankThemes().then(setThemes);
@@ -123,9 +140,15 @@ export default function EditCustomBankQuestionDialog({ question, onClose, onSave
       return;
     }
 
+    const filledOrder = orderItems.map((item) => item.trim()).filter(Boolean);
     if (questionMode === "open") {
       if (!openAnswer.trim()) {
         if (closeAfter) setError("Zadaj správnu odpoveď.");
+        return;
+      }
+    } else if (questionMode === "order") {
+      if (filledOrder.length < 2) {
+        if (closeAfter) setError("Zadaj aspoň dve položky v správnom poradí.");
         return;
       }
     } else {
@@ -156,9 +179,25 @@ export default function EditCustomBankQuestionDialog({ question, onClose, onSave
               difficulty,
               isImageQuestion,
               isOpenQuestion: true,
+              isOrderQuestion: false,
               suggestedImageUrl: suggestedImageUrl.trim() || undefined,
             }
-          : {
+          : questionMode === "order"
+            ? {
+                body: trimmedBody,
+                options: filledOrder,
+                correctIndex: 0,
+                answer: formatOrderAnswer(filledOrder),
+                note: note.trim() || undefined,
+                tags: parseTagsInput(tagsText),
+                theme,
+                difficulty,
+                isImageQuestion,
+                isOpenQuestion: false,
+                isOrderQuestion: true,
+                suggestedImageUrl: suggestedImageUrl.trim() || undefined,
+              }
+            : {
               body: trimmedBody,
               options: options.map((o) => o.trim()),
               correctIndex,
@@ -168,6 +207,7 @@ export default function EditCustomBankQuestionDialog({ question, onClose, onSave
               difficulty,
               isImageQuestion,
               isOpenQuestion: false,
+              isOrderQuestion: false,
               suggestedImageUrl: suggestedImageUrl.trim() || undefined,
             };
 
@@ -226,6 +266,15 @@ export default function EditCustomBankQuestionDialog({ question, onClose, onSave
           >
             Otvorená
           </button>
+          <button
+            type="button"
+            onClick={() => setQuestionMode("order")}
+            className={`text-xs font-semibold px-3 py-1.5 rounded-lg border ${
+              questionMode === "order" ? "bg-brand-orange text-brand-btn-fg border-brand-orange" : "border-brand-border"
+            }`}
+          >
+            Usporiadaj
+          </button>
         </div>
 
         <BankThemeSelect themes={themes} value={theme} onChange={setTheme} onThemesChange={setThemes} />
@@ -235,7 +284,12 @@ export default function EditCustomBankQuestionDialog({ question, onClose, onSave
           <textarea className="input min-h-[72px] text-sm" value={body} onChange={(e) => setBody(e.target.value)} />
         </div>
 
-        {questionMode === "choice" ? (
+        {questionMode === "order" ? (
+          <div>
+            <label className="label">Položky v správnom poradí</label>
+            <OrderItemFields items={orderItems} onChange={setOrderItems} />
+          </div>
+        ) : questionMode === "choice" ? (
           <div className="space-y-2">
             {OPTION_LETTERS.map((letter, index) => (
               <div key={letter} className="flex items-center gap-2">

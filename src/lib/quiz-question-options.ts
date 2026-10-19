@@ -39,7 +39,7 @@ export function normalizeQuestionOptions(raw: unknown): string[] | undefined {
   const options = raw
     .map((value) => (typeof value === "string" ? value.trim() : ""))
     .filter(Boolean)
-    .slice(0, 6);
+    .slice(0, 10);
   return options.length ? options : undefined;
 }
 
@@ -135,6 +135,41 @@ export function shuffleQuestionOptionsRandom<T extends { options: string[]; corr
     correctIndex: newCorrectIndex >= 0 ? newCorrectIndex : item.correctIndex,
     answer,
   };
+}
+
+export const ORDER_OPTION_MAX = 10;
+
+export function formatOrderAnswer(items: string[]): string {
+  return items
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .map((item, index) => `${index + 1}. ${item}`)
+    .join("\n");
+}
+
+export function orderItemsFromAnswer(answer: string): string[] {
+  return answer
+    .split(/\n+/)
+    .map((line) => line.replace(/^\d+\.\s*/, "").trim())
+    .filter(Boolean)
+    .slice(0, ORDER_OPTION_MAX);
+}
+
+export function shuffleOrderItems(items: string[]): string[] {
+  const source = items.map((item) => item.trim()).filter(Boolean);
+  if (source.length < 2) return source;
+  let next = [...source];
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    next = [...source];
+    for (let i = next.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(Math.random() * (i + 1));
+      const left = next[i];
+      next[i] = next[j] ?? "";
+      next[j] = left ?? "";
+    }
+    if (next.some((item, index) => item !== source[index])) break;
+  }
+  return next.filter(Boolean);
 }
 
 /** Jednorazové premiešanie možností pri vkladaní z banky do slotu kvízu. */

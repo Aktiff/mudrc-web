@@ -1000,6 +1000,11 @@ export default function QuizQuestionBankPanel({
                         {bankQuestionTheme(item)}
                       </span>
                     )}
+                    {item.isOrderQuestion && (
+                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-900 border border-amber-200 dark:bg-amber-950/30 dark:text-amber-100 dark:border-amber-800">
+                        usporiadaj
+                      </span>
+                    )}
                     {item.isOpenQuestion && (
                       <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-sky-50 text-sky-800 border border-sky-200 dark:bg-sky-950/30 dark:text-sky-200 dark:border-sky-800">
                         otvorená
@@ -1027,7 +1032,22 @@ export default function QuizQuestionBankPanel({
                   )}
                 </div>
 
-                {item.isOpenQuestion ? (
+                {item.isOrderQuestion ? (
+                  <ol className="space-y-1">
+                    {item.options.map((option, optionIndex) => {
+                      if (!option.trim()) return null;
+                      return (
+                        <li
+                          key={optionIndex}
+                          className="text-xs px-2 py-1.5 rounded-md border border-green-500/50 bg-green-50 text-green-800 dark:bg-green-950/40 dark:text-green-200 font-semibold leading-snug break-words"
+                        >
+                          <span className="font-mono opacity-60 mr-1">{optionIndex + 1}.</span>
+                          {option}
+                        </li>
+                      );
+                    })}
+                  </ol>
+                ) : item.isOpenQuestion ? (
                   <p className="text-xs px-2 py-1.5 rounded-md border border-green-500/50 bg-green-50 text-green-800 dark:bg-green-950/40 dark:text-green-200 font-semibold">
                     Správna odpoveď: {item.answer}
                   </p>

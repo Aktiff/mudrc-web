@@ -27,6 +27,8 @@ export type QuizQuestionItem = {
   options?: string[];
   /** true = možnosti boli raz premiešané pri vložení z banky (nemeň pri načítaní) */
   optionsShuffledFromBank?: boolean;
+  /** Položky na zoradenie. options je premiešané poradie na plátno, answer je správne poradie. */
+  isOrderQuestion?: boolean;
   /** ID otázky z banky vloženej do tohto slotu */
   bankQuestionId?: string;
   imageUrl?: string;
@@ -141,6 +143,7 @@ function normalizeQuestion(input: Partial<QuizQuestionItem>): QuizQuestionItem |
     options,
     optionsShuffledFromBank:
       input.optionsShuffledFromBank === true ? true : undefined,
+    isOrderQuestion: input.isOrderQuestion === true ? true : undefined,
     bankQuestionId: input.bankQuestionId?.trim() || undefined,
     imageUrl: input.imageUrl?.trim() || undefined,
     audioUrl: input.audioUrl?.trim() || undefined,
