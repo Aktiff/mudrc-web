@@ -16,9 +16,9 @@ function assignRef<T>(ref: ForwardedRef<T>, value: T | null) {
   else if (ref) ref.current = value;
 }
 
-function useAppliedVolume(node: HTMLMediaElement | null) {
+function useAppliedVolume(node: HTMLMediaElement | null, edgeFade: boolean) {
   useEffect(() => {
-    if (!node) return;
+    if (!node || edgeFade) return;
     const apply = () => {
       const next = getMediaVolume();
       if (Math.abs(node.volume - next) > 0.001) node.volume = next;
@@ -35,7 +35,7 @@ function useAppliedVolume(node: HTMLMediaElement | null) {
       unsubscribe();
       node.removeEventListener("volumechange", onVolume);
     };
-  }, [node]);
+  }, [node, edgeFade]);
 }
 
 function useWheelTarget(node: HTMLElement | null, enabled: boolean) {
@@ -102,7 +102,7 @@ export const VolumeAudio = forwardRef<HTMLAudioElement, ComponentProps<"audio"> 
 ) {
   const [node, setNode] = useState<HTMLAudioElement | null>(null);
   const [box, setBox] = useState<HTMLDivElement | null>(null);
-  useAppliedVolume(node);
+  useAppliedVolume(node, edgeFade);
   useEdgeFade(node, edgeFade);
   return (
     <VolumeShell hint={hint} captureWheel={captureWheel} box={box} setBox={setBox}>
@@ -123,7 +123,7 @@ export const VolumeVideo = forwardRef<HTMLVideoElement, ComponentProps<"video"> 
 ) {
   const [node, setNode] = useState<HTMLVideoElement | null>(null);
   const [box, setBox] = useState<HTMLDivElement | null>(null);
-  useAppliedVolume(node);
+  useAppliedVolume(node, false);
   return (
     <VolumeShell hint={hint} captureWheel={captureWheel} box={box} setBox={setBox}>
       <video

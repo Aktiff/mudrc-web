@@ -320,7 +320,7 @@ function QuestionContent({
         key={playbackMediaSrc(question.audioUrl)}
         ref={presentationAudioRef}
         captureWheel={false}
-        edgeFade={false}
+        edgeFade={question.kind === "music" || question.audioEdgeFade === true}
         controls
         preload="auto"
         src={playbackMediaSrc(question.audioUrl)}
