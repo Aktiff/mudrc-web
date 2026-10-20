@@ -12,7 +12,11 @@ import {
   type NewMusicBankItemInput,
 } from "@/lib/music-bank";
 import { readStoredSoundBank, removeStoredSoundBankItem } from "@/lib/sound-bank-storage";
-import { enrichMusicTrackAutoTags, quickMusicTrackTags } from "@/lib/music-track-metadata";
+import {
+  enrichMusicTrackAutoTags,
+  lookupMusicTrackTagsForUpload,
+  parseMusicBankTagBuckets,
+} from "@/lib/music-track-metadata";
 import { findQuizTitleUsingMusicTrack } from "@/lib/quiz-library-storage";
 import { readAppStorageWithFallback, writeAppStorageWithFallback } from "@/lib/app-storage-fallback";
 import { readLatestAppStorageBlob } from "@/lib/blob-app-storage";
@@ -134,6 +138,16 @@ export async function addStoredMusicBankItems(
   const next = [...existing];
   const added: MusicBankItem[] = [];
   const errors: { artist: string; title: string; error: string; conflict?: MusicTrackDuplicateConflict }[] = [];
+  const tagsByKey = new Map<string, string[]>();
+  await Promise.all(
+    inputs.map(async (input) => {
+      const artist = input.artist?.trim() ?? "";
+      const title = input.title?.trim() ?? "";
+      if (!artist || !title || input.tags?.length) return;
+      const tags = await lookupMusicTrackTagsForUpload(artist, title);
+      tagsByKey.set(musicTrackKey(artist, title), tags);
+    })
+  );
 
   for (const input of inputs) {
     const artist = input.artist?.trim() ?? "";
@@ -155,7 +169,9 @@ export async function addStoredMusicBankItems(
       errors.push({ artist, title, error: formatMusicTrackDuplicateMessage(conflict), conflict });
       continue;
     }
-    const autoTags = input.tags?.length ? input.tags : quickMusicTrackTags(artist, title);
+    const autoTags = input.tags?.length
+      ? input.tags
+      : tagsByKey.get(key) ?? [];
     const item = createMusicBankItem({ ...input, artist, title, audioUrl, tags: autoTags });
     next.unshift(item);
     added.push(item);
@@ -207,6 +223,36 @@ export async function updateStoredMusicBankItem(
   const next = existing.map((t) => (t.id === id ? merged : t));
   await writeStoredMusicBank(next);
   return merged;
+}
+
+/** Doplní štýl a dekádu skladbám, ktorým pri nahratí chýbajú. Najviac `limit` naraz. */
+export async function fillMissingStoredMusicTags(ids: string[], limit = 4): Promise<MusicBankItem[]> {
+  const wanted = new Set(ids.filter(Boolean).slice(0, limit));
+  const existing = await readStoredMusicBank();
+  const missing = existing
+    .filter((track) => {
+      if (!wanted.has(track.id)) return false;
+      const buckets = parseMusicBankTagBuckets(track.tags ?? []);
+      return !buckets.style || !buckets.decade;
+    })
+    .slice(0, limit);
+  if (!missing.length) return existing;
+
+  const updated = new Map<string, MusicBankItem>();
+  await Promise.all(
+    missing.map(async (track) => {
+      const tags = await Promise.race([
+        enrichMusicTrackAutoTags(track.artist, track.title, track.tags),
+        new Promise<string[]>((resolve) => {
+          setTimeout(() => resolve(track.tags ?? []), 8000);
+        }),
+      ]);
+      updated.set(track.id, { ...track, tags });
+    })
+  );
+
+  await writeStoredMusicBank(Array.from(updated.values()));
+  return readStoredMusicBank();
 }
 
 export async function refreshStoredMusicBankItemTags(id: string): Promise<MusicBankItem> {

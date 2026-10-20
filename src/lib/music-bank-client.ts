@@ -118,6 +118,37 @@ export async function updateMusicBankItemAsync(
   return track;
 }
 
+let fillMissingInflight: { key: string; promise: Promise<MusicBankItem[]> } | null = null;
+
+export async function fillMissingMusicTagsAsync(ids: string[]): Promise<MusicBankItem[]> {
+  const key = ids.slice().sort().join("\n");
+  if (fillMissingInflight?.key === key) return fillMissingInflight.promise;
+  const promise = requestMissingMusicTags(ids).finally(() => {
+    if (fillMissingInflight?.key === key) fillMissingInflight = null;
+  });
+  fillMissingInflight = { key, promise };
+  return promise;
+}
+
+async function requestMissingMusicTags(ids: string[]): Promise<MusicBankItem[]> {
+  const res = await fetch("/api/admin/music-bank", {
+    method: "PATCH",
+    cache: "no-store",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ fillMissingTags: true, ids }),
+    signal: AbortSignal.timeout(40000),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(typeof data.error === "string" ? data.error : "Doplnenie tagov zlyhalo");
+  }
+  return Array.isArray(data.tracks)
+    ? data.tracks
+        .map((row: unknown) => normalizeMusicBankItem(row))
+        .filter((row: MusicBankItem | null): row is MusicBankItem => !!row)
+    : [];
+}
+
 export async function refreshMusicTrackAutoTagsAsync(id: string): Promise<MusicBankItem> {
   const res = await fetch("/api/admin/music-bank", {
     method: "PATCH",

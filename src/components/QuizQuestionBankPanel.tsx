@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { playbackMediaSrc } from "@/lib/media-url";
 import { VolumeAudio, VolumeVideo } from "@/components/VolumeMedia";
 import { BookOpen, Check, ClipboardCopy, Pencil, Shuffle, Trash2 } from "lucide-react";
@@ -62,7 +62,7 @@ import {
   musicTagFiltersActive,
   musicTrackMetaFields,
 } from "@/lib/music-bank-filters";
-import { fetchMusicBankFromServer, removeMusicBankItemAsync } from "@/lib/music-bank-client";
+import { fetchMusicBankFromServer, fillMissingMusicTagsAsync, removeMusicBankItemAsync } from "@/lib/music-bank-client";
 import {
   formatSoundBankHostNote,
   isSoundBankId,
@@ -224,6 +224,32 @@ export default function QuizQuestionBankPanel({
     if (musicBankTracksProp) return;
     void fetchMusicBankFromServer().then(setLocalMusic);
   }, [musicBankTracksProp]);
+
+  const fillingMusicTags = useRef(false);
+  const triedMusicTagIds = useRef(new Set<string>());
+  useEffect(() => {
+    if (fillingMusicTags.current) return;
+    const ids = musicBankTracks
+      .filter((track) => {
+        if (triedMusicTagIds.current.has(track.id)) return false;
+        const meta = musicTrackMetaFields(track.tags);
+        return meta.style === "nezistený" || meta.decade === "nezistená";
+      })
+      .slice(0, 4)
+      .map((track) => track.id);
+    if (!ids.length) return;
+    for (const id of ids) triedMusicTagIds.current.add(id);
+    fillingMusicTags.current = true;
+    void fillMissingMusicTagsAsync(ids)
+      .then((tracks) => {
+        if (musicBankTracksProp) onMusicBankChange?.();
+        else if (tracks.length) setLocalMusic(tracks);
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        fillingMusicTags.current = false;
+      });
+  }, [musicBankTracks, musicBankTracksProp, onMusicBankChange]);
 
   useEffect(() => {
     if (soundBankClipsProp) return;

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   addStoredMusicBankItem,
   addStoredMusicBankItems,
+  fillMissingStoredMusicTags,
   findMusicTrackConflict,
   readStoredMusicBank,
   removeStoredMusicBankItem,
@@ -12,6 +13,7 @@ import { formatMusicTrackDuplicateMessage, MusicTrackDuplicateError, type NewMus
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 export async function GET(req: NextRequest) {
   try {
@@ -65,6 +67,11 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const body = await req.json();
+    if (body?.fillMissingTags === true) {
+      const ids = Array.isArray(body.ids) ? body.ids.filter((id: unknown) => typeof id === "string") : [];
+      const tracks = await fillMissingStoredMusicTags(ids, 4);
+      return NextResponse.json({ ok: true, tracks });
+    }
     const id = typeof body?.id === "string" ? body.id.trim() : "";
     if (!id) return NextResponse.json({ error: "Chýba id skladby" }, { status: 400 });
     if (body?.refreshAutoTags === true) {

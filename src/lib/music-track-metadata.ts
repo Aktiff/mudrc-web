@@ -31,23 +31,31 @@ export type MusicTagBuckets = {
 };
 
 let lastRequestAt = 0;
+let mbQueue: Promise<void> = Promise.resolve();
 
 async function musicBrainzJson<T>(path: string): Promise<T | null> {
-  const wait = Math.max(0, 1100 - (Date.now() - lastRequestAt));
-  if (wait > 0) await new Promise((r) => setTimeout(r, wait));
-  lastRequestAt = Date.now();
+  const run = mbQueue.then(async () => {
+    const wait = Math.max(0, 1100 - (Date.now() - lastRequestAt));
+    if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+    lastRequestAt = Date.now();
 
-  try {
-    const res = await fetch(`https://musicbrainz.org/ws/2/${path}`, {
-      headers: { Accept: "application/json", "User-Agent": USER_AGENT },
-      cache: "no-store",
-      signal: AbortSignal.timeout(4000),
-    });
-    if (!res.ok) return null;
-    return (await res.json()) as T;
-  } catch {
-    return null;
-  }
+    try {
+      const res = await fetch(`https://musicbrainz.org/ws/2/${path}`, {
+        headers: { Accept: "application/json", "User-Agent": USER_AGENT },
+        cache: "no-store",
+        signal: AbortSignal.timeout(4000),
+      });
+      if (!res.ok) return null;
+      return (await res.json()) as T;
+    } catch {
+      return null;
+    }
+  });
+  mbQueue = run.then(
+    () => undefined,
+    () => undefined
+  );
+  return run;
 }
 
 export function formatReleaseDecadeTag(year: number): string | null {
@@ -178,7 +186,7 @@ async function collectMusicBrainzCandidates(artist: string, title: string): Prom
   const light: TrackMetadataCandidate[] = [];
   const idByKey = new Map<string, string>();
 
-  for (const q of luceneQueries.slice(0, 4)) {
+  for (const q of luceneQueries.slice(0, 2)) {
     const search = await musicBrainzJson<MbRecordingSearch>(
       `recording?query=${encodeURIComponent(q)}&limit=15&fmt=json`
     );
@@ -254,37 +262,50 @@ type ItunesResult = {
   collectionName?: string;
 };
 
+async function fetchItunesQuery(query: string, country: string): Promise<TrackMetadataCandidate[]> {
+  try {
+    const res = await fetch(
+      `https://itunes.apple.com/search?term=${encodeURIComponent(query)}&entity=song&limit=8&country=${country}`,
+      { cache: "no-store", signal: AbortSignal.timeout(5000) }
+    );
+    if (!res.ok) return [];
+    const data = (await res.json()) as { results?: ItunesResult[] };
+    const out: TrackMetadataCandidate[] = [];
+    for (const r of data.results ?? []) {
+      const rTitle = r.trackName?.trim() ?? "";
+      if (!rTitle) continue;
+      out.push({
+        artist: r.artistName?.trim() || "",
+        title: rTitle,
+        releaseYear: parseYearFromIsoDate(r.releaseDate),
+        genreHints: [r.primaryGenreName, r.collectionName].filter(Boolean) as string[],
+      });
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
 async function collectItunesCandidates(artist: string, title: string): Promise<TrackMetadataCandidate[]> {
-  const queries = buildMusicSearchQueries(artist, title);
+  const queries = buildMusicSearchQueries(artist, title).slice(0, 2);
   const seen = new Set<string>();
   const candidates: TrackMetadataCandidate[] = [];
 
-  for (const q of queries.slice(0, 5)) {
-    try {
-      const res = await fetch(
-        `https://itunes.apple.com/search?term=${encodeURIComponent(q)}&entity=song&limit=20`,
-        { cache: "no-store", signal: AbortSignal.timeout(4000) }
-      );
-      if (!res.ok) continue;
-      const data = (await res.json()) as { results?: ItunesResult[] };
-      for (const r of data.results ?? []) {
-        const rArtist = r.artistName?.trim() ?? "";
-        const rTitle = r.trackName?.trim() ?? "";
-        if (!rTitle) continue;
-        const key = `${rArtist}|${rTitle}`.toLowerCase();
+  for (const query of queries) {
+    const batches = await Promise.all(
+      ["us", "cz"].map((country) => fetchItunesQuery(query, country))
+    );
+    for (const batch of batches) {
+      for (const hit of batch) {
+        const key = `${hit.artist}|${hit.title}`.toLowerCase();
         if (seen.has(key)) continue;
         seen.add(key);
-        const genreHints = [r.primaryGenreName, r.collectionName].filter(Boolean) as string[];
-        candidates.push({
-          artist: rArtist,
-          title: rTitle,
-          releaseYear: parseYearFromIsoDate(r.releaseDate),
-          genreHints,
-        });
+        candidates.push(hit);
       }
-    } catch {
-      /* ignore */
     }
+    const best = pickBestScoredTrack(artist, title, candidates);
+    if (best?.releaseYear && inferStyleTag(best.genreHints)) break;
   }
 
   return candidates;
@@ -302,7 +323,7 @@ async function collectDeezerCandidates(artist: string, title: string): Promise<T
   const seen = new Set<string>();
   const candidates: TrackMetadataCandidate[] = [];
 
-  for (const q of queries.slice(0, 5)) {
+  for (const q of queries.slice(0, 2)) {
     try {
       const res = await fetch(
         `https://api.deezer.com/search/track?q=${encodeURIComponent(q)}&limit=20`,
@@ -362,28 +383,32 @@ function mergeBucketFields(...parts: MusicTagBuckets[]): MusicTagBuckets {
   return out;
 }
 
+function bucketsFromCandidates(
+  list: TrackMetadataCandidate[],
+  artist: string,
+  title: string
+): MusicTagBuckets {
+  const best = pickBestScoredTrack(artist, title, list);
+  if (!best) return {};
+  return candidateToBuckets(best, artist, title);
+}
+
 async function lookupOnlineTagBuckets(artist: string, title: string): Promise<MusicTagBuckets> {
-  const [itunesList, deezerList, mbList] = await Promise.all([
-    collectItunesCandidates(artist, title),
-    collectDeezerCandidates(artist, title),
-    collectMusicBrainzCandidates(artist, title),
-  ]);
-
-  const all = [...itunesList, ...deezerList, ...mbList];
-  const best = pickBestScoredTrack(artist, title, all);
-  if (!best) {
-    return heuristicBuckets(artist, title);
+  const fromItunes = bucketsFromCandidates(await collectItunesCandidates(artist, title), artist, title);
+  if (fromItunes.style && fromItunes.decade) {
+    return mergeBucketFields(fromItunes, heuristicBuckets(artist, title));
   }
 
-  const fromBest = candidateToBuckets(best, artist, title);
+  const fromDeezer = bucketsFromCandidates(await collectDeezerCandidates(artist, title), artist, title);
+  const merged = mergeBucketFields(fromItunes, fromDeezer, heuristicBuckets(artist, title));
+  if (merged.style && merged.decade) return merged;
 
-  const secondary: MusicTagBuckets[] = [];
-  for (const source of [itunesList, deezerList, mbList]) {
-    const hit = pickBestScoredTrack(artist, title, source);
-    if (hit) secondary.push(candidateToBuckets(hit, artist, title));
-  }
-
-  return mergeBucketFields(fromBest, ...secondary, heuristicBuckets(best.artist, best.title));
+  const fromMusicBrainz = bucketsFromCandidates(
+    await collectMusicBrainzCandidates(artist, title),
+    artist,
+    title
+  );
+  return mergeBucketFields(merged, fromMusicBrainz);
 }
 
 function heuristicBuckets(artist: string, title: string): MusicTagBuckets {
@@ -425,4 +450,19 @@ export async function enrichMusicTrackAutoTags(
 /** Tagy pri novom uploade — rovnaké doplnenie ako pri obnove. */
 export async function lookupMusicTrackAutoTags(artist: string, title: string): Promise<string[]> {
   return enrichMusicTrackAutoTags(artist, title, []);
+}
+
+/** Štýl a dekáda pri nahratí. Keď katalóg neodpovie, ostane aspoň jazyk. */
+export async function lookupMusicTrackTagsForUpload(artist: string, title: string): Promise<string[]> {
+  const fallback = quickMusicTrackTags(artist, title);
+  try {
+    return await Promise.race([
+      lookupMusicTrackAutoTags(artist, title),
+      new Promise<string[]>((resolve) => {
+        setTimeout(() => resolve(fallback), 8000);
+      }),
+    ]);
+  } catch {
+    return fallback;
+  }
 }
