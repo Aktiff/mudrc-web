@@ -130,6 +130,11 @@ function listFolder(string $dir, string $kind, array $extensions): array {
   return $rows;
 }
 
+$labelsLib = __DIR__ . "/labels.php";
+if (is_file($labelsLib)) {
+  require_once $labelsLib;
+}
+
 $items = [];
 if ($loggedIn) {
   $items = array_merge(
@@ -139,6 +144,33 @@ if ($loggedIn) {
   usort($items, function (array $a, array $b): int {
     return $b["time"] <=> $a["time"];
   });
+  $labels = function_exists("loadMediaLabels") ? loadMediaLabels() : [];
+  $missing = false;
+  foreach ($items as $index => $item) {
+    $key = ($item["kind"] === "video" ? "video/" : "audio/") . $item["name"];
+    $items[$index]["key"] = $key;
+    $items[$index]["label"] = isset($labels[$key]) ? (string) $labels[$key] : "";
+    if ($items[$index]["label"] === "") {
+      $missing = true;
+    }
+  }
+  if ($missing && function_exists("fetchMudrcLabels")) {
+    $remote = fetchMudrcLabels($uploadSecret);
+    if ($remote) {
+      $changed = false;
+      foreach ($items as $index => $item) {
+        $key = $item["key"];
+        if ($item["label"] === "" && isset($remote[$key]) && $remote[$key] !== "") {
+          $items[$index]["label"] = $remote[$key];
+          $labels[$key] = $remote[$key];
+          $changed = true;
+        }
+      }
+      if ($changed && function_exists("saveMediaLabels")) {
+        saveMediaLabels($labels);
+      }
+    }
+  }
 }
 $totalBytes = 0;
 foreach ($items as $item) {
@@ -171,6 +203,7 @@ header("Cache-Control: no-store");
     .top { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; margin-bottom: 18px; }
     table { width: 100%; border-collapse: collapse; font-size: 14px; }
     th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid #2c2c2c; vertical-align: middle; }
+    td.name { word-break: break-word; max-width: 280px; }
     th { color: #9a9a9a; font-size: 12px; font-weight: 600; }
     .kind { color: #9a9a9a; }
     audio, video { width: 180px; height: 32px; }
@@ -216,7 +249,7 @@ header("Cache-Control: no-store");
             $url = $publicBase . "/" . ($item["kind"] === "video" ? "video" : "audio") . "/" . rawurlencode($item["name"]);
             ?>
             <tr>
-              <td><?php echo htmlspecialchars($item["name"], ENT_QUOTES, "UTF-8"); ?></td>
+              <td class="name"><?php echo htmlspecialchars($item["label"] !== "" ? $item["label"] : $item["name"], ENT_QUOTES, "UTF-8"); ?></td>
               <td class="kind"><?php echo $item["kind"] === "video" ? "video" : "zvuk"; ?></td>
               <td><?php echo formatBytes($item["size"]); ?></td>
               <td><?php echo date("j.n.Y H:i", $item["time"]); ?></td>

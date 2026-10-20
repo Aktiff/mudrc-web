@@ -45,6 +45,8 @@ src/data/seat-plans.local.json
 src/data/used-question-tags.local.json
 .upload-parts/
 hosting/media.mudrc.sk/media-config.php
+hosting/media.mudrc.sk/labels.data.php
+hosting/media.mudrc.sk/labels.lock
 
 .vercel
 .env*

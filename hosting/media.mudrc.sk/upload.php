@@ -115,6 +115,12 @@ if (!move_uploaded_file((string) $file["tmp_name"], $dest)) {
   fail(500, "Súbor sa nepodarilo uložiť.");
 }
 
+$labelsLib = __DIR__ . "/labels.php";
+if (is_file($labelsLib)) {
+  require_once $labelsLib;
+  rememberMediaLabel($kind . "/" . $stored, (string) ($file["name"] ?? ""));
+}
+
 header("Content-Type: application/json; charset=utf-8");
 echo json_encode(
   ["url" => rtrim($publicBase, "/") . "/" . $kind . "/" . $stored],
