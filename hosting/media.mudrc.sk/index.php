@@ -8,18 +8,65 @@ $password = is_array($config) && isset($config["password"]) && $config["password
   : "mudrc2026";
 $publicBase = is_array($config) ? rtrim((string) ($config["public_base"] ?? "https://media.mudrc.sk"), "/") : "https://media.mudrc.sk";
 
-function cookieOptions(int $expires): array {
-  return [
-    "expires" => $expires,
-    "path" => "/",
-    "secure" => true,
-    "httponly" => true,
-    "samesite" => "Lax",
-  ];
+$uploadSecret = is_array($config) ? (string) ($config["secret"] ?? "") : "";
+
+function sessionToken(string $secret): string {
+  $key = $secret !== "" && strpos($secret, "SEM_DAJ") !== 0 ? $secret : "mudrc-media-session";
+  return hash_hmac("sha256", "media-admin-v1", $key);
+}
+
+function sendSessionCookie(string $value, int $expires): void {
+  $cookie = "admin_session=" . rawurlencode($value);
+  $cookie .= "; Expires=" . gmdate("D, d M Y H:i:s", $expires) . " GMT";
+  $cookie .= "; Path=/; Secure; HttpOnly; SameSite=Lax";
+  header("Set-Cookie: " . $cookie, false);
+}
+
+function mudrcPasswordStatus(string $given): string {
+  $body = json_encode(["password" => $given]);
+  $url = "https://www.mudrc.sk/api/admin/login";
+  if (function_exists("curl_init")) {
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, ["Content-Type: application/json", "Accept: application/json"]);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 20);
+    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
+    curl_exec($ch);
+    $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    if ($code === 200) {
+      return "ok";
+    }
+    if ($code === 401) {
+      return "bad";
+    }
+    return "down";
+  }
+
+  $context = stream_context_create([
+    "http" => [
+      "method" => "POST",
+      "header" => "Content-Type: application/json\r\nAccept: application/json\r\n",
+      "content" => $body,
+      "timeout" => 20,
+      "ignore_errors" => true,
+    ],
+  ]);
+  @file_get_contents($url, false, $context);
+  $statusLine = $http_response_header[0] ?? "";
+  if (strpos($statusLine, " 200 ") !== false) {
+    return "ok";
+  }
+  if (strpos($statusLine, " 401 ") !== false) {
+    return "bad";
+  }
+  return "down";
 }
 
 if (isset($_GET["logout"])) {
-  setcookie("admin_session", "", cookieOptions(time() - 3600));
+  sendSessionCookie("", time() - 3600);
   header("Location: /");
   exit;
 }
@@ -27,15 +74,17 @@ if (isset($_GET["logout"])) {
 $error = "";
 if (($_SERVER["REQUEST_METHOD"] ?? "") === "POST") {
   $given = (string) ($_POST["password"] ?? "");
-  if (hash_equals($password, $given)) {
-    setcookie("admin_session", $password, cookieOptions(time() + 60 * 60 * 24 * 7));
+  $status = mudrcPasswordStatus($given);
+  $ok = $status === "ok" || ($status === "down" && hash_equals($password, $given));
+  if ($ok) {
+    sendSessionCookie(sessionToken($uploadSecret), time() + 60 * 60 * 24 * 7);
     header("Location: /");
     exit;
   }
   $error = "Nesprávne heslo";
 }
 
-$loggedIn = isset($_COOKIE["admin_session"]) && hash_equals($password, (string) $_COOKIE["admin_session"]);
+$loggedIn = isset($_COOKIE["admin_session"]) && hash_equals(sessionToken($uploadSecret), (string) $_COOKIE["admin_session"]);
 
 function formatBytes(int $bytes): string {
   if ($bytes < 1024) {
