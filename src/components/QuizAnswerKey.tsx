@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
-import { X } from "lucide-react";
+import { useEffect, useState } from "react";
+import { ChevronDown, X } from "lucide-react";
 import { isQuestionSlotEmpty, type QuizQuestionItem } from "@/lib/quiz-library";
 import { findCorrectOptionIndex, optionLetter, parseEmbeddedOptions } from "@/lib/quiz-question-options";
 import { displayQuestionNumber, sortQuizQuestions } from "@/lib/quiz-template";
@@ -43,6 +43,7 @@ export default function QuizAnswerKey({
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
+  const [openRound, setOpenRound] = useState<number | null>(null);
   const rounds = new Map<number, QuizQuestionItem[]>();
   for (const question of sortQuizQuestions(questions)) {
     if (isQuestionSlotEmpty(question)) continue;
@@ -81,30 +82,46 @@ export default function QuizAnswerKey({
         {roundEntries.length === 0 ? (
           <p className="text-sm text-brand-muted px-4 py-8 text-center">V kvíze zatiaľ nie sú vyplnené otázky.</p>
         ) : (
-          <div className="grid sm:grid-cols-2 gap-x-6 gap-y-4 p-4">
-            {roundEntries.map(([round, list]) => (
-              <section key={round} className="min-w-0">
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-brand-muted mb-1">Kolo {round}</p>
-                <ul className="space-y-0.5">
-                  {list.map((question) => {
-                    const line = answerLine(question);
-                    return (
-                      <li key={question.id} className="flex items-baseline gap-2 text-sm leading-snug">
-                        <span className="w-5 shrink-0 text-right tabular-nums font-semibold text-brand-muted">
-                          {displayQuestionNumber(question)}
-                        </span>
-                        {line.letter ? (
-                          <span className="w-4 shrink-0 font-bold text-brand-orange-readable">{line.letter}</span>
-                        ) : null}
-                        <span className={`whitespace-pre-line ${line.text === "bez odpovede" ? "text-brand-muted" : "text-brand-text"}`}>
-                          {line.text}
-                        </span>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </section>
-            ))}
+          <div className="p-4 space-y-2">
+            {roundEntries.map(([round, list]) => {
+              const open = openRound === round;
+              return (
+                <section key={round} className="rounded-xl border border-brand-border overflow-hidden">
+                  <button
+                    type="button"
+                    className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-brand-surface/60"
+                    aria-expanded={open}
+                    onClick={() => setOpenRound(open ? null : round)}
+                  >
+                    <span className="font-semibold text-brand-text">Kolo {round}</span>
+                    <span className="flex items-center gap-2 text-xs text-brand-muted">
+                      {list.length} {list.length === 1 ? "otázka" : list.length < 5 ? "otázky" : "otázok"}
+                      <ChevronDown className={`w-4 h-4 transition-transform ${open ? "rotate-180" : ""}`} />
+                    </span>
+                  </button>
+                  {open ? (
+                    <ul className="space-y-0.5 px-4 pb-3 border-t border-brand-border pt-2">
+                      {list.map((question) => {
+                        const line = answerLine(question);
+                        return (
+                          <li key={question.id} className="flex items-baseline gap-2 text-sm leading-snug">
+                            <span className="w-5 shrink-0 text-right tabular-nums font-semibold text-brand-muted">
+                              {displayQuestionNumber(question)}
+                            </span>
+                            {line.letter ? (
+                              <span className="w-4 shrink-0 font-bold text-brand-orange-readable">{line.letter}</span>
+                            ) : null}
+                            <span className={`whitespace-pre-line ${line.text === "bez odpovede" ? "text-brand-muted" : "text-brand-text"}`}>
+                              {line.text}
+                            </span>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  ) : null}
+                </section>
+              );
+            })}
           </div>
         )}
       </div>
