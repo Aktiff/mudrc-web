@@ -462,7 +462,7 @@ export default function QuestionBankInventory({
                     <p className="text-[11px] text-brand-muted">{q.tags.join(" · ")}</p>
                   )}
                   <p className="text-xs text-brand-muted whitespace-pre-line">
-                    {q.isOrderQuestion
+                    {q.isOrderQuestion || q.isMatchQuestion
                       ? q.answer
                       : q.isOpenQuestion
                         ? `Odpoveď: ${q.answer}`

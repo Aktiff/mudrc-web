@@ -16,6 +16,10 @@ export type QuizBankQuestion = {
   isOpenQuestion?: boolean;
   /** Položky v správnom poradí. Do kvízu sa zamiešajú. */
   isOrderQuestion?: boolean;
+  /** Ľavá strana číslami, pravá písmenami. V banke sú dvojice zarovnané. */
+  isMatchQuestion?: boolean;
+  /** Pravá strana priraďovacej otázky, v rovnakom poradí ako options. */
+  matchRight?: string[];
 };
 
 /** Vygenerovaná banka je vypnutá. V banke ostávajú len otázky, ktoré pridáš ty. */
@@ -29,6 +33,18 @@ export function isImageQuestionSlot(questionNumber: number): boolean {
 }
 
 export function formatBankQuestionBody(item: QuizBankQuestion): string {
+  if (item.isMatchQuestion) {
+    const lines = item.options
+      .map((option, index) => {
+        const left = option.trim();
+        const right = item.matchRight?.[index]?.trim() ?? "";
+        if (!left && !right) return "";
+        return `${index + 1}. ${left}    ${String.fromCharCode(65 + index)}) ${right}`;
+      })
+      .filter(Boolean)
+      .join("\n");
+    return lines ? `${item.body}\n\n${lines}` : item.body;
+  }
   const letters = ["A", "B", "C", "D", "E", "F"] as const;
   const optionsBlock = item.options
     .map((option, index) => {
@@ -45,9 +61,11 @@ export function formatBankQuestionBody(item: QuizBankQuestion): string {
 export function formatBankQuestionClipboard(item: QuizBankQuestion): string {
   const letters = ["A", "B", "C", "D", "E", "F"] as const;
   const correctLetter = letters[item.correctIndex];
-  const answerLine = item.isOrderQuestion
-    ? `Správne poradie:\n${item.answer}`
-    : `Správna odpoveď: ${correctLetter}) ${item.answer}`;
+  const answerLine = item.isMatchQuestion
+    ? `Správne priradenie:\n${item.answer}`
+    : item.isOrderQuestion
+      ? `Správne poradie:\n${item.answer}`
+      : `Správna odpoveď: ${correctLetter}) ${item.answer}`;
   return [
     formatBankQuestionBody(item),
     "",

@@ -9,13 +9,15 @@ import { fetchBankThemes } from "@/lib/bank-themes-client";
 import { addCustomBankQuestionAsync, type CustomBankQuestion } from "@/lib/quiz-custom-bank";
 import TagSuggestInput from "@/components/TagSuggestInput";
 import { parseTagsInput } from "@/lib/quiz-question-tags";
-import { formatOrderAnswer } from "@/lib/quiz-question-options";
+import { formatMatchBankAnswer, formatOrderAnswer, validateMatchColumns } from "@/lib/quiz-question-options";
+import MatchPairFields from "@/components/MatchPairFields";
 import OrderItemFields from "@/components/OrderItemFields";
 
 const OPTION_LETTERS = ["A", "B", "C", "D", "E", "F"] as const;
 const EMPTY_ORDER = ["", "", "", ""];
+const EMPTY_MATCH = ["", "", ""];
 
-type QuestionMode = "choice" | "open" | "order";
+type QuestionMode = "choice" | "open" | "order" | "match";
 
 type Props = {
   onAdded?: (question: CustomBankQuestion) => void;
@@ -27,6 +29,8 @@ export default function CustomBankQuestionForm({ onAdded }: Props) {
   const [body, setBody] = useState("");
   const [options, setOptions] = useState(["", "", "", "", "", ""]);
   const [orderItems, setOrderItems] = useState(EMPTY_ORDER);
+  const [matchLeft, setMatchLeft] = useState(EMPTY_MATCH);
+  const [matchRight, setMatchRight] = useState(EMPTY_MATCH);
   const [openAnswer, setOpenAnswer] = useState("");
   const [correctIndex, setCorrectIndex] = useState(0);
   const [note, setNote] = useState("");
@@ -44,6 +48,8 @@ export default function CustomBankQuestionForm({ onAdded }: Props) {
     setBody("");
     setOptions(["", "", "", "", "", ""]);
     setOrderItems([...EMPTY_ORDER]);
+    setMatchLeft([...EMPTY_MATCH]);
+    setMatchRight([...EMPTY_MATCH]);
     setOpenAnswer("");
     setCorrectIndex(0);
     setNote("");
@@ -82,6 +88,12 @@ export default function CustomBankQuestionForm({ onAdded }: Props) {
     } else if (questionMode === "order") {
       if (filledOrder.length < 2) {
         setError("Zadaj aspoň dve položky v správnom poradí.");
+        return;
+      }
+    } else if (questionMode === "match") {
+      const checked = validateMatchColumns(matchLeft, matchRight);
+      if (checked.error) {
+        setError(checked.error);
         return;
       }
     } else {
@@ -126,6 +138,24 @@ export default function CustomBankQuestionForm({ onAdded }: Props) {
           isImageQuestion,
           isOpenQuestion: false,
           isOrderQuestion: true,
+          suggestedImageUrl: suggestedImageUrl.trim() || undefined,
+        });
+      } else if (questionMode === "match") {
+        const pairs = validateMatchColumns(matchLeft, matchRight).pairs;
+        created = await addCustomBankQuestionAsync({
+          body: trimmedBody,
+          options: pairs.map((pair) => pair.left),
+          matchRight: pairs.map((pair) => pair.right),
+          correctIndex: 0,
+          answer: formatMatchBankAnswer(pairs),
+          note: note.trim() || undefined,
+          tags: parseTagsInput(tagsText),
+          theme,
+          difficulty,
+          isImageQuestion,
+          isOpenQuestion: false,
+          isOrderQuestion: false,
+          isMatchQuestion: true,
           suggestedImageUrl: suggestedImageUrl.trim() || undefined,
         });
       } else {
@@ -211,6 +241,17 @@ export default function CustomBankQuestionForm({ onAdded }: Props) {
               >
                 Usporiadaj
               </button>
+              <button
+                type="button"
+                onClick={() => setQuestionMode("match")}
+                className={`text-sm font-semibold px-4 py-2 rounded-xl border transition-colors ${
+                  questionMode === "match"
+                    ? "bg-brand-orange text-brand-btn-fg border-brand-orange"
+                    : "border-brand-border text-brand-muted hover:border-brand-orange"
+                }`}
+              >
+                Priraď
+              </button>
             </div>
           </div>
 
@@ -228,6 +269,18 @@ export default function CustomBankQuestionForm({ onAdded }: Props) {
             <div>
               <label className="label">Položky v správnom poradí</label>
               <OrderItemFields items={orderItems} onChange={setOrderItems} />
+            </div>
+          ) : questionMode === "match" ? (
+            <div>
+              <label className="label">Dvojice v správnom priradení</label>
+              <MatchPairFields
+                left={matchLeft}
+                right={matchRight}
+                onChange={(left, right) => {
+                  setMatchLeft(left);
+                  setMatchRight(right);
+                }}
+              />
             </div>
           ) : questionMode === "choice" ? (
             <div>

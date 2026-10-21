@@ -3,7 +3,7 @@ import {
   migrateSlidesToQuestions,
   renumberQuizQuestionGroups,
 } from "@/lib/quiz-template";
-import { normalizeQuestionOptions, parseEmbeddedOptions } from "@/lib/quiz-question-options";
+import { normalizeMatchColumn, normalizeQuestionOptions, parseEmbeddedOptions } from "@/lib/quiz-question-options";
 import { normalizeTags } from "@/lib/quiz-question-tags";
 import { teamKey } from "@/lib/poll";
 import { DEFAULT_MUSIC_QUESTION_BODY, ensureMusicQuestionBody, isMusicBankId } from "@/lib/music-bank";
@@ -29,6 +29,9 @@ export type QuizQuestionItem = {
   optionsShuffledFromBank?: boolean;
   /** Položky na zoradenie. options je premiešané poradie na plátno, answer je správne poradie. */
   isOrderQuestion?: boolean;
+  /** Priraďovanie. options je ľavá strana (čísla), matchRight je pravá (písmená), answer je 1C, 2A, 3B. */
+  isMatchQuestion?: boolean;
+  matchRight?: string[];
   /** ID otázky z banky vloženej do tohto slotu */
   bankQuestionId?: string;
   imageUrl?: string;
@@ -108,15 +111,16 @@ function normalizeQuestion(input: Partial<QuizQuestionItem>): QuizQuestionItem |
     return null;
   }
 
+  const isMatchQuestion = input.isMatchQuestion === true;
   let body = ensureMusicQuestionBody(
     input.kind === "music" || isMusicBankId(typeof input.bankQuestionId === "string" ? input.bankQuestionId : "")
       ? "music"
       : "",
     input.body?.trim() ?? ""
   );
-  let options = normalizeQuestionOptions(input.options);
+  let options = isMatchQuestion ? normalizeMatchColumn(input.options) : normalizeQuestionOptions(input.options);
 
-  if (!options?.length && body) {
+  if (!isMatchQuestion && !options?.length && body) {
     const parsed = parseEmbeddedOptions(body);
     if (parsed.options.length) {
       body = parsed.questionText;
@@ -143,7 +147,9 @@ function normalizeQuestion(input: Partial<QuizQuestionItem>): QuizQuestionItem |
     options,
     optionsShuffledFromBank:
       input.optionsShuffledFromBank === true ? true : undefined,
-    isOrderQuestion: input.isOrderQuestion === true ? true : undefined,
+    isOrderQuestion: input.isOrderQuestion === true && !isMatchQuestion ? true : undefined,
+    isMatchQuestion: isMatchQuestion ? true : undefined,
+    matchRight: isMatchQuestion ? normalizeMatchColumn(input.matchRight) : undefined,
     bankQuestionId: input.bankQuestionId?.trim() || undefined,
     imageUrl: input.imageUrl?.trim() || undefined,
     audioUrl: input.audioUrl?.trim() || undefined,

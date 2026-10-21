@@ -28,7 +28,7 @@ import {
   shouldShowImageInQuestionPhase,
   type PresentationSlide,
 } from "@/lib/quiz-presentation";
-import { findCorrectOptionIndex, getQuestionBodyText, getQuestionOptions, optionLetter } from "@/lib/quiz-question-options";
+import { findCorrectOptionIndex, getQuestionBodyText, getQuestionOptions, matchLetter, optionLetter } from "@/lib/quiz-question-options";
 import {
   findHomeQuizEvent,
   formatNextQuizLine,
@@ -199,6 +199,9 @@ function questionTextStyle(
 const OPTION_LETTER_STYLE = { fontSize: "clamp(3.5rem, 7.5vmin, 8.5rem)" } as const;
 const OPTION_TEXT_STYLE = { fontSize: "clamp(3rem, 6.5vmin, 7.5rem)", lineHeight: 1.45 } as const;
 const ANSWER_TEXT_STYLE = { fontSize: "clamp(3.25rem, 7vmin, 8.5rem)", lineHeight: 1.45 } as const;
+const MATCH_MARK_STYLE = { fontSize: "clamp(1.35rem, 3.2vmin, 2.8rem)" } as const;
+const MATCH_TEXT_STYLE = { fontSize: "clamp(1.15rem, 2.6vmin, 2.2rem)", lineHeight: 1.3 } as const;
+const MATCH_ANSWER_STYLE = { fontSize: "clamp(1.2rem, 3vmin, 2.4rem)", lineHeight: 1.35 } as const;
 
 const QUESTION_TEXT_CLASS =
   "relative z-[1] font-sans font-semibold text-white text-center tracking-normal whitespace-pre-wrap [text-wrap:pretty] drop-shadow-[0_4px_24px_rgba(0,0,0,0.85)] w-full max-w-full px-1 sm:px-2 py-[0.1em] shrink-0 normal-case overflow-visible";
@@ -289,6 +292,48 @@ function OptionsGrid({
   );
 }
 
+function MatchColumns({
+  left,
+  right,
+  compact = false,
+}: {
+  left: string[];
+  right: string[];
+  compact?: boolean;
+}) {
+  const card = `flex items-center gap-3 sm:gap-4 w-full rounded-2xl border-[3px] border-white/20 bg-white/[0.06] text-white shadow-[0_12px_48px_rgba(0,0,0,0.45)] ${
+    compact ? "px-4 py-3" : "px-5 sm:px-6 py-3 sm:py-4"
+  }`;
+  return (
+    <div className={`grid grid-cols-2 w-full max-w-full ${compact ? "gap-3" : "gap-4 sm:gap-5"}`}>
+      <div className="flex flex-col gap-2.5 min-w-0">
+        {left.map((item, index) => (
+          <div key={`left-${index}`} className={card}>
+            <span className="font-display leading-none shrink-0 text-[#f0c800] w-10 sm:w-12" style={MATCH_MARK_STYLE}>
+              {index + 1}
+            </span>
+            <p className="flex-1 min-w-0 font-sans font-semibold normal-case text-left break-words" style={MATCH_TEXT_STYLE}>
+              {fixSlovakLineBreaks(item)}
+            </p>
+          </div>
+        ))}
+      </div>
+      <div className="flex flex-col gap-2.5 min-w-0">
+        {right.map((item, index) => (
+          <div key={`right-${index}`} className={card}>
+            <span className="font-display leading-none shrink-0 text-[#f0c800] w-10 sm:w-12" style={MATCH_MARK_STYLE}>
+              {matchLetter(index)}
+            </span>
+            <p className="flex-1 min-w-0 font-sans font-semibold normal-case text-left break-words" style={MATCH_TEXT_STYLE}>
+              {fixSlovakLineBreaks(item)}
+            </p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function QuestionContent({
   question,
   phase,
@@ -303,7 +348,7 @@ function QuestionContent({
   const questionText = fixSlovakLineBreaks(getQuestionBodyText(question) || "Otázka");
   const options = getQuestionOptions(question);
   const correctOptionIndex =
-    question.isOrderQuestion
+    question.isOrderQuestion || question.isMatchQuestion
       ? -1
       : phase === "answer"
         ? findCorrectOptionIndex(options, question.answer)
@@ -364,17 +409,24 @@ function QuestionContent({
 
   const footerBlock = (
     <div className="shrink-0 w-full flex flex-col gap-4 sm:gap-5">
-      {options.length > 0 && (
+      {question.isMatchQuestion ? (
+        <MatchColumns left={options} right={question.matchRight ?? []} compact={imageWithOptions} />
+      ) : options.length > 0 ? (
         <OptionsGrid
           options={options}
           highlightCorrectIndex={correctOptionIndex}
           compact={imageWithOptions}
         />
-      )}
+      ) : null}
 
       {phase === "answer" && options.length > 0 && correctOptionIndex < 0 && question.answer.trim() && (
         <div className={answerBoxClass}>
-          <p className="font-sans font-bold tracking-normal break-words normal-case whitespace-pre-line" style={ANSWER_TEXT_STYLE}>
+          <p
+            className={`font-sans font-bold tracking-normal break-words normal-case whitespace-pre-line ${
+              question.isMatchQuestion ? "text-left" : ""
+            }`}
+            style={question.isMatchQuestion ? MATCH_ANSWER_STYLE : ANSWER_TEXT_STYLE}
+          >
             {fixSlovakLineBreaks(question.answer)}
           </p>
         </div>

@@ -15,7 +15,19 @@ import {
 } from "@/lib/quiz-library";
 import { inferBankTheme } from "@/lib/bank-themes";
 import { findBankQuestionById, findRawBankQuestionById } from "@/lib/quiz-question-bank";
-import { formatOrderAnswer, orderItemsFromAnswer, ORDER_OPTION_MAX, shuffleOrderItems, shuffleQuestionOptionsForBankInsert } from "@/lib/quiz-question-options";
+import {
+  applyMatchColumnEdit,
+  formatMatchBankAnswer,
+  formatOrderAnswer,
+  matchLetter,
+  matchPairsFromQuiz,
+  moveMatchColumn,
+  orderItemsFromAnswer,
+  ORDER_OPTION_MAX,
+  shuffleMatchPairs,
+  shuffleOrderItems,
+  shuffleQuestionOptionsForBankInsert,
+} from "@/lib/quiz-question-options";
 import {
   addCustomBankQuestionAsync,
   fetchCustomBankQuestionsFromServer,
@@ -465,11 +477,21 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
     let finalOptions = options;
     let optionsShuffledFromBank = false;
     let isOrderQuestion = false;
+    let isMatchQuestion = false;
+    let finalRight: string[] | undefined;
 
     const rawBank = findRawBankQuestionById(bankId, customBankQuestions);
     const sourceOptions = rawBank?.options?.length ? [...rawBank.options] : options;
     const hasChoices = sourceOptions.some((o) => o.trim());
-    if (rawBank?.isOrderQuestion) {
+    if (rawBank?.isMatchQuestion) {
+      const mixed = shuffleMatchPairs(rawBank.options ?? [], rawBank.matchRight ?? []);
+      finalBody = rawBank.body;
+      finalAnswer = mixed.answer;
+      finalOptions = mixed.left;
+      finalRight = mixed.right;
+      optionsShuffledFromBank = mixed.left.length >= 2;
+      isMatchQuestion = true;
+    } else if (rawBank?.isOrderQuestion) {
       const ordered = sourceOptions.map((option) => option.trim()).filter(Boolean);
       finalBody = rawBank.body;
       finalAnswer = rawBank.answer.trim() || formatOrderAnswer(ordered);
@@ -511,6 +533,8 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
                 options: finalOptions.length ? finalOptions : undefined,
                 optionsShuffledFromBank: optionsShuffledFromBank || undefined,
                 isOrderQuestion: isOrderQuestion || undefined,
+                isMatchQuestion: isMatchQuestion || undefined,
+                matchRight: finalRight,
                 bankQuestionId: bankId,
                 tags: tags.length ? tags : undefined,
                 hostNote: hostNote?.trim() || undefined,
@@ -773,6 +797,8 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
                     options: undefined,
                     optionsShuffledFromBank: undefined,
                     isOrderQuestion: undefined,
+                    isMatchQuestion: undefined,
+                    matchRight: undefined,
                     bankQuestionId: undefined,
                     tags: undefined,
                     hostNote: undefined,
@@ -837,6 +863,29 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
       question.body.trim() &&
       question.answer.trim()
         ? (() => {
+            if (question.isMatchQuestion) {
+              const pairs = matchPairsFromQuiz(question.options ?? [], question.matchRight ?? [], question.answer);
+              return {
+                body: question.body.trim(),
+                options: pairs.map((pair) => pair.left),
+                matchRight: pairs.map((pair) => pair.right),
+                correctIndex: 0,
+                answer: formatMatchBankAnswer(pairs),
+                note: question.hostNote?.trim() || undefined,
+                tags: question.tags,
+                isOpenQuestion: false,
+                isOrderQuestion: false,
+                isMatchQuestion: true,
+                isImageQuestion: Boolean(question.imageUrl?.trim() || question.imageDuringQuestion),
+                suggestedImageUrl: question.imageUrl?.trim() || undefined,
+                theme: inferBankTheme({
+                  tags: question.tags,
+                  body: question.body,
+                  note: question.hostNote,
+                  hint: quizRef.current?.title,
+                }),
+              };
+            }
             const ordered = question.isOrderQuestion ? orderItemsFromAnswer(question.answer) : [];
             const options = ordered.length >= 2 ? ordered : [...(question.options ?? [])];
             while (!question.isOrderQuestion && options.length < 6) options.push("");
@@ -855,6 +904,7 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
               tags: question.tags,
               isOpenQuestion: question.isOrderQuestion ? false : !hasChoices,
               isOrderQuestion: question.isOrderQuestion === true,
+              isMatchQuestion: false,
               isImageQuestion: Boolean(question.imageUrl?.trim() || question.imageDuringQuestion),
               suggestedImageUrl: question.imageUrl?.trim() || undefined,
               theme: inferBankTheme({
@@ -993,6 +1043,11 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
       return;
     }
 
+    if (question.isMatchQuestion && matchPairsFromQuiz(question.options ?? [], question.matchRight ?? [], question.answer).length < 2) {
+      setMsg({ text: "Priraďovacia otázka potrebuje aspoň dve dvojice.", ok: false });
+      return;
+    }
+
     if (
       !window.confirm(
         "Prehodiť otázku do banky? Z tohto kvízu zmizne a ostane len v banke."
@@ -1001,9 +1056,16 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
       return;
     }
 
-    const ordered = question.isOrderQuestion ? orderItemsFromAnswer(question.answer) : [];
-    const options = ordered.length >= 2 ? ordered : [...(question.options ?? [])];
-    while (!question.isOrderQuestion && options.length < 6) options.push("");
+    const matchPairs = question.isMatchQuestion
+      ? matchPairsFromQuiz(question.options ?? [], question.matchRight ?? [], question.answer)
+      : [];
+    const ordered = !question.isMatchQuestion && question.isOrderQuestion ? orderItemsFromAnswer(question.answer) : [];
+    const options = question.isMatchQuestion
+      ? matchPairs.map((pair) => pair.left)
+      : ordered.length >= 2
+        ? ordered
+        : [...(question.options ?? [])];
+    while (!question.isMatchQuestion && !question.isOrderQuestion && options.length < 6) options.push("");
     const hasChoices = options.some((option) => option.trim());
     const matched = hasChoices ? options.findIndex((option) => option.trim() === question.answer.trim()) : -1;
     const bodyKey = quizQuestionBodyKey(question.body);
@@ -1012,11 +1074,18 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
     );
     const input = {
       body: question.body.trim(),
-      options: question.isOrderQuestion ? options.filter((option) => option.trim()) : options.slice(0, 6),
-      correctIndex: question.isOrderQuestion ? 0 : matched >= 0 ? matched : 0,
-      answer: question.isOrderQuestion
-        ? question.answer.trim() || formatOrderAnswer(options)
-        : question.answer.trim(),
+      options: question.isMatchQuestion
+        ? matchPairs.map((pair) => pair.left)
+        : question.isOrderQuestion
+          ? options.filter((option) => option.trim())
+          : options.slice(0, 6),
+      matchRight: question.isMatchQuestion ? matchPairs.map((pair) => pair.right) : undefined,
+      correctIndex: question.isMatchQuestion || question.isOrderQuestion ? 0 : matched >= 0 ? matched : 0,
+      answer: question.isMatchQuestion
+        ? formatMatchBankAnswer(matchPairs)
+        : question.isOrderQuestion
+          ? question.answer.trim() || formatOrderAnswer(options)
+          : question.answer.trim(),
       note: question.hostNote?.trim() || undefined,
       tags: question.tags,
       theme:
@@ -1027,8 +1096,9 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
           note: question.hostNote,
           hint: quiz?.title,
         }),
-      isOpenQuestion: question.isOrderQuestion ? false : matched < 0,
-      isOrderQuestion: question.isOrderQuestion === true,
+      isOpenQuestion: question.isMatchQuestion || question.isOrderQuestion ? false : matched < 0,
+      isOrderQuestion: question.isOrderQuestion === true && question.isMatchQuestion !== true,
+      isMatchQuestion: question.isMatchQuestion === true,
       isImageQuestion: Boolean(question.imageUrl?.trim() || question.imageDuringQuestion),
       suggestedImageUrl: question.imageUrl?.trim() || undefined,
     };
@@ -1605,8 +1675,16 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
               />
             </div>
             <div>
-              <label className="label">{question.isOrderQuestion ? "Správne poradie" : "Správna odpoveď"}</label>
-              {question.isOrderQuestion ? (
+              <label className="label">
+                {question.isMatchQuestion ? "Správne priradenie" : question.isOrderQuestion ? "Správne poradie" : "Správna odpoveď"}
+              </label>
+              {question.isMatchQuestion ? (
+                <textarea
+                  readOnly
+                  className="input min-h-[96px] resize-y whitespace-pre-line"
+                  value={question.answer}
+                />
+              ) : question.isOrderQuestion ? (
                 <textarea
                   className="input min-h-[96px] resize-y"
                   value={question.answer}
@@ -1655,7 +1733,135 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
                 )}
               </div>
             )}
-            {(question.kind === "normal" || question.kind === "video") && (
+            {(question.kind === "normal" || question.kind === "video") && question.isMatchQuestion ? (
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <label className="label">Ľavá strana (čísla)</label>
+                  <p className="text-brand-muted text-xs">Toto ide na plátno. Posun prepočíta odpoveď.</p>
+                  {(question.options ?? []).map((option, optionIndex) => (
+                    <div key={`left-${optionIndex}`} className="flex items-center gap-2">
+                      <span className="text-xs font-mono font-bold text-brand-muted w-6 shrink-0">{optionIndex + 1}.</span>
+                      <input
+                        className="input flex-1 min-w-0"
+                        value={option}
+                        onChange={(event) => {
+                          const next = applyMatchColumnEdit({
+                            left: question.options ?? [],
+                            right: question.matchRight ?? [],
+                            answer: question.answer,
+                            side: "left",
+                            index: optionIndex,
+                            value: event.target.value,
+                          });
+                          updateQuestion(question.id, { options: next.left, matchRight: next.right, answer: next.answer });
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const next = moveMatchColumn({
+                            left: question.options ?? [],
+                            right: question.matchRight ?? [],
+                            answer: question.answer,
+                            side: "left",
+                            index: optionIndex,
+                            direction: -1,
+                          });
+                          if (next) updateQuestion(question.id, { options: next.left, matchRight: next.right, answer: next.answer });
+                        }}
+                        disabled={optionIndex === 0}
+                        className="p-2 rounded-lg border border-brand-border text-brand-muted disabled:opacity-30 shrink-0"
+                        title="Vyššie"
+                      >
+                        <ChevronUp className="w-4 h-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const next = moveMatchColumn({
+                            left: question.options ?? [],
+                            right: question.matchRight ?? [],
+                            answer: question.answer,
+                            side: "left",
+                            index: optionIndex,
+                            direction: 1,
+                          });
+                          if (next) updateQuestion(question.id, { options: next.left, matchRight: next.right, answer: next.answer });
+                        }}
+                        disabled={optionIndex === (question.options?.length ?? 0) - 1}
+                        className="p-2 rounded-lg border border-brand-border text-brand-muted disabled:opacity-30 shrink-0"
+                        title="Nižšie"
+                      >
+                        <ChevronDown className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <div className="space-y-2">
+                  <label className="label">Pravá strana (písmená)</label>
+                  <p className="text-brand-muted text-xs">Písmená idú na plátno vedľa čísel.</p>
+                  {(question.matchRight ?? []).map((option, optionIndex) => (
+                    <div key={`right-${optionIndex}`} className="flex items-center gap-2">
+                      <span className="text-xs font-mono font-bold text-brand-muted w-6 shrink-0">{matchLetter(optionIndex)}</span>
+                      <input
+                        className="input flex-1 min-w-0"
+                        value={option}
+                        onChange={(event) => {
+                          const next = applyMatchColumnEdit({
+                            left: question.options ?? [],
+                            right: question.matchRight ?? [],
+                            answer: question.answer,
+                            side: "right",
+                            index: optionIndex,
+                            value: event.target.value,
+                          });
+                          updateQuestion(question.id, { options: next.left, matchRight: next.right, answer: next.answer });
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const next = moveMatchColumn({
+                            left: question.options ?? [],
+                            right: question.matchRight ?? [],
+                            answer: question.answer,
+                            side: "right",
+                            index: optionIndex,
+                            direction: -1,
+                          });
+                          if (next) updateQuestion(question.id, { options: next.left, matchRight: next.right, answer: next.answer });
+                        }}
+                        disabled={optionIndex === 0}
+                        className="p-2 rounded-lg border border-brand-border text-brand-muted disabled:opacity-30 shrink-0"
+                        title="Vyššie"
+                      >
+                        <ChevronUp className="w-4 h-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const next = moveMatchColumn({
+                            left: question.options ?? [],
+                            right: question.matchRight ?? [],
+                            answer: question.answer,
+                            side: "right",
+                            index: optionIndex,
+                            direction: 1,
+                          });
+                          if (next) updateQuestion(question.id, { options: next.left, matchRight: next.right, answer: next.answer });
+                        }}
+                        disabled={optionIndex === (question.matchRight?.length ?? 0) - 1}
+                        className="p-2 rounded-lg border border-brand-border text-brand-muted disabled:opacity-30 shrink-0"
+                        title="Nižšie"
+                      >
+                        <ChevronDown className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            {(question.kind === "normal" || question.kind === "video") && !question.isMatchQuestion && (
               <div className="space-y-2">
                 <div className="flex items-center justify-between gap-2">
                   <label className="label mb-0">

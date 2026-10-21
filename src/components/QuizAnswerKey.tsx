@@ -14,7 +14,7 @@ function choicesOf(question: QuizQuestionItem): string[] {
 
 function answerLine(question: QuizQuestionItem): { letter: string; text: string } {
   const answer = question.answer.trim();
-  if (question.isOrderQuestion) return { letter: "", text: answer || "bez odpovede" };
+  if (question.isOrderQuestion || question.isMatchQuestion) return { letter: "", text: answer || "bez odpovede" };
   const choices = choicesOf(question);
   if (choices.length && answer) {
     const index = findCorrectOptionIndex(choices, answer);

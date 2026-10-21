@@ -138,6 +138,193 @@ export function shuffleQuestionOptionsRandom<T extends { options: string[]; corr
 }
 
 export const ORDER_OPTION_MAX = 10;
+export const MATCH_PAIR_MAX = 6;
+const MATCH_LETTERS = ["A", "B", "C", "D", "E", "F"] as const;
+
+export type MatchPair = { left: string; right: string };
+
+export function matchLetter(index: number): string {
+  return MATCH_LETTERS[index] ?? String(index + 1);
+}
+
+export function normalizeMatchColumn(raw: unknown): string[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const items = raw
+    .slice(0, MATCH_PAIR_MAX)
+    .map((value) => (typeof value === "string" ? value.trim() : ""));
+  return items.some(Boolean) ? items : undefined;
+}
+
+export function validateMatchColumns(left: string[], right: string[]): { pairs: MatchPair[]; error: string } {
+  const count = Math.min(MATCH_PAIR_MAX, Math.max(left.length, right.length));
+  const pairs: MatchPair[] = [];
+  for (let index = 0; index < count; index += 1) {
+    const leftText = left[index]?.trim() ?? "";
+    const rightText = right[index]?.trim() ?? "";
+    if (!leftText && !rightText) continue;
+    if (!leftText || !rightText) return { pairs: [], error: "Každá dvojica musí mať obe strany." };
+    pairs.push({ left: leftText, right: rightText });
+  }
+  if (pairs.length < 2) return { pairs: [], error: "Zadaj aspoň dve dvojice." };
+  return { pairs, error: "" };
+}
+
+export function matchPairsFromColumns(left: string[], right: string[]): MatchPair[] {
+  return validateMatchColumns(left, right).pairs;
+}
+
+export function formatMatchBankAnswer(pairs: MatchPair[]): string {
+  return pairs.map((pair, index) => `${index + 1}. ${pair.left} → ${pair.right}`).join("\n");
+}
+
+export function matchPairsFromBankAnswer(answer: string): MatchPair[] {
+  const pairs: MatchPair[] = [];
+  for (const line of answer.split(/\n+/)) {
+    const match = line.trim().match(/^\d+\.\s*(.+?)\s+→\s+(.+)$/);
+    if (!match) continue;
+    const left = match[1]?.trim() ?? "";
+    const right = match[2]?.trim() ?? "";
+    if (left && right) pairs.push({ left, right });
+    if (pairs.length >= MATCH_PAIR_MAX) break;
+  }
+  return pairs;
+}
+
+export function letterIndexesFromMatchAnswer(answer: string, count: number): number[] {
+  const letters = Array.from({ length: count }, (_, index) => index);
+  for (const line of answer.split(/\n+/)) {
+    const match = line.trim().match(/^(\d+)\s*([A-F])\b/i);
+    if (!match) continue;
+    const numberIndex = Number(match[1]) - 1;
+    const letterIndex = match[2].toUpperCase().charCodeAt(0) - 65;
+    if (numberIndex >= 0 && numberIndex < count && letterIndex >= 0 && letterIndex < count) {
+      letters[numberIndex] = letterIndex;
+    }
+  }
+  return letters;
+}
+
+export function formatMatchQuizAnswer(left: string[], right: string[], letterByNumber: number[]): string {
+  return left
+    .map((item, index) => {
+      const letterIndex = letterByNumber[index] ?? 0;
+      const leftText = item.trim();
+      const rightText = right[letterIndex]?.trim() ?? "";
+      if (!leftText && !rightText) return "";
+      return `${index + 1}${matchLetter(letterIndex)}  ${leftText} — ${rightText}`;
+    })
+    .filter(Boolean)
+    .join("\n");
+}
+
+function shuffleIndexes(count: number): number[] {
+  const indexes = Array.from({ length: count }, (_, index) => index);
+  for (let index = count - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    const current = indexes[index] ?? index;
+    indexes[index] = indexes[swapIndex] ?? swapIndex;
+    indexes[swapIndex] = current;
+  }
+  return indexes;
+}
+
+/** Banka má dvojice zarovnané. Do kvízu sa obe strany zamiešajú a odpoveď je 1C, 2A, 3B. */
+export function shuffleMatchPairs(left: string[], right: string[]): { left: string[]; right: string[]; answer: string } {
+  const pairs = matchPairsFromColumns(left, right);
+  const count = pairs.length;
+  if (count < 2) {
+    const shownLeft = pairs.map((pair) => pair.left);
+    const shownRight = pairs.map((pair) => pair.right);
+    return {
+      left: shownLeft,
+      right: shownRight,
+      answer: formatMatchQuizAnswer(shownLeft, shownRight, shownLeft.map((_, index) => index)),
+    };
+  }
+
+  let leftOrder = pairs.map((_, index) => index);
+  let rightOrder = pairs.map((_, index) => index);
+  const stillPaired = () => leftOrder.every((pairIndex, display) => rightOrder[display] === pairIndex);
+  for (let attempt = 0; attempt < 8 && stillPaired(); attempt += 1) {
+    leftOrder = shuffleIndexes(count);
+    rightOrder = shuffleIndexes(count);
+  }
+  if (stillPaired()) {
+    const last = count - 1;
+    const saved = rightOrder[last] ?? last;
+    rightOrder[last] = rightOrder[last - 1] ?? last - 1;
+    rightOrder[last - 1] = saved;
+  }
+
+  const shownLeft = leftOrder.map((index) => pairs[index]?.left ?? "");
+  const shownRight = rightOrder.map((index) => pairs[index]?.right ?? "");
+  const letterByNumber = leftOrder.map((pairIndex) => Math.max(0, rightOrder.indexOf(pairIndex)));
+  return {
+    left: shownLeft,
+    right: shownRight,
+    answer: formatMatchQuizAnswer(shownLeft, shownRight, letterByNumber),
+  };
+}
+
+export function matchPairsFromQuiz(left: string[], right: string[], answer: string): MatchPair[] {
+  const letters = letterIndexesFromMatchAnswer(answer, left.length);
+  const pairs: MatchPair[] = [];
+  for (let index = 0; index < left.length && pairs.length < MATCH_PAIR_MAX; index += 1) {
+    const leftText = left[index]?.trim() ?? "";
+    const rightText = right[letters[index] ?? index]?.trim() ?? "";
+    if (leftText && rightText) pairs.push({ left: leftText, right: rightText });
+  }
+  return pairs.length >= 2 ? pairs : matchPairsFromColumns(left, right);
+}
+
+export function applyMatchColumnEdit(input: {
+  left: string[];
+  right: string[];
+  answer: string;
+  side: "left" | "right";
+  index: number;
+  value: string;
+}): { left: string[]; right: string[]; answer: string } {
+  const left = [...input.left];
+  const right = [...input.right];
+  if (input.side === "left") left[input.index] = input.value;
+  else right[input.index] = input.value;
+  const letters = letterIndexesFromMatchAnswer(input.answer, left.length);
+  return { left, right, answer: formatMatchQuizAnswer(left, right, letters) };
+}
+
+export function moveMatchColumn(input: {
+  left: string[];
+  right: string[];
+  answer: string;
+  side: "left" | "right";
+  index: number;
+  direction: -1 | 1;
+}): { left: string[]; right: string[]; answer: string } | null {
+  const target = input.index + input.direction;
+  const left = [...input.left];
+  const right = [...input.right];
+  const count = input.side === "left" ? left.length : right.length;
+  if (target < 0 || target >= count) return null;
+  const letters = letterIndexesFromMatchAnswer(input.answer, left.length);
+  if (input.side === "left") {
+    const item = left[input.index] ?? "";
+    left[input.index] = left[target] ?? "";
+    left[target] = item;
+    const letter = letters[input.index] ?? input.index;
+    letters[input.index] = letters[target] ?? target;
+    letters[target] = letter;
+  } else {
+    const item = right[input.index] ?? "";
+    right[input.index] = right[target] ?? "";
+    right[target] = item;
+    for (let index = 0; index < letters.length; index += 1) {
+      if (letters[index] === input.index) letters[index] = target;
+      else if (letters[index] === target) letters[index] = input.index;
+    }
+  }
+  return { left, right, answer: formatMatchQuizAnswer(left, right, letters) };
+}
 
 export function formatOrderAnswer(items: string[]): string {
   return items

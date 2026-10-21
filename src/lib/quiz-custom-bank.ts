@@ -1,7 +1,14 @@
 import { inferBankTheme, normalizeBankThemeName } from "@/lib/bank-themes";
 import type { QuizBankQuestion } from "@/lib/quiz-question-bank";
 import { refreshStoredCustomQuestionTags, resolveCustomQuestionTags } from "@/lib/quiz-bank-tag-inference";
-import { formatOrderAnswer, ORDER_OPTION_MAX } from "@/lib/quiz-question-options";
+import {
+  formatMatchBankAnswer,
+  formatOrderAnswer,
+  MATCH_PAIR_MAX,
+  matchPairsFromBankAnswer,
+  matchPairsFromColumns,
+  ORDER_OPTION_MAX,
+} from "@/lib/quiz-question-options";
 import { quizQuestionBodyKey } from "@/lib/quiz-library";
 
 export const CUSTOM_BANK_STORAGE_KEY = "mudrc-custom-bank-questions";
@@ -95,29 +102,45 @@ export function normalizeStoredCustomQuestion(raw: unknown): CustomBankQuestion 
   const row = raw as Record<string, unknown>;
   if (typeof row.id !== "string" || !isCustomBankQuestionId(row.id)) return null;
   if (typeof row.body !== "string" || !row.body.trim()) return null;
-  const isOpenQuestion = Boolean(row.isOpenQuestion) && !row.isOrderQuestion;
-  const isOrderQuestion = Boolean(row.isOrderQuestion);
+  const isMatchQuestion = Boolean(row.isMatchQuestion);
+  const isOrderQuestion = Boolean(row.isOrderQuestion) && !isMatchQuestion;
+  const isOpenQuestion = Boolean(row.isOpenQuestion) && !isOrderQuestion && !isMatchQuestion;
   const optionsRaw = Array.isArray(row.options) ? row.options : [];
-  const optionLimit = isOrderQuestion ? ORDER_OPTION_MAX : 6;
+  const optionLimit = isMatchQuestion ? MATCH_PAIR_MAX : isOrderQuestion ? ORDER_OPTION_MAX : 6;
   const options = optionsRaw
     .map((o) => (typeof o === "string" ? o : ""))
     .slice(0, optionLimit);
-  if (!isOrderQuestion) {
+  let matchRight: string[] | undefined;
+  if (isMatchQuestion) {
+    const rightRaw = Array.isArray(row.matchRight) ? row.matchRight : [];
+    let pairs = matchPairsFromColumns(
+      options,
+      rightRaw.map((item) => (typeof item === "string" ? item : ""))
+    );
+    if (pairs.length < 2 && typeof row.answer === "string") {
+      pairs = matchPairsFromBankAnswer(row.answer);
+    }
+    if (pairs.length < 2) return null;
+    options.splice(0, options.length, ...pairs.map((pair) => pair.left));
+    matchRight = pairs.map((pair) => pair.right);
+  } else if (!isOrderQuestion) {
     while (options.length < 6) options.push("");
   } else {
     const filled = options.map((option) => option.trim()).filter(Boolean);
     options.splice(0, options.length, ...filled);
   }
   const correctIndex = typeof row.correctIndex === "number" ? row.correctIndex : 0;
-  const answer = isOrderQuestion
-    ? (typeof row.answer === "string" && row.answer.trim()
+  const answer = isMatchQuestion
+    ? formatMatchBankAnswer(matchPairsFromColumns(options, matchRight ?? []))
+    : isOrderQuestion
+      ? (typeof row.answer === "string" && row.answer.trim()
+          ? row.answer.trim()
+          : formatOrderAnswer(options))
+      : typeof row.answer === "string" && row.answer.trim()
         ? row.answer.trim()
-        : formatOrderAnswer(options))
-    : typeof row.answer === "string" && row.answer.trim()
-      ? row.answer.trim()
-      : isOpenQuestion
-        ? ""
-        : options[correctIndex]?.trim() ?? "";
+        : isOpenQuestion
+          ? ""
+          : options[correctIndex]?.trim() ?? "";
   if (!answer) return null;
   if (isOrderQuestion && options.filter((option) => option.trim()).length < 2) return null;
 
@@ -138,6 +161,8 @@ export function normalizeStoredCustomQuestion(raw: unknown): CustomBankQuestion 
     isImageQuestion: Boolean(row.isImageQuestion),
     isOpenQuestion,
     isOrderQuestion,
+    isMatchQuestion,
+    matchRight,
     suggestedImageUrl:
       typeof row.suggestedImageUrl === "string" && row.suggestedImageUrl.trim()
         ? row.suggestedImageUrl.trim()
@@ -168,6 +193,8 @@ export type NewCustomBankQuestionInput = {
   isImageQuestion?: boolean;
   isOpenQuestion?: boolean;
   isOrderQuestion?: boolean;
+  isMatchQuestion?: boolean;
+  matchRight?: string[];
   suggestedImageUrl?: string;
   theme?: string;
 };
@@ -205,22 +232,33 @@ export function applyCustomBankQuestionUpdate(
 }
 
 export function createCustomBankQuestion(input: NewCustomBankQuestionInput): CustomBankQuestion {
-  const isOrderQuestion = Boolean(input.isOrderQuestion);
-  const isOpenQuestion = Boolean(input.isOpenQuestion) && !isOrderQuestion;
-  const options = [...input.options]
-    .map((option) => option.trim())
-    .slice(0, isOrderQuestion ? ORDER_OPTION_MAX : 6);
-  if (isOrderQuestion) {
+  const isMatchQuestion = Boolean(input.isMatchQuestion);
+  const isOrderQuestion = Boolean(input.isOrderQuestion) && !isMatchQuestion;
+  const isOpenQuestion = Boolean(input.isOpenQuestion) && !isOrderQuestion && !isMatchQuestion;
+  const columnPairs = isMatchQuestion ? matchPairsFromColumns(input.options, input.matchRight ?? []) : [];
+  const matchPairs = isMatchQuestion
+    ? columnPairs.length >= 2
+      ? columnPairs
+      : matchPairsFromBankAnswer(input.answer ?? "")
+    : [];
+  const options = isMatchQuestion
+    ? matchPairs.map((pair) => pair.left)
+    : [...input.options].map((option) => option.trim()).slice(0, isOrderQuestion ? ORDER_OPTION_MAX : 6);
+  if (!isMatchQuestion && isOrderQuestion) {
     const filled = options.filter(Boolean);
     options.splice(0, options.length, ...filled);
-  } else {
+  } else if (!isMatchQuestion) {
     while (options.length < 6) options.push("");
   }
 
   let correctIndex = 0;
   let answer = "";
+  let matchRight: string[] | undefined;
 
-  if (isOrderQuestion) {
+  if (isMatchQuestion) {
+    matchRight = matchPairs.map((pair) => pair.right);
+    answer = formatMatchBankAnswer(matchPairs);
+  } else if (isOrderQuestion) {
     answer = input.answer?.trim() || formatOrderAnswer(options);
   } else if (isOpenQuestion) {
     answer = input.answer?.trim() ?? "";
@@ -243,6 +281,8 @@ export function createCustomBankQuestion(input: NewCustomBankQuestionInput): Cus
     isImageQuestion: Boolean(input.isImageQuestion),
     isOpenQuestion,
     isOrderQuestion,
+    isMatchQuestion,
+    matchRight,
     suggestedImageUrl: input.suggestedImageUrl?.trim() || undefined,
     theme: inferBankTheme({
       theme: input.theme,

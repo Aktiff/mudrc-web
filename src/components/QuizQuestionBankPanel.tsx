@@ -1026,6 +1026,11 @@ export default function QuizQuestionBankPanel({
                         {bankQuestionTheme(item)}
                       </span>
                     )}
+                    {item.isMatchQuestion && (
+                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-900 border border-amber-200 dark:bg-amber-950/30 dark:text-amber-100 dark:border-amber-800">
+                        priraď
+                      </span>
+                    )}
                     {item.isOrderQuestion && (
                       <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-900 border border-amber-200 dark:bg-amber-950/30 dark:text-amber-100 dark:border-amber-800">
                         usporiadaj
@@ -1058,7 +1063,24 @@ export default function QuizQuestionBankPanel({
                   )}
                 </div>
 
-                {item.isOrderQuestion ? (
+                {item.isMatchQuestion ? (
+                  <ul className="space-y-1">
+                    {item.options.map((option, optionIndex) => {
+                      const right = item.matchRight?.[optionIndex]?.trim() ?? "";
+                      if (!option.trim() && !right) return null;
+                      return (
+                        <li
+                          key={optionIndex}
+                          className="text-xs px-2 py-1.5 rounded-md border border-green-500/50 bg-green-50 text-green-800 dark:bg-green-950/40 dark:text-green-200 font-semibold leading-snug break-words"
+                        >
+                          <span className="font-mono opacity-60 mr-1">{optionIndex + 1}.</span>
+                          {option}
+                          <span className="font-normal opacity-80"> → {right}</span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                ) : item.isOrderQuestion ? (
                   <ol className="space-y-1">
                     {item.options.map((option, optionIndex) => {
                       if (!option.trim()) return null;
