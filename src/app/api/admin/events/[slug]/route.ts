@@ -98,6 +98,7 @@ export async function PUT(req: NextRequest, { params }: { params: { slug: string
     _includeLeagueData: _ild,
     _recalculateLeague: _rl,
     _promoChecklist: _pcFlag,
+    futureQuizzes: _futureQuizzes,
     ...incoming
   } = body;
 

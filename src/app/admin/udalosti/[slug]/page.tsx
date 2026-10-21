@@ -446,7 +446,13 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
       loadEventFromServer(params.slug).then((ev) => {
         if (!ev) return;
         const locked = registrationOpenLock.current;
-        setForm(normalizeEvent(locked === null ? ev : { ...ev, registrationOpen: locked }));
+        setForm((current) => {
+          const next = normalizeEvent(locked === null ? ev : { ...ev, registrationOpen: locked });
+          const local = current.futureQuizzes ?? [];
+          const remote = next.futureQuizzes ?? [];
+          if (local.length > remote.length) next.futureQuizzes = local;
+          return next;
+        });
       });
     }
     fetch(`/api/admin/events?_=${Date.now()}`, { cache: "no-store" })

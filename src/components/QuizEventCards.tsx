@@ -11,7 +11,7 @@ import {
   isRegistrationOpen,
   leagueTeamNameSuggestions,
 } from "@/lib/data";
-import { publicQuizCards } from "@/lib/future-quizzes";
+import { publicQuizCards, upcomingFutureQuizzes } from "@/lib/future-quizzes";
 import { eventPath } from "@/lib/regions";
 import { venueQuizLabel } from "@/lib/quiz-type";
 import { mediaUrlForBrowser } from "@/lib/media-url";
@@ -104,6 +104,12 @@ export default function QuizEventCards({ events }: { events: QuizEvent[] }) {
                       {event.time}
                     </span>
                   </div>
+                  {!event.termQuery &&
+                    upcomingFutureQuizzes(event).map((quiz) => (
+                      <p key={quiz.id} className="text-sm font-semibold text-brand-orange-readable mt-2">
+                        Ďalší termín: {formatEventDateLabel(quiz.date)} · {quiz.quizType}
+                      </p>
+                    ))}
                 </div>
                 <div className="text-right shrink-0">
                   <div className="font-display text-3xl text-brand-text">{event.entryFee}&euro;</div>
