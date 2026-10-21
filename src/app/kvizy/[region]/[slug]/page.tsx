@@ -2,8 +2,10 @@ import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { buildBreadcrumbJsonLd, buildEventJsonLd, buildEventMetadata } from "@/lib/seo";
 import { isPollActive } from "@/lib/poll-storage";
-import { getEventRegionSlug, getRegion, isRegionSlug } from "@/lib/regions";
+import { eventPath, getEventRegionSlug, getRegion, isRegionSlug } from "@/lib/regions";
+import { eventForPublicTerm, findFutureQuiz, upcomingFutureQuizzes } from "@/lib/future-quizzes";
 import { getPublicEventBySlug } from "@/lib/public-events";
+import { formatEventDateLabel } from "@/lib/data";
 import { leagueMergeGroups } from "@/lib/team-links";
 import { readTeamLinkRecords } from "@/lib/venue-teams";
 import EventDetailPage from "@/components/EventDetailPage";
@@ -12,16 +14,23 @@ import JsonLd from "@/components/JsonLd";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-type PageProps = { params: { region: string; slug: string } };
+type PageProps = {
+  params: { region: string; slug: string };
+  searchParams?: { termin?: string | string[] };
+};
 
-export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+function termParam(value: string | string[] | undefined): string {
+  return (Array.isArray(value) ? value[0] : value)?.trim() ?? "";
+}
+
+export async function generateMetadata({ params, searchParams }: PageProps): Promise<Metadata> {
   if (!isRegionSlug(params.region)) return {};
   const event = await getPublicEventBySlug(params.slug);
   if (!event) return {};
-  return buildEventMetadata(event, getEventRegionSlug(event));
+  return buildEventMetadata(eventForPublicTerm(event, termParam(searchParams?.termin)), getEventRegionSlug(event));
 }
 
-export default async function QuizEventPage({ params }: PageProps) {
+export default async function QuizEventPage({ params, searchParams }: PageProps) {
   if (!isRegionSlug(params.region)) notFound();
 
   const event = await getPublicEventBySlug(params.slug);
@@ -32,6 +41,22 @@ export default async function QuizEventPage({ params }: PageProps) {
     redirect(`/kvizy/${regionSlug}/${params.slug}`);
   }
 
+  const termin = termParam(searchParams?.termin);
+  const viewingExtra = findFutureQuiz(event, termin);
+  const view = eventForPublicTerm(event, termin);
+  const basePath = eventPath(event);
+  const otherTerms = [
+    ...(viewingExtra
+      ? [{ href: basePath, label: `Najbližší kvíz: ${formatEventDateLabel(event.date)}` }]
+      : []),
+    ...upcomingFutureQuizzes(event)
+      .filter((quiz) => !viewingExtra || quiz.id !== viewingExtra.id)
+      .map((quiz) => ({
+        href: `${basePath}?termin=${encodeURIComponent(quiz.date)}`,
+        label: `${formatEventDateLabel(quiz.date)} · ${quiz.quizType}`,
+      })),
+  ];
+
   const region = getRegion(regionSlug)!;
   const pollActive = await isPollActive(event.slug, event.venue);
   const pollHref = pollActive ? `/kvizy/${regionSlug}/${event.slug}/hlasovanie` : undefined;
@@ -40,7 +65,7 @@ export default async function QuizEventPage({ params }: PageProps) {
     <>
       <JsonLd
         data={[
-          buildEventJsonLd(event, regionSlug),
+          buildEventJsonLd(view, regionSlug),
           buildBreadcrumbJsonLd([
             { name: "Domov", path: "/" },
             { name: "Kvízy", path: "/kvizy" },
@@ -50,10 +75,12 @@ export default async function QuizEventPage({ params }: PageProps) {
         ]}
       />
       <EventDetailPage
-        event={event}
+        event={view}
         region={regionSlug}
         pollHref={pollHref}
         leagueMerges={leagueMergeGroups(await readTeamLinkRecords())}
+        registrationQuizDate={viewingExtra ? viewingExtra.date : undefined}
+        otherTerms={otherTerms}
       />
     </>
   );

@@ -12,6 +12,7 @@ import {
   normalizeResultLibraryQuizId,
 } from "@/lib/quiz-result-library";
 import { revalidatePublicEventPaths } from "@/lib/revalidate-public";
+import { futureQuizMatchesDate } from "@/lib/future-quizzes";
 import { quizTypeOrDefault } from "@/lib/quiz-type";
 import {
   hasQuizForDate,
@@ -94,8 +95,18 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
       if (idx === -1) throw new Error("NOT_FOUND");
 
       const event = events[idx];
-      const advanced = addDaysToSkDate(date, 14);
-      if (advanced && eventDateIsPlayedNight(event.date, date)) nextEventDate = advanced;
+      const extras = event.futureQuizzes ?? [];
+      const playedIsExtra = extras.some((quiz) => futureQuizMatchesDate(quiz, date));
+      let advanced = addDaysToSkDate(date, 14);
+      while (advanced) {
+        const day = advanced;
+        if (!extras.some((quiz) => futureQuizMatchesDate(quiz, day))) break;
+        advanced = addDaysToSkDate(day, 14);
+      }
+      if (advanced && eventDateIsPlayedNight(event.date, date) && !playedIsExtra) nextEventDate = advanced;
+      const futureQuizzes = playedIsExtra
+        ? (event.futureQuizzes ?? []).filter((quiz) => !futureQuizMatchesDate(quiz, date))
+        : event.futureQuizzes;
       const table = [...(event.leagueTable ?? [])];
       sorted.forEach((team) => {
         const pts = teamsDetail.find((row) => row.teamName === team.name)?.ligaPoints ?? 0;
@@ -120,6 +131,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
         leagueTable: sortedTable,
         pastResults,
         leagueActive: true,
+        ...(playedIsExtra ? { futureQuizzes } : {}),
         ...(nextEventDate ? { date: nextEventDate, registrationOpen: true } : {}),
       };
       return events;    });

@@ -23,6 +23,8 @@ import RegistrationShareList from "@/components/admin/RegistrationShareList";
 import QuizTypeField from "@/components/admin/QuizTypeField";
 import { DEFAULT_QUIZ_TYPE, normalizeQuizTypeLabel, quizTypeFromLibraryTitle, quizTypeOrDefault, rememberQuizTypes, splitVenueQuizType, venueQuizLabel } from "@/lib/quiz-type";
 import FacebookEventPostButton from "@/components/admin/FacebookEventPostButton";
+import FutureQuizPanel from "@/components/admin/FutureQuizPanel";
+import { futureQuizMatchesDate, normalizeFutureQuizzes } from "@/lib/future-quizzes";
 import { RuleListEditor } from "@/components/admin/RuleListEditor";
 import { normalizeQuizRules } from "@/lib/quiz-rules";
 import {
@@ -63,6 +65,7 @@ function normalizeEvent(ev: QuizEvent): QuizEvent {
     leagueTable: sortLeagueTable(ev.leagueTable ?? []),
     rules: normalizeQuizRules(ev.rules),
     specialRules: normalizeQuizRules(ev.specialRules),
+    futureQuizzes: ev.futureQuizzes ?? [],
   };
 }
 
@@ -201,7 +204,7 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
   const [libraryTitlesReady, setLibraryTitlesReady] = useState(false);
   const [resultQuizType, setResultQuizType] = useState(DEFAULT_QUIZ_TYPE);
   const [knownQuizTypes, setKnownQuizTypes] = useState<string[]>([DEFAULT_QUIZ_TYPE]);
-  type EventRegistration = { id: string; eventSlug: string; venue: string; teamName: string; players: string; phone: string; createdAt: string };
+  type EventRegistration = { id: string; eventSlug: string; venue: string; teamName: string; players: string; phone: string; createdAt: string; quizDate?: string };
   const [registrations, setRegistrations] = useState<EventRegistration[]>([]);
   const [regsLoading, setRegsLoading] = useState(false);
   const [deletingRegId, setDeletingRegId] = useState<string | null>(null);
@@ -281,7 +284,15 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
       { cache: "no-store" }
     );
     const data = await res.json();
-    const regs = ((data.registrations ?? []) as EventRegistration[]).filter((reg) => reg.teamName?.trim());
+    const extras = normalizeFutureQuizzes(form.futureQuizzes);
+    const targetIsExtra = extras.some((quiz) => futureQuizMatchesDate(quiz, quizDate));
+    const regs = ((data.registrations ?? []) as EventRegistration[]).filter((reg) => {
+      if (!reg.teamName?.trim()) return false;
+      const regDate = reg.quizDate?.trim() ?? "";
+      if (targetIsExtra) return regDate !== "" && futureQuizMatchesDate({ id: "", date: regDate }, quizDate);
+      if (!regDate) return true;
+      return futureQuizMatchesDate({ id: "", date: regDate }, form.date);
+    });
     if (!regs.length) {
       setQuizMsg({ text: "Žiadne registrácie — pridaj tímy ručne.", ok: false });
       return;
@@ -445,6 +456,7 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
         const used = events.flatMap((event) => [
           splitVenueQuizType(event.venue, event.quizType).quizType || event.quizType,
           ...(event.pastResults ?? []).map((result) => result.quizType),
+          ...(event.futureQuizzes ?? []).map((quiz) => quiz.quizType),
         ]);
         setKnownQuizTypes((current) => rememberQuizTypes([...current, ...used]));
       })
@@ -1356,6 +1368,17 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
               <AdminTimePicker value={form.time} onChange={(v) => set("time", v)} />
             </div>
           </div>
+          {!isNew && (
+            <FutureQuizPanel
+              slug={params.slug}
+              eventDate={form.date}
+              eventTime={form.time}
+              quizzes={form.futureQuizzes ?? []}
+              knownTypes={knownQuizTypes}
+              onChange={(futureQuizzes) => set("futureQuizzes", futureQuizzes)}
+              onMessage={(text, ok) => setMsg({ text, ok })}
+            />
+          )}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="label">Min. hráčov v tíme</label>
@@ -1792,6 +1815,9 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
                 <div className="min-w-0 flex-1">
                   <div className="min-w-0 flex-1 space-y-3">
                   <div className="font-display text-xl text-brand-text">{r.teamName}</div>
+                  {r.quizDate?.trim() && !futureQuizMatchesDate({ id: "", date: r.quizDate }, form.date) && (
+                    <p className="text-xs font-semibold text-brand-orange-readable mt-1">Ďalší termín: {r.quizDate}</p>
+                  )}
                   <RegistrationPlayersStepper
                     players={r.players}
                     minPlayers={minPlayers}

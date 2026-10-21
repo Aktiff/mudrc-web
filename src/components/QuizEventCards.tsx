@@ -10,8 +10,8 @@ import {
   formatEventDateLabel,
   isRegistrationOpen,
   leagueTeamNameSuggestions,
-  sortEventsByDate,
 } from "@/lib/data";
+import { publicQuizCards } from "@/lib/future-quizzes";
 import { eventPath } from "@/lib/regions";
 import { venueQuizLabel } from "@/lib/quiz-type";
 import { mediaUrlForBrowser } from "@/lib/media-url";
@@ -48,9 +48,9 @@ function EventCoverImage({
 }
 
 export default function QuizEventCards({ events }: { events: QuizEvent[] }) {
-  const [modalSlug, setModalSlug] = useState<string | null>(null);
-  const sortedEvents = sortEventsByDate(events);
-  const activeEvent = sortedEvents.find((event) => event.slug === modalSlug);
+  const [modalKey, setModalKey] = useState<string | null>(null);
+  const sortedEvents = publicQuizCards(events);
+  const activeEvent = sortedEvents.find((event) => event.listingKey === modalKey);
   const activeTeamSuggestions = activeEvent ? leagueTeamNameSuggestions(activeEvent.leagueTable) : [];
 
   if (sortedEvents.length === 0) {
@@ -62,8 +62,12 @@ export default function QuizEventCards({ events }: { events: QuizEvent[] }) {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {sortedEvents.map((event, eventIndex) => (
           <Link
-            key={event.slug}
-            href={eventPath(event)}
+            key={event.listingKey}
+            href={
+              event.termQuery
+                ? `${eventPath(event)}?termin=${encodeURIComponent(event.termQuery)}`
+                : eventPath(event)
+            }
             prefetch={false}
             className="card group cursor-pointer block"
           >
@@ -124,7 +128,7 @@ export default function QuizEventCards({ events }: { events: QuizEvent[] }) {
                   onRegister={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    setModalSlug(event.slug);
+                    setModalKey(event.listingKey);
                   }}
                 />
                 <div className="btn-outline text-sm py-2.5 px-4">
@@ -143,7 +147,8 @@ export default function QuizEventCards({ events }: { events: QuizEvent[] }) {
           minPlayers={activeEvent.minPlayers}
           maxPlayers={activeEvent.maxPlayers}
           teamSuggestions={activeTeamSuggestions}
-          onClose={() => setModalSlug(null)}
+          quizDate={activeEvent.termQuery}
+          onClose={() => setModalKey(null)}
         />
       )}
     </>

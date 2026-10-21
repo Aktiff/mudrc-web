@@ -102,6 +102,8 @@ export type Registration = {
   players: string;
   phone: string;
   createdAt: string;
+  /** Vyplnené len pri registrácii na ďalší termín, nie na najbližší kvíz. */
+  quizDate?: string;
 };
 
 /** Rovnako ako registrácie — výsledky kvízov v Blobe. */
@@ -887,7 +889,8 @@ async function loadEvents(): Promise<QuizEvent[]> {
 }
 
 function normalizeRegistration(reg: Registration & { eventSlug?: string }): Registration {
-  return { ...reg, eventSlug: reg.eventSlug ?? "" };
+  const quizDate = typeof reg.quizDate === "string" ? reg.quizDate.trim() : "";
+  return { ...reg, eventSlug: reg.eventSlug ?? "", ...(quizDate ? { quizDate } : {}) };
 }
 
 async function loadRegsFromSplitFiles(): Promise<Registration[]> {

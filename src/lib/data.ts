@@ -12,6 +12,8 @@ export type QuizEvent = {
   entryFee: number;
   /** Typ aktuálneho kvízu v podniku, napr. Hudobný kvíz. História má typ na každom výsledku. */
   quizType?: string;
+  /** Ďalšie termíny v tom istom podniku. Nemení sa nimi dátum najbližšieho kvízu. */
+  futureQuizzes?: FutureQuiz[];
   /** Tematický kvíz má nad bežnými pravidlami vlastné špeciálne pravidlá. */
   thematic?: boolean;
   specialRules?: StoredQuizRule[];
@@ -31,6 +33,14 @@ export type QuizEvent = {
   leagueTable: LeagueEntry[];
   pastResults: PastResult[];
 };
+export type FutureQuiz = {
+  id: string;
+  date: string;
+  time: string;
+  quizType: string;
+  registrationOpen?: boolean;
+};
+
 export type EventPromoChecklist = {
   date: string;
   flyerSent: boolean;

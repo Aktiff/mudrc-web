@@ -11,6 +11,7 @@ interface Props {
   minPlayers?: number;
   maxPlayers?: number;
   teamSuggestions?: string[];
+  quizDate?: string;
   onClose: () => void;
 }
 
@@ -20,6 +21,7 @@ export default function RegistrationModal({
   minPlayers = 2,
   maxPlayers = 8,
   teamSuggestions = [],
+  quizDate,
   onClose,
 }: Props) {
   const [teamName, setTeamName] = useState("");
@@ -65,7 +67,14 @@ export default function RegistrationModal({
       const res = await fetch("/api/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ venue, eventSlug, teamName, players, phone }),
+        body: JSON.stringify({
+          venue,
+          eventSlug,
+          teamName,
+          players,
+          phone,
+          ...(quizDate?.trim() ? { quizDate: quizDate.trim() } : {}),
+        }),
       });
       if (res.ok) {
         trackRegistrationComplete({

@@ -8,22 +8,35 @@ import {
   readRegistrations,
 } from "@/lib/storage";
 import { isRegistrationOpen } from "@/lib/data";
+import { findFutureQuiz } from "@/lib/future-quizzes";
 import { sendRegistrationEmail } from "@/lib/registration-email";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
-  const { venue, eventSlug, teamName, players, phone } = await req.json();
+  const { venue, eventSlug, teamName, players, phone, quizDate } = await req.json();
   if (!venue || !teamName || !phone) {
     return NextResponse.json({ error: "Chybajú údaje." }, { status: 400 });
   }
 
   const slug = String(eventSlug ?? "").trim();
+  const term = typeof quizDate === "string" ? quizDate.trim() : "";
   if (slug) {
     const { events } = await readEvents();
     const event = events.find((entry) => entry.slug === slug);
-    if (event && !isRegistrationOpen(event)) {
+    if (event && term) {
+      const extra = findFutureQuiz(event, term);
+      if (!extra) {
+        return NextResponse.json({ error: "Tento termín v podniku nie je." }, { status: 400 });
+      }
+      if (extra.registrationOpen === false) {
+        return NextResponse.json(
+          { error: "Registrácie na tento termín sú uzavreté." },
+          { status: 403 }
+        );
+      }
+    } else if (event && !isRegistrationOpen(event)) {
       return NextResponse.json(
         { error: "Registrácie sú uzavreté — kvíz je plný." },
         { status: 403 }
@@ -50,6 +63,7 @@ export async function POST(req: NextRequest) {
     players: String(players),
     phone: String(phone).trim(),
     createdAt: new Date().toLocaleString("sk-SK", { timeZone: "Europe/Bratislava" }),
+    ...(term ? { quizDate: term } : {}),
   };
 
   try {

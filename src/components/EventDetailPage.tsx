@@ -37,9 +37,19 @@ type EventDetailPageProps = {
   region: RegionSlug;
   pollHref?: string;
   leagueMerges?: LeagueMergeGroup[];
+  /** Registrácia ide na tento ďalší termín, nie na najbližší kvíz. */
+  registrationQuizDate?: string;
+  otherTerms?: { href: string; label: string }[];
 };
 
-export default function EventDetailPage({ event, region, pollHref, leagueMerges = [] }: EventDetailPageProps) {
+export default function EventDetailPage({
+  event,
+  region,
+  pollHref,
+  leagueMerges = [],
+  registrationQuizDate,
+  otherTerms = [],
+}: EventDetailPageProps) {
   const [showModal, setShowModal] = useState(false);
   const rules = visibleRuleTexts(event.rules);
   const specialRules = event.thematic ? visibleRuleTexts(event.specialRules) : [];
@@ -132,6 +142,18 @@ export default function EventDetailPage({ event, region, pollHref, leagueMerges 
                 <p className="text-brand-muted text-sm mt-2 leading-relaxed">
                   Príďte aspoň 10 minút pred začiatkom kvízu, aby ste stihli objednať konzum.
                 </p>
+                {otherTerms.length > 0 && (
+                  <div className="mt-4 space-y-1.5">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-brand-muted">
+                      Ďalšie termíny v tomto podniku
+                    </p>
+                    {otherTerms.map((term) => (
+                      <Link key={term.href} href={term.href} className="block text-sm font-semibold text-brand-orange-readable hover:underline">
+                        {term.label}
+                      </Link>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {(specialRules.length > 0 || rules.length > 0) && (
@@ -254,6 +276,7 @@ export default function EventDetailPage({ event, region, pollHref, leagueMerges 
           minPlayers={event.minPlayers}
           maxPlayers={event.maxPlayers}
           teamSuggestions={teamSuggestions}
+          quizDate={registrationQuizDate}
           onClose={() => setShowModal(false)}
         />
       )}

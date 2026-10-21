@@ -57,6 +57,7 @@ function buildRegistrationEmailContent(reg: Registration) {
     `Počet hráčov: ${reg.players}`,
     `Telefón: ${reg.phone}`,
     `Čas registrácie: ${reg.createdAt}`,
+    ...(reg.quizDate?.trim() ? [`Termín kvízu: ${reg.quizDate.trim()}`] : []),
     `Udalosť: ${reg.eventSlug || "—"}`,
   ].join("\n");
 
@@ -70,6 +71,7 @@ function buildRegistrationEmailContent(reg: Registration) {
     <tr><td style="padding:4px 12px 4px 0;"><b>Počet hráčov:</b></td><td>${players}</td></tr>
     <tr><td style="padding:4px 12px 4px 0;"><b>Telefón:</b></td><td><a href="tel:${phone}">${phone}</a></td></tr>
     <tr><td style="padding:4px 12px 4px 0;"><b>Čas registrácie:</b></td><td>${createdAt}</td></tr>
+    ${reg.quizDate?.trim() ? `<tr><td style="padding:4px 12px 4px 0;"><b>Termín kvízu:</b></td><td>${escapeHtml(reg.quizDate.trim())}</td></tr>` : ""}
     <tr><td style="padding:4px 12px 4px 0;"><b>Udalosť:</b></td><td>${eventSlug}</td></tr>
   </table>
   <p style="margin-top:16px;color:#666;font-size:12px;">MUDRC Kvíz — automatická správa z webu mudrc.sk</p>
