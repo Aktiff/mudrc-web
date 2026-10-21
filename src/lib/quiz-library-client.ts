@@ -21,6 +21,8 @@ export type LibraryQuizListItem = {
   usageCount: number;
   isSafe: boolean;
   conflictingTeams: string[];
+  /** Priemer bodov tímov, ktoré tento kvíz už hrali. */
+  averagePoints?: number | null;
 };
 
 export async function fetchLibraryQuizList(

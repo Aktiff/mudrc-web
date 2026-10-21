@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, CheckCircle2 } from "lucide-react";
 import Link from "next/link";
 import { quizLibraryListRequestUrl, type LibraryQuizListItem } from "@/lib/quiz-library-client";
+import { formatAveragePoints } from "@/lib/quiz-library-usage";
 import { CANVAS_LIBRARY_QUIZ_ID } from "@/lib/quiz-result-library";
 import type { QuizUsageExclude } from "@/lib/quiz-library-usage";
 
@@ -59,6 +60,7 @@ export default function LibraryQuizPicker({
           usageCount: quiz.usageCount ?? 0,
           isSafe: quiz.isSafe ?? true,
           conflictingTeams: quiz.conflictingTeams ?? [],
+          averagePoints: typeof quiz.averagePoints === "number" ? quiz.averagePoints : null,
         }))
       );
     } catch {
@@ -114,6 +116,7 @@ export default function LibraryQuizPicker({
           <option key={option.id} value={option.id}>
             {option.title}
             {option.usageCount ? ` (${option.usageCount}× hraný)` : " (nepoužitý)"}
+            {typeof option.averagePoints === "number" ? ` · priemer ${formatAveragePoints(option.averagePoints)}` : ""}
             {activeTeams.length && !option.isSafe ? " ⚠ konflikt" : activeTeams.length && option.isSafe ? " ✓ vhodný" : ""}
           </option>
         ))}
@@ -132,6 +135,9 @@ export default function LibraryQuizPicker({
             {selected.isSafe
               ? "Tieto tímy na tomto kvíze ešte nehrali — môžeš ho použiť."
               : `Pozor: na tomto kvíze už hrali: ${selected.conflictingTeams.join(", ")}.`}
+            {typeof selected.averagePoints === "number"
+              ? ` Priemer tímov, ktoré ho už hrali: ${formatAveragePoints(selected.averagePoints)}.`
+              : ""}
           </span>
         </div>
       )}

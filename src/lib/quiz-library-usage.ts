@@ -49,6 +49,47 @@ function storedMatchesUsageExclude(stored: StoredQuiz, exclude: QuizUsageExclude
   );
 }
 
+function teamQuizPoints(team: PastResultTeam): number | null {
+  if (!team.teamName?.trim()) return null;
+  const fromRounds = (team.rounds ?? []).reduce((sum, score) => sum + (Number(score) || 0), 0);
+  const total = Number(team.total);
+  if (Number.isFinite(total) && (total > 0 || fromRounds === 0)) return total;
+  if (fromRounds > 0) return fromRounds;
+  return Number.isFinite(total) ? total : null;
+}
+
+/** Priemer bodov všetkých tímov, ktoré daný hotový kvíz už hrali. */
+export function averagePointsByLibraryQuiz(
+  storedQuizzes: StoredQuiz[],
+  excludeUsage?: QuizUsageExclude | null
+): Map<string, number> {
+  const sums = new Map<string, { sum: number; count: number }>();
+  for (const stored of storedQuizzes) {
+    if (excludeUsage && storedMatchesUsageExclude(stored, excludeUsage)) continue;
+    const id = stored.libraryQuizId?.trim();
+    if (!id || !isAssignedLibraryQuiz(id)) continue;
+    for (const team of stored.teams ?? []) {
+      const points = teamQuizPoints(team);
+      if (points === null) continue;
+      const row = sums.get(id) ?? { sum: 0, count: 0 };
+      row.sum += points;
+      row.count += 1;
+      sums.set(id, row);
+    }
+  }
+  const averages = new Map<string, number>();
+  for (const [id, row] of Array.from(sums.entries())) {
+    if (row.count > 0) averages.set(id, row.sum / row.count);
+  }
+  return averages;
+}
+
+export function formatAveragePoints(value: number): string {
+  const rounded = Math.round(value * 10) / 10;
+  const text = Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1).replace(".", ",");
+  return `${text} b`;
+}
+
 function parseUsageDate(date: string): number {
   const match = date.trim().match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
   if (!match) return 0;

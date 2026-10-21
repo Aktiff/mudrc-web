@@ -5,7 +5,7 @@ import {
   collectUsedQuestionBodyKeys,
   parseTeamFilterInput,
 } from "@/lib/quiz-library";
-import { buildQuizUsageMap, type QuizUsageExclude } from "@/lib/quiz-library-usage";
+import { averagePointsByLibraryQuiz, buildQuizUsageMap, type QuizUsageExclude } from "@/lib/quiz-library-usage";
 import { createLibraryQuiz, readAllLibraryQuizzes, readLibraryQuizSummaries } from "@/lib/quiz-library-storage";
 import { describeQuizConflicts } from "@/lib/team-links";
 import { readAllEventsRaw, readAllStoredQuizzes } from "@/lib/storage";
@@ -50,6 +50,7 @@ export async function GET(req: NextRequest) {
       filterTeams.length ? readVenueTeams() : Promise.resolve([]),
     ]);
     const usageMap = buildQuizUsageMap(storedQuizzes, eventsData.events, excludeUsage);
+    const averagePoints = averagePointsByLibraryQuiz(storedQuizzes, excludeUsage);
 
     if (req.nextUrl.searchParams.get("usage") !== "1") {
       const summaries = await readLibraryQuizSummaries();
@@ -70,6 +71,7 @@ export async function GET(req: NextRequest) {
             playedTeamNames,
             conflictingTeams,
             isSafe: conflictingTeams.length === 0,
+            averagePoints: averagePoints.get(quiz.id) ?? null,
           };
         })
         .sort((a, b) => {
@@ -96,6 +98,7 @@ export async function GET(req: NextRequest) {
           playedTeamNames,
           conflictingTeams,
           isSafe: filterTeams.length === 0 || conflictingTeams.length === 0,
+          averagePoints: averagePoints.get(quiz.id) ?? null,
         };
       })
       .sort((a, b) => {
