@@ -1170,7 +1170,7 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
     setMsg({ text: `Kolo ${next} pridané. Vlož doň otázky.`, ok: true });
   };
 
-  const insertEmptyQuestion = (afterQuestionNumber: number, kind: QuizQuestionKind) => {
+  const insertEmptyQuestion = (afterQuestionNumber: number, kind: QuizQuestionKind, afterLabel?: number) => {
     setQuiz((prev) =>
       prev
         ? {
@@ -1180,7 +1180,9 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
         : prev
     );
     setMsg({
-      text: `Prázdna otázka vložená za č. ${displayQuestionNumber({ kind, questionNumber: afterQuestionNumber })} — doplni ju z banky alebo ručne.`,
+      text: afterLabel
+        ? `Prázdna otázka vložená za otázku ${afterLabel} — doplni ju z banky alebo ručne.`
+        : "Prázdna otázka vložená na začiatok kola — doplni ju z banky alebo ručne.",
       ok: true,
     });
   };
@@ -1556,11 +1558,7 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
                   <GripVertical className="w-4 h-4 shrink-0" />
                 </button>
                 <span className="text-xs font-bold uppercase tracking-wider text-brand-orange-readable bg-brand-tint px-2.5 py-1 rounded-lg">
-                  {question.kind === "sound"
-                    ? `Zvuk ${displayQuestionNumber(question)}`
-                    : question.kind === "video"
-                      ? `Video ${displayQuestionNumber(question)}`
-                      : `Otázka ${displayQuestionNumber(question)}`}
+                  {`Otázka ${displayQuestionNumber(question)}`}
                 </span>
               </div>
               <div className="flex items-center gap-1 shrink-0">
@@ -2076,7 +2074,7 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
           <div className="flex items-center justify-center py-2">
             <button
               type="button"
-              onClick={() => insertEmptyQuestion(question.questionNumber, question.kind)}
+              onClick={() => insertEmptyQuestion(question.questionNumber, question.kind, displayQuestionNumber(question))}
               className="text-xs font-semibold text-brand-muted hover:text-brand-orange-readable inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-dashed border-brand-border hover:border-brand-orange bg-brand-card/50 hover:bg-brand-tint/40 transition-colors"
             >
               <Plus className="w-3.5 h-3.5" />

@@ -152,16 +152,7 @@ export function findSlideIndexForQuestionInRound(
 }
 
 export function questionPhaseTitle(question: QuizQuestionItem): string {
-  if (question.kind === "music") {
-    return `K${question.roundNumber} · Otázka ${displayQuestionNumber(question)}`;
-  }
-  if (question.kind === "sound") {
-    return `K${question.roundNumber} · Zvuk ${question.questionNumber}`;
-  }
-  if (question.kind === "video") {
-    return `K${question.roundNumber} · Video ${question.questionNumber}`;
-  }
-  return `K${question.roundNumber} · Otázka ${question.questionNumber}`;
+  return `K${question.roundNumber} · Otázka ${displayQuestionNumber(question)}`;
 }
 
 export function shouldShowImageBeforeQuestion(question: QuizQuestionItem): boolean {
