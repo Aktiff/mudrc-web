@@ -8,7 +8,7 @@ import {
   readRegistrations,
 } from "@/lib/storage";
 import { isRegistrationOpen } from "@/lib/data";
-import { findFutureQuiz } from "@/lib/future-quizzes";
+import { findFutureQuiz, futureQuizMatchesDate } from "@/lib/future-quizzes";
 import { sendRegistrationEmail } from "@/lib/registration-email";
 
 export const runtime = "nodejs";
@@ -22,25 +22,26 @@ export async function POST(req: NextRequest) {
 
   const slug = String(eventSlug ?? "").trim();
   const term = typeof quizDate === "string" ? quizDate.trim() : "";
+  let storedQuizDate = "";
   if (slug) {
     const { events } = await readEvents();
     const event = events.find((entry) => entry.slug === slug);
-    if (event && term) {
-      const extra = findFutureQuiz(event, term);
-      if (!extra) {
+    if (event) {
+      const extra = term ? findFutureQuiz(event, term) : null;
+      const isNearest = !term || futureQuizMatchesDate({ id: "", date: event.date }, term);
+      if (extra) {
+        if (extra.registrationOpen === false) {
+          return NextResponse.json({ error: "Registrácie na tento termín sú uzavreté." }, { status: 403 });
+        }
+        storedQuizDate = extra.date;
+      } else if (isNearest) {
+        if (!isRegistrationOpen(event)) {
+          return NextResponse.json({ error: "Registrácie sú uzavreté — kvíz je plný." }, { status: 403 });
+        }
+        storedQuizDate = event.date;
+      } else {
         return NextResponse.json({ error: "Tento termín v podniku nie je." }, { status: 400 });
       }
-      if (extra.registrationOpen === false) {
-        return NextResponse.json(
-          { error: "Registrácie na tento termín sú uzavreté." },
-          { status: 403 }
-        );
-      }
-    } else if (event && !isRegistrationOpen(event)) {
-      return NextResponse.json(
-        { error: "Registrácie sú uzavreté — kvíz je plný." },
-        { status: 403 }
-      );
     }
   }
 
@@ -63,7 +64,7 @@ export async function POST(req: NextRequest) {
     players: String(players),
     phone: String(phone).trim(),
     createdAt: new Date().toLocaleString("sk-SK", { timeZone: "Europe/Bratislava" }),
-    ...(term ? { quizDate: term } : {}),
+    ...(storedQuizDate ? { quizDate: storedQuizDate } : term ? { quizDate: term } : {}),
   };
 
   try {

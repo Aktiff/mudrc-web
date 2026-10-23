@@ -24,7 +24,7 @@ import QuizTypeField from "@/components/admin/QuizTypeField";
 import { DEFAULT_QUIZ_TYPE, normalizeQuizTypeLabel, quizTypeFromLibraryTitle, quizTypeOrDefault, rememberQuizTypes, splitVenueQuizType, venueQuizLabel } from "@/lib/quiz-type";
 import FacebookEventPostButton from "@/components/admin/FacebookEventPostButton";
 import FutureQuizPanel from "@/components/admin/FutureQuizPanel";
-import { futureQuizMatchesDate, normalizeFutureQuizzes } from "@/lib/future-quizzes";
+import { futureQuizMatchesDate, groupRegistrationsByTerm, normalizeFutureQuizzes } from "@/lib/future-quizzes";
 import { RuleListEditor } from "@/components/admin/RuleListEditor";
 import { normalizeQuizRules } from "@/lib/quiz-rules";
 import {
@@ -212,6 +212,7 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
   const [clearingRegs, setClearingRegs] = useState(false);
   const [newRegTeamName, setNewRegTeamName] = useState("");
   const [newRegPhone, setNewRegPhone] = useState("");
+  const [newRegTerm, setNewRegTerm] = useState("");
   const [newRegPlayers, setNewRegPlayers] = useState<number | "">("");
   const [addingReg, setAddingReg] = useState(false);
   const [pollAdmin, setPollAdmin] = useState<PollAdminState | null>(null);
@@ -433,13 +434,10 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
     return names;
   }, [savedTeamNames, teamNameSuggestions]);
 
-  const registrationPlayerTotal = useMemo(() => {
-    const minPlayers = Math.max(1, form.minPlayers ?? 2);
-    return registrations.reduce(
-      (sum, reg) => sum + (parseRegistrationPlayerCount(reg.players) || minPlayers),
-      0
-    );
-  }, [registrations, form.minPlayers]);
+  const registrationGroups = useMemo(
+    () => groupRegistrationsByTerm(registrations, form),
+    [registrations, form]
+  );
 
   useEffect(() => {
     if (!isNew) {
@@ -756,6 +754,8 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
           teamName,
           players: clamped,
           phone: newRegPhone.trim() || "—",
+          quizDate: newRegTerm || form.date,
+          eventDate: form.date,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -1711,6 +1711,19 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
 
           <div className="mb-6 pb-6 border-b border-brand-border space-y-3">
             <p className="text-xs font-semibold uppercase tracking-wider text-brand-muted">Pridať tím (telefón / na mieste)</p>
+            {(form.futureQuizzes ?? []).length > 0 && (
+              <div className="max-w-md">
+                <label className="label">Termín</label>
+                <select className="input" value={newRegTerm} onChange={(e) => setNewRegTerm(e.target.value)}>
+                  <option value="">{formatEventDateLabel(form.date)} · {quizTypeOrDefault(form.quizType)}</option>
+                  {normalizeFutureQuizzes(form.futureQuizzes).map((quiz) => (
+                    <option key={quiz.id} value={quiz.date}>
+                      {formatEventDateLabel(quiz.date)} · {quiz.quizType}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
             <div className="grid gap-3 sm:grid-cols-[1fr_minmax(7rem,9rem)_minmax(9rem,11rem)_auto] sm:items-end">
               <div>
                 <label className="label">Názov tímu</label>
@@ -1757,104 +1770,114 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
               </button>
             </div>
             <p className="text-brand-muted text-xs">
-              Funguje aj keď sú registrácie na webe vypnuté. Duplicitný názov tímu na tomto podniku admin neuloží.
+              Funguje aj keď sú registrácie na webe vypnuté. Rovnaký názov tímu sa dá prihlásiť na iný termín.
             </p>
           </div>
 
-          <RegistrationShareList
-            venue={form.venue}
-            city={form.city}
-            whenLabel={form.date ? `${formatEventDateLabel(form.date)}${form.time ? ` o ${form.time}` : ""}` : undefined}
-            teams={registrations}
-          />
+          {registrationGroups.filter((group) => group.registrations.length > 0).map((group) => (
+            <RegistrationShareList
+              key={group.key}
+              venue={form.venue}
+              city={form.city}
+              whenLabel={group.title}
+              teams={group.registrations}
+            />
+          ))}
           {registrations.length > 0 && (
             <div className="flex flex-wrap items-center justify-between gap-3 mb-6 pb-6 border-b border-brand-border">
-              <p className="text-brand-muted text-sm">
-                {registrations.length} {registrations.length === 1 ? "registrácia" : "registrácií"} pre tento podnik
-                {" · "}
-                <span className="text-brand-text font-semibold">
-                  {registrationPlayerTotal === 1
-                    ? "1 hráč"
-                    : registrationPlayerTotal >= 2 && registrationPlayerTotal <= 4
-                      ? `${registrationPlayerTotal} hráči`
-                      : `${registrationPlayerTotal} hráčov`}{" "}
-                  celkom
-                </span>
-                {" · "}
-                <span className="text-brand-text font-semibold">
-                  príjem {formatEuroAmount(estimatedEntryRevenue(form.entryFee, registrationPlayerTotal))}
-                </span>
-              </p>
+              <div className="text-brand-muted text-sm space-y-1">
+                {registrationGroups.map((group) => {
+                  const players = group.registrations.reduce(
+                    (sum, reg) => sum + (parseRegistrationPlayerCount(reg.players) || Math.max(1, form.minPlayers ?? 2)),
+                    0
+                  );
+                  return (
+                    <p key={group.key}>
+                      <span className="text-brand-text font-semibold">{group.title}</span>
+                      {" · "}
+                      {group.registrations.length} {group.registrations.length === 1 ? "registrácia" : "registrácií"}
+                      {" · "}
+                      {players} hráčov
+                      {" · "}
+                      príjem {formatEuroAmount(estimatedEntryRevenue(form.entryFee, players))}
+                    </p>
+                  );
+                })}
+              </div>
               <button
                 onClick={clearAllRegistrations}
                 disabled={clearingRegs}
                 className="flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded-xl border border-red-200 dark:border-red-900 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors disabled:opacity-50"
               >
                 <Trash2 className="w-4 h-4" />
-                {clearingRegs ? "Mažem..." : "Vymazať všetky registrácie"}
+                {clearingRegs ? "Mažem..." : "Vymazať všetky termíny"}
               </button>
             </div>
           )}
           {regsLoading && <p className="text-brand-muted text-sm">Načítavam...</p>}
-          {!regsLoading && registrations.length === 0 && (
-            <p className="text-brand-muted text-sm py-8 text-center">Zatiaľ žiadne registrácie pre tento podnik.</p>
-          )}
           {!regsLoading && registrations.length > 0 && (
-            <>
-              <p className="text-brand-muted text-xs mb-4">
-                Počet hráčov upravíš pri každom tíme tlačidlami <strong className="text-brand-text">− / +</strong> (oranžový
-                box) — uloží sa hneď, netreba „Uložiť zmeny“ dole.
-              </p>
-            </>
+            <p className="text-brand-muted text-xs mb-4">
+              Počet hráčov upravíš pri každom tíme tlačidlami <strong className="text-brand-text">− / +</strong> (oranžový
+              box) — uloží sa hneď, netreba „Uložiť zmeny“ dole.
+            </p>
           )}
-          <div className="space-y-3">
-            {registrations.map((r) => {
-              const minPlayers = Math.max(1, form.minPlayers ?? 2);
-              const maxPlayers = Math.max(minPlayers, form.maxPlayers ?? 8, 20);
-              const playersBusy = updatingPlayersRegId === r.id;
-
-              return (
-              <div
-                key={r.id}
-                className="rounded-xl border border-brand-border p-4 flex flex-col sm:flex-row sm:items-start justify-between gap-4"
-              >
-                <div className="min-w-0 flex-1">
-                  <div className="min-w-0 flex-1 space-y-3">
-                  <div className="font-display text-xl text-brand-text">{r.teamName}</div>
-                  {r.quizDate?.trim() && !futureQuizMatchesDate({ id: "", date: r.quizDate }, form.date) && (
-                    <p className="text-xs font-semibold text-brand-orange-readable mt-1">Ďalší termín: {r.quizDate}</p>
-                  )}
-                  <RegistrationPlayersStepper
-                    players={r.players}
-                    minPlayers={minPlayers}
-                    maxPlayers={maxPlayers}
-                    busy={playersBusy}
-                    onAdjust={(delta) => adjustRegistrationPlayers(r.id, delta)}
-                  />
-                  <div className="flex flex-wrap items-center gap-4 text-sm text-brand-muted">
-                    <span className="flex items-center gap-1.5">
-                      <Phone className="w-3.5 h-3.5" />
-                      {r.phone}
-                    </span>
-                    <span className="flex items-center gap-1.5">
-                      <Clock className="w-3.5 h-3.5" />
-                      {r.createdAt}
-                    </span>
+          {!regsLoading && (
+            <div className="space-y-8">
+            {registrationGroups.map((group) => (
+              <section key={group.key}>
+                <h3 className="font-semibold text-brand-text mb-3">{group.title}</h3>
+                {group.registrations.length === 0 ? (
+                  <p className="text-brand-muted text-sm">Na tento termín zatiaľ nikto nie je prihlásený.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {group.registrations.map((r) => {
+                      const minPlayers = Math.max(1, form.minPlayers ?? 2);
+                      const maxPlayers = Math.max(minPlayers, form.maxPlayers ?? 8, 20);
+                      const playersBusy = updatingPlayersRegId === r.id;
+                      return (
+                        <div
+                          key={r.id}
+                          className="rounded-xl border border-brand-border p-4 flex flex-col sm:flex-row sm:items-start justify-between gap-4"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <div className="min-w-0 flex-1 space-y-3">
+                              <div className="font-display text-xl text-brand-text">{r.teamName}</div>
+                              <RegistrationPlayersStepper
+                                players={r.players}
+                                minPlayers={minPlayers}
+                                maxPlayers={maxPlayers}
+                                busy={playersBusy}
+                                onAdjust={(delta) => adjustRegistrationPlayers(r.id, delta)}
+                              />
+                              <div className="flex flex-wrap items-center gap-4 text-sm text-brand-muted">
+                                <span className="flex items-center gap-1.5">
+                                  <Phone className="w-3.5 h-3.5" />
+                                  {r.phone}
+                                </span>
+                                <span className="flex items-center gap-1.5">
+                                  <Clock className="w-3.5 h-3.5" />
+                                  {r.createdAt}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => deleteRegistration(r.id, r.teamName)}
+                            disabled={deletingRegId === r.id}
+                            className="shrink-0 flex items-center gap-1.5 text-sm font-medium px-3 py-2 rounded-xl border border-red-200 dark:border-red-900 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors disabled:opacity-50"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                            {deletingRegId === r.id ? "..." : "Zmazať"}
+                          </button>
+                        </div>
+                      );
+                    })}
                   </div>
-                  </div>
-                </div>
-                <button
-                  onClick={() => deleteRegistration(r.id, r.teamName)}
-                  disabled={deletingRegId === r.id}
-                  className="shrink-0 flex items-center gap-1.5 text-sm font-medium px-3 py-2 rounded-xl border border-red-200 dark:border-red-900 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors disabled:opacity-50"
-                >
-                  <Trash2 className="w-4 h-4" />
-                  {deletingRegId === r.id ? "..." : "Zmazať"}
-                </button>
-              </div>
-              );
-            })}
+                )}
+              </section>
+            ))}
           </div>
+          )}
         </div>
       )}
 

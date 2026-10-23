@@ -5,12 +5,12 @@ import Link from "next/link";
 import { ArrowLeft, Calendar, ChevronRight, MapPin, Trash2 } from "lucide-react";
 import type { QuizEvent } from "@/lib/data";
 import { formatEventDateLabel, parseSkEventDateTime, sortEventsForAdminOverview } from "@/lib/data";
+import { groupRegistrationsByTerm } from "@/lib/future-quizzes";
 import {
   estimatedEntryRevenue,
   formatEuroAmount,
   formatSkPlayerCountTotal,
   parseRegistrationPlayerCount,
-  registrationTotalsForEvent,
   registrationsForEvent,
 } from "@/lib/registration-utils";
 import AdminRegistrationRow, { type AdminRegistration } from "@/components/admin/AdminRegistrationRow";
@@ -227,9 +227,7 @@ export default function RegistraciaPage() {
   if (selectedEvent) {
     const event = selectedEvent;
     const list = selectedList;
-    const totals = registrationTotalsForEvent(regs, event.slug, event.venue);
-    const min = Math.max(1, event.minPlayers ?? 2);
-    const max = Math.max(min, event.maxPlayers ?? 8, 20);
+    const groups = groupRegistrationsByTerm(list, event);
 
     return (
       <div className="w-full min-w-0">
@@ -251,18 +249,30 @@ export default function RegistraciaPage() {
             {formatEventDateLabel(event.date)} o {event.time}
           </span>
         </p>
-        <p className="text-brand-text text-sm font-semibold mb-6">
-          {teamCountLabel(totals.teams)} · {formatSkPlayerCountTotal(totals.players)}
-          {" · "}
-          príjem {formatEuroAmount(estimatedEntryRevenue(event.entryFee, totals.players))}
+        <p className="text-brand-text text-sm font-semibold mb-6 space-y-1">
+          {groups.map((group) => {
+            const players = group.registrations.reduce((sum, reg) => sum + parseRegistrationPlayerCount(reg.players), 0);
+            return (
+              <span key={group.key} className="block">
+                {group.title}: {teamCountLabel(group.registrations.length)} · {formatSkPlayerCountTotal(players)}
+                {" · "}
+                príjem {formatEuroAmount(estimatedEntryRevenue(event.entryFee, players))}
+              </span>
+            );
+          })}
         </p>
         {msg && <p className={`text-sm mb-4 ${msg.ok ? "text-green-600" : "text-red-500"}`}>{msg.text}</p>}
-        <RegistrationShareList
-          venue={event.venue}
-          city={event.city}
-          whenLabel={`${formatEventDateLabel(event.date)} o ${event.time}`}
-          teams={list}
-        />
+        {groups
+          .filter((group) => group.registrations.length > 0)
+          .map((group) => (
+            <RegistrationShareList
+              key={group.key}
+              venue={event.venue}
+              city={event.city}
+              whenLabel={group.title}
+              teams={group.registrations}
+            />
+          ))}
         <div className="flex flex-wrap items-center gap-3 mb-6">
           <Link href={`/admin/udalosti/${event.slug}?tab=registracie`} className="text-sm font-semibold text-brand-orange-readable hover:underline">
             Otvoriť v udalosti
@@ -279,26 +289,34 @@ export default function RegistraciaPage() {
             </button>
           )}
         </div>
-        {list.length === 0 ? (
-          <div className="bg-brand-card rounded-2xl border border-brand-border p-12 text-center">
-            <p className="text-brand-muted">Zatiaľ žiadne registrácie pre tento podnik.</p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {list.map((r) => (
-              <AdminRegistrationRow
-                key={r.id}
-                reg={r}
-                minPlayers={min}
-                maxPlayers={max}
-                busy={updatingPlayersId === r.id}
-                deleting={deletingId === r.id}
-                onAdjust={(delta) => adjustPlayers(r, delta)}
-                onDelete={() => deleteOne(r.id, r.teamName)}
-              />
+        <div className="space-y-8">
+            {groups.map((group) => (
+              <section key={group.key}>
+                <h2 className="font-semibold text-brand-text mb-3">{group.title}</h2>
+                {group.registrations.length === 0 ? (
+                  <p className="text-brand-muted text-sm">Na tento termín zatiaľ nikto nie je prihlásený.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {group.registrations.map((r) => {
+                      const { min, max } = limitsFor(r);
+                      return (
+                        <AdminRegistrationRow
+                          key={r.id}
+                          reg={r}
+                          minPlayers={min}
+                          maxPlayers={max}
+                          busy={updatingPlayersId === r.id}
+                          deleting={deletingId === r.id}
+                          onAdjust={(delta) => adjustPlayers(r, delta)}
+                          onDelete={() => deleteOne(r.id, r.teamName)}
+                        />
+                      );
+                    })}
+                  </div>
+                )}
+              </section>
             ))}
           </div>
-        )}
       </div>
     );
   }
@@ -341,7 +359,13 @@ export default function RegistraciaPage() {
 
       <div className="space-y-3">
         {listEvents.map(({ event, list }) => {
-          const totals = registrationTotalsForEvent(regs, event.slug, event.venue);
+          const groups = groupRegistrationsByTerm(list, event);
+          const nearest = groups[0];
+          const nearestPlayers = nearest.registrations.reduce(
+            (sum, reg) => sum + parseRegistrationPlayerCount(reg.players),
+            0
+          );
+          const later = groups.slice(1).filter((group) => group.registrations.length > 0);
           return (
             <button
               key={event.slug}
@@ -372,11 +396,16 @@ export default function RegistraciaPage() {
                   </div>
                 </div>
                 <div className="text-sm text-brand-muted text-right shrink-0">
-                  <div className="font-semibold text-brand-text">{teamCountLabel(totals.teams)}</div>
-                  <div>{formatSkPlayerCountTotal(totals.players)}</div>
+                  <div className="font-semibold text-brand-text">{teamCountLabel(nearest.registrations.length)}</div>
+                  <div>{formatSkPlayerCountTotal(nearestPlayers)}</div>
                   <div className="font-semibold text-brand-text">
-                    {formatEuroAmount(estimatedEntryRevenue(event.entryFee, totals.players))}
+                    {formatEuroAmount(estimatedEntryRevenue(event.entryFee, nearestPlayers))}
                   </div>
+                  {later.map((group) => (
+                    <div key={group.key} className="text-xs mt-1 text-brand-orange-readable">
+                      {group.title}: {teamCountLabel(group.registrations.length)}
+                    </div>
+                  ))}
                 </div>
               </div>
             </button>

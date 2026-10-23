@@ -11,6 +11,7 @@ export type AdminRegistration = {
   players: string;
   phone: string;
   createdAt: string;
+  quizDate?: string;
 };
 
 type Props = {

@@ -1,4 +1,4 @@
-import { parseSkEventDateTime, type FutureQuiz, type QuizEvent } from "@/lib/data";
+import { formatEventDateLabel, parseSkEventDateTime, type FutureQuiz, type QuizEvent } from "@/lib/data";
 import { normalizeDateKey } from "@/lib/quiz-result-key";
 import { quizTypeOrDefault } from "@/lib/quiz-type";
 
@@ -118,4 +118,70 @@ export function eventForPublicTerm(event: QuizEvent, termin: string | undefined)
     quizType: extra.quizType,
     registrationOpen: extra.registrationOpen !== false,
   };
+}
+
+export type RegistrationTermGroup<T> = {
+  key: string;
+  date: string;
+  title: string;
+  registrations: T[];
+};
+
+/** Prázdny dátum patrí najbližšiemu kvízu. Ostatné termíny ostanú vo vlastnej skupine. */
+export function groupRegistrationsByTerm<T extends { quizDate?: string }>(
+  registrations: T[],
+  event: Pick<QuizEvent, "date" | "quizType" | "futureQuizzes">
+): RegistrationTermGroup<T>[] {
+  const extras = normalizeFutureQuizzes(event.futureQuizzes);
+  const byExtra = new Map(extras.map((quiz) => [quiz.id, [] as T[]]));
+  const nearest: T[] = [];
+  const stray = new Map<string, { date: string; list: T[] }>();
+
+  for (const reg of registrations) {
+    const term = reg.quizDate?.trim() ?? "";
+    const extra = term ? extras.find((quiz) => futureQuizMatchesDate(quiz, term)) : undefined;
+    if (extra) {
+      byExtra.get(extra.id)?.push(reg);
+      continue;
+    }
+    if (term && !futureQuizMatchesDate({ id: "", date: term }, event.date)) {
+      const key = normalizeDateKey(term) || term;
+      const row = stray.get(key) ?? { date: term, list: [] };
+      row.list.push(reg);
+      stray.set(key, row);
+      continue;
+    }
+    nearest.push(reg);
+  }
+
+  return [
+    {
+      key: "nearest",
+      date: event.date,
+      title: `${formatEventDateLabel(event.date)} · ${quizTypeOrDefault(event.quizType)}`,
+      registrations: nearest,
+    },
+    ...extras.map((quiz) => ({
+      key: quiz.id,
+      date: quiz.date,
+      title: `${formatEventDateLabel(quiz.date)} · ${quiz.quizType}`,
+      registrations: byExtra.get(quiz.id) ?? [],
+    })),
+    ...Array.from(stray.entries()).map(([key, row]) => ({
+      key,
+      date: row.date,
+      title: formatEventDateLabel(row.date),
+      registrations: row.list,
+    })),
+  ];
+}
+
+/** Rovnaký večer. Registrácia bez dátumu patrí k najbližšiemu termínu. */
+export function registrationOnTerm(
+  reg: { quizDate?: string },
+  termDate: string,
+  nearestDate: string
+): boolean {
+  const stored = reg.quizDate?.trim() || nearestDate;
+  return futureQuizMatchesDate({ id: "", date: stored }, termDate);
 }

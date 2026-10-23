@@ -12,6 +12,8 @@ interface Props {
   maxPlayers?: number;
   teamSuggestions?: string[];
   quizDate?: string;
+  /** Text termínu, ktorý človek práve prihlasuje. */
+  whenLabel?: string;
   onClose: () => void;
 }
 
@@ -22,6 +24,7 @@ export default function RegistrationModal({
   maxPlayers = 8,
   teamSuggestions = [],
   quizDate,
+  whenLabel,
   onClose,
 }: Props) {
   const [teamName, setTeamName] = useState("");
@@ -116,8 +119,8 @@ export default function RegistrationModal({
             <div className="text-6xl mb-4">&#127881;</div>
             <h3 className="font-display text-3xl text-brand-text mb-2">Hotovo!</h3>
             <p className="text-brand-muted">
-              Tím <strong>{teamName}</strong> bol zaregistrovaný na kvíz v <strong>{venue}</strong>. Uvidíme sa
-              tam!
+              Tím <strong>{teamName}</strong> bol zaregistrovaný na kvíz v <strong>{venue}</strong>
+              {whenLabel ? <> ({whenLabel})</> : null}. Uvidíme sa tam!
             </p>
             <button onClick={onClose} className="btn-primary mt-6 px-8 py-3">
               Zatvoriť
@@ -128,7 +131,10 @@ export default function RegistrationModal({
             <h3 id="registration-modal-title" className="font-display text-3xl text-brand-text mb-1">
               Registrácia
             </h3>
-            <p className="text-brand-muted text-sm mb-6">{venue}</p>
+            <p className="text-brand-muted text-sm mb-6">
+              {venue}
+              {whenLabel ? ` · ${whenLabel}` : ""}
+            </p>
             <form onSubmit={handleSubmit} noValidate className="space-y-4" lang="sk">
               <div>
                 <label className="block text-sm font-medium text-brand-text mb-1.5" htmlFor="reg-team-name">

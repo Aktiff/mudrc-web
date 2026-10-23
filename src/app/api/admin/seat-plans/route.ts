@@ -6,6 +6,7 @@ import {
   readAllSeatPlans,
 } from "@/lib/seat-plan-storage";
 import { readEvents, readRegistrations } from "@/lib/storage";
+import { registrationOnTerm } from "@/lib/future-quizzes";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -51,23 +52,26 @@ export async function POST(req: NextRequest) {
     let title = String(body.title ?? "").trim();
     const eventSlug = String(body.eventSlug ?? "").trim();
     const teams: { name: string; people: number }[] = [];
+    let matchedEvent: Awaited<ReturnType<typeof readEvents>>["events"][number] | undefined;
 
     if (eventSlug) {
       const { events } = await readEvents();
-      const event = events.find((entry) => entry.slug === eventSlug);
-      if (event) {
-        venue = venue || event.venue;
-        date = date || event.date;
-        title = title || `Zasadací — ${event.venue}`;
+      matchedEvent = events.find((entry) => entry.slug === eventSlug);
+      if (matchedEvent) {
+        venue = venue || matchedEvent.venue;
+        date = date || matchedEvent.date;
+        title = title || `Zasadací — ${matchedEvent.venue}`;
       }
     }
 
     if (body.fromRegistrations && eventSlug) {
       const { registrations } = await readRegistrations();
       const venueName = venue.toLowerCase();
+      const nearestDate = matchedEvent?.date || date;
       for (const reg of registrations) {
         const matches = reg.eventSlug === eventSlug || (venueName && reg.venue.toLowerCase() === venueName);
         if (!matches) continue;
+        if (nearestDate && date && !registrationOnTerm(reg, date, nearestDate)) continue;
         teams.push({
           name: reg.teamName,
           people: parsePlayerCount(reg.players) || 4,

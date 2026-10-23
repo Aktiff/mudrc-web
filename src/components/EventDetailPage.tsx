@@ -18,7 +18,7 @@ import { formatDuration, formatEventDateLabel, isRegistrationOpen, leagueTeamNam
 import type { RegionSlug } from "@/lib/regions";
 import { getRegion } from "@/lib/regions";
 import { mediaUrlForBrowser } from "@/lib/media-url";
-import { venueQuizLabel } from "@/lib/quiz-type";
+import { quizTypeOrDefault, venueQuizLabel } from "@/lib/quiz-type";
 import { visibleRuleTexts } from "@/lib/quiz-rules";
 import { collapseLeagueTable, type LeagueMergeGroup } from "@/lib/team-links";
 import Breadcrumbs from "@/components/Breadcrumbs";
@@ -37,8 +37,6 @@ type EventDetailPageProps = {
   region: RegionSlug;
   pollHref?: string;
   leagueMerges?: LeagueMergeGroup[];
-  /** Registrácia ide na tento ďalší termín, nie na najbližší kvíz. */
-  registrationQuizDate?: string;
   otherTerms?: { href: string; label: string }[];
 };
 
@@ -47,7 +45,6 @@ export default function EventDetailPage({
   region,
   pollHref,
   leagueMerges = [],
-  registrationQuizDate,
   otherTerms = [],
 }: EventDetailPageProps) {
   const [showModal, setShowModal] = useState(false);
@@ -276,7 +273,8 @@ export default function EventDetailPage({
           minPlayers={event.minPlayers}
           maxPlayers={event.maxPlayers}
           teamSuggestions={teamSuggestions}
-          quizDate={registrationQuizDate}
+          quizDate={event.date}
+          whenLabel={`${formatEventDateLabel(event.date)} · ${quizTypeOrDefault(event.quizType)}`}
           onClose={() => setShowModal(false)}
         />
       )}

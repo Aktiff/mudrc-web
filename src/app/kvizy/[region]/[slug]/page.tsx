@@ -79,7 +79,6 @@ export default async function QuizEventPage({ params, searchParams }: PageProps)
         region={regionSlug}
         pollHref={pollHref}
         leagueMerges={leagueMergeGroups(await readTeamLinkRecords())}
-        registrationQuizDate={viewingExtra ? viewingExtra.date : undefined}
         otherTerms={otherTerms}
       />
     </>

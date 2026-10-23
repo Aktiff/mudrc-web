@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { isAdminRequest } from "@/lib/admin-session";
+import { registrationOnTerm } from "@/lib/future-quizzes";
 import { registrationsForEvent } from "@/lib/registration-utils";
 import {
   addRegistration,
@@ -40,6 +41,8 @@ export async function POST(req: NextRequest) {
   const venue = typeof body.venue === "string" ? body.venue.trim() : "";
   const teamName = typeof body.teamName === "string" ? body.teamName.trim() : "";
   const phoneRaw = typeof body.phone === "string" ? body.phone.trim() : "";
+  const quizDate = typeof body.quizDate === "string" ? body.quizDate.trim() : "";
+  const eventDate = typeof body.eventDate === "string" ? body.eventDate.trim() : "";
   const playersRaw = body.players;
 
   if (!venue || !teamName) {
@@ -55,14 +58,16 @@ export async function POST(req: NextRequest) {
   const venueKey = venue.toLowerCase();
   const teamKey = teamName.toLowerCase();
   const { registrations } = await readRegistrations();
-  const duplicate = registrations.some(
-    (r) =>
-      r.teamName.trim().toLowerCase() === teamKey &&
-      r.venue.trim().toLowerCase() === venueKey &&
-      (eventSlug ? r.eventSlug === eventSlug : true)
-  );
+  const termDate = quizDate || eventDate;
+  const duplicate = registrations.some((r) => {
+    if (r.teamName.trim().toLowerCase() !== teamKey) return false;
+    if (r.venue.trim().toLowerCase() !== venueKey) return false;
+    if (eventSlug && r.eventSlug !== eventSlug) return false;
+    if (!termDate) return true;
+    return registrationOnTerm(r, termDate, eventDate || termDate);
+  });
   if (duplicate) {
-    return NextResponse.json({ error: "Tím s týmto názvom je už na tomto podniku registrovaný." }, { status: 409 });
+    return NextResponse.json({ error: "Tím s týmto názvom je už na tomto termíne registrovaný." }, { status: 409 });
   }
 
   const reg = {
@@ -73,6 +78,7 @@ export async function POST(req: NextRequest) {
     players: String(players),
     phone: phoneRaw || "—",
     createdAt: new Date().toLocaleString("sk-SK", { timeZone: "Europe/Bratislava" }),
+    ...(termDate ? { quizDate: termDate } : {}),
   };
 
   try {

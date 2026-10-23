@@ -13,7 +13,7 @@ import {
 } from "@/lib/data";
 import { publicQuizCards, upcomingFutureQuizzes } from "@/lib/future-quizzes";
 import { eventPath } from "@/lib/regions";
-import { venueQuizLabel } from "@/lib/quiz-type";
+import { quizTypeOrDefault, venueQuizLabel } from "@/lib/quiz-type";
 import { mediaUrlForBrowser } from "@/lib/media-url";
 import RegistrationAction from "./RegistrationAction";
 const RegistrationModal = dynamic(() => import("./RegistrationModal"), { ssr: false });
@@ -153,7 +153,8 @@ export default function QuizEventCards({ events }: { events: QuizEvent[] }) {
           minPlayers={activeEvent.minPlayers}
           maxPlayers={activeEvent.maxPlayers}
           teamSuggestions={activeTeamSuggestions}
-          quizDate={activeEvent.termQuery}
+          quizDate={activeEvent.termQuery || activeEvent.date}
+          whenLabel={`${formatEventDateLabel(activeEvent.date)} · ${quizTypeOrDefault(activeEvent.quizType)}`}
           onClose={() => setModalKey(null)}
         />
       )}
