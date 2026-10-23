@@ -27,7 +27,9 @@ export async function generateMetadata({ params, searchParams }: PageProps): Pro
   if (!isRegionSlug(params.region)) return {};
   const event = await getPublicEventBySlug(params.slug);
   if (!event) return {};
-  return buildEventMetadata(eventForPublicTerm(event, termParam(searchParams?.termin)), getEventRegionSlug(event));
+  const term = termParam(searchParams?.termin);
+  const extra = findFutureQuiz(event, term);
+  return buildEventMetadata(eventForPublicTerm(event, term), getEventRegionSlug(event), extra ? { term: extra.date } : undefined);
 }
 
 export default async function QuizEventPage({ params, searchParams }: PageProps) {
@@ -65,7 +67,7 @@ export default async function QuizEventPage({ params, searchParams }: PageProps)
     <>
       <JsonLd
         data={[
-          buildEventJsonLd(view, regionSlug),
+          buildEventJsonLd(view, regionSlug, viewingExtra ? { term: viewingExtra.date } : undefined),
           buildBreadcrumbJsonLd([
             { name: "Domov", path: "/" },
             { name: "Kvízy", path: "/kvizy" },

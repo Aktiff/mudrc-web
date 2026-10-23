@@ -5,7 +5,8 @@ import Link from "next/link";
 import { ArrowLeft, Calendar, ChevronRight, MapPin, Trash2 } from "lucide-react";
 import type { QuizEvent } from "@/lib/data";
 import { formatEventDateLabel, parseSkEventDateTime, sortEventsForAdminOverview } from "@/lib/data";
-import { groupRegistrationsByTerm } from "@/lib/future-quizzes";
+import { groupRegistrationsByTerm, normalizeFutureQuizzes, registrationGroupsForTerm } from "@/lib/future-quizzes";
+import { quizTypeOrDefault } from "@/lib/quiz-type";
 import {
   estimatedEntryRevenue,
   formatEuroAmount,
@@ -48,6 +49,7 @@ export default function RegistraciaPage() {
   const [updatingPlayersId, setUpdatingPlayersId] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
+  const [selectedTerm, setSelectedTerm] = useState("");
   const removedRegIds = useRef(new Set<string>());
 
   const load = useCallback(() => {
@@ -228,12 +230,17 @@ export default function RegistraciaPage() {
     const event = selectedEvent;
     const list = selectedList;
     const groups = groupRegistrationsByTerm(list, event);
+    const visibleGroups = registrationGroupsForTerm(groups, selectedTerm);
+    const extraTerms = normalizeFutureQuizzes(event.futureQuizzes);
 
     return (
       <div className="w-full min-w-0">
         <button
           type="button"
-          onClick={() => setSelectedSlug(null)}
+          onClick={() => {
+            setSelectedSlug(null);
+            setSelectedTerm("");
+          }}
           className="inline-flex items-center gap-2 text-sm font-semibold text-brand-muted hover:text-brand-text mb-4"
         >
           <ArrowLeft className="w-4 h-4" />
@@ -249,8 +256,21 @@ export default function RegistraciaPage() {
             {formatEventDateLabel(event.date)} o {event.time}
           </span>
         </p>
+        {extraTerms.length > 0 && (
+          <div className="max-w-md mb-6">
+            <label className="label">Termín</label>
+            <select className="input" value={selectedTerm} onChange={(e) => setSelectedTerm(e.target.value)}>
+              <option value="">{formatEventDateLabel(event.date)} · {quizTypeOrDefault(event.quizType)}</option>
+              {extraTerms.map((quiz) => (
+                <option key={quiz.id} value={quiz.date}>
+                  {formatEventDateLabel(quiz.date)} · {quiz.quizType}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
         <p className="text-brand-text text-sm font-semibold mb-6 space-y-1">
-          {groups.map((group) => {
+          {visibleGroups.map((group) => {
             const players = group.registrations.reduce((sum, reg) => sum + parseRegistrationPlayerCount(reg.players), 0);
             return (
               <span key={group.key} className="block">
@@ -262,7 +282,7 @@ export default function RegistraciaPage() {
           })}
         </p>
         {msg && <p className={`text-sm mb-4 ${msg.ok ? "text-green-600" : "text-red-500"}`}>{msg.text}</p>}
-        {groups
+        {visibleGroups
           .filter((group) => group.registrations.length > 0)
           .map((group) => (
             <RegistrationShareList
@@ -290,7 +310,7 @@ export default function RegistraciaPage() {
           )}
         </div>
         <div className="space-y-8">
-            {groups.map((group) => (
+            {visibleGroups.map((group) => (
               <section key={group.key}>
                 <h2 className="font-semibold text-brand-text mb-3">{group.title}</h2>
                 {group.registrations.length === 0 ? (
@@ -372,6 +392,7 @@ export default function RegistraciaPage() {
               type="button"
               onClick={() => {
                 setFilter("");
+                setSelectedTerm("");
                 setSelectedSlug(event.slug);
               }}
               className="w-full text-left bg-brand-card rounded-2xl border border-brand-border px-6 sm:px-8 py-5 hover:border-brand-orange hover:bg-brand-warm transition-colors group"

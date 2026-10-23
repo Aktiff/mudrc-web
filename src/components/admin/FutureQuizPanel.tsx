@@ -5,8 +5,10 @@ import { Trash2 } from "lucide-react";
 import type { FutureQuiz } from "@/lib/data";
 import { formatEventDateLabel } from "@/lib/data";
 import { normalizeFutureQuizzes } from "@/lib/future-quizzes";
+import { normalizeQuizRules, type QuizRule } from "@/lib/quiz-rules";
 import { AdminDatePicker, AdminTimePicker } from "@/components/AdminDatePicker";
 import QuizTypeField from "@/components/admin/QuizTypeField";
+import { RuleListEditor } from "@/components/admin/RuleListEditor";
 import { DEFAULT_QUIZ_TYPE } from "@/lib/quiz-type";
 
 type FutureQuizPanelProps = {
@@ -63,6 +65,28 @@ export default function FutureQuizPanel({
     }
   };
 
+  const saveRules = async (quiz: FutureQuiz, rules: QuizRule[]) => {
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/admin/events/${slug}/dalsi-termin`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: quiz.id, specialRules: rules }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        onMessage(typeof data.error === "string" ? data.error : "Pravidlá sa nepodarilo uložiť.", false);
+        return;
+      }
+      onChange(normalizeFutureQuizzes(data.futureQuizzes));
+      onMessage("Špeciálne pravidlá tohto termínu sú uložené.", true);
+    } catch {
+      onMessage("Sieťová chyba pri ukladaní pravidiel.", false);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const removeTerm = async (quiz: FutureQuiz) => {
     if (!confirm(`Zmazať termín ${quiz.date}? Najbližší kvíz sa tým nemení.`)) return;
     setBusy(true);
@@ -95,22 +119,15 @@ export default function FutureQuizPanel({
         </p>
       </div>
       {listed.length > 0 && (
-        <ul className="space-y-2">
+        <ul className="space-y-4">
           {listed.map((quiz) => (
-            <li key={quiz.id} className="flex items-center justify-between gap-3 text-sm">
-              <span className="text-brand-text">
-                {formatEventDateLabel(quiz.date)} · {quiz.time} · {quiz.quizType}
-              </span>
-              <button
-                type="button"
-                onClick={() => void removeTerm(quiz)}
-                disabled={busy}
-                className="text-brand-muted hover:text-red-500 disabled:opacity-40"
-                title="Zmazať termín"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
-            </li>
+            <FutureQuizCard
+              key={quiz.id}
+              quiz={quiz}
+              busy={busy}
+              onSave={(rules) => void saveRules(quiz, rules)}
+              onRemove={() => void removeTerm(quiz)}
+            />
           ))}
         </ul>
       )}
@@ -142,5 +159,59 @@ export default function FutureQuizPanel({
         {busy ? "Ukladám..." : "Pridať ďalší termín"}
       </button>
     </div>
+  );
+}
+
+function FutureQuizCard({
+  quiz,
+  busy,
+  onSave,
+  onRemove,
+}: {
+  quiz: FutureQuiz;
+  busy: boolean;
+  onSave: (rules: QuizRule[]) => void;
+  onRemove: () => void;
+}) {
+  const [rules, setRules] = useState(() => normalizeQuizRules(quiz.specialRules));
+
+  return (
+    <li className="rounded-xl border border-brand-border bg-brand-card p-4 space-y-3">
+      <div className="flex items-center justify-between gap-3 text-sm">
+        <span className="text-brand-text font-semibold">
+          {formatEventDateLabel(quiz.date)} · {quiz.time} · {quiz.quizType}
+        </span>
+        <button
+          type="button"
+          onClick={onRemove}
+          disabled={busy}
+          className="text-brand-muted hover:text-red-500 disabled:opacity-40"
+          title="Zmazať termín"
+        >
+          <Trash2 className="w-4 h-4" />
+        </button>
+      </div>
+      <div>
+        <p className="font-semibold text-brand-text text-sm mb-1">Špeciálne pravidlá</p>
+        <p className="text-brand-muted text-xs mb-3 leading-relaxed">
+          Platia len pre tento termín. Najbližší kvíz ich neukáže. Na webe sú nad bežnými pravidlami podniku.
+        </p>
+        <RuleListEditor
+          rules={rules}
+          onChange={setRules}
+          placeholder="Špeciálne pravidlo..."
+          addLabel="Pridať špeciálne pravidlo"
+          emptyLabel="Zatiaľ žiadne špeciálne pravidlá."
+        />
+        <button
+          type="button"
+          onClick={() => onSave(rules)}
+          disabled={busy}
+          className="btn-primary text-sm py-2 px-4 mt-3"
+        >
+          {busy ? "Ukladám..." : "Uložiť pravidlá termínu"}
+        </button>
+      </div>
+    </li>
   );
 }

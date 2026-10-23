@@ -39,6 +39,8 @@ export type FutureQuiz = {
   time: string;
   quizType: string;
   registrationOpen?: boolean;
+  /** Špeciálne pravidlá len tohto termínu. Najbližší kvíz ich neukáže. */
+  specialRules?: StoredQuizRule[];
 };
 
 export type EventPromoChecklist = {

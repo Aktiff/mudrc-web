@@ -5,7 +5,7 @@ import { eventPath, getEventRegionSlug, getRegion, type RegionSlug } from "@/lib
 import { OG_IMAGE_VERSION } from "@/lib/og-image";
 import { absoluteMediaUrl } from "@/lib/media-url";
 import { SITE_URL, absoluteUrl } from "@/lib/site-url";
-import { venueQuizLabel } from "@/lib/quiz-type";
+import { isGeneralQuizType, quizTypeOrDefault, venueQuizLabel } from "@/lib/quiz-type";
 
 export { SITE_URL, absoluteUrl };
 
@@ -19,11 +19,12 @@ export function parseSkDateTime(date: string, time: string): string | undefined 
   return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}T${hours.padStart(2, "0")}:${minutes.padStart(2, "0")}:00+02:00`;
 }
 
-/** Titulok pre FB / OG — dátum, čas a miesto (nie generický názov webu). */
+/** Titulok pre FB / OG — typ, dátum, čas a miesto (nie generický názov webu). */
 export function buildEventShareTitle(event: QuizEvent): string {
   const when = [formatEventDateLabel(event.date), event.time.trim()].filter(Boolean).join(" - ");
   const where = [event.venue.trim(), event.city.trim()].filter(Boolean).join(", ");
-  return [`Kvíz ${where}`, when].filter(Boolean).join(" - ");
+  const kind = isGeneralQuizType(event.quizType) ? "Kvíz" : quizTypeOrDefault(event.quizType);
+  return [`${kind} ${where}`, when].filter(Boolean).join(" - ");
 }
 
 export function buildEventShareDescription(event: QuizEvent): string {
@@ -31,15 +32,23 @@ export function buildEventShareDescription(event: QuizEvent): string {
   const place = event.address.trim()
     ? `${event.venue}, ${event.address}, ${event.city}`
     : `${event.venue}, ${event.city}`;
-  return `${place} · ${when} · vstup ${event.entryFee} €/hráč · registrácia online`;
+  const kind = isGeneralQuizType(event.quizType) ? "" : `${quizTypeOrDefault(event.quizType)} · `;
+  return `${place} · ${kind}${when} · vstup ${event.entryFee} €/hráč · registrácia online`;
 }
 
-export function buildEventMetadata(event: QuizEvent, region: RegionSlug): Metadata {
+export function eventSharePath(event: QuizEvent, term?: string): string {
   const path = eventPath(event);
+  const date = term?.trim();
+  return date ? `${path}?termin=${encodeURIComponent(date)}` : path;
+}
+
+export function buildEventMetadata(event: QuizEvent, region: RegionSlug, options?: { term?: string }): Metadata {
+  const pagePath = eventPath(event);
+  const path = eventSharePath(event, options?.term);
   const pageTitle = `Kvíz ${venueQuizLabel(event.venue, event.quizType)}, ${event.city}`;
   const shareTitle = buildEventShareTitle(event);
   const shareDescription = buildEventShareDescription(event);
-  const ogImagePath = `${path}/opengraph-image?v=${OG_IMAGE_VERSION}`;
+  const ogImagePath = `${pagePath}/opengraph-image?v=${OG_IMAGE_VERSION}`;
 
   return {
     title: pageTitle,
@@ -92,17 +101,18 @@ export function buildRegionMetadata(region: RegionSlug): Metadata {
   };
 }
 
-export function buildEventJsonLd(event: QuizEvent, region: RegionSlug) {
+export function buildEventJsonLd(event: QuizEvent, region: RegionSlug, options?: { term?: string }) {
   const regionConfig = getRegion(region)!;
   const startDate = parseSkDateTime(event.date, event.time);
-  const url = absoluteUrl(eventPath(event));
-  const seoDescription = `Vedomostný pub kvíz v podniku ${event.venue} (${event.city}, ${regionConfig.name}). Termín ${event.date} o ${event.time}, vstupné ${event.entryFee} € / hráč. Registruj tím online.`;
+  const url = absoluteUrl(eventSharePath(event, options?.term));
+  const kind = isGeneralQuizType(event.quizType) ? "Vedomostný pub kvíz" : quizTypeOrDefault(event.quizType);
+  const seoDescription = `${kind} v podniku ${event.venue} (${event.city}, ${regionConfig.name}). Termín ${event.date} o ${event.time}, vstupné ${event.entryFee} € / hráč. Registruj tím online.`;
   const eventImage = absoluteMediaUrl(event.imageUrl);
 
   return {
     "@context": "https://schema.org",
     "@type": "Event",
-    name: `Mudrc kvíz — ${event.venue}`,
+    name: `${isGeneralQuizType(event.quizType) ? "Mudrc kvíz" : quizTypeOrDefault(event.quizType)} — ${event.venue}`,
     description: seoDescription,
     startDate,
     eventAttendanceMode: "https://schema.org/OfflineEventAttendanceMode",

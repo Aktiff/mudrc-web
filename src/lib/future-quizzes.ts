@@ -1,5 +1,6 @@
 import { formatEventDateLabel, parseSkEventDateTime, type FutureQuiz, type QuizEvent } from "@/lib/data";
 import { normalizeDateKey } from "@/lib/quiz-result-key";
+import { normalizeQuizRules } from "@/lib/quiz-rules";
 import { quizTypeOrDefault } from "@/lib/quiz-type";
 
 export const FUTURE_QUIZ_LIMIT = 8;
@@ -40,6 +41,7 @@ export function normalizeFutureQuizzes(raw: unknown): FutureQuiz[] {
       time: typeof row.time === "string" && row.time.trim() ? row.time.trim() : "19:00",
       quizType: quizTypeOrDefault(row.quizType),
       registrationOpen: row.registrationOpen !== false,
+      specialRules: normalizeQuizRules(row.specialRules),
     });
   }
   return Array.from(byId.values())
@@ -117,6 +119,8 @@ export function eventForPublicTerm(event: QuizEvent, termin: string | undefined)
     time: extra.time || event.time,
     quizType: extra.quizType,
     registrationOpen: extra.registrationOpen !== false,
+    thematic: normalizeQuizRules(extra.specialRules).some((rule) => !rule.hidden && rule.text.trim()),
+    specialRules: normalizeQuizRules(extra.specialRules),
   };
 }
 
@@ -174,6 +178,16 @@ export function groupRegistrationsByTerm<T extends { quizDate?: string }>(
       registrations: row.list,
     })),
   ];
+}
+
+/** Prázdny výber = najbližší kvíz. Inak len skupina s týmto dátumom. */
+export function registrationGroupsForTerm<T>(
+  groups: RegistrationTermGroup<T>[],
+  selectedDate: string
+): RegistrationTermGroup<T>[] {
+  const term = selectedDate.trim();
+  if (!term) return groups.filter((group) => group.key === "nearest");
+  return groups.filter((group) => futureQuizMatchesDate({ id: "", date: group.date }, term));
 }
 
 /** Rovnaký večer. Registrácia bez dátumu patrí k najbližšiemu termínu. */

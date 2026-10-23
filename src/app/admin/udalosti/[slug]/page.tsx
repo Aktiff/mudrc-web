@@ -24,7 +24,7 @@ import QuizTypeField from "@/components/admin/QuizTypeField";
 import { DEFAULT_QUIZ_TYPE, normalizeQuizTypeLabel, quizTypeFromLibraryTitle, quizTypeOrDefault, rememberQuizTypes, splitVenueQuizType, venueQuizLabel } from "@/lib/quiz-type";
 import FacebookEventPostButton from "@/components/admin/FacebookEventPostButton";
 import FutureQuizPanel from "@/components/admin/FutureQuizPanel";
-import { futureQuizMatchesDate, groupRegistrationsByTerm, normalizeFutureQuizzes } from "@/lib/future-quizzes";
+import { futureQuizMatchesDate, groupRegistrationsByTerm, normalizeFutureQuizzes, registrationGroupsForTerm } from "@/lib/future-quizzes";
 import { RuleListEditor } from "@/components/admin/RuleListEditor";
 import { normalizeQuizRules } from "@/lib/quiz-rules";
 import {
@@ -437,6 +437,10 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
   const registrationGroups = useMemo(
     () => groupRegistrationsByTerm(registrations, form),
     [registrations, form]
+  );
+  const visibleRegistrationGroups = useMemo(
+    () => registrationGroupsForTerm(registrationGroups, newRegTerm),
+    [registrationGroups, newRegTerm]
   );
 
   useEffect(() => {
@@ -1714,7 +1718,7 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
             {(form.futureQuizzes ?? []).length > 0 && (
               <div className="max-w-md">
                 <label className="label">Termín</label>
-                <select className="input" value={newRegTerm} onChange={(e) => setNewRegTerm(e.target.value)}>
+                <select className="input" value={newRegTerm} onChange={(e) => setNewRegTerm(e.target.value)} aria-label="Termín kvízu">
                   <option value="">{formatEventDateLabel(form.date)} · {quizTypeOrDefault(form.quizType)}</option>
                   {normalizeFutureQuizzes(form.futureQuizzes).map((quiz) => (
                     <option key={quiz.id} value={quiz.date}>
@@ -1770,11 +1774,11 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
               </button>
             </div>
             <p className="text-brand-muted text-xs">
-              Funguje aj keď sú registrácie na webe vypnuté. Rovnaký názov tímu sa dá prihlásiť na iný termín.
+              Funguje aj keď sú registrácie na webe vypnuté. Rovnaký názov tímu sa dá prihlásiť na iný termín. Zoznamy nižšie sú len pre vybraný termín.
             </p>
           </div>
 
-          {registrationGroups.filter((group) => group.registrations.length > 0).map((group) => (
+          {visibleRegistrationGroups.filter((group) => group.registrations.length > 0).map((group) => (
             <RegistrationShareList
               key={group.key}
               venue={form.venue}
@@ -1786,7 +1790,7 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
           {registrations.length > 0 && (
             <div className="flex flex-wrap items-center justify-between gap-3 mb-6 pb-6 border-b border-brand-border">
               <div className="text-brand-muted text-sm space-y-1">
-                {registrationGroups.map((group) => {
+                {visibleRegistrationGroups.map((group) => {
                   const players = group.registrations.reduce(
                     (sum, reg) => sum + (parseRegistrationPlayerCount(reg.players) || Math.max(1, form.minPlayers ?? 2)),
                     0
@@ -1823,7 +1827,7 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
           )}
           {!regsLoading && (
             <div className="space-y-8">
-            {registrationGroups.map((group) => (
+            {visibleRegistrationGroups.map((group) => (
               <section key={group.key}>
                 <h3 className="font-semibold text-brand-text mb-3">{group.title}</h3>
                 {group.registrations.length === 0 ? (
@@ -2073,7 +2077,7 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
           {form.thematic && (
             <div>
               <h2 className="font-semibold text-brand-text mb-1">Špeciálne pravidlá</h2>
-              <p className="text-brand-muted text-sm mb-4">Platia len pre tento tematický kvíz a na webe sú nad bežnými pravidlami. Poradie zmeníš šípkami alebo pretiahnutím. Skryté pravidlo na webe nie je, kým ho znova nezapneš.</p>
+              <p className="text-brand-muted text-sm mb-4">Platia len pre najbližší tematický kvíz a na webe sú nad bežnými pravidlami. Pravidlá ďalšieho termínu, napríklad filmového, sa píšu pri tom termíne v základných info. Poradie zmeníš šípkami alebo pretiahnutím. Skryté pravidlo na webe nie je, kým ho znova nezapneš.</p>
               <RuleListEditor
                 rules={normalizeQuizRules(form.specialRules)}
                 onChange={(specialRules) => set("specialRules", specialRules)}

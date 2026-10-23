@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { revalidatePublicEventPaths } from "@/lib/revalidate-public";
 import { futureQuizDateError, futureQuizMatchesDate, normalizeFutureQuizzes } from "@/lib/future-quizzes";
 import { normalizeDateKey } from "@/lib/quiz-result-key";
+import { normalizeQuizRules } from "@/lib/quiz-rules";
 import { quizTypeOrDefault } from "@/lib/quiz-type";
 import { patchEvent, readEvents } from "@/lib/storage";
 
@@ -26,6 +27,31 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
     ...existing,
     { id: normalizeDateKey(date), date, time: time || event.time || "19:00", quizType },
   ]);
+  const updated = await patchEvent(params.slug, { futureQuizzes: next });
+  await revalidatePublicEventPaths(params.slug);
+  return NextResponse.json(updated);
+}
+
+export async function PATCH(req: NextRequest, { params }: { params: { slug: string } }) {
+  const body = (await req.json().catch(() => null)) as { id?: unknown; date?: unknown; specialRules?: unknown } | null;
+  const id = typeof body?.id === "string" ? body.id.trim() : "";
+  const date = typeof body?.date === "string" ? body.date.trim() : "";
+  if (!id && !date) return NextResponse.json({ error: "Chýba termín." }, { status: 400 });
+
+  const { events } = await readEvents();
+  const event = events.find((entry) => entry.slug === params.slug);
+  if (!event) return NextResponse.json({ error: "Podnik sa nenašiel." }, { status: 404 });
+
+  const existing = normalizeFutureQuizzes(event.futureQuizzes);
+  let found = false;
+  const next = existing.map((quiz) => {
+    const match = (id && quiz.id === id) || (date && futureQuizMatchesDate(quiz, date));
+    if (!match) return quiz;
+    found = true;
+    return { ...quiz, specialRules: normalizeQuizRules(body?.specialRules) };
+  });
+  if (!found) return NextResponse.json({ error: "Termín sa nenašiel." }, { status: 404 });
+
   const updated = await patchEvent(params.slug, { futureQuizzes: next });
   await revalidatePublicEventPaths(params.slug);
   return NextResponse.json(updated);

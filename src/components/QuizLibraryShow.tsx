@@ -13,12 +13,13 @@ import {
   type RefObject,
 } from "react";
 import { Maximize2 } from "lucide-react";
-import type { QuizEvent } from "@/lib/data";
+import { formatEventDateLabel, type QuizEvent } from "@/lib/data";
 import { playbackMediaSrc } from "@/lib/media-url";
 import { attachVolumeWheel } from "@/lib/media-volume";
 import { displayQuestionNumber } from "@/lib/quiz-template";
 import { VolumeAudio, VolumeVideo } from "@/components/VolumeMedia";
 import { visibleRuleTexts } from "@/lib/quiz-rules";
+import { findFutureQuiz, upcomingFutureQuizzes } from "@/lib/future-quizzes";
 import type { QuizLibraryItem, QuizQuestionItem } from "@/lib/quiz-library";
 import { parseQuizPayload } from "@/lib/quiz-editor-draft";
 import {
@@ -597,6 +598,7 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
   const [quiz, setQuiz] = useState<QuizLibraryItem | null>(null);
   const [events, setEvents] = useState<QuizEvent[]>([]);
   const [eventSlug, setEventSlug] = useState(initialEventSlug);
+  const [rulesTerm, setRulesTerm] = useState("");
   const [started, setStarted] = useState(false);
   const [index, setIndex] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -652,6 +654,10 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
   }, [initialEventSlug]);
 
   useEffect(() => {
+    setRulesTerm("");
+  }, [eventSlug]);
+
+  useEffect(() => {
     document.documentElement.style.overflow = "hidden";
     document.body.style.overflow = "hidden";
     return () => {
@@ -685,9 +691,19 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
   }, [quiz?.questions]);
 
   const selectedEvent = events.find((event) => event.slug === eventSlug);
+  const futureTerms = selectedEvent ? upcomingFutureQuizzes(selectedEvent) : [];
+  const selectedExtra = selectedEvent && rulesTerm ? findFutureQuiz(selectedEvent, rulesTerm) : null;
   const eventRules = visibleRuleTexts(selectedEvent?.rules);
-  const specialRules = selectedEvent?.thematic ? visibleRuleTexts(selectedEvent.specialRules) : [];
-  const venueName = selectedEvent ? `${selectedEvent.venue} · ${selectedEvent.city}` : "";
+  const specialRules = selectedExtra
+    ? visibleRuleTexts(selectedExtra.specialRules)
+    : selectedEvent?.thematic
+      ? visibleRuleTexts(selectedEvent.specialRules)
+      : [];
+  const venueName = selectedEvent
+    ? selectedExtra
+      ? `${selectedEvent.venue} · ${selectedExtra.quizType}`
+      : `${selectedEvent.venue} · ${selectedEvent.city}`
+    : "";
   const slide = slides[index];
   const progress = slides.length ? ((index + 1) / slides.length) * 100 : 0;
   const showSlideTimer = Boolean(started && slide && slide.type !== "rules");
@@ -871,6 +887,22 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
               </option>
             ))}
           </select>
+          {futureTerms.length > 0 && (
+            <select
+              className="w-full rounded-xl bg-white/10 border border-white/20 px-4 py-3 text-white"
+              value={rulesTerm}
+              onChange={(e) => setRulesTerm(e.target.value)}
+            >
+              <option value="" className="text-black">
+                Najbližší kvíz · {selectedEvent ? formatEventDateLabel(selectedEvent.date) : ""}
+              </option>
+              {futureTerms.map((quiz) => (
+                <option key={quiz.id} value={quiz.date} className="text-black">
+                  {formatEventDateLabel(quiz.date)} · {quiz.quizType}
+                </option>
+              ))}
+            </select>
+          )}
           <div className="space-y-2">
             <span className="text-sm text-white/70">Formát obrazovky</span>
             <select
