@@ -693,7 +693,9 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
   const selectedEvent = events.find((event) => event.slug === eventSlug);
   const futureTerms = selectedEvent ? upcomingFutureQuizzes(selectedEvent) : [];
   const selectedExtra = selectedEvent && rulesTerm ? findFutureQuiz(selectedEvent, rulesTerm) : null;
-  const eventRules = visibleRuleTexts(selectedEvent?.rules);
+  const eventRules = visibleRuleTexts(
+    selectedExtra && Array.isArray(selectedExtra.rules) ? selectedExtra.rules : selectedEvent?.rules
+  );
   const specialRules = selectedExtra
     ? visibleRuleTexts(selectedExtra.specialRules)
     : selectedEvent?.thematic

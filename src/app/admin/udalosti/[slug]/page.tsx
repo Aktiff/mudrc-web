@@ -1385,6 +1385,7 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
               eventTime={form.time}
               quizzes={form.futureQuizzes ?? []}
               knownTypes={knownQuizTypes}
+              venueRules={normalizeQuizRules(form.rules)}
               onChange={(futureQuizzes) => set("futureQuizzes", futureQuizzes)}
               onMessage={(text, ok) => setMsg({ text, ok })}
             />

@@ -16,6 +16,8 @@ export type QuizQuestionItem = {
   id: string;
   roundNumber: number;
   questionNumber: number;
+  /** Poradie v kole naprieč typmi. Prázdne = staré poradie, hudba na konci. */
+  order?: number;
   kind: QuizQuestionKind;
   body: string;
   answer: string;
@@ -132,6 +134,7 @@ function normalizeQuestion(input: Partial<QuizQuestionItem>): QuizQuestionItem |
     id: String(input.id),
     roundNumber: Number(input.roundNumber),
     questionNumber: Number(input.questionNumber),
+    ...(Number.isFinite(Number(input.order)) ? { order: Number(input.order) } : {}),
     kind:
       input.kind === "music"
         ? "music"

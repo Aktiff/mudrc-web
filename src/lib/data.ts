@@ -41,6 +41,8 @@ export type FutureQuiz = {
   registrationOpen?: boolean;
   /** Špeciálne pravidlá len tohto termínu. Najbližší kvíz ich neukáže. */
   specialRules?: StoredQuizRule[];
+  /** Vlastné bežné pravidlá tohto termínu. Prázdne pole znamená, že sa nemajú dediť z podniku. */
+  rules?: StoredQuizRule[];
 };
 
 export type EventPromoChecklist = {

@@ -26,9 +26,15 @@ export function questionRenumberGroupKey(q: QuizQuestionItem): string {
   return `${q.roundNumber}-content`;
 }
 
-/** Poradie v kvíze — v 4. kole najprv obsah (text/zvuk/video), potom hudba. */
+/** Poradie v kvíze. Keď má kolo uložené poradie, typ otázky ho už neprebíja. */
 export function compareQuizQuestions(a: QuizQuestionItem, b: QuizQuestionItem): number {
   if (a.roundNumber !== b.roundNumber) return a.roundNumber - b.roundNumber;
+  const aOrder = typeof a.order === "number" ? a.order : null;
+  const bOrder = typeof b.order === "number" ? b.order : null;
+  if (aOrder !== null && bOrder !== null) {
+    if (aOrder !== bOrder) return aOrder - bOrder;
+    return String(a.id ?? "").localeCompare(String(b.id ?? ""));
+  }
   const aMusic = a.kind === "music" ? 1 : 0;
   const bMusic = b.kind === "music" ? 1 : 0;
   if (aMusic !== bMusic) return aMusic - bMusic;
@@ -89,7 +95,70 @@ export function renumberQuizQuestionGroups(questions: QuizQuestionItem[]): QuizQ
     );
     list.forEach((q: QuizQuestionItem, index: number) => out.push({ ...q, questionNumber: index + 1 }));
   }
-  return sortQuizQuestions(out);
+  return stampQuestionOrder(sortQuizQuestions(out));
+}
+
+/** Zapíše poradie 0…n v každom kole podľa aktuálneho zoradenia. */
+export function stampQuestionOrder(questions: QuizQuestionItem[]): QuizQuestionItem[] {
+  const counters = new Map<number, number>();
+  return questions.map((question) => {
+    const order = counters.get(question.roundNumber) ?? 0;
+    counters.set(question.roundNumber, order + 1);
+    return question.order === order ? question : { ...question, order };
+  });
+}
+
+function placeRoundQuestions(roundQuestions: QuizQuestionItem[]): QuizQuestionItem[] {
+  const counters = new Map<string, number>();
+  return roundQuestions.map((question, index) => {
+    const key = questionRenumberGroupKey(question);
+    const questionNumber = (counters.get(key) ?? 0) + 1;
+    counters.set(key, questionNumber);
+    return { ...question, order: index, questionNumber };
+  });
+}
+
+function replaceRoundQuestions(
+  questions: QuizQuestionItem[],
+  roundNumber: number,
+  roundQuestions: QuizQuestionItem[]
+): QuizQuestionItem[] {
+  const rest = questions.filter((question) => question.roundNumber !== roundNumber);
+  return sortQuizQuestions([...rest, ...placeRoundQuestions(roundQuestions)]);
+}
+
+/** Výmena s susedom v kole. Typ otázky na to nemá vplyv. */
+export function moveQuestionByDirection(
+  questions: QuizQuestionItem[],
+  questionId: string,
+  direction: "up" | "down"
+): QuizQuestionItem[] {
+  const target = questions.find((question) => question.id === questionId);
+  if (!target) return questions;
+  const round = sortQuizQuestions(questions.filter((question) => question.roundNumber === target.roundNumber));
+  const index = round.findIndex((question) => question.id === questionId);
+  const swapIndex = direction === "up" ? index - 1 : index + 1;
+  if (index < 0 || swapIndex < 0 || swapIndex >= round.length) return questions;
+  const next = [...round];
+  [next[index], next[swapIndex]] = [next[swapIndex], next[index]];
+  return replaceRoundQuestions(questions, target.roundNumber, next);
+}
+
+/** Presun na konkrétne miesto v tom istom kole. */
+export function moveQuestionToRoundIndex(
+  questions: QuizQuestionItem[],
+  questionId: string,
+  toIndex: number
+): QuizQuestionItem[] {
+  const target = questions.find((question) => question.id === questionId);
+  if (!target) return questions;
+  const round = sortQuizQuestions(questions.filter((question) => question.roundNumber === target.roundNumber));
+  const fromIndex = round.findIndex((question) => question.id === questionId);
+  if (fromIndex < 0 || toIndex < 0 || toIndex >= round.length || fromIndex === toIndex) return questions;
+  const next = [...round];
+  const [item] = next.splice(fromIndex, 1);
+  next.splice(toIndex, 0, item);
+  return replaceRoundQuestions(questions, target.roundNumber, next);
 }
 
 function createEmptyQuestion(
@@ -138,46 +207,31 @@ export function insertQuestionAfter(
   kind: QuizQuestionKind,
   afterQuestionNumber: number
 ): QuizQuestionItem[] {
+  const round = sortQuizQuestions(questions.filter((question) => question.roundNumber === roundNumber));
   const musicGroup = kind === "music";
-  const group = questions
-    .filter((q) => {
-      if (q.roundNumber !== roundNumber) return false;
-      return musicGroup ? q.kind === "music" : q.kind !== "music";
-    })
-    .sort((a, b) => a.questionNumber - b.questionNumber);
-
-  const newNumber = afterQuestionNumber + 1;
-  const bumped = group.map((q) =>
-    q.questionNumber >= newNumber ? { ...q, questionNumber: q.questionNumber + 1 } : q
-  );
-  bumped.splice(afterQuestionNumber, 0, createEmptyQuestion(roundNumber, newNumber, kind));
-
-  const rest = questions.filter((q) => {
-    if (q.roundNumber !== roundNumber) return true;
-    return musicGroup ? q.kind !== "music" : q.kind === "music";
-  });
-  return sortQuizQuestions([...rest, ...bumped]);
+  const inGroup = (question: QuizQuestionItem) => (musicGroup ? question.kind === "music" : question.kind !== "music");
+  const group = round.filter(inGroup);
+  let insertAt = round.length;
+  if (afterQuestionNumber <= 0) {
+    const first = round.findIndex(inGroup);
+    insertAt = musicGroup ? (first < 0 ? round.length : first) : 0;
+  } else {
+    const anchor = group[afterQuestionNumber - 1] ?? group[group.length - 1];
+    if (anchor) insertAt = round.findIndex((question) => question.id === anchor.id) + 1;
+  }
+  const next = [...round];
+  next.splice(insertAt, 0, createEmptyQuestion(roundNumber, 1, kind));
+  return replaceRoundQuestions(questions, roundNumber, next);
 }
 
-/** Odstráni otázku a prečísluje zvyšok v rovnakej skupine (kolo + typ). */
+/** Odstráni otázku a nechá poradie zvyšku kola. */
 export function removeQuestion(questions: QuizQuestionItem[], questionId: string): QuizQuestionItem[] {
-  const target = questions.find((q) => q.id === questionId);
+  const target = questions.find((question) => question.id === questionId);
   if (!target) return questions;
-
-  const remaining = questions.filter((q) => q.id !== questionId);
-  const groupKey = questionRenumberGroupKey(target);
-  const group = remaining
-    .filter(
-      (q) => q.roundNumber === target.roundNumber && questionRenumberGroupKey(q) === groupKey
-    )
-    .sort((a, b) => a.questionNumber - b.questionNumber)
-    .map((q, index) => ({ ...q, questionNumber: index + 1 }));
-
-  const rest = remaining.filter(
-    (q) => q.roundNumber !== target.roundNumber || questionRenumberGroupKey(q) !== groupKey
+  const round = sortQuizQuestions(
+    questions.filter((question) => question.roundNumber === target.roundNumber && question.id !== questionId)
   );
-
-  return sortQuizQuestions([...rest, ...group]);
+  return replaceRoundQuestions(questions, target.roundNumber, round);
 }
 
 /** Import starého formátu (samostatné slidy otázka + odpoveď). */

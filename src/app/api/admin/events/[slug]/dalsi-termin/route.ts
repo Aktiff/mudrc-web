@@ -33,7 +33,12 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: { slug: string } }) {
-  const body = (await req.json().catch(() => null)) as { id?: unknown; date?: unknown; specialRules?: unknown } | null;
+  const body = (await req.json().catch(() => null)) as {
+    id?: unknown;
+    date?: unknown;
+    specialRules?: unknown;
+    rules?: unknown;
+  } | null;
   const id = typeof body?.id === "string" ? body.id.trim() : "";
   const date = typeof body?.date === "string" ? body.date.trim() : "";
   if (!id && !date) return NextResponse.json({ error: "Chýba termín." }, { status: 400 });
@@ -48,7 +53,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { slug: stri
     const match = (id && quiz.id === id) || (date && futureQuizMatchesDate(quiz, date));
     if (!match) return quiz;
     found = true;
-    return { ...quiz, specialRules: normalizeQuizRules(body?.specialRules) };
+    return {
+      ...quiz,
+      specialRules: normalizeQuizRules(body?.specialRules),
+      ...(Array.isArray(body?.rules) ? { rules: normalizeQuizRules(body.rules) } : {}),
+    };
   });
   if (!found) return NextResponse.json({ error: "Termín sa nenašiel." }, { status: 404 });
 

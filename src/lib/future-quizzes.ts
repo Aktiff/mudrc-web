@@ -42,6 +42,7 @@ export function normalizeFutureQuizzes(raw: unknown): FutureQuiz[] {
       quizType: quizTypeOrDefault(row.quizType),
       registrationOpen: row.registrationOpen !== false,
       specialRules: normalizeQuizRules(row.specialRules),
+      ...(Array.isArray(row.rules) ? { rules: normalizeQuizRules(row.rules) } : {}),
     });
   }
   return Array.from(byId.values())
@@ -121,6 +122,7 @@ export function eventForPublicTerm(event: QuizEvent, termin: string | undefined)
     registrationOpen: extra.registrationOpen !== false,
     thematic: normalizeQuizRules(extra.specialRules).some((rule) => !rule.hidden && rule.text.trim()),
     specialRules: normalizeQuizRules(extra.specialRules),
+    ...(Array.isArray(extra.rules) ? { rules: normalizeQuizRules(extra.rules) } : {}),
   };
 }
 

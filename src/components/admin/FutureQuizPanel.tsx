@@ -17,6 +17,7 @@ type FutureQuizPanelProps = {
   eventTime: string;
   quizzes: FutureQuiz[];
   knownTypes: string[];
+  venueRules?: QuizRule[];
   onChange: (quizzes: FutureQuiz[]) => void;
   onMessage: (text: string, ok: boolean) => void;
 };
@@ -27,6 +28,7 @@ export default function FutureQuizPanel({
   eventTime,
   quizzes,
   knownTypes,
+  venueRules = [],
   onChange,
   onMessage,
 }: FutureQuizPanelProps) {
@@ -65,13 +67,17 @@ export default function FutureQuizPanel({
     }
   };
 
-  const saveRules = async (quiz: FutureQuiz, rules: QuizRule[]) => {
+  const saveRules = async (quiz: FutureQuiz, rules: QuizRule[], commonRules?: QuizRule[]) => {
     setBusy(true);
     try {
       const res = await fetch(`/api/admin/events/${slug}/dalsi-termin`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: quiz.id, specialRules: rules }),
+        body: JSON.stringify({
+          id: quiz.id,
+          specialRules: rules,
+          ...(commonRules !== undefined ? { rules: commonRules } : {}),
+        }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -124,8 +130,9 @@ export default function FutureQuizPanel({
             <FutureQuizCard
               key={quiz.id}
               quiz={quiz}
+              venueRules={venueRules}
               busy={busy}
-              onSave={(rules) => void saveRules(quiz, rules)}
+              onSave={(rules, commonRules) => void saveRules(quiz, rules, commonRules)}
               onRemove={() => void removeTerm(quiz)}
             />
           ))}
@@ -164,16 +171,20 @@ export default function FutureQuizPanel({
 
 function FutureQuizCard({
   quiz,
+  venueRules,
   busy,
   onSave,
   onRemove,
 }: {
   quiz: FutureQuiz;
+  venueRules: QuizRule[];
   busy: boolean;
-  onSave: (rules: QuizRule[]) => void;
+  onSave: (rules: QuizRule[], commonRules?: QuizRule[]) => void;
   onRemove: () => void;
 }) {
   const [rules, setRules] = useState(() => normalizeQuizRules(quiz.specialRules));
+  const [commonRules, setCommonRules] = useState(() => normalizeQuizRules(quiz.rules ?? venueRules));
+  const [commonEdited, setCommonEdited] = useState(false);
 
   return (
     <li className="rounded-xl border border-brand-border bg-brand-card p-4 space-y-3">
@@ -203,9 +214,25 @@ function FutureQuizCard({
           addLabel="Pridať špeciálne pravidlo"
           emptyLabel="Zatiaľ žiadne špeciálne pravidlá."
         />
+        <details className="mt-4 rounded-lg border border-brand-border bg-brand-surface/50 px-3 py-2">
+          <summary className="cursor-pointer text-sm font-semibold text-brand-text">Bežné pravidlá</summary>
+          <p className="text-brand-muted text-xs mt-2 mb-3 leading-relaxed">
+            Tu ich môžeš skryť len pre tento termín. Najbližší kvíz ostane so svojimi pravidlami. Skryté sa na webe ani v projekcii neukáže.
+          </p>
+          <RuleListEditor
+            rules={commonRules}
+            onChange={(next) => {
+              setCommonRules(next);
+              setCommonEdited(true);
+            }}
+            placeholder="Text pravidla..."
+            addLabel="Pridať pravidlo"
+            emptyLabel="Tento podnik zatiaľ nemá bežné pravidlá."
+          />
+        </details>
         <button
           type="button"
-          onClick={() => onSave(rules)}
+          onClick={() => onSave(rules, commonEdited ? commonRules : undefined)}
           disabled={busy}
           className="btn-primary text-sm py-2 px-4 mt-3"
         >

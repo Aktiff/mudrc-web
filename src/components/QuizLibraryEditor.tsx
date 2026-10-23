@@ -42,9 +42,8 @@ import {
   describeQuizContent,
   insertQuestionAfter,
   reorderQuizRounds,
-  isSameReorderGroup,
-  questionRenumberGroupKey,
-  questionsInSameReorderGroup,
+  moveQuestionByDirection,
+  moveQuestionToRoundIndex,
   removeQuestion,
   roundLabels,
   sortQuizQuestions,
@@ -90,52 +89,6 @@ type Props = {
 
 function questionsInRound(questions: QuizQuestionItem[], round: number) {
   return sortQuizQuestions(questions.filter((q) => q.roundNumber === round));
-}
-
-function moveQuestionInGroup(
-  questions: QuizQuestionItem[],
-  questionId: string,
-  direction: "up" | "down"
-): QuizQuestionItem[] {
-  const target = questions.find((q) => q.id === questionId);
-  if (!target) return questions;
-
-  const group = questionsInSameReorderGroup(questions, target);
-  const index = group.findIndex((q) => q.id === questionId);
-  const swapIndex = direction === "up" ? index - 1 : index + 1;
-  if (swapIndex < 0 || swapIndex >= group.length) return questions;
-
-  const reordered = [...group];
-  [reordered[index], reordered[swapIndex]] = [reordered[swapIndex], reordered[index]];
-  const renumbered = reordered.map((q, i) => ({ ...q, questionNumber: i + 1 }));
-  const groupKey = questionRenumberGroupKey(target);
-  const rest = questions.filter(
-    (q) => q.roundNumber !== target.roundNumber || questionRenumberGroupKey(q) !== groupKey
-  );
-  return sortQuizQuestions([...rest, ...renumbered]);
-}
-
-function reorderQuestionInGroup(
-  questions: QuizQuestionItem[],
-  questionId: string,
-  toIndex: number
-): QuizQuestionItem[] {
-  const target = questions.find((q) => q.id === questionId);
-  if (!target) return questions;
-
-  const group = questionsInSameReorderGroup(questions, target);
-  const fromIndex = group.findIndex((q) => q.id === questionId);
-  if (fromIndex < 0 || toIndex < 0 || toIndex >= group.length || fromIndex === toIndex) return questions;
-
-  const reordered = [...group];
-  const [item] = reordered.splice(fromIndex, 1);
-  reordered.splice(toIndex, 0, item);
-  const renumbered = reordered.map((q, i) => ({ ...q, questionNumber: i + 1 }));
-  const groupKey = questionRenumberGroupKey(target);
-  const rest = questions.filter(
-    (q) => q.roundNumber !== target.roundNumber || questionRenumberGroupKey(q) !== groupKey
-  );
-  return sortQuizQuestions([...rest, ...renumbered]);
 }
 
 const NORMAL_MEDIA_CHOICES = [
@@ -436,7 +389,7 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
   const moveQuestion = (questionId: string, direction: "up" | "down") => {
     setQuiz((prev) => {
       if (!prev) return prev;
-      const nextQuestions = moveQuestionInGroup(prev.questions, questionId, direction);
+      const nextQuestions = moveQuestionByDirection(prev.questions, questionId, direction);
       if (nextQuestions === prev.questions) return prev;
       return { ...prev, questions: nextQuestions };
     });
@@ -446,13 +399,12 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
     if (!dragQuestionId || dragQuestionId === targetId) return;
     const dragged = questions.find((q) => q.id === dragQuestionId);
     const target = questions.find((q) => q.id === targetId);
-    if (!dragged || !target) return;
-    if (!isSameReorderGroup(dragged, target)) return;
+    if (!dragged || !target || dragged.roundNumber !== target.roundNumber) return;
 
-    const group = questionsInSameReorderGroup(questions, target);
-    const toIndex = group.findIndex((q) => q.id === targetId);
+    const round = questionsInRound(questions, target.roundNumber);
+    const toIndex = round.findIndex((q) => q.id === targetId);
     setQuiz((prev) =>
-      prev ? { ...prev, questions: reorderQuestionInGroup(prev.questions, dragQuestionId, toIndex) } : prev
+      prev ? { ...prev, questions: moveQuestionToRoundIndex(prev.questions, dragQuestionId, toIndex) } : prev
     );
     setDragQuestionId(null);
   };
@@ -1568,10 +1520,9 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
               </p>
             )}
         {section.items.map((question) => {
-          const group = questionsInSameReorderGroup(questions, question);
-          const groupIndex = group.findIndex((q) => q.id === question.id);
-          const canMoveUp = groupIndex > 0;
-          const canMoveDown = groupIndex >= 0 && groupIndex < group.length - 1;
+          const roundIndex = roundQuestions.findIndex((item) => item.id === question.id);
+          const canMoveUp = roundIndex > 0;
+          const canMoveDown = roundIndex >= 0 && roundIndex < roundQuestions.length - 1;
 
           return (
           <Fragment key={question.id}>
