@@ -29,6 +29,7 @@ import {
   shouldShowImageInQuestionPhase,
   shouldShowVideoInAnswerPhase,
   shouldShowVideoInQuestionPhase,
+  videoQuestionClipSeconds,
   type PresentationSlide,
 } from "@/lib/quiz-presentation";
 import { findCorrectOptionIndex, getQuestionBodyText, getQuestionOptions, matchLetter, optionLetter } from "@/lib/quiz-question-options";
@@ -385,6 +386,7 @@ function QuestionContent({
         captureWheel={false}
         controls
         playsInline
+        playUntilSeconds={phase === "question" ? videoQuestionClipSeconds(question) : undefined}
         src={playbackMediaSrc(question.videoUrl)}
         className="w-full max-w-4xl max-h-[min(28vh,360px)] rounded-xl border border-white/10 bg-black touch-auto pointer-events-auto"
         onClick={(e) => e.stopPropagation()}
@@ -477,7 +479,15 @@ function QuestionContent({
   );
 }
 
-function ImageSlide({ question, media = "image" }: { question: QuizQuestionItem; media?: "image" | "video" }) {
+function ImageSlide({
+  question,
+  media = "image",
+  playUntilSeconds,
+}: {
+  question: QuizQuestionItem;
+  media?: "image" | "video";
+  playUntilSeconds?: number;
+}) {
   if (media === "video") {
     if (!question.videoUrl?.trim()) return null;
     return (
@@ -486,6 +496,7 @@ function ImageSlide({ question, media = "image" }: { question: QuizQuestionItem;
           captureWheel={false}
           controls
           playsInline
+          playUntilSeconds={playUntilSeconds}
           src={playbackMediaSrc(question.videoUrl)}
           className="w-full h-full max-h-full max-w-full object-contain bg-black touch-auto pointer-events-auto"
           onClick={(e) => e.stopPropagation()}
@@ -593,7 +604,7 @@ function PresentationView({
   if (slide.type === "image_slide") {
     return (
       <div className="w-full max-h-full min-h-0 flex flex-col items-center justify-center overflow-hidden">
-        <ImageSlide question={slide.question} media={slide.media} />
+        <ImageSlide question={slide.question} media={slide.media} playUntilSeconds={slide.playUntilSeconds} />
       </div>
     );
   }

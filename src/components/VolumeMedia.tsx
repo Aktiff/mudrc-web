@@ -71,7 +71,28 @@ type Extra = {
   captureWheel?: boolean;
   /** Len prezentácia. Prvá a posledná sekunda. */
   edgeFade?: boolean;
+  /** Zastaví prehrávanie na tejto sekunde. Prázdne = celé video. */
+  playUntilSeconds?: number;
 };
+
+function usePlayUntil(node: HTMLVideoElement | null, seconds: number | undefined) {
+  useEffect(() => {
+    if (!node || seconds == null || !(seconds > 0)) return;
+    const clamp = () => {
+      if (node.currentTime < seconds - 0.08) return;
+      if (!node.paused) node.pause();
+      if (node.currentTime > seconds) node.currentTime = Math.max(0, seconds - 0.05);
+    };
+    node.addEventListener("timeupdate", clamp);
+    node.addEventListener("seeked", clamp);
+    node.addEventListener("playing", clamp);
+    return () => {
+      node.removeEventListener("timeupdate", clamp);
+      node.removeEventListener("seeked", clamp);
+      node.removeEventListener("playing", clamp);
+    };
+  }, [node, seconds]);
+}
 
 function VolumeShell({
   hint,
@@ -118,12 +139,13 @@ export const VolumeAudio = forwardRef<HTMLAudioElement, ComponentProps<"audio"> 
 });
 
 export const VolumeVideo = forwardRef<HTMLVideoElement, ComponentProps<"video"> & Extra>(function VolumeVideo(
-  { hint = false, captureWheel = true, ...props },
+  { hint = false, captureWheel = true, playUntilSeconds, ...props },
   forwarded
 ) {
   const [node, setNode] = useState<HTMLVideoElement | null>(null);
   const [box, setBox] = useState<HTMLDivElement | null>(null);
   useAppliedVolume(node, false);
+  usePlayUntil(node, playUntilSeconds);
   return (
     <VolumeShell hint={hint} captureWheel={captureWheel} box={box} setBox={setBox}>
       <video

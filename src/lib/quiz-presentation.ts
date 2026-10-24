@@ -6,7 +6,7 @@ export type PresentationSlide =
   | { type: "rules" }
   | { type: "round"; roundNumber: number; title: string; subtitle: string }
   | { type: "question_phase"; question: QuizQuestionItem }
-  | { type: "image_slide"; question: QuizQuestionItem; media?: "image" | "video" }
+  | { type: "image_slide"; question: QuizQuestionItem; media?: "image" | "video"; playUntilSeconds?: number }
   | { type: "correction"; roundNumber: number }
   | { type: "answers_intro"; roundNumber: number; title: string }
   | { type: "answer_phase"; question: QuizQuestionItem }
@@ -42,14 +42,14 @@ export function buildPresentationSlides(questions: QuizQuestionItem[]): Presenta
         slides.push({ type: "image_slide", question, media: "image" });
       }
       if (shouldShowVideoBeforeQuestion(question)) {
-        slides.push({ type: "image_slide", question, media: "video" });
+        slides.push({ type: "image_slide", question, media: "video", playUntilSeconds: videoQuestionClipSeconds(question) });
       }
       slides.push({ type: "question_phase", question });
       if (shouldShowImageOnNextSlide(question)) {
         slides.push({ type: "image_slide", question, media: "image" });
       }
       if (shouldShowVideoOnNextSlide(question)) {
-        slides.push({ type: "image_slide", question, media: "video" });
+        slides.push({ type: "image_slide", question, media: "video", playUntilSeconds: videoQuestionClipSeconds(question) });
       }
     }
 
@@ -192,6 +192,12 @@ export function shouldShowImageBeforeAnswer(question: QuizQuestionItem): boolean
 
 export function shouldShowImageAfterAnswer(question: QuizQuestionItem): boolean {
   return Boolean(question.imageUrl?.trim() && question.imageAfterAnswer);
+}
+
+export function videoQuestionClipSeconds(question: Pick<QuizQuestionItem, "videoQuestionSeconds">): number | undefined {
+  const seconds = question.videoQuestionSeconds;
+  if (typeof seconds !== "number" || !Number.isFinite(seconds) || seconds <= 0) return undefined;
+  return seconds;
 }
 
 export function shouldShowVideoBeforeQuestion(question: QuizQuestionItem): boolean {

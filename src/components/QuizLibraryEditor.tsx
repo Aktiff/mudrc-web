@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, Fragment } from "react";
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, GripVertical, MonitorPlay, Plus, RotateCcw, Save, Trash2, X } from "lucide-react";
 import type { QuizEvent } from "@/lib/data";
+import { playbackMediaSrc } from "@/lib/media-url";
 import {
   collectUsedBankQuestionIdsFromQuiz,
   collectUsedQuestionBodyKeys,
@@ -109,7 +110,7 @@ const CLEARED_VIDEO_PLACEMENT = {
 
 function videoUrlPatch(current: QuizQuestionItem, url: string): Partial<QuizQuestionItem> {
   const trimmed = url.trim();
-  if (!trimmed) return { videoUrl: "", ...CLEARED_VIDEO_PLACEMENT };
+  if (!trimmed) return { videoUrl: "", videoQuestionSeconds: undefined, ...CLEARED_VIDEO_PLACEMENT };
   if (current.videoUrl?.trim()) return { videoUrl: trimmed };
   return {
     videoUrl: trimmed,
@@ -120,6 +121,70 @@ function videoUrlPatch(current: QuizQuestionItem, url: string): Partial<QuizQues
     videoBeforeAnswer: false,
     videoAfterAnswer: false,
   };
+}
+
+function VideoQuestionClipField({
+  url,
+  seconds,
+  onChange,
+}: {
+  url: string;
+  seconds: number | undefined;
+  onChange: (seconds: number | undefined) => void;
+}) {
+  const [duration, setDuration] = useState<number | null>(null);
+
+  useEffect(() => {
+    const src = playbackMediaSrc(url);
+    if (!src) {
+      setDuration(null);
+      return;
+    }
+    const video = document.createElement("video");
+    video.preload = "metadata";
+    const onMeta = () => {
+      if (Number.isFinite(video.duration) && video.duration > 0) setDuration(Math.round(video.duration));
+    };
+    video.addEventListener("loadedmetadata", onMeta);
+    video.src = src;
+    return () => {
+      video.removeEventListener("loadedmetadata", onMeta);
+      video.removeAttribute("src");
+      video.load();
+    };
+  }, [url]);
+
+  return (
+    <div className="space-y-1.5">
+      <label className="label">V otázke pustiť len začiatok</label>
+      <div className="flex items-center gap-2 max-w-xs">
+        <input
+          className="input"
+          type="number"
+          min={1}
+          step={1}
+          inputMode="numeric"
+          placeholder="celé"
+          value={seconds ?? ""}
+          onChange={(e) => {
+            const raw = e.target.value.trim().replace(",", ".");
+            if (!raw) {
+              onChange(undefined);
+              return;
+            }
+            const next = Number(raw);
+            onChange(Number.isFinite(next) && next > 0 ? Math.round(next * 10) / 10 : undefined);
+          }}
+        />
+        <span className="text-sm text-brand-muted shrink-0">sekúnd</span>
+      </div>
+      <p className="text-brand-muted text-xs leading-relaxed">
+        Napríklad 17 z tridsaťsekundovej scény. Pri správnych odpovediach ide ukážka celá od začiatku.
+        {duration ? ` Celá ukážka má ${duration} s.` : ""}
+        {" "}Prázdne pole znamená, že aj v otázke pôjde celé video.
+      </p>
+    </div>
+  );
 }
 
 function MediaPlacementFields({
@@ -893,6 +958,7 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
                     imageOnNextSlide: undefined,
                     imageOnAnswerSlide: undefined,
                     ...CLEARED_VIDEO_PLACEMENT,
+                    videoQuestionSeconds: undefined,
                   }
                 : q
             ),
@@ -2044,11 +2110,11 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
                   if (choice === current) return;
                   setNormalMediaChoice((prev) => ({ ...prev, [question.id]: choice }));
                   if (choice === "none") {
-                    updateQuestion(question.id, { imageUrl: "", audioUrl: "", videoUrl: "", ...CLEARED_VIDEO_PLACEMENT });
+                    updateQuestion(question.id, { imageUrl: "", audioUrl: "", videoUrl: "", videoQuestionSeconds: undefined, ...CLEARED_VIDEO_PLACEMENT });
                   } else if (choice === "image") {
-                    updateQuestion(question.id, { audioUrl: "", videoUrl: "", ...CLEARED_VIDEO_PLACEMENT });
+                    updateQuestion(question.id, { audioUrl: "", videoUrl: "", videoQuestionSeconds: undefined, ...CLEARED_VIDEO_PLACEMENT });
                   } else if (choice === "audio") {
-                    updateQuestion(question.id, { imageUrl: "", videoUrl: "", ...CLEARED_VIDEO_PLACEMENT });
+                    updateQuestion(question.id, { imageUrl: "", videoUrl: "", videoQuestionSeconds: undefined, ...CLEARED_VIDEO_PLACEMENT });
                   } else {
                     updateQuestion(question.id, { imageUrl: "", audioUrl: "" });
                   }
@@ -2111,6 +2177,7 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
               />
             )}
             {question.videoUrl?.trim() && (question.kind === "video" || question.kind === "normal") && (
+              <>
               <MediaPlacementFields
                 title="Kde zobraziť video"
                 noun="video"
@@ -2131,6 +2198,12 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
                   })
                 }
               />
+              <VideoQuestionClipField
+                url={question.videoUrl}
+                seconds={question.videoQuestionSeconds}
+                onChange={(videoQuestionSeconds) => updateQuestion(question.id, { videoQuestionSeconds })}
+              />
+              </>
             )}
             {(question.body.trim() || question.answer.trim() || question.hostNote || question.bankQuestionId) && (
               <div>

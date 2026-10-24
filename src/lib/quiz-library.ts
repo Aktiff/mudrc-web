@@ -53,6 +53,8 @@ export type QuizQuestionItem = {
   videoBeforeAnswer?: boolean;
   /** Fullscreen video po správnej odpovedi. */
   videoAfterAnswer?: boolean;
+  /** V otázke pustiť len toľko sekúnd od začiatku. Pri odpovedi ide video celé. */
+  videoQuestionSeconds?: number;
   /** Popis ukážky z banky (zvuk / video) — pre vrátenie do banky */
   mediaLabel?: string;
   /** true = obrázok aj pri otázke */
@@ -109,6 +111,12 @@ export function defaultLibraryQuiz(title = "Nový kvíz"): QuizLibraryItem {
     formatVersion: 2,
     questions: buildStandardMudrcQuestions(),
   };
+}
+
+function clipSeconds(value: unknown): number | undefined {
+  const raw = typeof value === "number" ? value : typeof value === "string" ? Number(value.replace(",", ".")) : NaN;
+  if (!Number.isFinite(raw) || raw <= 0) return undefined;
+  return Math.round(raw * 10) / 10;
 }
 
 /** Staré video bez volieb ostane na otázke aj pri odpovedi. Nové voľby sa uložia tak, ako ich zaškrtneš. */
@@ -220,6 +228,7 @@ function normalizeQuestion(input: Partial<QuizQuestionItem>): QuizQuestionItem |
     audioEdgeFade: input.audioEdgeFade === true ? true : undefined,
     videoUrl: input.videoUrl?.trim() || undefined,
     ...videoPlacementFromInput(input),
+    videoQuestionSeconds: clipSeconds(input.videoQuestionSeconds),
     mediaLabel: input.mediaLabel?.trim() || undefined,
     imageDuringQuestion: Boolean(input.imageDuringQuestion),
     imageBeforeQuestion: Boolean(input.imageBeforeQuestion),
