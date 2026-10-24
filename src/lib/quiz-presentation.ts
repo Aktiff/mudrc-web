@@ -209,7 +209,7 @@ export function shouldShowVideoInQuestionPhase(question: QuizQuestionItem): bool
 }
 
 export function shouldShowVideoInAnswerPhase(question: QuizQuestionItem): boolean {
-  return Boolean(question.videoUrl?.trim() && (question.videoDuringQuestion || question.videoOnAnswerSlide));
+  return Boolean(question.videoUrl?.trim() && question.videoOnAnswerSlide);
 }
 
 export function shouldShowVideoOnNextSlide(question: QuizQuestionItem): boolean {

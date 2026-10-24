@@ -117,7 +117,7 @@ function videoUrlPatch(current: QuizQuestionItem, url: string): Partial<QuizQues
     videoBeforeQuestion: false,
     videoDuringQuestion: true,
     videoOnNextSlide: false,
-    videoOnAnswerSlide: true,
+    videoOnAnswerSlide: false,
     videoBeforeAnswer: false,
     videoAfterAnswer: false,
   };
@@ -196,6 +196,7 @@ function MediaPlacementFields({
   onAnswer,
   beforeAnswer,
   afterAnswer,
+  coupleAnswer = true,
   onChange,
 }: {
   title: string;
@@ -206,6 +207,8 @@ function MediaPlacementFields({
   onAnswer: boolean;
   beforeAnswer: boolean;
   afterAnswer: boolean;
+  /** Pri fotke zostáva odpoveď zviazaná s otázkou. Pri videu sa volí samostatne. */
+  coupleAnswer?: boolean;
   onChange: (patch: {
     beforeQuestion?: boolean;
     during?: boolean;
@@ -215,6 +218,7 @@ function MediaPlacementFields({
     afterAnswer?: boolean;
   }) => void;
 }) {
+  const answerLocked = coupleAnswer && during;
   return (
     <div className="space-y-2">
       <p className="text-xs font-semibold text-brand-muted uppercase tracking-wider">{title}</p>
@@ -231,10 +235,15 @@ function MediaPlacementFields({
         <input
           type="checkbox"
           checked={during}
-          onChange={(e) => onChange({ during: e.target.checked, ...(e.target.checked ? { onAnswer: true } : {}) })}
+          onChange={(e) =>
+            onChange({
+              during: e.target.checked,
+              ...(coupleAnswer && e.target.checked ? { onAnswer: true } : {}),
+            })
+          }
           className="rounded border-brand-border"
         />
-        Na slide s otázkou a odpoveďou (spolu s textom)
+        {coupleAnswer ? "Na slide s otázkou a odpoveďou (spolu s textom)" : "Na slide s otázkou (spolu s textom)"}
       </label>
       <label className="flex items-center gap-2 text-sm text-brand-text cursor-pointer">
         <input
@@ -245,15 +254,17 @@ function MediaPlacementFields({
         />
         Slide po otázke (fullscreen {noun})
       </label>
-      <label className={`flex items-center gap-2 text-sm cursor-pointer ${during ? "text-brand-muted" : "text-brand-text"}`}>
+      <label className={`flex items-center gap-2 text-sm cursor-pointer ${answerLocked ? "text-brand-muted" : "text-brand-text"}`}>
         <input
           type="checkbox"
-          checked={onAnswer || during}
-          disabled={during}
+          checked={answerLocked || onAnswer}
+          disabled={answerLocked}
           onChange={(e) => onChange({ onAnswer: e.target.checked })}
           className="rounded border-brand-border disabled:opacity-60"
         />
-        Pri správnej odpovedi (automaticky zapnuté ak je {noun} pri otázke)
+        {coupleAnswer
+          ? `Pri správnej odpovedi (automaticky zapnuté ak je ${noun} pri otázke)`
+          : "Pri správnej odpovedi (spolu s textom)"}
       </label>
       <p className="text-xs font-semibold text-brand-muted uppercase tracking-wider pt-2">
         Pri správnych odpovediach (separátne fullscreen)
@@ -265,7 +276,7 @@ function MediaPlacementFields({
           onChange={(e) =>
             onChange({
               beforeAnswer: e.target.checked,
-              ...(e.target.checked && !during ? { onAnswer: false } : {}),
+              ...(coupleAnswer && e.target.checked && !during ? { onAnswer: false } : {}),
             })
           }
           className="rounded border-brand-border"
@@ -279,7 +290,7 @@ function MediaPlacementFields({
           onChange={(e) =>
             onChange({
               afterAnswer: e.target.checked,
-              ...(e.target.checked && !during ? { onAnswer: false } : {}),
+              ...(coupleAnswer && e.target.checked && !during ? { onAnswer: false } : {}),
             })
           }
           className="rounded border-brand-border"
@@ -901,7 +912,7 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
                 videoBeforeQuestion: false,
                 videoDuringQuestion: true,
                 videoOnNextSlide: false,
-                videoOnAnswerSlide: true,
+                videoOnAnswerSlide: false,
                 videoBeforeAnswer: false,
                 videoAfterAnswer: false,
                 tags: bankTags?.length ? Array.from(new Set([...bankTags, "video"])) : ["video"],
@@ -2187,6 +2198,7 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
                 onAnswer={Boolean(question.videoOnAnswerSlide)}
                 beforeAnswer={Boolean(question.videoBeforeAnswer)}
                 afterAnswer={Boolean(question.videoAfterAnswer)}
+                coupleAnswer={false}
                 onChange={(patch) =>
                   updateQuestion(question.id, {
                     ...(patch.beforeQuestion !== undefined ? { videoBeforeQuestion: patch.beforeQuestion } : {}),

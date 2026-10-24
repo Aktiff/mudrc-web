@@ -119,7 +119,7 @@ function clipSeconds(value: unknown): number | undefined {
   return Math.round(raw * 10) / 10;
 }
 
-/** Staré video bez volieb ostane na otázke aj pri odpovedi. Nové voľby sa uložia tak, ako ich zaškrtneš. */
+/** Staré video bez volieb ostane na otázke aj pri odpovedi. Uložené voľby sa berú každá zvlášť. */
 function videoPlacementFromInput(input: Partial<QuizQuestionItem>): Pick<
   QuizQuestionItem,
   | "videoBeforeQuestion"
@@ -147,22 +147,11 @@ function videoPlacementFromInput(input: Partial<QuizQuestionItem>): Pick<
       videoAfterAnswer: false,
     };
   }
-  const during = Boolean(input.videoDuringQuestion);
   return {
     videoBeforeQuestion: Boolean(input.videoBeforeQuestion),
-    videoDuringQuestion: during,
+    videoDuringQuestion: Boolean(input.videoDuringQuestion),
     videoOnNextSlide: Boolean(input.videoOnNextSlide),
-    videoOnAnswerSlide:
-      input.videoOnAnswerSlide !== undefined
-        ? Boolean(input.videoOnAnswerSlide)
-        : Boolean(
-            hasVideo &&
-              (during ||
-                (!input.videoOnNextSlide &&
-                  !input.videoBeforeQuestion &&
-                  !input.videoBeforeAnswer &&
-                  !input.videoAfterAnswer))
-          ),
+    videoOnAnswerSlide: Boolean(input.videoOnAnswerSlide),
     videoBeforeAnswer: Boolean(input.videoBeforeAnswer),
     videoAfterAnswer: Boolean(input.videoAfterAnswer),
   };
