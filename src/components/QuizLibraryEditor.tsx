@@ -98,6 +98,133 @@ const NORMAL_MEDIA_CHOICES = [
   { id: "video", label: "Video" },
 ] as const;
 
+const CLEARED_VIDEO_PLACEMENT = {
+  videoBeforeQuestion: false,
+  videoDuringQuestion: false,
+  videoOnNextSlide: false,
+  videoOnAnswerSlide: false,
+  videoBeforeAnswer: false,
+  videoAfterAnswer: false,
+} as const;
+
+function videoUrlPatch(current: QuizQuestionItem, url: string): Partial<QuizQuestionItem> {
+  const trimmed = url.trim();
+  if (!trimmed) return { videoUrl: "", ...CLEARED_VIDEO_PLACEMENT };
+  if (current.videoUrl?.trim()) return { videoUrl: trimmed };
+  return {
+    videoUrl: trimmed,
+    videoBeforeQuestion: false,
+    videoDuringQuestion: true,
+    videoOnNextSlide: false,
+    videoOnAnswerSlide: true,
+    videoBeforeAnswer: false,
+    videoAfterAnswer: false,
+  };
+}
+
+function MediaPlacementFields({
+  title,
+  noun,
+  beforeQuestion,
+  during,
+  onNext,
+  onAnswer,
+  beforeAnswer,
+  afterAnswer,
+  onChange,
+}: {
+  title: string;
+  noun: "fotka" | "video";
+  beforeQuestion: boolean;
+  during: boolean;
+  onNext: boolean;
+  onAnswer: boolean;
+  beforeAnswer: boolean;
+  afterAnswer: boolean;
+  onChange: (patch: {
+    beforeQuestion?: boolean;
+    during?: boolean;
+    onNext?: boolean;
+    onAnswer?: boolean;
+    beforeAnswer?: boolean;
+    afterAnswer?: boolean;
+  }) => void;
+}) {
+  return (
+    <div className="space-y-2">
+      <p className="text-xs font-semibold text-brand-muted uppercase tracking-wider">{title}</p>
+      <label className="flex items-center gap-2 text-sm text-brand-text cursor-pointer">
+        <input
+          type="checkbox"
+          checked={beforeQuestion}
+          onChange={(e) => onChange({ beforeQuestion: e.target.checked })}
+          className="rounded border-brand-border"
+        />
+        Slide pred otázkou (fullscreen {noun})
+      </label>
+      <label className="flex items-center gap-2 text-sm text-brand-text cursor-pointer">
+        <input
+          type="checkbox"
+          checked={during}
+          onChange={(e) => onChange({ during: e.target.checked, ...(e.target.checked ? { onAnswer: true } : {}) })}
+          className="rounded border-brand-border"
+        />
+        Na slide s otázkou a odpoveďou (spolu s textom)
+      </label>
+      <label className="flex items-center gap-2 text-sm text-brand-text cursor-pointer">
+        <input
+          type="checkbox"
+          checked={onNext}
+          onChange={(e) => onChange({ onNext: e.target.checked })}
+          className="rounded border-brand-border"
+        />
+        Slide po otázke (fullscreen {noun})
+      </label>
+      <label className={`flex items-center gap-2 text-sm cursor-pointer ${during ? "text-brand-muted" : "text-brand-text"}`}>
+        <input
+          type="checkbox"
+          checked={onAnswer || during}
+          disabled={during}
+          onChange={(e) => onChange({ onAnswer: e.target.checked })}
+          className="rounded border-brand-border disabled:opacity-60"
+        />
+        Pri správnej odpovedi (automaticky zapnuté ak je {noun} pri otázke)
+      </label>
+      <p className="text-xs font-semibold text-brand-muted uppercase tracking-wider pt-2">
+        Pri správnych odpovediach (separátne fullscreen)
+      </p>
+      <label className="flex items-center gap-2 text-sm text-brand-text cursor-pointer">
+        <input
+          type="checkbox"
+          checked={beforeAnswer}
+          onChange={(e) =>
+            onChange({
+              beforeAnswer: e.target.checked,
+              ...(e.target.checked && !during ? { onAnswer: false } : {}),
+            })
+          }
+          className="rounded border-brand-border"
+        />
+        Slide pred správnou odpoveďou (fullscreen {noun})
+      </label>
+      <label className="flex items-center gap-2 text-sm text-brand-text cursor-pointer">
+        <input
+          type="checkbox"
+          checked={afterAnswer}
+          onChange={(e) =>
+            onChange({
+              afterAnswer: e.target.checked,
+              ...(e.target.checked && !during ? { onAnswer: false } : {}),
+            })
+          }
+          className="rounded border-brand-border"
+        />
+        Slide po správnej odpovedi (fullscreen {noun})
+      </label>
+    </div>
+  );
+}
+
 function NormalQuestionMedia({
   question,
   choice,
@@ -706,6 +833,12 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
                 imageBeforeQuestion: undefined,
                 imageOnNextSlide: undefined,
                 imageOnAnswerSlide: undefined,
+                videoBeforeQuestion: false,
+                videoDuringQuestion: true,
+                videoOnNextSlide: false,
+                videoOnAnswerSlide: true,
+                videoBeforeAnswer: false,
+                videoAfterAnswer: false,
                 tags: bankTags?.length ? Array.from(new Set([...bankTags, "video"])) : ["video"],
               }
             : q
@@ -759,6 +892,7 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
                     imageDuringQuestion: false,
                     imageOnNextSlide: undefined,
                     imageOnAnswerSlide: undefined,
+                    ...CLEARED_VIDEO_PLACEMENT,
                   }
                 : q
             ),
@@ -1910,11 +2044,11 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
                   if (choice === current) return;
                   setNormalMediaChoice((prev) => ({ ...prev, [question.id]: choice }));
                   if (choice === "none") {
-                    updateQuestion(question.id, { imageUrl: "", audioUrl: "", videoUrl: "" });
+                    updateQuestion(question.id, { imageUrl: "", audioUrl: "", videoUrl: "", ...CLEARED_VIDEO_PLACEMENT });
                   } else if (choice === "image") {
-                    updateQuestion(question.id, { audioUrl: "", videoUrl: "" });
+                    updateQuestion(question.id, { audioUrl: "", videoUrl: "", ...CLEARED_VIDEO_PLACEMENT });
                   } else if (choice === "audio") {
-                    updateQuestion(question.id, { imageUrl: "", videoUrl: "" });
+                    updateQuestion(question.id, { imageUrl: "", videoUrl: "", ...CLEARED_VIDEO_PLACEMENT });
                   } else {
                     updateQuestion(question.id, { imageUrl: "", audioUrl: "" });
                   }
@@ -1923,7 +2057,7 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
                 onUploadSuccess={(text) => setMsg({ text, ok: true })}
                 onImage={(url) => updateQuestion(question.id, { imageUrl: url })}
                 onAudio={(url) => updateQuestion(question.id, { audioUrl: url })}
-                onVideo={(url) => updateQuestion(question.id, { videoUrl: url })}
+                onVideo={(url) => updateQuestion(question.id, videoUrlPatch(question, url))}
               />
             ) : (
               <div className="grid gap-3 grid-cols-1">
@@ -1947,7 +2081,7 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
                 {question.kind === "video" && (
                   <VideoUrlField
                     value={question.videoUrl ?? ""}
-                    onChange={(url) => updateQuestion(question.id, { videoUrl: url })}
+                    onChange={(url) => updateQuestion(question.id, videoUrlPatch(question, url))}
                     onUploadError={(text) => setMsg({ text, ok: false })}
                     onUploadSuccess={(text) => setMsg({ text, ok: true })}
                   />
@@ -1955,97 +2089,48 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
               </div>
             )}
             {question.kind === "normal" && question.imageUrl?.trim() && (
-              <div className="space-y-2">
-                <p className="text-xs font-semibold text-brand-muted uppercase tracking-wider">Kde zobraziť obrázok</p>
-                <label className="flex items-center gap-2 text-sm text-brand-text cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={Boolean(question.imageBeforeQuestion)}
-                    onChange={(e) =>
-                      updateQuestion(question.id, { imageBeforeQuestion: e.target.checked })
-                    }
-                    className="rounded border-brand-border"
-                  />
-                  Slide pred otázkou (fullscreen fotka)
-                </label>
-                <label className="flex items-center gap-2 text-sm text-brand-text cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={question.imageDuringQuestion}
-                    onChange={(e) => {
-                      const checked = e.target.checked;
-                      updateQuestion(question.id, {
-                        imageDuringQuestion: checked,
-                        ...(checked ? { imageOnAnswerSlide: true } : {}),
-                      });
-                    }}
-                    className="rounded border-brand-border"
-                  />
-                  Na slide s otázkou a odpoveďou (spolu s textom)
-                </label>
-                <label className="flex items-center gap-2 text-sm text-brand-text cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={Boolean(question.imageOnNextSlide)}
-                    onChange={(e) => updateQuestion(question.id, { imageOnNextSlide: e.target.checked })}
-                    className="rounded border-brand-border"
-                  />
-                  Slide po otázke (fullscreen fotka)
-                </label>
-                <label
-                  className={`flex items-center gap-2 text-sm cursor-pointer ${
-                    question.imageDuringQuestion ? "text-brand-muted" : "text-brand-text"
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={Boolean(question.imageOnAnswerSlide || question.imageDuringQuestion)}
-                    disabled={question.imageDuringQuestion}
-                    onChange={(e) =>
-                      updateQuestion(question.id, { imageOnAnswerSlide: e.target.checked })
-                    }
-                    className="rounded border-brand-border disabled:opacity-60"
-                  />
-                  Pri správnej odpovedi (automaticky zapnuté ak je fotka pri otázke)
-                </label>
-                <p className="text-xs font-semibold text-brand-muted uppercase tracking-wider pt-2">
-                  Pri správnych odpovediach (separátne fullscreen)
-                </p>
-                <label className="flex items-center gap-2 text-sm text-brand-text cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={Boolean(question.imageBeforeAnswer)}
-                    onChange={(e) => {
-                      const checked = e.target.checked;
-                      updateQuestion(question.id, {
-                        imageBeforeAnswer: checked,
-                        ...(checked && !question.imageDuringQuestion
-                          ? { imageOnAnswerSlide: false }
-                          : {}),
-                      });
-                    }}
-                    className="rounded border-brand-border"
-                  />
-                  Slide pred správnou odpoveďou (fullscreen fotka)
-                </label>
-                <label className="flex items-center gap-2 text-sm text-brand-text cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={Boolean(question.imageAfterAnswer)}
-                    onChange={(e) => {
-                      const checked = e.target.checked;
-                      updateQuestion(question.id, {
-                        imageAfterAnswer: checked,
-                        ...(checked && !question.imageDuringQuestion
-                          ? { imageOnAnswerSlide: false }
-                          : {}),
-                      });
-                    }}
-                    className="rounded border-brand-border"
-                  />
-                  Slide po správnej odpovedi (fullscreen fotka)
-                </label>
-              </div>
+              <MediaPlacementFields
+                title="Kde zobraziť obrázok"
+                noun="fotka"
+                beforeQuestion={Boolean(question.imageBeforeQuestion)}
+                during={question.imageDuringQuestion}
+                onNext={Boolean(question.imageOnNextSlide)}
+                onAnswer={Boolean(question.imageOnAnswerSlide)}
+                beforeAnswer={Boolean(question.imageBeforeAnswer)}
+                afterAnswer={Boolean(question.imageAfterAnswer)}
+                onChange={(patch) =>
+                  updateQuestion(question.id, {
+                    ...(patch.beforeQuestion !== undefined ? { imageBeforeQuestion: patch.beforeQuestion } : {}),
+                    ...(patch.during !== undefined ? { imageDuringQuestion: patch.during } : {}),
+                    ...(patch.onNext !== undefined ? { imageOnNextSlide: patch.onNext } : {}),
+                    ...(patch.onAnswer !== undefined ? { imageOnAnswerSlide: patch.onAnswer } : {}),
+                    ...(patch.beforeAnswer !== undefined ? { imageBeforeAnswer: patch.beforeAnswer } : {}),
+                    ...(patch.afterAnswer !== undefined ? { imageAfterAnswer: patch.afterAnswer } : {}),
+                  })
+                }
+              />
+            )}
+            {question.videoUrl?.trim() && (question.kind === "video" || question.kind === "normal") && (
+              <MediaPlacementFields
+                title="Kde zobraziť video"
+                noun="video"
+                beforeQuestion={Boolean(question.videoBeforeQuestion)}
+                during={Boolean(question.videoDuringQuestion)}
+                onNext={Boolean(question.videoOnNextSlide)}
+                onAnswer={Boolean(question.videoOnAnswerSlide)}
+                beforeAnswer={Boolean(question.videoBeforeAnswer)}
+                afterAnswer={Boolean(question.videoAfterAnswer)}
+                onChange={(patch) =>
+                  updateQuestion(question.id, {
+                    ...(patch.beforeQuestion !== undefined ? { videoBeforeQuestion: patch.beforeQuestion } : {}),
+                    ...(patch.during !== undefined ? { videoDuringQuestion: patch.during } : {}),
+                    ...(patch.onNext !== undefined ? { videoOnNextSlide: patch.onNext } : {}),
+                    ...(patch.onAnswer !== undefined ? { videoOnAnswerSlide: patch.onAnswer } : {}),
+                    ...(patch.beforeAnswer !== undefined ? { videoBeforeAnswer: patch.beforeAnswer } : {}),
+                    ...(patch.afterAnswer !== undefined ? { videoAfterAnswer: patch.afterAnswer } : {}),
+                  })
+                }
+              />
             )}
             {(question.body.trim() || question.answer.trim() || question.hostNote || question.bankQuestionId) && (
               <div>

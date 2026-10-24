@@ -27,6 +27,8 @@ import {
   buildPresentationSlides,
   shouldShowImageInAnswerPhase,
   shouldShowImageInQuestionPhase,
+  shouldShowVideoInAnswerPhase,
+  shouldShowVideoInQuestionPhase,
   type PresentationSlide,
 } from "@/lib/quiz-presentation";
 import { findCorrectOptionIndex, getQuestionBodyText, getQuestionOptions, matchLetter, optionLetter } from "@/lib/quiz-question-options";
@@ -346,6 +348,8 @@ function QuestionContent({
 }) {
   const showImage =
     phase === "question" ? shouldShowImageInQuestionPhase(question) : shouldShowImageInAnswerPhase(question);
+  const showVideo =
+    phase === "question" ? shouldShowVideoInQuestionPhase(question) : shouldShowVideoInAnswerPhase(question);
   const questionText = fixSlovakLineBreaks(getQuestionBodyText(question) || "Otázka");
   const options = getQuestionOptions(question);
   const correctOptionIndex =
@@ -376,7 +380,7 @@ function QuestionContent({
       />
     ) : null;
 
-  const videoBlock = question.videoUrl?.trim() ? (
+  const videoBlock = showVideo && question.videoUrl?.trim() ? (
       <VolumeVideo
         captureWheel={false}
         controls
@@ -473,7 +477,23 @@ function QuestionContent({
   );
 }
 
-function ImageSlide({ question }: { question: QuizQuestionItem }) {
+function ImageSlide({ question, media = "image" }: { question: QuizQuestionItem; media?: "image" | "video" }) {
+  if (media === "video") {
+    if (!question.videoUrl?.trim()) return null;
+    return (
+      <div className="w-full h-full max-h-full min-h-0 flex-1 flex items-center justify-center overflow-hidden px-2 py-2">
+        <VolumeVideo
+          captureWheel={false}
+          controls
+          playsInline
+          src={playbackMediaSrc(question.videoUrl)}
+          className="w-full h-full max-h-full max-w-full object-contain bg-black touch-auto pointer-events-auto"
+          onClick={(e) => e.stopPropagation()}
+          onContextMenu={(e) => e.stopPropagation()}
+        />
+      </div>
+    );
+  }
   if (!question.imageUrl?.trim()) return null;
 
   return (
@@ -573,7 +593,7 @@ function PresentationView({
   if (slide.type === "image_slide") {
     return (
       <div className="w-full max-h-full min-h-0 flex flex-col items-center justify-center overflow-hidden">
-        <ImageSlide question={slide.question} />
+        <ImageSlide question={slide.question} media={slide.media} />
       </div>
     );
   }
@@ -1113,7 +1133,8 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
             activeQuestion.kind === "sound" ||
             activeQuestion.kind === "video" ||
             Boolean(activeQuestion.audioUrl?.trim()) ||
-            Boolean(activeQuestion.videoUrl?.trim()))
+            Boolean(activeQuestion.videoUrl?.trim())) ||
+          (slide?.type === "image_slide" && slide.media === "video")
             ? "volume"
             : "zoom"
         }

@@ -6,7 +6,7 @@ export type PresentationSlide =
   | { type: "rules" }
   | { type: "round"; roundNumber: number; title: string; subtitle: string }
   | { type: "question_phase"; question: QuizQuestionItem }
-  | { type: "image_slide"; question: QuizQuestionItem }
+  | { type: "image_slide"; question: QuizQuestionItem; media?: "image" | "video" }
   | { type: "correction"; roundNumber: number }
   | { type: "answers_intro"; roundNumber: number; title: string }
   | { type: "answer_phase"; question: QuizQuestionItem }
@@ -39,11 +39,17 @@ export function buildPresentationSlides(questions: QuizQuestionItem[]): Presenta
 
     for (const question of roundQuestions) {
       if (shouldShowImageBeforeQuestion(question)) {
-        slides.push({ type: "image_slide", question });
+        slides.push({ type: "image_slide", question, media: "image" });
+      }
+      if (shouldShowVideoBeforeQuestion(question)) {
+        slides.push({ type: "image_slide", question, media: "video" });
       }
       slides.push({ type: "question_phase", question });
       if (shouldShowImageOnNextSlide(question)) {
-        slides.push({ type: "image_slide", question });
+        slides.push({ type: "image_slide", question, media: "image" });
+      }
+      if (shouldShowVideoOnNextSlide(question)) {
+        slides.push({ type: "image_slide", question, media: "video" });
       }
     }
 
@@ -60,11 +66,17 @@ export function buildPresentationSlides(questions: QuizQuestionItem[]): Presenta
 
     for (const question of roundQuestions) {
       if (shouldShowImageBeforeAnswer(question)) {
-        slides.push({ type: "image_slide", question });
+        slides.push({ type: "image_slide", question, media: "image" });
+      }
+      if (shouldShowVideoBeforeAnswer(question)) {
+        slides.push({ type: "image_slide", question, media: "video" });
       }
       slides.push({ type: "answer_phase", question });
       if (shouldShowImageAfterAnswer(question)) {
-        slides.push({ type: "image_slide", question });
+        slides.push({ type: "image_slide", question, media: "image" });
+      }
+      if (shouldShowVideoAfterAnswer(question)) {
+        slides.push({ type: "image_slide", question, media: "video" });
       }
     }
   }
@@ -180,6 +192,30 @@ export function shouldShowImageBeforeAnswer(question: QuizQuestionItem): boolean
 
 export function shouldShowImageAfterAnswer(question: QuizQuestionItem): boolean {
   return Boolean(question.imageUrl?.trim() && question.imageAfterAnswer);
+}
+
+export function shouldShowVideoBeforeQuestion(question: QuizQuestionItem): boolean {
+  return Boolean(question.videoUrl?.trim() && question.videoBeforeQuestion);
+}
+
+export function shouldShowVideoInQuestionPhase(question: QuizQuestionItem): boolean {
+  return Boolean(question.videoUrl?.trim() && question.videoDuringQuestion);
+}
+
+export function shouldShowVideoInAnswerPhase(question: QuizQuestionItem): boolean {
+  return Boolean(question.videoUrl?.trim() && (question.videoDuringQuestion || question.videoOnAnswerSlide));
+}
+
+export function shouldShowVideoOnNextSlide(question: QuizQuestionItem): boolean {
+  return Boolean(question.videoUrl?.trim() && question.videoOnNextSlide);
+}
+
+export function shouldShowVideoBeforeAnswer(question: QuizQuestionItem): boolean {
+  return Boolean(question.videoUrl?.trim() && question.videoBeforeAnswer);
+}
+
+export function shouldShowVideoAfterAnswer(question: QuizQuestionItem): boolean {
+  return Boolean(question.videoUrl?.trim() && question.videoAfterAnswer);
 }
 
 /** Wikimedia thumb URL → plné rozlíšenie (inak ponechá pôvodnú URL). */

@@ -41,6 +41,18 @@ export type QuizQuestionItem = {
   /** true = v prezentácii prvá a posledná sekunda plynulo nabehne a dobehne */
   audioEdgeFade?: boolean;
   videoUrl?: string;
+  /** Fullscreen video pred otázkou. */
+  videoBeforeQuestion?: boolean;
+  /** Video na slide s otázkou a odpoveďou. */
+  videoDuringQuestion?: boolean;
+  /** Fullscreen video hneď po otázke. */
+  videoOnNextSlide?: boolean;
+  /** Video pri správnej odpovedi. */
+  videoOnAnswerSlide?: boolean;
+  /** Fullscreen video pred správnou odpoveďou. */
+  videoBeforeAnswer?: boolean;
+  /** Fullscreen video po správnej odpovedi. */
+  videoAfterAnswer?: boolean;
   /** Popis ukážky z banky (zvuk / video) — pre vrátenie do banky */
   mediaLabel?: string;
   /** true = obrázok aj pri otázke */
@@ -96,6 +108,55 @@ export function defaultLibraryQuiz(title = "Nový kvíz"): QuizLibraryItem {
     updatedAt: now,
     formatVersion: 2,
     questions: buildStandardMudrcQuestions(),
+  };
+}
+
+/** Staré video bez volieb ostane na otázke aj pri odpovedi. Nové voľby sa uložia tak, ako ich zaškrtneš. */
+function videoPlacementFromInput(input: Partial<QuizQuestionItem>): Pick<
+  QuizQuestionItem,
+  | "videoBeforeQuestion"
+  | "videoDuringQuestion"
+  | "videoOnNextSlide"
+  | "videoOnAnswerSlide"
+  | "videoBeforeAnswer"
+  | "videoAfterAnswer"
+> {
+  const hasVideo = Boolean(input.videoUrl?.trim());
+  const specified =
+    input.videoBeforeQuestion !== undefined ||
+    input.videoDuringQuestion !== undefined ||
+    input.videoOnNextSlide !== undefined ||
+    input.videoOnAnswerSlide !== undefined ||
+    input.videoBeforeAnswer !== undefined ||
+    input.videoAfterAnswer !== undefined;
+  if (!specified) {
+    return {
+      videoBeforeQuestion: false,
+      videoDuringQuestion: hasVideo,
+      videoOnNextSlide: false,
+      videoOnAnswerSlide: hasVideo,
+      videoBeforeAnswer: false,
+      videoAfterAnswer: false,
+    };
+  }
+  const during = Boolean(input.videoDuringQuestion);
+  return {
+    videoBeforeQuestion: Boolean(input.videoBeforeQuestion),
+    videoDuringQuestion: during,
+    videoOnNextSlide: Boolean(input.videoOnNextSlide),
+    videoOnAnswerSlide:
+      input.videoOnAnswerSlide !== undefined
+        ? Boolean(input.videoOnAnswerSlide)
+        : Boolean(
+            hasVideo &&
+              (during ||
+                (!input.videoOnNextSlide &&
+                  !input.videoBeforeQuestion &&
+                  !input.videoBeforeAnswer &&
+                  !input.videoAfterAnswer))
+          ),
+    videoBeforeAnswer: Boolean(input.videoBeforeAnswer),
+    videoAfterAnswer: Boolean(input.videoAfterAnswer),
   };
 }
 
@@ -158,6 +219,7 @@ function normalizeQuestion(input: Partial<QuizQuestionItem>): QuizQuestionItem |
     audioUrl: input.audioUrl?.trim() || undefined,
     audioEdgeFade: input.audioEdgeFade === true ? true : undefined,
     videoUrl: input.videoUrl?.trim() || undefined,
+    ...videoPlacementFromInput(input),
     mediaLabel: input.mediaLabel?.trim() || undefined,
     imageDuringQuestion: Boolean(input.imageDuringQuestion),
     imageBeforeQuestion: Boolean(input.imageBeforeQuestion),
