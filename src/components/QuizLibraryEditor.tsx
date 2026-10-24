@@ -110,7 +110,7 @@ const CLEARED_VIDEO_PLACEMENT = {
 
 function videoUrlPatch(current: QuizQuestionItem, url: string): Partial<QuizQuestionItem> {
   const trimmed = url.trim();
-  if (!trimmed) return { videoUrl: "", videoQuestionSeconds: undefined, ...CLEARED_VIDEO_PLACEMENT };
+  if (!trimmed) return { videoUrl: "", videoQuestionSeconds: undefined, videoQuestionAudioOnly: undefined, ...CLEARED_VIDEO_PLACEMENT };
   if (current.videoUrl?.trim()) return { videoUrl: trimmed };
   return {
     videoUrl: trimmed,
@@ -970,6 +970,7 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
                     imageOnAnswerSlide: undefined,
                     ...CLEARED_VIDEO_PLACEMENT,
                     videoQuestionSeconds: undefined,
+                    videoQuestionAudioOnly: undefined,
                   }
                 : q
             ),
@@ -2121,11 +2122,11 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
                   if (choice === current) return;
                   setNormalMediaChoice((prev) => ({ ...prev, [question.id]: choice }));
                   if (choice === "none") {
-                    updateQuestion(question.id, { imageUrl: "", audioUrl: "", videoUrl: "", videoQuestionSeconds: undefined, ...CLEARED_VIDEO_PLACEMENT });
+                    updateQuestion(question.id, { imageUrl: "", audioUrl: "", videoUrl: "", videoQuestionSeconds: undefined, videoQuestionAudioOnly: undefined, ...CLEARED_VIDEO_PLACEMENT });
                   } else if (choice === "image") {
-                    updateQuestion(question.id, { audioUrl: "", videoUrl: "", videoQuestionSeconds: undefined, ...CLEARED_VIDEO_PLACEMENT });
+                    updateQuestion(question.id, { audioUrl: "", videoUrl: "", videoQuestionSeconds: undefined, videoQuestionAudioOnly: undefined, ...CLEARED_VIDEO_PLACEMENT });
                   } else if (choice === "audio") {
-                    updateQuestion(question.id, { imageUrl: "", videoUrl: "", videoQuestionSeconds: undefined, ...CLEARED_VIDEO_PLACEMENT });
+                    updateQuestion(question.id, { imageUrl: "", videoUrl: "", videoQuestionSeconds: undefined, videoQuestionAudioOnly: undefined, ...CLEARED_VIDEO_PLACEMENT });
                   } else {
                     updateQuestion(question.id, { imageUrl: "", audioUrl: "" });
                   }
@@ -2215,6 +2216,21 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
                 seconds={question.videoQuestionSeconds}
                 onChange={(videoQuestionSeconds) => updateQuestion(question.id, { videoQuestionSeconds })}
               />
+              <label className="flex items-center gap-2 text-sm text-brand-text cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={question.videoQuestionAudioOnly === true}
+                  onChange={(e) =>
+                    updateQuestion(question.id, { videoQuestionAudioOnly: e.target.checked ? true : undefined })
+                  }
+                  className="rounded border-brand-border"
+                />
+                Pustiť iba zvuk pri otázke
+              </label>
+              <p className="text-brand-muted text-xs leading-relaxed -mt-1">
+                Pri otázke ide len hudba z videa, obraz sa neukáže. Pri správnych odpovediach ide video aj s obrazom.
+                Zapni ho na slide s otázkou alebo pred ňou.
+              </p>
               </>
             )}
             {(question.body.trim() || question.answer.trim() || question.hostNote || question.bankQuestionId) && (

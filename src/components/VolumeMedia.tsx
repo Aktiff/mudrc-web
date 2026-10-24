@@ -75,7 +75,7 @@ type Extra = {
   playUntilSeconds?: number;
 };
 
-function usePlayUntil(node: HTMLVideoElement | null, seconds: number | undefined) {
+function usePlayUntil(node: HTMLMediaElement | null, seconds: number | undefined) {
   useEffect(() => {
     if (!node || seconds == null || !(seconds > 0)) return;
     const clamp = () => {
@@ -118,13 +118,14 @@ function VolumeShell({
 }
 
 export const VolumeAudio = forwardRef<HTMLAudioElement, ComponentProps<"audio"> & Extra>(function VolumeAudio(
-  { hint = false, captureWheel = true, edgeFade = false, ...props },
+  { hint = false, captureWheel = true, edgeFade = false, playUntilSeconds, ...props },
   forwarded
 ) {
   const [node, setNode] = useState<HTMLAudioElement | null>(null);
   const [box, setBox] = useState<HTMLDivElement | null>(null);
   useAppliedVolume(node, edgeFade);
   useEdgeFade(node, edgeFade);
+  usePlayUntil(node, playUntilSeconds);
   return (
     <VolumeShell hint={hint} captureWheel={captureWheel} box={box} setBox={setBox}>
       <audio

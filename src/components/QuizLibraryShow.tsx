@@ -10,7 +10,7 @@ import {
   useState,
   type CSSProperties,
   type MouseEvent,
-  type RefObject,
+  type MutableRefObject,
 } from "react";
 import { Maximize2 } from "lucide-react";
 import { formatEventDateLabel, type QuizEvent } from "@/lib/data";
@@ -338,6 +338,57 @@ function MatchColumns({
   );
 }
 
+function SoundOnlyVideo({
+  src,
+  playUntilSeconds,
+  mediaRef,
+}: {
+  src: string;
+  playUntilSeconds?: number;
+  mediaRef?: MutableRefObject<HTMLMediaElement | null>;
+}) {
+  const [node, setNode] = useState<HTMLVideoElement | null>(null);
+  const [playing, setPlaying] = useState(false);
+
+  return (
+    <div
+      className="w-full max-w-xl shrink-0"
+      onClick={(e) => e.stopPropagation()}
+      onContextMenu={(e) => e.stopPropagation()}
+    >
+      <VolumeVideo
+        ref={(el) => {
+          setNode(el);
+          if (mediaRef) mediaRef.current = el;
+        }}
+        captureWheel={false}
+        playsInline
+        preload="auto"
+        playUntilSeconds={playUntilSeconds}
+        src={src}
+        className="fixed w-px h-px opacity-0 pointer-events-none"
+        onPlay={() => setPlaying(true)}
+        onPause={() => setPlaying(false)}
+      />
+      <button
+        type="button"
+        onClick={() => {
+          if (!node) return;
+          if (node.paused) {
+            if (playUntilSeconds && node.currentTime >= playUntilSeconds - 0.12) node.currentTime = 0;
+            void node.play().catch(() => {});
+          } else {
+            node.pause();
+          }
+        }}
+        className="w-full h-12 rounded-xl bg-black/70 border border-white/25 text-white text-base font-semibold"
+      >
+        {playing ? "Pozastaviť ukážku" : "Pustiť ukážku"}
+      </button>
+    </div>
+  );
+}
+
 function QuestionContent({
   question,
   phase,
@@ -345,7 +396,7 @@ function QuestionContent({
 }: {
   question: QuizQuestionItem;
   phase: "question" | "answer";
-  presentationAudioRef?: RefObject<HTMLAudioElement>;
+  presentationAudioRef?: MutableRefObject<HTMLMediaElement | null>;
 }) {
   const showImage =
     phase === "question" ? shouldShowImageInQuestionPhase(question) : shouldShowImageInAnswerPhase(question);
@@ -369,7 +420,9 @@ function QuestionContent({
   const audioBlock = question.audioUrl?.trim() ? (
       <VolumeAudio
         key={playbackMediaSrc(question.audioUrl)}
-        ref={presentationAudioRef}
+        ref={(el) => {
+          if (presentationAudioRef) presentationAudioRef.current = el;
+        }}
         captureWheel={false}
         edgeFade={question.kind === "music" || question.audioEdgeFade === true}
         controls
@@ -381,7 +434,15 @@ function QuestionContent({
       />
     ) : null;
 
+  const questionSoundOnly = phase === "question" && question.videoQuestionAudioOnly === true;
   const videoBlock = showVideo && question.videoUrl?.trim() ? (
+      questionSoundOnly ? (
+        <SoundOnlyVideo
+          src={playbackMediaSrc(question.videoUrl) ?? ""}
+          playUntilSeconds={videoQuestionClipSeconds(question)}
+          mediaRef={presentationAudioRef}
+        />
+      ) : (
       <VolumeVideo
         captureWheel={false}
         controls
@@ -392,6 +453,7 @@ function QuestionContent({
         onClick={(e) => e.stopPropagation()}
         onContextMenu={(e) => e.stopPropagation()}
       />
+      )
     ) : null;
 
   const questionBlock = (
@@ -483,11 +545,27 @@ function ImageSlide({
   question,
   media = "image",
   playUntilSeconds,
+  audioOnly = false,
+  presentationAudioRef,
 }: {
   question: QuizQuestionItem;
   media?: "image" | "video";
   playUntilSeconds?: number;
+  audioOnly?: boolean;
+  presentationAudioRef?: MutableRefObject<HTMLMediaElement | null>;
 }) {
+  if (media === "video" && audioOnly) {
+    if (!question.videoUrl?.trim()) return null;
+    return (
+      <div className="w-full h-full max-h-full min-h-0 flex-1 flex items-center justify-center overflow-hidden px-6">
+        <SoundOnlyVideo
+          src={playbackMediaSrc(question.videoUrl) ?? ""}
+          playUntilSeconds={playUntilSeconds}
+          mediaRef={presentationAudioRef}
+        />
+      </div>
+    );
+  }
   if (media === "video") {
     if (!question.videoUrl?.trim()) return null;
     return (
@@ -527,7 +605,7 @@ function PresentationView({
   specialRules?: string[];
   venueName: string;
   nextQuizLines: string[];
-  presentationAudioRef?: RefObject<HTMLAudioElement>;
+  presentationAudioRef?: MutableRefObject<HTMLMediaElement | null>;
 }) {
   if (slide.type === "rules") {
     const rules = eventRules.length ? eventRules : ["Pravidlá nastav v admin → Udalosť → Pravidlá."];
@@ -604,7 +682,13 @@ function PresentationView({
   if (slide.type === "image_slide") {
     return (
       <div className="w-full max-h-full min-h-0 flex flex-col items-center justify-center overflow-hidden">
-        <ImageSlide question={slide.question} media={slide.media} playUntilSeconds={slide.playUntilSeconds} />
+        <ImageSlide
+          question={slide.question}
+          media={slide.media}
+          playUntilSeconds={slide.playUntilSeconds}
+          audioOnly={slide.audioOnly}
+          presentationAudioRef={presentationAudioRef}
+        />
       </div>
     );
   }
@@ -625,7 +709,7 @@ function PresentationView({
 
 export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props) {
   const rootRef = useRef<HTMLDivElement>(null);
-  const presentationAudioRef = useRef<HTMLAudioElement>(null);
+  const presentationAudioRef = useRef<HTMLMediaElement | null>(null);
   const [quiz, setQuiz] = useState<QuizLibraryItem | null>(null);
   const [events, setEvents] = useState<QuizEvent[]>([]);
   const [eventSlug, setEventSlug] = useState(initialEventSlug);

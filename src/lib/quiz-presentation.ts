@@ -6,7 +6,14 @@ export type PresentationSlide =
   | { type: "rules" }
   | { type: "round"; roundNumber: number; title: string; subtitle: string }
   | { type: "question_phase"; question: QuizQuestionItem }
-  | { type: "image_slide"; question: QuizQuestionItem; media?: "image" | "video"; playUntilSeconds?: number }
+  | {
+      type: "image_slide";
+      question: QuizQuestionItem;
+      media?: "image" | "video";
+      playUntilSeconds?: number;
+      /** Otázková strana: z videa ide len zvuk. */
+      audioOnly?: boolean;
+    }
   | { type: "correction"; roundNumber: number }
   | { type: "answers_intro"; roundNumber: number; title: string }
   | { type: "answer_phase"; question: QuizQuestionItem }
@@ -42,14 +49,26 @@ export function buildPresentationSlides(questions: QuizQuestionItem[]): Presenta
         slides.push({ type: "image_slide", question, media: "image" });
       }
       if (shouldShowVideoBeforeQuestion(question)) {
-        slides.push({ type: "image_slide", question, media: "video", playUntilSeconds: videoQuestionClipSeconds(question) });
+        slides.push({
+          type: "image_slide",
+          question,
+          media: "video",
+          playUntilSeconds: videoQuestionClipSeconds(question),
+          audioOnly: question.videoQuestionAudioOnly === true,
+        });
       }
       slides.push({ type: "question_phase", question });
       if (shouldShowImageOnNextSlide(question)) {
         slides.push({ type: "image_slide", question, media: "image" });
       }
       if (shouldShowVideoOnNextSlide(question)) {
-        slides.push({ type: "image_slide", question, media: "video", playUntilSeconds: videoQuestionClipSeconds(question) });
+        slides.push({
+          type: "image_slide",
+          question,
+          media: "video",
+          playUntilSeconds: videoQuestionClipSeconds(question),
+          audioOnly: question.videoQuestionAudioOnly === true,
+        });
       }
     }
 

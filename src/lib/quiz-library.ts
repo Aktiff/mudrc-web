@@ -55,6 +55,8 @@ export type QuizQuestionItem = {
   videoAfterAnswer?: boolean;
   /** V otázke pustiť len toľko sekúnd od začiatku. Pri odpovedi ide video celé. */
   videoQuestionSeconds?: number;
+  /** Pri otázke ide len zvuk z videa. Obraz sa ukáže pri odpovediach. */
+  videoQuestionAudioOnly?: boolean;
   /** Popis ukážky z banky (zvuk / video) — pre vrátenie do banky */
   mediaLabel?: string;
   /** true = obrázok aj pri otázke */
@@ -218,6 +220,7 @@ function normalizeQuestion(input: Partial<QuizQuestionItem>): QuizQuestionItem |
     videoUrl: input.videoUrl?.trim() || undefined,
     ...videoPlacementFromInput(input),
     videoQuestionSeconds: clipSeconds(input.videoQuestionSeconds),
+    videoQuestionAudioOnly: input.videoQuestionAudioOnly === true ? true : undefined,
     mediaLabel: input.mediaLabel?.trim() || undefined,
     imageDuringQuestion: Boolean(input.imageDuringQuestion),
     imageBeforeQuestion: Boolean(input.imageBeforeQuestion),
