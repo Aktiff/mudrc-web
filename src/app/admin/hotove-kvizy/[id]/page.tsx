@@ -39,7 +39,7 @@ export default async function HotovyKvizDetailPage({ params }: PageProps) {
       <div>
         <h1 className="font-display text-4xl text-brand-text tracking-wide mb-1">{quiz.title}</h1>
         <p className="text-brand-muted text-sm">
-          {describeQuizContent(quiz.questions)} · {buildPresentationSlides(quiz.questions).length} slidov na projektore
+          {describeQuizContent(quiz.questions)} · {buildPresentationSlides(quiz.questions, quiz.promos).length} slidov na projektore
         </p>
       </div>
 

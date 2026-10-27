@@ -20,7 +20,7 @@ export const PRESENTATION_FEATURES = {
   badgeTimerSizeMultiplier: 1,
 } as const;
 
-const QUESTION_SLIDE_TYPES = new Set(["question_phase", "answer_phase", "image_slide"]);
+const QUESTION_SLIDE_TYPES = new Set(["question_phase", "answer_phase", "image_slide", "promo"]);
 
 export function shouldAutoFitQuestionSlide(
   aspectMode: PresentationAspectMode,

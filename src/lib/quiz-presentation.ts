@@ -1,5 +1,5 @@
 import { resolveMediaSrc } from "@/lib/media-url";
-import type { QuizQuestionItem } from "@/lib/quiz-library";
+import { promoSlideIsVisible, type QuizPromoSlide, type QuizQuestionItem } from "@/lib/quiz-library";
 import { compareQuizQuestions, displayQuestionNumber, roundLabels } from "@/lib/quiz-template";
 
 export type PresentationSlide =
@@ -17,6 +17,7 @@ export type PresentationSlide =
   | { type: "correction"; roundNumber: number }
   | { type: "answers_intro"; roundNumber: number; title: string }
   | { type: "answer_phase"; question: QuizQuestionItem }
+  | { type: "promo"; promo: QuizPromoSlide }
   | { type: "scores"; title: string; body: string };
 
 function sortQuestions(questions: QuizQuestionItem[]): QuizQuestionItem[] {
@@ -27,7 +28,14 @@ function questionsForRound(questions: QuizQuestionItem[], roundNumber: number): 
   return sortQuestions(questions.filter((q) => q.roundNumber === roundNumber));
 }
 
-export function buildPresentationSlides(questions: QuizQuestionItem[]): PresentationSlide[] {
+function visiblePromosFor(promos: QuizPromoSlide[], afterRound: number): QuizPromoSlide[] {
+  return promos.filter((promo) => promo.afterRound === afterRound && promoSlideIsVisible(promo));
+}
+
+export function buildPresentationSlides(
+  questions: QuizQuestionItem[],
+  promos: QuizPromoSlide[] = []
+): PresentationSlide[] {
   const slides: PresentationSlide[] = [{ type: "rules" }];
 
   const roundNumbers = Array.from(new Set(questions.map((q) => q.roundNumber)))
@@ -98,6 +106,17 @@ export function buildPresentationSlides(questions: QuizQuestionItem[]): Presenta
         slides.push({ type: "image_slide", question, media: "video" });
       }
     }
+
+    for (const promo of visiblePromosFor(promos, round)) {
+      slides.push({ type: "promo", promo });
+    }
+  }
+
+  const parked = promos.filter(
+    (promo) => promoSlideIsVisible(promo) && (promo.afterRound === 0 || !roundNumbers.includes(promo.afterRound))
+  );
+  for (const promo of parked) {
+    slides.push({ type: "promo", promo });
   }
 
   slides.push({
@@ -118,6 +137,9 @@ export function presentationRoundAtSlide(
 
   if (slide.type === "round" || slide.type === "correction" || slide.type === "answers_intro") {
     return slide.roundNumber;
+  }
+  if (slide.type === "promo" && slide.promo.afterRound > 0) {
+    return slide.promo.afterRound;
   }
   if (slide.type === "question_phase" || slide.type === "image_slide" || slide.type === "answer_phase") {
     return slide.question.roundNumber;

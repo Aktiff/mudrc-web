@@ -77,11 +77,22 @@ export type QuizQuestionItem = {
   hostNote?: string;
 };
 
+/** Slide s logom a textom, napríklad sponzor cien. */
+export type QuizPromoSlide = {
+  id: string;
+  /** Po správnych odpovediach tohto kola. 0 = pred vyhodnotením. */
+  afterRound: number;
+  title: string;
+  text: string;
+  imageUrl?: string;
+};
+
 export type QuizLibraryItem = {
   id: string;
   title: string;
   questions: QuizQuestionItem[];
   notes?: string;
+  promos?: QuizPromoSlide[];
   /** ID otázok z banky už vložených do tohto kvízu */
   usedBankQuestionIds?: string[];
   createdAt: string;
@@ -243,6 +254,33 @@ function normalizeQuestion(input: Partial<QuizQuestionItem>): QuizQuestionItem |
   };
 }
 
+function normalizePromos(input: unknown): QuizPromoSlide[] | undefined {
+  if (!Array.isArray(input)) return undefined;
+  const out: QuizPromoSlide[] = [];
+  for (const raw of input) {
+    if (!raw || typeof raw !== "object") continue;
+    const row = raw as Partial<QuizPromoSlide>;
+    const id = typeof row.id === "string" ? row.id.trim() : "";
+    const title = typeof row.title === "string" ? row.title.trim() : "";
+    const text = typeof row.text === "string" ? row.text.trim() : "";
+    const imageUrl = typeof row.imageUrl === "string" ? row.imageUrl.trim() : "";
+    if (!id && !title && !text && !imageUrl) continue;
+    const afterRound = Number(row.afterRound);
+    out.push({
+      id: id || `promo-${out.length + 1}`,
+      afterRound: Number.isFinite(afterRound) && afterRound >= 0 && afterRound <= 12 ? Math.round(afterRound) : 0,
+      title,
+      text,
+      imageUrl: imageUrl || undefined,
+    });
+  }
+  return out.length ? out : undefined;
+}
+
+export function promoSlideIsVisible(promo: Pick<QuizPromoSlide, "title" | "text" | "imageUrl">): boolean {
+  return Boolean(promo.title.trim() || promo.text.trim() || promo.imageUrl?.trim());
+}
+
 export function normalizeLibraryQuiz(
   input: Partial<QuizLibraryItem> & { slides?: unknown[] }
 ): QuizLibraryItem {
@@ -278,11 +316,13 @@ export function normalizeLibraryQuiz(
     ? input.usedBankQuestionIds.filter((id): id is string => typeof id === "string" && id.length > 0)
     : [];
   const usedBankQuestionIds = Array.from(new Set([...usedBankQuestionIdsInput, ...bankIdsFromQuestions]));
+  const promos = normalizePromos(input.promos);
 
   return {
     id: input.id?.trim() || createLibraryQuizId(),
     title,
     notes: input.notes?.trim() || undefined,
+    promos,
     questions,
     usedBankQuestionIds: usedBankQuestionIds.length ? usedBankQuestionIds : undefined,
     formatVersion: 2,

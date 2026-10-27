@@ -661,6 +661,32 @@ function PresentationView({
       </div>
     );
   }
+  if (slide.type === "promo") {
+    const logo = playbackMediaSrc(slide.promo.imageUrl);
+    return (
+      <div className="w-full h-full max-h-full min-h-0 flex flex-col items-center justify-center text-center px-[max(1rem,2vw)] gap-[max(0.75rem,2vh)]">
+        <div className="w-24 h-1 rounded-full bg-[#f0c800] shrink-0" />
+        {slide.promo.title.trim() ? (
+          <p className="font-display text-[clamp(2rem,5vw,4.5rem)] text-[#f0c800] tracking-wide leading-tight">
+            {slide.promo.title.trim()}
+          </p>
+        ) : null}
+        {logo ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={logo}
+            alt=""
+            className="max-w-[min(70vw,720px)] max-h-[min(42vh,480px)] w-auto h-auto object-contain"
+          />
+        ) : null}
+        {slide.promo.text.trim() ? (
+          <p className="font-sans font-semibold text-white normal-case whitespace-pre-line leading-snug text-[clamp(1.35rem,3.2vw,2.75rem)] max-w-[min(92vw,1100px)]">
+            {slide.promo.text.trim()}
+          </p>
+        ) : null}
+      </div>
+    );
+  }
   if (slide.type === "scores") {
     return (
       <div className="text-center px-8 max-w-4xl w-full mx-auto">
@@ -799,11 +825,11 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
   const slides = useMemo(() => {
     if (!quiz?.questions?.length) return [];
     try {
-      return buildPresentationSlides(quiz.questions);
+      return buildPresentationSlides(quiz.questions, quiz.promos ?? []);
     } catch {
       return [];
     }
-  }, [quiz?.questions]);
+  }, [quiz?.questions, quiz?.promos]);
 
   const selectedEvent = events.find((event) => event.slug === eventSlug);
   const futureTerms = selectedEvent ? upcomingFutureQuizzes(selectedEvent) : [];

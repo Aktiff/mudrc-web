@@ -14,6 +14,7 @@ import {
   type QuizQuestionItem,
   type QuizQuestionKind,
 } from "@/lib/quiz-library";
+import QuizPromoEditor from "@/components/admin/QuizPromoEditor";
 import { inferBankTheme } from "@/lib/bank-themes";
 import { findBankQuestionById, findRawBankQuestionById } from "@/lib/quiz-question-bank";
 import {
@@ -574,8 +575,8 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
     return Array.from(new Set([...otherUsedBodies, ...current]));
   }, [otherUsedBodies, quiz]);
   const presentationCount = useMemo(
-    () => (questions.length ? buildPresentationSlides(questions).length : 0),
-    [questions]
+    () => (questions.length ? buildPresentationSlides(questions, quiz?.promos ?? []).length : 0),
+    [questions, quiz?.promos]
   );
 
   const updateQuestion = (id: string, patch: Partial<QuizQuestionItem>) => {
@@ -1574,6 +1575,14 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
           />
         </div>
       </div>
+
+      <QuizPromoEditor
+        promos={quiz.promos ?? []}
+        rounds={Array.from(new Set(questions.map((question) => question.roundNumber)))
+          .filter((round) => round >= 1)
+          .sort((a, b) => a - b)}
+        onChange={(promos) => setQuiz({ ...quiz, promos: promos.length ? promos : undefined })}
+      />
 
       <CustomBankQuestionForm
         onAdded={(question) => {
