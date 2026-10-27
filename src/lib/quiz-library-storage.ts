@@ -2,7 +2,7 @@ import fs from "fs";
 import path from "path";
 import type { QuizDeck } from "@/lib/quiz-deck";
 import type { QuizLibraryItem } from "@/lib/quiz-library";
-import { createLibraryQuizId, defaultLibraryQuiz, normalizeLibraryQuiz } from "@/lib/quiz-library";
+import { countFilledQuizQuestions, createLibraryQuizId, defaultLibraryQuiz, normalizeLibraryQuiz } from "@/lib/quiz-library";
 import { readQuizLibraryBackup, writeQuizLibraryBackup } from "@/lib/quiz-library-backup";
 import { readAllQuizDecks } from "@/lib/quiz-deck-storage";
 import { deleteAppStorageBlob, readAppStorageBlob, readAppStorageCurrent, writeAppStorageBlob } from "@/lib/blob-app-storage";
@@ -23,6 +23,8 @@ type QuizLibraryIndexEntry = {
   createdAt: string;
   updatedAt: string;
   slideCount: number;
+  /** Koľko otázok už má text, odpoveď alebo ukážku. */
+  filledCount?: number;
   musicTrackKeys?: string[];
 };
 
@@ -46,6 +48,7 @@ function toIndexEntry(quiz: QuizLibraryItem): QuizLibraryIndexEntry {
     createdAt: quiz.createdAt,
     updatedAt: quiz.updatedAt,
     slideCount: quiz.questions?.length ?? 0,
+    filledCount: countFilledQuizQuestions(quiz.questions),
     musicTrackKeys: musicTrackKeysOf(quiz),
   };
 }
@@ -232,16 +235,38 @@ export async function readLibraryQuizSummaries(): Promise<
     createdAt: string;
     updatedAt: string;
     questionCount: number;
+    filledCount: number;
   }>
 > {
   const index = await readIndex();
-  return index.items.map((entry) => ({
+  let items = index.items;
+  if (items.some((entry) => typeof entry.filledCount !== "number")) {
+    let changed = false;
+    items = await Promise.all(
+      items.map(async (entry) => {
+        if (typeof entry.filledCount === "number") return entry;
+        const quiz = await readQuizById(entry.id);
+        if (!quiz) return entry;
+        changed = true;
+        return { ...entry, filledCount: countFilledQuizQuestions(quiz.questions) };
+      })
+    );
+    if (changed) {
+      try {
+        await persistQuizIndexItems(items);
+      } catch (error) {
+        console.error("filledCount backfill failed:", error);
+      }
+    }
+  }
+  return items.map((entry) => ({
     id: entry.id,
     title: entry.title,
     notes: entry.notes,
     createdAt: entry.createdAt,
     updatedAt: entry.updatedAt,
     questionCount: typeof entry.slideCount === "number" ? entry.slideCount : 1,
+    filledCount: typeof entry.filledCount === "number" ? entry.filledCount : 0,
   }));
 }
 
@@ -260,8 +285,7 @@ export async function createLibraryQuiz(title?: string): Promise<QuizLibraryItem
 }
 
 function countFilledQuestions(quiz: QuizLibraryItem | null | undefined): number {
-  if (!quiz?.questions?.length) return 0;
-  return quiz.questions.filter((q) => q.body.trim() || q.answer.trim() || q.audioUrl?.trim() || q.videoUrl?.trim()).length;
+  return countFilledQuizQuestions(quiz?.questions);
 }
 
 export async function saveLibraryQuiz(input: Partial<QuizLibraryItem>): Promise<QuizLibraryItem> {

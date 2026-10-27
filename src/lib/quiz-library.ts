@@ -110,6 +110,38 @@ export type QuizUsage = {
   teamNames: string[];
 };
 
+/** Otázka, v ktorej už niečo je. Prázdny slot a predvolený text hudby sa neráta. */
+export function isQuizQuestionFilled(question: QuizQuestionItem): boolean {
+  const body = question.body.trim();
+  const hasBody = Boolean(body) && !(question.kind === "music" && body === DEFAULT_MUSIC_QUESTION_BODY);
+  const hasOptions = (question.options ?? []).some((option) => option.trim());
+  const hasMatch = (question.matchRight ?? []).some((option) => option.trim());
+  return Boolean(
+    hasBody ||
+      question.answer.trim() ||
+      question.audioUrl?.trim() ||
+      question.videoUrl?.trim() ||
+      question.imageUrl?.trim() ||
+      question.musicArtist?.trim() ||
+      question.musicTitle?.trim() ||
+      hasOptions ||
+      hasMatch
+  );
+}
+
+export function countFilledQuizQuestions(questions: QuizQuestionItem[] | undefined): number {
+  return (questions ?? []).filter(isQuizQuestionFilled).length;
+}
+
+export function questionCountLabel(count: number): string {
+  const n = Math.max(0, Math.trunc(count));
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return `${n} otázka`;
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return `${n} otázky`;
+  return `${n} otázok`;
+}
+
 export function createLibraryQuizId(): string {
   return `quiz-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
 }

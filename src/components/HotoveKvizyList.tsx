@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { BookOpen, Layers, MonitorPlay, Pencil, Play, Plus, Trash2 } from "lucide-react";
-import type { QuizLibraryItem, QuizQuestionItem, QuizUsage } from "@/lib/quiz-library";
+import { questionCountLabel, type QuizLibraryItem, type QuizQuestionItem, type QuizUsage } from "@/lib/quiz-library";
 import { quizUsagePlaces } from "@/lib/quiz-library-usage";
 import { clearQuizDraft } from "@/lib/quiz-editor-draft";
 import QuizAnswerKey from "@/components/QuizAnswerKey";
@@ -13,6 +13,7 @@ type QuizListItem = QuizLibraryItem & {
   usages: QuizUsage[];
   conflictingTeams: string[];
   isSafe: boolean;
+  filledCount?: number;
 };
 
 export default function HotoveKvizyList() {
@@ -229,12 +230,7 @@ export default function HotoveKvizyList() {
                 <div className="flex flex-wrap items-center gap-2 mt-2 text-xs">
                   <span className="font-semibold px-2.5 py-1 rounded-full inline-flex items-center gap-1 bg-brand-surface text-brand-muted border border-brand-border">
                     <Layers className="w-3 h-3" />
-                    {quiz.questions?.length ?? 0}{" "}
-                    {(quiz.questions?.length ?? 0) === 1
-                      ? "otázka"
-                      : (quiz.questions?.length ?? 0) < 5
-                        ? "otázky"
-                        : "otázok"}
+                    {questionCountLabel(quiz.filledCount ?? 0)}
                   </span>
                   {!quiz.usages?.length && <span className="text-brand-muted">Ešte nepoužitý</span>}
                 </div>

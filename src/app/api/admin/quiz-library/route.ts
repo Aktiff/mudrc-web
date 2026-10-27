@@ -66,6 +66,7 @@ export async function GET(req: NextRequest) {
             createdAt: quiz.createdAt,
             updatedAt: quiz.updatedAt,
             questions: Array.from({ length: quiz.questionCount }, () => ({ id: "" })),
+            filledCount: quiz.filledCount,
             usageCount: usages.length,
             usages,
             playedTeamNames,

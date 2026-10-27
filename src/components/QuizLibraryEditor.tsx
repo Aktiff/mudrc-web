@@ -8,6 +8,7 @@ import { playbackMediaSrc } from "@/lib/media-url";
 import {
   collectUsedBankQuestionIdsFromQuiz,
   collectUsedQuestionBodyKeys,
+  countFilledQuizQuestions,
   normalizeLibraryQuiz,
   quizQuestionBodyKey,
   type QuizLibraryItem,
@@ -77,12 +78,6 @@ import {
   readQuizLocalBackup,
   writeQuizDraft,
 } from "@/lib/quiz-editor-draft";
-
-function countFilledQuizQuestions(questions: QuizQuestionItem[]): number {
-  return questions.filter(
-    (q) => q.body.trim() || q.answer.trim() || q.audioUrl?.trim() || q.videoUrl?.trim()
-  ).length;
-}
 
 type Props = {
   quizId: string;

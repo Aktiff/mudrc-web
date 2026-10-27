@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, CheckCircle2 } from "lucide-react";
 import Link from "next/link";
 import { quizLibraryListRequestUrl, type LibraryQuizListItem } from "@/lib/quiz-library-client";
+import { questionCountLabel } from "@/lib/quiz-library";
 import { formatAveragePoints } from "@/lib/quiz-library-usage";
 import { CANVAS_LIBRARY_QUIZ_ID } from "@/lib/quiz-result-library";
 import type { QuizUsageExclude } from "@/lib/quiz-library-usage";
@@ -61,6 +62,7 @@ export default function LibraryQuizPicker({
           isSafe: quiz.isSafe ?? true,
           conflictingTeams: quiz.conflictingTeams ?? [],
           averagePoints: typeof quiz.averagePoints === "number" ? quiz.averagePoints : null,
+          filledCount: typeof quiz.filledCount === "number" ? quiz.filledCount : 0,
         }))
       );
     } catch {
@@ -115,6 +117,7 @@ export default function LibraryQuizPicker({
         {options.map((option) => (
           <option key={option.id} value={option.id}>
             {option.title}
+            {` · ${questionCountLabel(option.filledCount ?? 0)}`}
             {option.usageCount ? ` (${option.usageCount}× hraný)` : " (nepoužitý)"}
             {typeof option.averagePoints === "number" ? ` · priemer ${formatAveragePoints(option.averagePoints)}` : ""}
             {activeTeams.length && !option.isSafe ? " ⚠ konflikt" : activeTeams.length && option.isSafe ? " ✓ vhodný" : ""}

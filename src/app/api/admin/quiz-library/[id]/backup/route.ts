@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { countFilledQuizQuestions } from "@/lib/quiz-library";
 import { readQuizLibraryBackup, restoreLibraryQuizFromBackup } from "@/lib/quiz-library-storage";
 
 export const runtime = "nodejs";
@@ -12,9 +13,7 @@ export async function GET(_req: NextRequest, { params }: RouteContext) {
     if (!backup) {
       return NextResponse.json({ backup: null });
     }
-    const filled = backup.questions.filter(
-      (q) => q.body.trim() || q.answer.trim() || q.audioUrl?.trim() || q.videoUrl?.trim()
-    ).length;
+    const filled = countFilledQuizQuestions(backup.questions);
     return NextResponse.json({ backup, filledCount: filled, questionCount: backup.questions.length });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Záloha sa nepodarila načítať.";

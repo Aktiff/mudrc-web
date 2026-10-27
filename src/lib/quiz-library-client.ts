@@ -23,6 +23,8 @@ export type LibraryQuizListItem = {
   conflictingTeams: string[];
   /** Priemer bodov tímov, ktoré tento kvíz už hrali. */
   averagePoints?: number | null;
+  /** Otázky, ktoré už majú text, odpoveď alebo ukážku. */
+  filledCount?: number;
 };
 
 export async function fetchLibraryQuizList(
