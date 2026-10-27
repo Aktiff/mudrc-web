@@ -9,7 +9,7 @@ import {
   type Registration,
 } from "@/lib/storage";
 import { readAppStorageBlob, readAppStorageBlobHistory, writeAppStorageBlob } from "@/lib/blob-app-storage";
-import { teamKey as nameKey } from "@/lib/poll";
+import { replaceTeamLabel, teamKey as nameKey } from "@/lib/poll";
 import type { TeamLinkRecord } from "@/lib/team-links";
 import { extractTeamPhones, type VenueTeam } from "@/lib/venue-team-contact";
 
@@ -361,6 +361,42 @@ export async function mergeLinkedTeamLeague(teamId: string): Promise<VenueTeam[]
   );
   await saveStore({ teams, phoneRecovery: store.phoneRecovery });
   return stampTeams(teams);
+}
+
+export async function venueTeamNameById(teamId: string): Promise<string | null> {
+  const store = await loadStore();
+  const team = store.teams.find((item) => item.id === teamId);
+  return team?.teamName?.trim() || null;
+}
+
+/** Úplne prepíše názov tímu v zozname. Rovnaký názov v jednom podniku sa zloží do jedného záznamu. */
+export async function renameVenueTeamRecords(fromKey: string, nextName: string): Promise<void> {
+  const store = await loadStore();
+  const now = new Date().toLocaleString("sk-SK", { timeZone: "Europe/Bratislava" });
+  const renamed = store.teams.map((team) => {
+    const teamName = replaceTeamLabel(team.teamName, fromKey, nextName);
+    const leagueName = team.leagueName ? replaceTeamLabel(team.leagueName, fromKey, nextName) : team.leagueName;
+    if (teamName === team.teamName && leagueName === team.leagueName) return team;
+    return { ...team, teamName, leagueName, updatedAt: now };
+  });
+  const merged = new Map<string, VenueTeam>();
+  for (const team of renamed) {
+    const key = teamKey(team.eventSlug, team.venue, team.teamName);
+    const prev = merged.get(key);
+    if (!prev) {
+      merged.set(key, team);
+      continue;
+    }
+    merged.set(key, {
+      ...prev,
+      phones: mergePhones(prev.phones, team.phones),
+      linkId: prev.linkId || team.linkId,
+      leagueMerge: prev.leagueMerge || team.leagueMerge || undefined,
+      leagueName: prev.leagueName || team.leagueName,
+      updatedAt: now,
+    });
+  }
+  await saveStore({ teams: Array.from(merged.values()), phoneRecovery: store.phoneRecovery });
 }
 
 /** Vlastný názov spoločného tímu v lige. Pôvodné mená z večerov ostanú. */

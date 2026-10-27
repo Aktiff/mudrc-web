@@ -86,6 +86,12 @@ export function teamKey(name: string): string {
   return normalizeTeamName(name).toLowerCase();
 }
 
+/** Vráti nový názov, keď ide o ten istý tím. Inak nechá pôvodný zápis. */
+export function replaceTeamLabel(name: string, fromKey: string, nextName: string): string {
+  if (!name || teamKey(name) !== fromKey) return name;
+  return nextName;
+}
+
 function parseSkDate(date: string): Date | null {
   const match = date.trim().match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
   if (!match) return null;

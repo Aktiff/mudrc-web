@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import { replaceTeamLabel } from "@/lib/poll";
 import {
   duplicateSeatPlan,
   emptySeatPlan,
@@ -54,6 +55,26 @@ async function persistAllPlans(plans: SeatPlan[]): Promise<void> {
     payload,
     writeLocal: () => writeLocalPlans(payload),
   });
+}
+
+export async function renameTeamInSeatPlans(fromKey: string, nextName: string): Promise<number> {
+  const plans = await loadAllPlans();
+  let changed = 0;
+  const now = new Date().toISOString();
+  const next = plans.map((plan) => {
+    let planChanged = false;
+    const tables = plan.tables.map((table) => {
+      const reservation = replaceTeamLabel(table.reservation, fromKey, nextName);
+      if (reservation === table.reservation) return table;
+      planChanged = true;
+      return { ...table, reservation };
+    });
+    if (!planChanged) return plan;
+    changed += 1;
+    return { ...plan, tables, updatedAt: now };
+  });
+  if (changed > 0) await persistAllPlans(next);
+  return changed;
 }
 
 export async function readAllSeatPlans(): Promise<SeatPlan[]> {

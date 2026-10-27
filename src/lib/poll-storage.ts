@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 import { randomUUID } from "crypto";
 import {
+  replaceTeamLabel,
   buildPollPublicData,
   canonicalPollOption,
   createPollConfigForEvent,
@@ -121,6 +122,20 @@ async function persistPollConfigs(
   }
 
   writeLocalPollConfigs(normalized);
+}
+
+export async function renameTeamInPollVotes(fromKey: string, nextName: string): Promise<number> {
+  const current = await loadPollVotes();
+  let changed = 0;
+  const now = new Date().toISOString();
+  const next = current.map((vote) => {
+    const teamName = replaceTeamLabel(vote.teamName, fromKey, nextName);
+    if (teamName === vote.teamName) return vote;
+    changed += 1;
+    return { ...vote, teamName, updatedAt: now };
+  });
+  if (changed > 0) await persistPollVotes(next);
+  return changed;
 }
 
 async function loadPollVotes(): Promise<PollVote[]> {

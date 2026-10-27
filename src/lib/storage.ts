@@ -9,6 +9,7 @@ import { rebuildLeagueFromPastResults } from "@/lib/league-rebuild";
 import seedEventsBundle from "@/data/events.json";
 import { writeAppStorageBlob, readAppStorageBlob, readAppStorageBlobHistory } from "@/lib/blob-app-storage";
 import { findQuizResult, mergePastResults, normalizeDateKey, quizResultKey } from "@/lib/quiz-result-key";
+import { replaceTeamLabel } from "@/lib/poll";
 import { splitVenueQuizType } from "@/lib/quiz-type";
 import { registrationMatchesEvent } from "@/lib/registration-utils";
 
@@ -715,6 +716,29 @@ export async function recoverQuizTeamPlayers(): Promise<void> {
   const history = await readAppStorageBlobHistory<{ quizzes?: StoredQuiz[] }>(QUIZZES_APP_BLOB);
   const recovered = mergeMissingTeamPlayers(current, history);
   await writeAppStorageBlob(QUIZZES_APP_BLOB, { quizzes: recovered, playerRecovery: QUIZ_PLAYER_RECOVERY });
+}
+
+/** Prepíše názov tímu vo všetkých uložených výsledkoch kvízov. */
+export async function renameTeamInStoredQuizzes(fromKey: string, nextName: string): Promise<number> {
+  const quizzes = await loadQuizzes();
+  let changed = 0;
+  const next = quizzes.map((quiz) => {
+    const winnerTeam = replaceTeamLabel(quiz.winnerTeam ?? "", fromKey, nextName);
+    let teamsChanged = false;
+    const teams = (quiz.teams ?? []).map((team) => {
+      const teamName = replaceTeamLabel(team.teamName, fromKey, nextName);
+      const guestTeams = team.guestTeams?.map((guest) => replaceTeamLabel(guest, fromKey, nextName));
+      const guestChanged = guestTeams?.some((guest, index) => guest !== team.guestTeams?.[index]) ?? false;
+      if (teamName === team.teamName && !guestChanged) return team;
+      teamsChanged = true;
+      return { ...team, teamName, ...(guestTeams ? { guestTeams } : {}) };
+    });
+    if (winnerTeam === (quiz.winnerTeam ?? "") && !teamsChanged) return quiz;
+    changed += 1;
+    return { ...quiz, winnerTeam, teams };
+  });
+  if (changed > 0) await persistQuizzes(next);
+  return changed;
 }
 
 async function persistQuizzes(quizzes: StoredQuiz[]): Promise<void> {

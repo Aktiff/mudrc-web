@@ -204,6 +204,19 @@ export default function VenueTeamsPage() {
     }
   };
 
+  const renameTeam = async (team: VenueTeam, nextName: string): Promise<string | null> => {
+    const res = await fetch("/api/admin/venue-teams", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "rename-team", teamId: team.id, nextName }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return data.error ?? "Tím sa nepodarilo premenovať.";
+    setTeams(data.teams ?? []);
+    return null;
+  };
+
   const addPhone = async (team: VenueTeam, phone: string): Promise<string | null> => {
     const res = await fetch("/api/admin/venue-teams", {
       method: "POST",
@@ -355,6 +368,7 @@ export default function VenueTeamsPage() {
                     : undefined
                 }
                 onUnlink={() => void saveLink("unlink", team.id)}
+                onRename={(nextName) => renameTeam(team, nextName)}
                 onAddPhone={(phone) => addPhone(team, phone)}
               />
             ))}
@@ -498,6 +512,7 @@ function TeamRow({
   onMergeLeague,
   onUseLeagueName,
   onUnlink,
+  onRename,
   onAddPhone,
   showVenue = false,
 }: {
@@ -512,12 +527,17 @@ function TeamRow({
   onMergeLeague?: () => void;
   onUseLeagueName?: () => void;
   onUnlink?: () => void;
+  onRename?: (nextName: string) => Promise<string | null>;
   onAddPhone?: (phone: string) => Promise<string | null>;
   showVenue?: boolean;
 }) {
   const [phoneDraft, setPhoneDraft] = useState("");
   const [phoneError, setPhoneError] = useState("");
   const [savingPhone, setSavingPhone] = useState(false);
+  const [renaming, setRenaming] = useState(false);
+  const [nameDraft, setNameDraft] = useState(team.teamName);
+  const [renameError, setRenameError] = useState("");
+  const [renameBusy, setRenameBusy] = useState(false);
   const leagueLabel = leagueRowLabel(team, aliases);
 
   const savePhone = async () => {
@@ -541,6 +561,75 @@ function TeamRow({
     <div className="rounded-xl border border-brand-border bg-brand-card p-4 flex flex-col sm:flex-row sm:items-start justify-between gap-4">
       <div className="min-w-0">
         <div className="font-display text-xl text-brand-text">{team.teamName}</div>
+        {renaming ? (
+          <form
+            className="mt-3 space-y-2"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const next = nameDraft.trim().replace(/\s+/g, " ");
+              if (!next) {
+                setRenameError("Názov nemôže byť prázdny.");
+                return;
+              }
+              if (teamKey(next) === teamKey(team.teamName)) {
+                setRenameError("Nový názov je rovnaký.");
+                return;
+              }
+              if (
+                !confirm(
+                  `Premenovať „${team.teamName}“ na „${next}“ všade? Zmení sa liga, tabuľky, výsledky, registrácie aj zasadací poriadok.`
+                )
+              ) {
+                return;
+              }
+              if (!onRename) return;
+              setRenameBusy(true);
+              setRenameError("");
+              void onRename(next).then((error) => {
+                setRenameBusy(false);
+                if (error) {
+                  setRenameError(error);
+                  return;
+                }
+                setRenaming(false);
+              });
+            }}
+          >
+            <input
+              className="input text-sm w-full max-w-xs"
+              value={nameDraft}
+              onChange={(event) => {
+                setNameDraft(event.target.value);
+                if (renameError) setRenameError("");
+              }}
+            />
+            <p className="text-brand-muted text-xs leading-relaxed">
+              Rovnaký názov sa prepíše v lige, tabuľkách, výsledkoch, registráciách aj na zasadacom poriadku.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="submit"
+                disabled={renameBusy}
+                className="text-sm font-semibold px-3 py-2 rounded-xl bg-brand-orange text-black disabled:opacity-50"
+              >
+                {renameBusy ? "Ukladám..." : "Uložiť nový názov"}
+              </button>
+              <button
+                type="button"
+                disabled={renameBusy}
+                onClick={() => {
+                  setRenaming(false);
+                  setNameDraft(team.teamName);
+                  setRenameError("");
+                }}
+                className="text-sm font-semibold px-3 py-2 rounded-xl border border-brand-border text-brand-text disabled:opacity-50"
+              >
+                Zrušiť
+              </button>
+            </div>
+            {renameError ? <p className="text-sm text-red-600">{renameError}</p> : null}
+          </form>
+        ) : null}
         {showVenue && <p className="text-brand-muted text-sm mt-1">{team.venue}</p>}
         {aliases.length > 0 ? (
           <p className="text-sm text-brand-text mt-1">
@@ -637,6 +726,19 @@ function TeamRow({
             className="text-sm font-semibold px-3 py-2 rounded-xl border border-brand-border text-brand-text"
           >
             Tento názov v lige
+          </button>
+        ) : null}
+        {onRename ? (
+          <button
+            type="button"
+            onClick={() => {
+              setNameDraft(team.teamName);
+              setRenameError("");
+              setRenaming((open) => !open);
+            }}
+            className="text-sm font-semibold px-3 py-2 rounded-xl border border-brand-border text-brand-text"
+          >
+            {renaming ? "Zavrieť" : "Premenovať"}
           </button>
         ) : null}
         {aliases.length > 0 && onUnlink ? (

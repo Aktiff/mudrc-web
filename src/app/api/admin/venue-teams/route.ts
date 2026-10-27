@@ -10,6 +10,7 @@ import {
   setLeagueDisplayName,
   unlinkVenueTeam,
 } from "@/lib/venue-teams";
+import { renameTeamEverywhere } from "@/lib/rename-team";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -34,6 +35,7 @@ export async function POST(req: NextRequest) {
     otherTeamId?: string;
     teamName?: string;
     leagueName?: string;
+    nextName?: string;
     phone?: string;
   } | null;
   const action = body?.action;
@@ -52,6 +54,10 @@ export async function POST(req: NextRequest) {
     }
     if (action === "league-name") {
       const teams = await setLeagueDisplayName(teamId);
+      return NextResponse.json({ ok: true, teams }, { headers: NO_STORE });
+    }
+    if (action === "rename-team") {
+      const teams = await renameTeamEverywhere(teamId, body?.nextName ?? "");
       return NextResponse.json({ ok: true, teams }, { headers: NO_STORE });
     }
     if (action === "rename-league") {
