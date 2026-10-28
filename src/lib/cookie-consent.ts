@@ -1,8 +1,11 @@
 export const CONSENT_STORAGE_KEY = "mudrc-cookie-consent";
 const LEGACY_STORAGE_KEY = "cookie-consent";
 
+/** Zvýšenie zahodí starú voľbu a lišta sa zobrazí znova. */
+export const CONSENT_VERSION = 3;
+
 export type ConsentPreferences = {
-  version: 2;
+  version: typeof CONSENT_VERSION;
   necessary: true;
   analytics: boolean;
   marketing: boolean;
@@ -22,9 +25,9 @@ function parseStored(raw: string | null): ConsentPreferences | null {
   if (!raw) return null;
   try {
     const data = JSON.parse(raw) as Partial<ConsentPreferences>;
-    if (data.version !== 2) return null;
+    if (data.version !== CONSENT_VERSION) return null;
     return {
-      version: 2,
+      version: CONSENT_VERSION,
       necessary: true,
       analytics: Boolean(data.analytics),
       marketing: Boolean(data.marketing),
@@ -38,20 +41,7 @@ function parseStored(raw: string | null): ConsentPreferences | null {
 export function getConsentPreferences(): ConsentPreferences | null {
   if (typeof window === "undefined") return null;
 
-  const current = parseStored(localStorage.getItem(CONSENT_STORAGE_KEY));
-  if (current) return current;
-
-  if (localStorage.getItem(LEGACY_STORAGE_KEY) === "accepted") {
-    return {
-      version: 2,
-      necessary: true,
-      analytics: true,
-      marketing: true,
-      decidedAt: new Date().toISOString(),
-    };
-  }
-
-  return null;
+  return parseStored(localStorage.getItem(CONSENT_STORAGE_KEY));
 }
 
 export function hasConsentDecision(): boolean {
@@ -62,7 +52,7 @@ export function saveConsent(choice: ConsentChoice): ConsentPreferences {
   const prefs: ConsentPreferences =
     choice === "all"
       ? {
-          version: 2,
+          version: CONSENT_VERSION,
           necessary: true,
           analytics: true,
           marketing: true,
@@ -70,13 +60,13 @@ export function saveConsent(choice: ConsentChoice): ConsentPreferences {
         }
       : choice === "necessary"
         ? {
-            version: 2,
+            version: CONSENT_VERSION,
             necessary: true,
             analytics: false,
             marketing: false,
             decidedAt: new Date().toISOString(),
           }
-        : { ...choice, necessary: true, version: 2, decidedAt: choice.decidedAt ?? new Date().toISOString() };
+        : { ...choice, necessary: true, version: CONSENT_VERSION, decidedAt: choice.decidedAt ?? new Date().toISOString() };
 
   localStorage.setItem(CONSENT_STORAGE_KEY, JSON.stringify(prefs));
   localStorage.removeItem(LEGACY_STORAGE_KEY);
@@ -152,9 +142,12 @@ try {
   var legacy = '${LEGACY_STORAGE_KEY}';
   var raw = localStorage.getItem(key);
   var p = null;
-  if (raw) { p = JSON.parse(raw); }
-  else if (localStorage.getItem(legacy) === 'accepted') {
-    p = { analytics: true, marketing: true };
+  if (raw) {
+    var parsed = JSON.parse(raw);
+    if (parsed && parsed.version === ${CONSENT_VERSION}) p = parsed;
+  }
+  if (!p && (raw || localStorage.getItem(legacy) === 'accepted')) {
+    p = { analytics: false, marketing: false };
   }
   if (p) {
     gtag('consent', 'update', {

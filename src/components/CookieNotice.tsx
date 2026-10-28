@@ -7,6 +7,7 @@ import { ChevronDown, Settings2 } from "lucide-react";
 import {
   getConsentPreferences,
   hasConsentDecision,
+  CONSENT_VERSION,
   saveConsent,
   type ConsentPreferences,
 } from "@/lib/cookie-consent";
@@ -51,7 +52,7 @@ export default function CookieNotice() {
 
   const saveCustom = () => {
     const prefs: ConsentPreferences = {
-      version: 2,
+      version: CONSENT_VERSION,
       necessary: true,
       analytics,
       marketing,

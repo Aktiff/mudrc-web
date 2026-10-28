@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import {
+  CONSENT_VERSION,
   getConsentPreferences,
   hasConsentDecision,
   saveConsent,
@@ -23,7 +24,7 @@ export default function CookiePreferencesPanel() {
 
   const save = () => {
     const prefs: ConsentPreferences = {
-      version: 2,
+      version: CONSENT_VERSION,
       necessary: true,
       analytics,
       marketing,
