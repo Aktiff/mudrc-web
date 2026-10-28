@@ -1213,6 +1213,16 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
     set("leagueTable", key === "points" || key === "quizzesPlayed" ? sortLeagueTable(updated) : updated);
   };
 
+  const updateMergedQuizzesPlayed = (indexes: number[], quizzesPlayed: number) => {
+    const nextCount = Number.isFinite(quizzesPlayed) ? Math.max(0, quizzesPlayed) : 0;
+    const primary = indexes[0];
+    const updated = form.leagueTable.map((row, idx) => {
+      if (!indexes.includes(idx)) return row;
+      return { ...row, quizzesPlayed: idx === primary ? nextCount : 0 };
+    });
+    set("leagueTable", sortLeagueTable(updated));
+  };
+
   const removeLeagueRow = (i: number) =>
     set("leagueTable", form.leagueTable.filter((_, idx) => idx !== i).map((r, idx) => ({ ...r, rank: idx + 1 })));
 
@@ -1587,7 +1597,13 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
                     ) : null}
                   </div>
                   <div className="text-center text-sm font-semibold text-brand-text">{item.row.points}</div>
-                  <div className="text-center text-sm font-semibold text-brand-text">{item.row.quizzesPlayed}</div>
+                  <input
+                    className="input text-sm py-2 text-center"
+                    type="number"
+                    min={0}
+                    value={item.row.quizzesPlayed}
+                    onChange={(e) => updateMergedQuizzesPlayed(item.indexes, Number(e.target.value))}
+                  />
                   <span />
                 </div>
               ) : (
