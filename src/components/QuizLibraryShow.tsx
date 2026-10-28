@@ -985,6 +985,36 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
     return () => window.removeEventListener("keydown", onKey);
   }, [goNext, goPrev, started, toggleFullscreen]);
 
+  useEffect(() => {
+    if (!started) return;
+    const isSideButton = (event: globalThis.MouseEvent) => event.button === 3 || event.button === 4;
+    const blockSideButton = (event: globalThis.MouseEvent) => {
+      if (!isSideButton(event)) return;
+      event.preventDefault();
+      event.stopPropagation();
+    };
+    const onSideButtonUp = (event: globalThis.MouseEvent) => {
+      if (!isSideButton(event)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      // 3 = bližšie k dlani (späť v prehliadači). 4 = druhé bočné tlačidlo.
+      if (event.button !== 4) return;
+      if (document.fullscreenElement) void document.exitFullscreen();
+      if (window.history.length > 1) window.history.back();
+      else window.location.assign(`/admin/hotove-kvizy/${quizId}`);
+    };
+    window.addEventListener("pointerdown", blockSideButton, true);
+    window.addEventListener("mousedown", blockSideButton, true);
+    window.addEventListener("mouseup", onSideButtonUp, true);
+    window.addEventListener("auxclick", blockSideButton, true);
+    return () => {
+      window.removeEventListener("pointerdown", blockSideButton, true);
+      window.removeEventListener("mousedown", blockSideButton, true);
+      window.removeEventListener("mouseup", onSideButtonUp, true);
+      window.removeEventListener("auxclick", blockSideButton, true);
+    };
+  }, [quizId, started]);
+
   if (loading) {
     return (
       <div className="fixed inset-0 z-[9999] bg-[#060606] flex items-center justify-center text-white/70">
