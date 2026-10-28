@@ -24,7 +24,7 @@ import QuizTypeField from "@/components/admin/QuizTypeField";
 import { DEFAULT_QUIZ_TYPE, normalizeQuizTypeLabel, quizTypeFromLibraryTitle, quizTypeOrDefault, rememberQuizTypes, splitVenueQuizType, venueQuizLabel } from "@/lib/quiz-type";
 import FacebookEventPostButton from "@/components/admin/FacebookEventPostButton";
 import FutureQuizPanel from "@/components/admin/FutureQuizPanel";
-import { futureQuizMatchesDate, groupRegistrationsByTerm, normalizeFutureQuizzes, registrationGroupsForTerm, registrationMoveTargets, registrationTermChoices } from "@/lib/future-quizzes";
+import { futureQuizMatchesDate, groupRegistrationsByTerm, nearestUpcomingNight, normalizeFutureQuizzes, registrationGroupsForTerm, registrationMoveTargets, registrationTermChoices } from "@/lib/future-quizzes";
 import { RuleListEditor } from "@/components/admin/RuleListEditor";
 import { normalizeQuizRules } from "@/lib/quiz-rules";
 import {
@@ -448,6 +448,13 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
     () => registrationTermChoices({ date: form.date, quizType: form.quizType, futureQuizzes: form.futureQuizzes }),
     [form.date, form.quizType, form.futureQuizzes]
   );
+  const nearestNight = useMemo(() => nearestUpcomingNight(form), [form]);
+  const nearestRegsOpen = nearestNight ? nearestNight.registrationOpen : form.registrationOpen !== false;
+  const nearestRegButton = nearestNight?.extraId
+    ? `${nearestRegsOpen ? "Vypnúť" : "Zapnúť"} registrácie · ${nearestNight.date}`
+    : nearestRegsOpen
+      ? "Vypnúť registrácie"
+      : "Zapnúť registrácie";
 
   useEffect(() => {
     if (regTermTouched.current || !form.date) return;
@@ -985,13 +992,36 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
     }
   };
 
-  const toggleRegistrationOpen = async () => {
-    const open = form.registrationOpen !== false;
+  const toggleRegistrationOpen = async (target: "nearest" | "main" = "nearest") => {
+    const night = nearestUpcomingNight(form);
+    const open = target === "nearest" && night ? night.registrationOpen : form.registrationOpen !== false;
     const newOpen = !open;
+    const when = target === "nearest" && night ? `${formatEventDateLabel(night.date)} · ${night.quizType}` : `${formatEventDateLabel(form.date)} · ${quizTypeOrDefault(form.quizType)}`;
+    if (target === "nearest" && night?.extraId) {
+      if (isNew) return;
+      const res = await fetch(`/api/admin/events/${params.slug}/dalsi-termin`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: night.extraId, registrationOpen: newOpen }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setMsg({ text: typeof data.error === "string" ? data.error : "Chyba pri ukladaní", ok: false });
+        return;
+      }
+      setForm((current) => ({ ...current, futureQuizzes: normalizeFutureQuizzes(data.futureQuizzes) }));
+      setMsg({
+        text: newOpen
+          ? `Registrácie na ${when} sú zapnuté. Bežný kvíz ostal bez zmeny.`
+          : `Registrácie na ${when} sú vypnuté. Bežný kvíz ostal bez zmeny.`,
+        ok: true,
+      });
+      return;
+    }
     registrationOpenLock.current = newOpen;
     setForm((f) => ({ ...f, registrationOpen: newOpen }));
     setMsg({
-      text: newOpen ? "Registrácie zapnuté" : "Registrácie vypnuté — na webe sa zobrazí „Kvíz je plný“",
+      text: newOpen ? `Registrácie na ${when} sú zapnuté.` : `Registrácie na ${when} sú vypnuté — na webe sa zobrazí „Kvíz je plný“.`,
       ok: true,
     });
     if (!isNew) {
@@ -1305,8 +1335,9 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
               <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${pollAdmin?.config?.active ? "bg-purple-100 text-purple-700 dark:bg-purple-950/50 dark:text-purple-300" : "bg-brand-surface text-brand-muted border border-brand-border"}`}>
                 {pollAdmin?.config?.active ? "Anketa zapnutá" : "Anketa vypnutá"}
               </span>
-              <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${form.registrationOpen !== false ? "bg-teal-100 text-teal-800 dark:bg-teal-950/50 dark:text-teal-300" : "bg-brand-surface text-brand-muted border border-brand-border"}`}>
-                {form.registrationOpen !== false ? "Registrácie otvorené" : "Registrácie zatvorené"}
+              <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${nearestRegsOpen ? "bg-teal-100 text-teal-800 dark:bg-teal-950/50 dark:text-teal-300" : "bg-brand-surface text-brand-muted border border-brand-border"}`}>
+                {nearestRegsOpen ? "Registrácie otvorené" : "Registrácie zatvorené"}
+                {nearestNight?.extraId ? ` · ${nearestNight.date}` : ""}
               </span>
             </>
           )}
@@ -1314,15 +1345,15 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
         {!isNew && (
           <div className="flex flex-col sm:flex-row gap-2 shrink-0">
             <button
-              onClick={toggleRegistrationOpen}
+              onClick={() => void toggleRegistrationOpen()}
               className={`flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded-xl border transition-colors ${
-                form.registrationOpen !== false
+                nearestRegsOpen
                   ? "border-brand-border text-brand-muted hover:bg-brand-hover"
                   : "border-teal-500/40 text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/30 hover:bg-teal-100 dark:hover:bg-teal-950/50"
               }`}
             >
-              {form.registrationOpen !== false ? <UserX className="w-4 h-4" /> : <UserPlus className="w-4 h-4" />}
-              {form.registrationOpen !== false ? "Vypnúť registrácie" : "Zapnúť registrácie"}
+              {nearestRegsOpen ? <UserX className="w-4 h-4" /> : <UserPlus className="w-4 h-4" />}
+              {nearestRegButton}
             </button>
             <button
               onClick={toggleQuizActive}
@@ -1749,11 +1780,21 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
       {tab === "registracie" && !isNew && (
         <div className="bg-brand-card rounded-2xl border border-brand-border p-6">
           <div className="flex flex-wrap items-center justify-between gap-3 mb-6 pb-6 border-b border-brand-border">
-            <p className="text-brand-muted text-sm">
-              {form.registrationOpen !== false
-                ? "Registrácie sú otvorené — nové tímy sa môžu prihlásiť cez web."
-                : "Registrácie sú zatvorené — na webe sa zobrazí „Kvíz je plný“."}
-            </p>
+            <div className="text-brand-muted text-sm space-y-2">
+              <p>
+                {nearestRegsOpen
+                  ? `Registrácie${nearestNight ? ` na ${formatEventDateLabel(nearestNight.date)} · ${nearestNight.quizType}` : ""} sú otvorené — nové tímy sa môžu prihlásiť cez web.`
+                  : `Registrácie${nearestNight ? ` na ${formatEventDateLabel(nearestNight.date)} · ${nearestNight.quizType}` : ""} sú zatvorené — na webe sa zobrazí „Kvíz je plný“.`}
+              </p>
+              {nearestNight?.extraId ? (
+                <p>
+                  Bežný kvíz {formatEventDateLabel(form.date)} má registrácie {form.registrationOpen === false ? "vypnuté" : "zapnuté"}. Na webe sa ukáže až keď bude najbližší.
+                  <button type="button" onClick={() => void toggleRegistrationOpen("main")} className="ml-2 font-semibold text-brand-orange-readable hover:underline">
+                    {form.registrationOpen === false ? "Zapnúť bežný kvíz" : "Vypnúť bežný kvíz"}
+                  </button>
+                </p>
+              ) : null}
+            </div>
             <div className="flex flex-wrap gap-2">
               <Link
                 href={`/admin/zasadacie?event=${params.slug}`}
@@ -1763,15 +1804,15 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
                 Zasadací poriadok
               </Link>
               <button
-                onClick={toggleRegistrationOpen}
+                onClick={() => void toggleRegistrationOpen()}
                 className={`flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded-xl border transition-colors ${
-                  form.registrationOpen !== false
+                  nearestRegsOpen
                     ? "border-brand-border text-brand-muted hover:bg-brand-hover"
                     : "border-teal-500/40 text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/30"
                 }`}
               >
-                {form.registrationOpen !== false ? <UserX className="w-4 h-4" /> : <UserPlus className="w-4 h-4" />}
-                {form.registrationOpen !== false ? "Vypnúť registrácie" : "Zapnúť registrácie"}
+                {nearestRegsOpen ? <UserX className="w-4 h-4" /> : <UserPlus className="w-4 h-4" />}
+                {nearestRegButton}
               </button>
             </div>
           </div>

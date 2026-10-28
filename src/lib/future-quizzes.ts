@@ -1,7 +1,7 @@
-import { formatEventDateLabel, parseSkEventDateTime, type FutureQuiz, type QuizEvent } from "@/lib/data";
+import { addDaysToSkDate, formatEventDateLabel, parseSkEventDateTime, type FutureQuiz, type QuizEvent } from "@/lib/data";
 import { normalizeDateKey } from "@/lib/quiz-result-key";
 import { normalizeQuizRules } from "@/lib/quiz-rules";
-import { quizTypeOrDefault } from "@/lib/quiz-type";
+import { isGeneralQuizType, quizTypeOrDefault } from "@/lib/quiz-type";
 
 export const FUTURE_QUIZ_LIMIT = 8;
 
@@ -68,15 +68,95 @@ export function futureQuizDateError(eventDate: string, date: string, existing: F
   const day = calendarDay(date);
   if (day === null) return "Zadaj platný dátum.";
   const current = calendarDay(eventDate);
-  if (current !== null && day <= current) {
-    return "Tento termín musí byť až po najbližšom kvíze. Ten ostane bežný.";
+  if (current !== null && day === current) {
+    return "Tento dátum je už bežný kvíz. Špeciálny termín musí mať iný deň.";
   }
-  const today = new Date();
-  const todayDay = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
-  if (day < todayDay) return "Termín je v minulosti.";
+  if (day < todayStamp()) return "Termín je v minulosti.";
   if (existing.some((quiz) => futureQuizMatchesDate(quiz, date))) return "Tento termín už v podniku je.";
   if (existing.length >= FUTURE_QUIZ_LIMIT) return `Najviac ${FUTURE_QUIZ_LIMIT} ďalších termínov.`;
   return "";
+}
+
+function todayStamp(): number {
+  const today = new Date();
+  return new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+}
+
+/** Špeciálny kvíz je na webe vidno najviac toľko mesiacov dopredu. */
+export const SPECIAL_QUIZ_LOOKAHEAD_MONTHS = 2;
+
+function specialWindowEnd(today: number): number {
+  const start = new Date(today);
+  return new Date(start.getFullYear(), start.getMonth() + SPECIAL_QUIZ_LOOKAHEAD_MONTHS, start.getDate()).getTime();
+}
+
+export type UpcomingNight = {
+  date: string;
+  time: string;
+  quizType: string;
+  registrationOpen: boolean;
+  /** Vyplnené pri špeciálnom termíne, nie pri bežnom kvíze podniku. */
+  extraId?: string;
+};
+
+export function upcomingNights(event: Pick<QuizEvent, "date" | "time" | "quizType" | "registrationOpen" | "futureQuizzes">): UpcomingNight[] {
+  const today = todayStamp();
+  const nights: UpcomingNight[] = [];
+  const mainDay = calendarDay(event.date);
+  if (mainDay !== null && mainDay >= today) {
+    nights.push({
+      date: event.date,
+      time: event.time,
+      quizType: quizTypeOrDefault(event.quizType),
+      registrationOpen: event.registrationOpen !== false,
+    });
+  }
+  for (const extra of upcomingFutureQuizzes(event)) {
+    nights.push({
+      date: extra.date,
+      time: extra.time || event.time,
+      quizType: quizTypeOrDefault(extra.quizType),
+      registrationOpen: extra.registrationOpen !== false,
+      extraId: extra.id,
+    });
+  }
+  return nights.sort((a, b) => (calendarDay(a.date) ?? 0) - (calendarDay(b.date) ?? 0));
+}
+
+export function nearestUpcomingNight(
+  event: Pick<QuizEvent, "date" | "time" | "quizType" | "registrationOpen" | "futureQuizzes">
+): UpcomingNight | null {
+  return upcomingNights(event)[0] ?? null;
+}
+
+/** Bežný kvíz len keď je naozaj najbližší. Špeciálny aj 2 mesiace dopredu. */
+export function visiblePublicNights(
+  event: Pick<QuizEvent, "date" | "time" | "quizType" | "registrationOpen" | "futureQuizzes">
+): UpcomingNight[] {
+  const nights = upcomingNights(event);
+  const nearest = nights[0];
+  if (!nearest) return [];
+  const today = todayStamp();
+  const horizon = specialWindowEnd(today);
+  return nights.filter((night) => {
+    const day = calendarDay(night.date);
+    if (day === null) return false;
+    if (isGeneralQuizType(night.quizType)) {
+      return calendarDay(nearest.date) === day;
+    }
+    return day <= horizon;
+  });
+}
+
+/** Ďalší bežný termín o 14 dní. Špeciálne dátumy preskočí, aby neprepísali popis udalosti. */
+export function nextGeneralDateSkippingSpecials(playedDate: string, extras: FutureQuiz[]): string | null {
+  let advanced = addDaysToSkDate(playedDate, 14);
+  while (advanced) {
+    const day = advanced;
+    if (!extras.some((quiz) => futureQuizMatchesDate(quiz, day))) break;
+    advanced = addDaysToSkDate(day, 14);
+  }
+  return advanced;
 }
 
 export function upcomingFutureQuizzes(event: Pick<QuizEvent, "futureQuizzes">): FutureQuiz[] {
@@ -91,16 +171,19 @@ export function upcomingFutureQuizzes(event: Pick<QuizEvent, "futureQuizzes">): 
 export function publicQuizCards(events: QuizEvent[]): PublicQuizCard[] {
   const cards: PublicQuizCard[] = [];
   for (const event of events) {
-    cards.push({ ...event, listingKey: event.slug });
-    for (const extra of upcomingFutureQuizzes(event)) {
+    for (const night of visiblePublicNights(event)) {
+      if (!night.extraId) {
+        cards.push({ ...event, listingKey: event.slug });
+        continue;
+      }
       cards.push({
         ...event,
-        listingKey: `${event.slug}:${extra.id}`,
-        date: extra.date,
-        time: extra.time || event.time,
-        quizType: extra.quizType,
-        registrationOpen: extra.registrationOpen !== false,
-        termQuery: extra.date,
+        listingKey: `${event.slug}:${night.extraId}`,
+        date: night.date,
+        time: night.time,
+        quizType: night.quizType,
+        registrationOpen: night.registrationOpen,
+        termQuery: night.date,
       });
     }
   }

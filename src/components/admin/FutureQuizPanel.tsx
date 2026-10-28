@@ -121,7 +121,7 @@ export default function FutureQuizPanel({
       <div>
         <p className="font-semibold text-brand-text text-sm">Ďalší kvíz v tomto podniku</p>
         <p className="text-brand-muted text-xs mt-1 leading-relaxed">
-          Najbližší termín ostane tak, ako je. Tu pridáš špeciálny kvíz dopredu, aj o niekoľko mesiacov. Na webe sa ukáže ako druhá karta.
+          Bežný kvíz ostane bežný. Špeciálny termín je vlastná karta a na webe je vidno najviac 2 mesiace dopredu. Kým je pred bežným kvízom špeciálny, bežný sa dopredu neukáže.
         </p>
       </div>
       {listed.length > 0 && (
@@ -142,7 +142,7 @@ export default function FutureQuizPanel({
         <div>
           <label className="label">Dátum ďalšieho kvízu</label>
           <AdminDatePicker value={date} onChange={setDate} placeholder="05.11.2026" />
-          <p className="text-brand-muted text-xs mt-1">Musí byť až po {eventDate || "najbližšom termíne"}.</p>
+          <p className="text-brand-muted text-xs mt-1">Iný deň ako bežný kvíz {eventDate || ""}.</p>
         </div>
         <div>
           <label className="label">Čas</label>

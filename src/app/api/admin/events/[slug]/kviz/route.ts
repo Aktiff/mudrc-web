@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
-import { addDaysToSkDate, eventDateIsPlayedNight, sortLeagueTable } from "@/lib/data";
+import { eventDateIsPlayedNight, sortLeagueTable } from "@/lib/data";
 import { teamKey } from "@/lib/poll";
 import { normalizeDateKey } from "@/lib/quiz-result-key";
 import { buildQuizTeamsDetail } from "@/lib/quiz-save";
@@ -12,7 +12,7 @@ import {
   normalizeResultLibraryQuizId,
 } from "@/lib/quiz-result-library";
 import { revalidatePublicEventPaths } from "@/lib/revalidate-public";
-import { futureQuizMatchesDate } from "@/lib/future-quizzes";
+import { futureQuizMatchesDate, nextGeneralDateSkippingSpecials } from "@/lib/future-quizzes";
 import { quizTypeOrDefault } from "@/lib/quiz-type";
 import {
   hasQuizForDate,
@@ -97,12 +97,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
       const event = events[idx];
       const extras = event.futureQuizzes ?? [];
       const playedIsExtra = extras.some((quiz) => futureQuizMatchesDate(quiz, date));
-      let advanced = addDaysToSkDate(date, 14);
-      while (advanced) {
-        const day = advanced;
-        if (!extras.some((quiz) => futureQuizMatchesDate(quiz, day))) break;
-        advanced = addDaysToSkDate(day, 14);
-      }
+      const advanced = nextGeneralDateSkippingSpecials(date, extras);
       if (advanced && eventDateIsPlayedNight(event.date, date) && !playedIsExtra) nextEventDate = advanced;
       const futureQuizzes = playedIsExtra
         ? (event.futureQuizzes ?? []).filter((quiz) => !futureQuizMatchesDate(quiz, date))

@@ -38,6 +38,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { slug: stri
     date?: unknown;
     specialRules?: unknown;
     rules?: unknown;
+    registrationOpen?: unknown;
   } | null;
   const id = typeof body?.id === "string" ? body.id.trim() : "";
   const date = typeof body?.date === "string" ? body.date.trim() : "";
@@ -55,8 +56,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { slug: stri
     found = true;
     return {
       ...quiz,
-      specialRules: normalizeQuizRules(body?.specialRules),
+      ...(body?.specialRules !== undefined ? { specialRules: normalizeQuizRules(body.specialRules) } : {}),
       ...(Array.isArray(body?.rules) ? { rules: normalizeQuizRules(body.rules) } : {}),
+      ...(typeof body?.registrationOpen === "boolean" ? { registrationOpen: body.registrationOpen } : {}),
     };
   });
   if (!found) return NextResponse.json({ error: "Termín sa nenašiel." }, { status: 404 });
