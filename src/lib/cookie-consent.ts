@@ -81,8 +81,33 @@ export function saveConsent(choice: ConsentChoice): ConsentPreferences {
   localStorage.setItem(CONSENT_STORAGE_KEY, JSON.stringify(prefs));
   localStorage.removeItem(LEGACY_STORAGE_KEY);
   applyGoogleConsent(prefs);
+  clearWithdrawnCookies(prefs);
   window.dispatchEvent(new CustomEvent("mudrc-consent-change", { detail: prefs }));
   return prefs;
+}
+
+function expireCookie(name: string): void {
+  const host = window.location.hostname.replace(/^www\./, "");
+  const domains = ["", window.location.hostname, host, `.${host}`];
+  for (const domain of domains) {
+    const domainPart = domain ? `; domain=${domain}` : "";
+    document.cookie = `${name}=; Max-Age=0; path=/${domainPart}`;
+  }
+}
+
+/** Po odvolaní súhlasu zmaže už uložené meracie cookies. */
+function clearWithdrawnCookies(prefs: ConsentPreferences): void {
+  const names = document.cookie
+    .split(";")
+    .map((part) => part.trim().split("=")[0])
+    .filter(Boolean);
+  for (const name of names) {
+    const analyticsCookie = name === "_ga" || name === "_gid" || name.startsWith("_ga_");
+    const marketingCookie = name === "_fbp" || name === "_fbc" || name.startsWith("_gcl");
+    if ((!prefs.analytics && analyticsCookie) || (!prefs.marketing && marketingCookie)) {
+      expireCookie(name);
+    }
+  }
 }
 
 export function applyGoogleConsent(prefs: ConsentPreferences): void {
@@ -138,6 +163,18 @@ try {
       'ad_user_data': p.marketing ? 'granted' : 'denied',
       'ad_personalization': p.marketing ? 'granted' : 'denied'
     });
+    if (!p.analytics || !p.marketing) {
+      var host = location.hostname.replace(/^www\\./, '');
+      document.cookie.split(';').forEach(function (part) {
+        var name = part.trim().split('=')[0];
+        var dropAnalytics = !p.analytics && (name === '_ga' || name === '_gid' || name.indexOf('_ga_') === 0);
+        var dropMarketing = !p.marketing && (name === '_fbp' || name === '_fbc' || name.indexOf('_gcl') === 0);
+        if (!dropAnalytics && !dropMarketing) return;
+        ['', location.hostname, host, '.' + host].forEach(function (domain) {
+          document.cookie = name + '=; Max-Age=0; path=/' + (domain ? '; domain=' + domain : '');
+        });
+      });
+    }
   }
 } catch (e) {}
 `.trim();
