@@ -1,9 +1,23 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import Script from "next/script";
 import { getGtmId } from "@/lib/analytics-config";
+import { isMarketingAllowed } from "@/lib/cookie-consent";
 
-/** Načítanie gtm.js — v layout v <head>, až za GoogleConsentMode. */
+/** GTM (reklamy) až po súhlase s marketingom. Pred súhlasom sa skript nenačítava. */
 export default function GoogleTagManager() {
+  const [allowed, setAllowed] = useState(false);
   const gtmId = getGtmId();
+
+  useEffect(() => {
+    const sync = () => setAllowed(isMarketingAllowed());
+    sync();
+    window.addEventListener("mudrc-consent-change", sync);
+    return () => window.removeEventListener("mudrc-consent-change", sync);
+  }, []);
+
+  if (!allowed || !gtmId) return null;
 
   return (
     <Script id="gtm-loader" strategy="lazyOnload">
@@ -13,21 +27,5 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
 })(window,document,'script','dataLayer','${gtmId}');`}
     </Script>
-  );
-}
-
-export function GoogleTagManagerNoScript() {
-  const gtmId = getGtmId();
-
-  return (
-    <noscript>
-      <iframe
-        title="Google Tag Manager"
-        src={`https://www.googletagmanager.com/ns.html?id=${gtmId}`}
-        height="0"
-        width="0"
-        style={{ display: "none", visibility: "hidden" }}
-      />
-    </noscript>
   );
 }

@@ -5,7 +5,8 @@ import SiteChrome from "@/components/SiteChrome";
 import ThemeSync from "@/components/ThemeSync";
 import DeferredCookieNotice from "@/components/DeferredCookieNotice";
 import GoogleConsentMode from "@/components/GoogleConsentMode";
-import GoogleTagManager, { GoogleTagManagerNoScript } from "@/components/GoogleTagManager";
+import GoogleTagManager from "@/components/GoogleTagManager";
+import GoogleAnalytics from "@/components/GoogleAnalytics";
 import VercelAnalyticsWithConsent from "@/components/VercelAnalyticsWithConsent";
 import { defaultSiteMetadata } from "@/lib/site-metadata";
 
@@ -25,11 +26,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <GoogleTagManager />
       </head>
       <body suppressHydrationWarning>
-        <GoogleTagManagerNoScript />
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
         <ThemeSync />
         <SiteChrome>{children}</SiteChrome>
         <DeferredCookieNotice />
+        <GoogleAnalytics />
         <VercelAnalyticsWithConsent />
       </body>
     </html>

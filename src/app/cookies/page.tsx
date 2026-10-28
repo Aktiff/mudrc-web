@@ -55,9 +55,9 @@ export default function CookiesPage() {
           <div>
             <h2 className="font-display text-2xl sm:text-3xl text-brand-text tracking-wide">Google Consent Mode</h2>
             <p className="text-brand-muted mt-3 leading-relaxed">
-              Pred súhlasom neukladáme marketingové cookies. Po „Prijať všetko“ alebo vlastnom výbere sa zapnú len
-              zvolené kategórie. Tagy (GA4, Google Ads, Meta Pixel) sa typicky spravujú v Google Tag Manageri — bez
-              zbytočných úprav kódu pri každej kampani.
+              Pred súhlasom sa nenačítava Google Analytics ani Google Tag Manager a neukladajú sa ich cookies. Po
+              „Prijať všetko“ alebo vlastnom výbere sa zapnú len zvolené kategórie. Štatistiky idú do Google
+              Analytics 4. Reklamné tagy (Google Ads, Meta) idú cez Google Tag Manager.
             </p>
           </div>
         </div>

@@ -62,7 +62,8 @@ export default function PrivacyPage() {
           <h2 className="font-display text-2xl text-brand-text tracking-wide">Cookies a meranie</h2>
           <p>
             Nevyhnutné cookies držia voľbu témy a súhlas s upozornením. Štatistiky a reklamné meranie (Google,
-            Meta) bežia len po súhlase. Podrobnosti sú na{" "}
+            Meta) bežia len po súhlase. Google Analytics 4 sa načíta až po povolení štatistík. Google Ireland
+            Limited vtedy dostane adresu navštívenej stránky a technické údaje o prehliadači. Podrobnosti sú na{" "}
             <Link href="/cookies" className="text-brand-orange-readable hover:underline">
               stránke Cookies
             </Link>

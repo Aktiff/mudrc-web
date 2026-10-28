@@ -9,15 +9,22 @@ function pushDataLayer(payload: Record<string, unknown>): void {
   layer.push(payload);
 }
 
-/** Udalosť pre GTM (konverzie, PPC, remarketing). */
+/** Udalosť pre GA4 (po súhlase so štatistikami) a pre GTM (konverzie, PPC). */
 export function trackEvent(event: string, params?: AnalyticsEventParams): void {
   if (typeof window === "undefined") return;
-  if (!isAnalyticsAllowed() && !isMarketingAllowed()) return;
+  const analytics = isAnalyticsAllowed();
+  const marketing = isMarketingAllowed();
+  if (!analytics && !marketing) return;
 
-  pushDataLayer({
-    event,
-    ...params,
-  });
+  const clean: Record<string, string | number | boolean> = {};
+  if (params) {
+    for (const [key, value] of Object.entries(params)) {
+      if (value !== undefined) clean[key] = value;
+    }
+  }
+
+  if (marketing) pushDataLayer({ event, ...clean });
+  if (analytics) window.gtag?.("event", event, clean);
 }
 
 /** Registrácia tímu — v GTM nastav trigger + konverziu (Google Ads / Meta). */
