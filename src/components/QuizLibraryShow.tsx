@@ -987,33 +987,29 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
 
   useEffect(() => {
     if (!started) return;
-    const isSideButton = (event: globalThis.MouseEvent) => event.button === 3 || event.button === 4;
-    const blockSideButton = (event: globalThis.MouseEvent) => {
-      if (!isSideButton(event)) return;
-      event.preventDefault();
-      event.stopPropagation();
+    const stay = { mudrcPresentation: "stay" };
+    const close = { mudrcPresentation: "close" };
+    let left = false;
+    const onPop = (event: PopStateEvent) => {
+      if (left) return;
+      const marker = (event.state as { mudrcPresentation?: string } | null)?.mudrcPresentation;
+      if (marker === "close") {
+        left = true;
+        window.location.replace("/admin/hotove-kvizy");
+        return;
+      }
+      if (marker === "stay") return;
+      window.history.forward();
     };
-    const onSideButtonUp = (event: globalThis.MouseEvent) => {
-      if (!isSideButton(event)) return;
-      event.preventDefault();
-      event.stopPropagation();
-      // 3 = bližšie k dlani (späť v prehliadači). 4 = druhé bočné tlačidlo.
-      if (event.button !== 4) return;
-      if (document.fullscreenElement) void document.exitFullscreen();
-      if (window.history.length > 1) window.history.back();
-      else window.location.assign(`/admin/hotove-kvizy/${quizId}`);
-    };
-    window.addEventListener("pointerdown", blockSideButton, true);
-    window.addEventListener("mousedown", blockSideButton, true);
-    window.addEventListener("mouseup", onSideButtonUp, true);
-    window.addEventListener("auxclick", blockSideButton, true);
+    window.addEventListener("popstate", onPop);
+    window.history.pushState(stay, "");
+    window.history.pushState(close, "");
+    window.history.back();
     return () => {
-      window.removeEventListener("pointerdown", blockSideButton, true);
-      window.removeEventListener("mousedown", blockSideButton, true);
-      window.removeEventListener("mouseup", onSideButtonUp, true);
-      window.removeEventListener("auxclick", blockSideButton, true);
+      left = true;
+      window.removeEventListener("popstate", onPop);
     };
-  }, [quizId, started]);
+  }, [started]);
 
   if (loading) {
     return (
