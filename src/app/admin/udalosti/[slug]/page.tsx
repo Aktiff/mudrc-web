@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Trash2, ChevronLeft, Save, PauseCircle, PlayCircle, Upload, ImageIcon, Phone, Users, Clock, RefreshCw, Vote, ExternalLink, UserPlus, UserX, Armchair } from "lucide-react";
+import { Plus, Trash2, ChevronLeft, Save, PauseCircle, PlayCircle, Upload, ImageIcon, Phone, Users, Clock, RefreshCw, Vote, ExternalLink, UserPlus, UserX, Armchair, ArrowRightLeft } from "lucide-react";
 import Link from "next/link";
 import type { QuizEvent, LeagueEntry, PastResult } from "@/lib/data";
 import { eventTeamNameSuggestions, formatEventDateLabel, sortLeagueTable } from "@/lib/data";
@@ -24,7 +24,7 @@ import QuizTypeField from "@/components/admin/QuizTypeField";
 import { DEFAULT_QUIZ_TYPE, normalizeQuizTypeLabel, quizTypeFromLibraryTitle, quizTypeOrDefault, rememberQuizTypes, splitVenueQuizType, venueQuizLabel } from "@/lib/quiz-type";
 import FacebookEventPostButton from "@/components/admin/FacebookEventPostButton";
 import FutureQuizPanel from "@/components/admin/FutureQuizPanel";
-import { futureQuizMatchesDate, groupRegistrationsByTerm, normalizeFutureQuizzes, registrationGroupsForTerm } from "@/lib/future-quizzes";
+import { futureQuizMatchesDate, groupRegistrationsByTerm, normalizeFutureQuizzes, registrationGroupsForTerm, registrationMoveTargets, registrationTermChoices } from "@/lib/future-quizzes";
 import { RuleListEditor } from "@/components/admin/RuleListEditor";
 import { normalizeQuizRules } from "@/lib/quiz-rules";
 import {
@@ -213,6 +213,8 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
   const [newRegTeamName, setNewRegTeamName] = useState("");
   const [newRegPhone, setNewRegPhone] = useState("");
   const [newRegTerm, setNewRegTerm] = useState("");
+  const [movingRegId, setMovingRegId] = useState<string | null>(null);
+  const regTermTouched = useRef(false);
   const [newRegPlayers, setNewRegPlayers] = useState<number | "">("");
   const [addingReg, setAddingReg] = useState(false);
   const [pollAdmin, setPollAdmin] = useState<PollAdminState | null>(null);
@@ -442,6 +444,16 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
     () => registrationGroupsForTerm(registrationGroups, newRegTerm),
     [registrationGroups, newRegTerm]
   );
+  const termChoices = useMemo(
+    () => registrationTermChoices({ date: form.date, quizType: form.quizType, futureQuizzes: form.futureQuizzes }),
+    [form.date, form.quizType, form.futureQuizzes]
+  );
+
+  useEffect(() => {
+    if (regTermTouched.current || !form.date) return;
+    const nearest = termChoices[0];
+    if (nearest) setNewRegTerm(nearest.value);
+  }, [form.date, termChoices]);
 
   useEffect(() => {
     if (!isNew) {
@@ -728,6 +740,40 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
       );
     } finally {
       setUpdatingPlayersRegId(null);
+    }
+  };
+
+  const moveRegistration = async (id: string, teamName: string, quizDate: string, label: string) => {
+    const duplicate = registrations.some((entry) => {
+      if (entry.id === id) return false;
+      if (entry.teamName.trim().toLowerCase() !== teamName.trim().toLowerCase()) return false;
+      return futureQuizMatchesDate({ id: "", date: entry.quizDate?.trim() || form.date }, quizDate);
+    });
+    if (duplicate) {
+      setMsg({ text: `Tím „${teamName}" je už na termíne ${label}.`, ok: false });
+      return;
+    }
+
+    setMovingRegId(id);
+    try {
+      const res = await fetch("/api/admin/registrations", {
+        method: "PATCH",
+        cache: "no-store",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, quizDate, eventDate: form.date }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setMsg({ text: data.error ?? "Tím sa nepodarilo presunúť.", ok: false });
+        return;
+      }
+      setRegistrations((prev) => prev.map((entry) => (entry.id === id ? { ...entry, quizDate } : entry)));
+      setMsg({ text: `Tím „${teamName}" je presunutý na ${label}.`, ok: true });
+    } catch {
+      setMsg({ text: "Sieťová chyba pri presune tímu.", ok: false });
+    } finally {
+      setMovingRegId(null);
     }
   };
 
@@ -1716,14 +1762,21 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
 
           <div className="mb-6 pb-6 border-b border-brand-border space-y-3">
             <p className="text-xs font-semibold uppercase tracking-wider text-brand-muted">Pridať tím (telefón / na mieste)</p>
-            {(form.futureQuizzes ?? []).length > 0 && (
+            {termChoices.length > 1 && (
               <div className="max-w-md">
                 <label className="label">Termín</label>
-                <select className="input" value={newRegTerm} onChange={(e) => setNewRegTerm(e.target.value)} aria-label="Termín kvízu">
-                  <option value="">{formatEventDateLabel(form.date)} · {quizTypeOrDefault(form.quizType)}</option>
-                  {normalizeFutureQuizzes(form.futureQuizzes).map((quiz) => (
-                    <option key={quiz.id} value={quiz.date}>
-                      {formatEventDateLabel(quiz.date)} · {quiz.quizType}
+                <select
+                  className="input"
+                  value={newRegTerm}
+                  onChange={(e) => {
+                    regTermTouched.current = true;
+                    setNewRegTerm(e.target.value);
+                  }}
+                  aria-label="Termín kvízu"
+                >
+                  {termChoices.map((choice) => (
+                    <option key={choice.date || "main"} value={choice.value}>
+                      {choice.label}
                     </option>
                   ))}
                 </select>
@@ -1839,6 +1892,8 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
                       const minPlayers = Math.max(1, form.minPlayers ?? 2);
                       const maxPlayers = Math.max(minPlayers, form.maxPlayers ?? 8, 20);
                       const playersBusy = updatingPlayersRegId === r.id;
+                      const moveTargets = registrationMoveTargets(form, r.quizDate?.trim() || form.date);
+                      const moving = movingRegId === r.id;
                       return (
                         <div
                           key={r.id}
@@ -1866,14 +1921,28 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
                               </div>
                             </div>
                           </div>
-                          <button
-                            onClick={() => deleteRegistration(r.id, r.teamName)}
-                            disabled={deletingRegId === r.id}
-                            className="shrink-0 flex items-center gap-1.5 text-sm font-medium px-3 py-2 rounded-xl border border-red-200 dark:border-red-900 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors disabled:opacity-50"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                            {deletingRegId === r.id ? "..." : "Zmazať"}
-                          </button>
+                          <div className="flex flex-col gap-2 shrink-0">
+                            {moveTargets.map((target) => (
+                              <button
+                                key={target.date}
+                                type="button"
+                                onClick={() => moveRegistration(r.id, r.teamName, target.date, target.label)}
+                                disabled={moving || deletingRegId === r.id}
+                                className="flex items-center gap-1.5 text-sm font-medium px-3 py-2 rounded-xl border border-brand-border text-brand-text hover:border-brand-orange transition-colors disabled:opacity-50"
+                              >
+                                <ArrowRightLeft className="w-4 h-4" />
+                                {moving ? "Presúvam…" : moveTargets.length === 1 ? "Presunúť do druhej registrácie" : `Presunúť na ${target.label}`}
+                              </button>
+                            ))}
+                            <button
+                              onClick={() => deleteRegistration(r.id, r.teamName)}
+                              disabled={deletingRegId === r.id || moving}
+                              className="flex items-center gap-1.5 text-sm font-medium px-3 py-2 rounded-xl border border-red-200 dark:border-red-900 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors disabled:opacity-50"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                              {deletingRegId === r.id ? "..." : "Zmazať"}
+                            </button>
+                          </div>
                         </div>
                       );
                     })}

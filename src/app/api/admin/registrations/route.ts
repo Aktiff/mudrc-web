@@ -93,19 +93,57 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
   const id = typeof body.id === "string" ? body.id.trim() : "";
-  const playersRaw = body.players;
+  const hasPlayers = body.players !== undefined && body.players !== null && body.players !== "";
+  const hasQuizDate = typeof body.quizDate === "string";
 
   if (!id) {
     return NextResponse.json({ error: "Chýba id registrácie" }, { status: 400 });
   }
+  if (!hasPlayers && !hasQuizDate) {
+    return NextResponse.json({ error: "Chýba úprava registrácie" }, { status: 400 });
+  }
 
-  const players = typeof playersRaw === "number" ? playersRaw : parseInt(String(playersRaw ?? ""), 10);
-  if (!Number.isFinite(players) || players < 1 || players > 99) {
-    return NextResponse.json({ error: "Počet hráčov musí byť medzi 1 a 99" }, { status: 400 });
+  const patch: { players?: string; quizDate?: string } = {};
+  if (hasPlayers) {
+    const players = typeof body.players === "number" ? body.players : parseInt(String(body.players ?? ""), 10);
+    if (!Number.isFinite(players) || players < 1 || players > 99) {
+      return NextResponse.json({ error: "Počet hráčov musí byť medzi 1 a 99" }, { status: 400 });
+    }
+    patch.players = String(players);
+  }
+
+  if (hasQuizDate) {
+    const quizDate = body.quizDate.trim();
+    const eventDate = typeof body.eventDate === "string" ? body.eventDate.trim() : "";
+    if (!quizDate) {
+      return NextResponse.json({ error: "Chýba termín" }, { status: 400 });
+    }
+    const { registrations } = await readRegistrations();
+    const current = registrations.find((reg) => reg.id === id);
+    if (!current) {
+      return NextResponse.json({ error: "Registrácia neexistuje" }, { status: 404 });
+    }
+    const nearest = eventDate || quizDate;
+    const teamKey = current.teamName.trim().toLowerCase();
+    const venueKey = (current.venue ?? "").trim().toLowerCase();
+    const duplicate = registrations.some((reg) => {
+      if (reg.id === id) return false;
+      if (reg.teamName.trim().toLowerCase() !== teamKey) return false;
+      if ((reg.venue ?? "").trim().toLowerCase() !== venueKey) return false;
+      if (current.eventSlug && reg.eventSlug && reg.eventSlug !== current.eventSlug) return false;
+      return registrationOnTerm(reg, quizDate, nearest);
+    });
+    if (duplicate) {
+      return NextResponse.json(
+        { error: "Tím s týmto názvom je už na tomto termíne registrovaný." },
+        { status: 409 }
+      );
+    }
+    patch.quizDate = quizDate;
   }
 
   try {
-    const updated = await updateRegistrationById(id, { players: String(players) });
+    const updated = await updateRegistrationById(id, patch);
     if (!updated) {
       return NextResponse.json({ error: "Registrácia neexistuje" }, { status: 404 });
     }

@@ -5,8 +5,7 @@ import Link from "next/link";
 import { ArrowLeft, Calendar, ChevronRight, MapPin, Trash2 } from "lucide-react";
 import type { QuizEvent } from "@/lib/data";
 import { formatEventDateLabel, parseSkEventDateTime, sortEventsForAdminOverview } from "@/lib/data";
-import { groupRegistrationsByTerm, normalizeFutureQuizzes, registrationGroupsForTerm } from "@/lib/future-quizzes";
-import { quizTypeOrDefault } from "@/lib/quiz-type";
+import { futureQuizMatchesDate, groupRegistrationsByTerm, registrationGroupsForTerm, registrationMoveTargets, registrationTermChoices } from "@/lib/future-quizzes";
 import {
   estimatedEntryRevenue,
   formatEuroAmount,
@@ -47,6 +46,7 @@ export default function RegistraciaPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [clearingVenueSlug, setClearingVenueSlug] = useState<string | null>(null);
   const [updatingPlayersId, setUpdatingPlayersId] = useState<string | null>(null);
+  const [movingId, setMovingId] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
   const [selectedTerm, setSelectedTerm] = useState("");
@@ -161,6 +161,42 @@ export default function RegistraciaPage() {
     }
   };
 
+  const moveTeam = async (reg: AdminRegistration, quizDate: string, label: string, eventDate: string) => {
+    const duplicate = regs.some((entry) => {
+      if (entry.id === reg.id) return false;
+      if (entry.eventSlug !== reg.eventSlug) return false;
+      if (entry.teamName.trim().toLowerCase() !== reg.teamName.trim().toLowerCase()) return false;
+      return futureQuizMatchesDate({ id: "", date: entry.quizDate?.trim() || eventDate }, quizDate);
+    });
+    if (duplicate) {
+      setMsg({ text: `Tím „${reg.teamName}" je už na termíne ${label}.`, ok: false });
+      return;
+    }
+
+    setMovingId(reg.id);
+    setMsg(null);
+    try {
+      const res = await fetch("/api/admin/registrations", {
+        method: "PATCH",
+        cache: "no-store",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: reg.id, quizDate, eventDate }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setMsg({ text: data.error ?? "Tím sa nepodarilo presunúť.", ok: false });
+        return;
+      }
+      setRegs((prev) => prev.map((entry) => (entry.id === reg.id ? { ...entry, quizDate } : entry)));
+      setMsg({ text: `Tím „${reg.teamName}" je presunutý na ${label}.`, ok: true });
+    } catch {
+      setMsg({ text: "Sieťová chyba pri presune tímu.", ok: false });
+    } finally {
+      setMovingId(null);
+    }
+  };
+
   const deleteOne = async (id: string, teamName: string) => {
     if (!confirm(`Naozaj zmazať registráciu tímu „${teamName}"?`)) return;
     const previous = regs;
@@ -231,7 +267,7 @@ export default function RegistraciaPage() {
     const list = selectedList;
     const groups = groupRegistrationsByTerm(list, event);
     const visibleGroups = registrationGroupsForTerm(groups, selectedTerm);
-    const extraTerms = normalizeFutureQuizzes(event.futureQuizzes);
+    const termChoices = registrationTermChoices(event);
 
     return (
       <div className="w-full min-w-0">
@@ -256,14 +292,13 @@ export default function RegistraciaPage() {
             {formatEventDateLabel(event.date)} o {event.time}
           </span>
         </p>
-        {extraTerms.length > 0 && (
+        {termChoices.length > 1 && (
           <div className="max-w-md mb-6">
             <label className="label">Termín</label>
             <select className="input" value={selectedTerm} onChange={(e) => setSelectedTerm(e.target.value)}>
-              <option value="">{formatEventDateLabel(event.date)} · {quizTypeOrDefault(event.quizType)}</option>
-              {extraTerms.map((quiz) => (
-                <option key={quiz.id} value={quiz.date}>
-                  {formatEventDateLabel(quiz.date)} · {quiz.quizType}
+              {termChoices.map((choice) => (
+                <option key={choice.date || "main"} value={choice.value}>
+                  {choice.label}
                 </option>
               ))}
             </select>
@@ -319,6 +354,7 @@ export default function RegistraciaPage() {
                   <div className="space-y-3">
                     {group.registrations.map((r) => {
                       const { min, max } = limitsFor(r);
+                      const targets = registrationMoveTargets(event, r.quizDate?.trim() || event.date);
                       return (
                         <AdminRegistrationRow
                           key={r.id}
@@ -327,6 +363,12 @@ export default function RegistraciaPage() {
                           maxPlayers={max}
                           busy={updatingPlayersId === r.id}
                           deleting={deletingId === r.id}
+                          moving={movingId === r.id}
+                          moves={targets.map((target) => ({
+                            key: target.date,
+                            label: targets.length === 1 ? "Presunúť do druhej registrácie" : `Presunúť na ${target.label}`,
+                            onMove: () => moveTeam(r, target.date, target.label, event.date),
+                          }))}
                           onAdjust={(delta) => adjustPlayers(r, delta)}
                           onDelete={() => deleteOne(r.id, r.teamName)}
                         />
@@ -392,7 +434,7 @@ export default function RegistraciaPage() {
               type="button"
               onClick={() => {
                 setFilter("");
-                setSelectedTerm("");
+                setSelectedTerm(registrationTermChoices(event)[0]?.value ?? "");
                 setSelectedSlug(event.slug);
               }}
               className="w-full text-left bg-brand-card rounded-2xl border border-brand-border px-6 sm:px-8 py-5 hover:border-brand-orange hover:bg-brand-warm transition-colors group"

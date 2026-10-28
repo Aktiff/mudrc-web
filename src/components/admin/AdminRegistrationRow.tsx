@@ -1,6 +1,6 @@
 "use client";
 
-import { Clock, Phone, Trash2 } from "lucide-react";
+import { ArrowRightLeft, Clock, Phone, Trash2 } from "lucide-react";
 import RegistrationPlayersStepper from "@/components/admin/RegistrationPlayersStepper";
 
 export type AdminRegistration = {
@@ -20,6 +20,8 @@ type Props = {
   maxPlayers: number;
   busy: boolean;
   deleting: boolean;
+  moves?: { key: string; label: string; onMove: () => void }[];
+  moving?: boolean;
   onAdjust: (delta: number) => void;
   onDelete: () => void;
 };
@@ -30,6 +32,8 @@ export default function AdminRegistrationRow({
   maxPlayers,
   busy,
   deleting,
+  moves = [],
+  moving = false,
   onAdjust,
   onDelete,
 }: Props) {
@@ -55,15 +59,29 @@ export default function AdminRegistrationRow({
           </span>
         </div>
       </div>
-      <button
-        type="button"
-        onClick={onDelete}
-        disabled={deleting}
-        className="shrink-0 flex items-center gap-1.5 text-sm font-medium px-3 py-2 rounded-xl border border-red-200 dark:border-red-900 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors disabled:opacity-50"
-      >
-        <Trash2 className="w-4 h-4" />
-        {deleting ? "..." : "Zmazať"}
-      </button>
+      <div className="flex flex-col gap-2 shrink-0">
+        {moves.map((move) => (
+          <button
+            key={move.key}
+            type="button"
+            onClick={move.onMove}
+            disabled={moving || deleting}
+            className="flex items-center gap-1.5 text-sm font-medium px-3 py-2 rounded-xl border border-brand-border text-brand-text hover:border-brand-orange transition-colors disabled:opacity-50"
+          >
+            <ArrowRightLeft className="w-4 h-4" />
+            {moving ? "Presúvam…" : move.label}
+          </button>
+        ))}
+        <button
+          type="button"
+          onClick={onDelete}
+          disabled={deleting || moving}
+          className="flex items-center gap-1.5 text-sm font-medium px-3 py-2 rounded-xl border border-red-200 dark:border-red-900 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors disabled:opacity-50"
+        >
+          <Trash2 className="w-4 h-4" />
+          {deleting ? "..." : "Zmazať"}
+        </button>
+      </div>
     </div>
   );
 }

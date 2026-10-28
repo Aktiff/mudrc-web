@@ -182,6 +182,45 @@ export function groupRegistrationsByTerm<T extends { quizDate?: string }>(
   ];
 }
 
+export type RegistrationTermChoice = {
+  /** Prázdne = hlavný termín podniku (event.date). */
+  value: string;
+  date: string;
+  label: string;
+};
+
+/** Termíny zoradené od najbližšieho dátumu. */
+export function registrationTermChoices(
+  event: Pick<QuizEvent, "date" | "quizType" | "futureQuizzes">
+): RegistrationTermChoice[] {
+  const choices: RegistrationTermChoice[] = [
+    {
+      value: "",
+      date: event.date,
+      label: `${formatEventDateLabel(event.date)} · ${quizTypeOrDefault(event.quizType)}`,
+    },
+    ...normalizeFutureQuizzes(event.futureQuizzes).map((quiz) => ({
+      value: quiz.date,
+      date: quiz.date,
+      label: `${formatEventDateLabel(quiz.date)} · ${quiz.quizType}`,
+    })),
+  ];
+  return choices.sort(
+    (a, b) => (calendarDay(a.date) ?? Number.POSITIVE_INFINITY) - (calendarDay(b.date) ?? Number.POSITIVE_INFINITY)
+  );
+}
+
+/** Ostatné termíny, do ktorých sa dá tím presunúť. */
+export function registrationMoveTargets(
+  event: Pick<QuizEvent, "date" | "quizType" | "futureQuizzes">,
+  currentDate: string
+): RegistrationTermChoice[] {
+  const current = currentDate.trim() || event.date;
+  return registrationTermChoices(event).filter(
+    (choice) => !futureQuizMatchesDate({ id: "", date: choice.date }, current)
+  );
+}
+
 /** Prázdny výber = najbližší kvíz. Inak len skupina s týmto dátumom. */
 export function registrationGroupsForTerm<T>(
   groups: RegistrationTermGroup<T>[],

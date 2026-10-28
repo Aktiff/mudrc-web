@@ -1548,7 +1548,7 @@ export async function deleteRegistrationById(id: string): Promise<boolean> {
 
 export async function updateRegistrationById(
   id: string,
-  patch: Partial<Pick<Registration, "players">>
+  patch: Partial<Pick<Registration, "players" | "quizDate">>
 ): Promise<Registration | null> {
   let updated: Registration | null = null;
   await updateRegistrations((regs) => {
