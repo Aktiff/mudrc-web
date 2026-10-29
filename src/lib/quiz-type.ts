@@ -1,5 +1,16 @@
 export const DEFAULT_QUIZ_TYPE = "Všeobecný kvíz";
 
+/** Typy, ktoré sú vo výbere vždy. Ostatné pribúdajú, keď sa uloží vlastný typ. */
+export const STANDARD_QUIZ_TYPES = ["Všeobecný kvíz", "Filmový kvíz", "Hudobný kvíz"] as const;
+
+/** „seriálový“ sa uloží ako „Seriálový kvíz“. */
+export function finishCustomQuizType(raw: string | undefined | null): string {
+  const label = normalizeQuizTypeLabel(raw);
+  if (!label) return "";
+  if (label.toLocaleLowerCase("sk").endsWith("kvíz")) return label;
+  return normalizeQuizTypeLabel(`${label} kvíz`);
+}
+
 export function normalizeQuizTypeLabel(raw: string | undefined | null): string {
   const trimmed = String(raw ?? "").trim().replace(/\s+/g, " ");
   if (!trimmed) return "";
@@ -53,7 +64,12 @@ export function rememberQuizTypes(values: Array<string | undefined | null>): str
     const key = label.toLocaleLowerCase("sk");
     if (!seen.has(key)) seen.set(key, label);
   };
-  add(DEFAULT_QUIZ_TYPE);
+  for (const type of STANDARD_QUIZ_TYPES) add(type);
   for (const value of values) add(value);
-  return Array.from(seen.values()).sort((a, b) => a.localeCompare(b, "sk"));
+  const standardKeys = new Set(STANDARD_QUIZ_TYPES.map((type) => type.toLocaleLowerCase("sk")));
+  const custom = Array.from(seen.entries())
+    .filter(([key]) => !standardKeys.has(key))
+    .map(([, label]) => label)
+    .sort((a, b) => a.localeCompare(b, "sk"));
+  return [...STANDARD_QUIZ_TYPES, ...custom];
 }

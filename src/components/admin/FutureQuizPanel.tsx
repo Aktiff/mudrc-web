@@ -17,6 +17,7 @@ type FutureQuizPanelProps = {
   eventTime: string;
   quizzes: FutureQuiz[];
   knownTypes: string[];
+  onRemember?: (value: string) => void;
   venueRules?: QuizRule[];
   onChange: (quizzes: FutureQuiz[]) => void;
   onMessage: (text: string, ok: boolean) => void;
@@ -28,6 +29,7 @@ export default function FutureQuizPanel({
   eventTime,
   quizzes,
   knownTypes,
+  onRemember,
   venueRules = [],
   onChange,
   onMessage,
@@ -35,7 +37,6 @@ export default function FutureQuizPanel({
   const [date, setDate] = useState("");
   const [time, setTime] = useState(eventTime || "19:00");
   const [quizType, setQuizType] = useState(DEFAULT_QUIZ_TYPE);
-  const [customType, setCustomType] = useState("");
   const [busy, setBusy] = useState(false);
   const listed = normalizeFutureQuizzes(quizzes);
 
@@ -48,7 +49,7 @@ export default function FutureQuizPanel({
         body: JSON.stringify({
           date,
           time: time || eventTime,
-          quizType: customType.trim() || quizType,
+          quizType,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -58,7 +59,6 @@ export default function FutureQuizPanel({
       }
       onChange(normalizeFutureQuizzes(data.futureQuizzes));
       setDate("");
-      setCustomType("");
       onMessage("Ďalší termín je pridaný. Najbližší kvíz ostal bez zmeny.", true);
     } catch {
       onMessage("Sieťová chyba pri pridávaní termínu.", false);
@@ -150,16 +150,7 @@ export default function FutureQuizPanel({
         </div>
         <div>
           <label className="label">Typ kvízu</label>
-          <QuizTypeField id={`future-quiz-type-${slug}`} value={quizType} knownTypes={knownTypes} onChange={setQuizType} />
-        </div>
-        <div>
-          <label className="label">Alebo nový typ</label>
-          <input
-            className="input"
-            value={customType}
-            onChange={(event) => setCustomType(event.target.value)}
-            placeholder="Filmový kvíz"
-          />
+          <QuizTypeField id={`future-quiz-type-${slug}`} value={quizType} knownTypes={knownTypes} onChange={setQuizType} onRemember={onRemember} />
         </div>
       </div>
       <button type="button" onClick={() => void addTerm()} disabled={busy || !date.trim()} className="btn-primary text-sm py-2.5 px-4">

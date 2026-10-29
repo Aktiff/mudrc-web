@@ -21,7 +21,7 @@ import { fetchLibraryQuizList } from "@/lib/quiz-library-client";
 import RegistrationPlayersStepper from "@/components/admin/RegistrationPlayersStepper";
 import RegistrationShareList from "@/components/admin/RegistrationShareList";
 import QuizTypeField from "@/components/admin/QuizTypeField";
-import { DEFAULT_QUIZ_TYPE, normalizeQuizTypeLabel, quizTypeFromLibraryTitle, quizTypeOrDefault, rememberQuizTypes, splitVenueQuizType, venueQuizLabel } from "@/lib/quiz-type";
+import { DEFAULT_QUIZ_TYPE, normalizeQuizTypeLabel, quizTypeFromLibraryTitle, quizTypeOrDefault, rememberQuizTypes, STANDARD_QUIZ_TYPES, splitVenueQuizType, venueQuizLabel } from "@/lib/quiz-type";
 import FacebookEventPostButton from "@/components/admin/FacebookEventPostButton";
 import FutureQuizPanel from "@/components/admin/FutureQuizPanel";
 import { futureQuizMatchesDate, groupRegistrationsByTerm, nearestUpcomingNight, normalizeFutureQuizzes, registrationGroupsForTerm, registrationMoveTargets, registrationTermChoices } from "@/lib/future-quizzes";
@@ -203,7 +203,15 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
   const [libraryQuizTitles, setLibraryQuizTitles] = useState<Record<string, string>>({});
   const [libraryTitlesReady, setLibraryTitlesReady] = useState(false);
   const [resultQuizType, setResultQuizType] = useState(DEFAULT_QUIZ_TYPE);
-  const [knownQuizTypes, setKnownQuizTypes] = useState<string[]>([DEFAULT_QUIZ_TYPE]);
+  const [knownQuizTypes, setKnownQuizTypes] = useState<string[]>(() => rememberQuizTypes([]));
+  const [blockedQuizTypeKeys, setBlockedQuizTypeKeys] = useState<Set<string>>(() => new Set());
+  const quizTypeChoices = useMemo(
+    () => knownQuizTypes.filter((type) => !blockedQuizTypeKeys.has(type.toLocaleLowerCase("sk"))),
+    [knownQuizTypes, blockedQuizTypeKeys]
+  );
+  const rememberQuizType = (type: string) => {
+    setKnownQuizTypes((current) => rememberQuizTypes([...current, type]));
+  };
   type EventRegistration = { id: string; eventSlug: string; venue: string; teamName: string; players: string; phone: string; createdAt: string; quizDate?: string };
   const [registrations, setRegistrations] = useState<EventRegistration[]>([]);
   const [regsLoading, setRegsLoading] = useState(false);
@@ -491,7 +499,6 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
   }, [params.slug, isNew]);
 
   useEffect(() => {
-    if (isNew) return;
     let cancelled = false;
     fetchLibraryQuizList()
       .then((list) => {
@@ -502,9 +509,14 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
           if (quiz.id && title) titles[quiz.id] = title;
         }
         setLibraryQuizTitles(titles);
-        setKnownQuizTypes((current) =>
-          rememberQuizTypes([...current, ...list.map((quiz) => quizTypeFromLibraryTitle(quiz.title))])
-        );
+        const standardKeys = new Set(STANDARD_QUIZ_TYPES.map((type) => type.toLocaleLowerCase("sk")));
+        const blocked = new Set<string>();
+        for (const quiz of list) {
+          const key = quizTypeFromLibraryTitle(quiz.title).toLocaleLowerCase("sk");
+          if (!key || standardKeys.has(key)) continue;
+          blocked.add(key);
+        }
+        setBlockedQuizTypeKeys(blocked);
       })
       .catch(() => undefined)
       .finally(() => {
@@ -513,7 +525,7 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
     return () => {
       cancelled = true;
     };
-  }, [isNew]);
+  }, []);
 
   useEffect(() => {
     const next = normalizeQuizTypeLabel(form.quizType);
@@ -1404,10 +1416,11 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
               <QuizTypeField
                 id="event-quiz-type"
                 value={form.quizType ?? ""}
-                knownTypes={knownQuizTypes}
+                knownTypes={quizTypeChoices}
                 onChange={(value) => set("quizType", value)}
+                onRemember={rememberQuizType}
               />
-              <p className="text-brand-muted text-xs mt-1.5">Na webe sa píše za podnik, napríklad Alipub - Hudobný kvíz. Staršie kvízy si držia svoj typ.</p>
+              <p className="text-brand-muted text-xs mt-1.5">Na webe sa píše za podnik, napríklad Alipub - Hudobný kvíz. Vlastný typ dopíšeš cez Iné a po uložení ostane vo výbere.</p>
               <label className="mt-3 flex items-center gap-2 text-sm font-semibold text-brand-text">
                 <input
                   type="checkbox"
@@ -1471,7 +1484,8 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
               eventDate={form.date}
               eventTime={form.time}
               quizzes={form.futureQuizzes ?? []}
-              knownTypes={knownQuizTypes}
+              knownTypes={quizTypeChoices}
+              onRemember={rememberQuizType}
               venueRules={normalizeQuizRules(form.rules)}
               onChange={(futureQuizzes) => set("futureQuizzes", futureQuizzes)}
               onMessage={(text, ok) => setMsg({ text, ok })}
@@ -1684,8 +1698,9 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
               <QuizTypeField
                 id="result-quiz-type"
                 value={resultQuizType}
-                knownTypes={knownQuizTypes}
+                knownTypes={quizTypeChoices}
                 onChange={setResultQuizType}
+                onRemember={rememberQuizType}
               />
             </div>
           </div>
