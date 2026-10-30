@@ -9,7 +9,7 @@ import {
   matchPairsFromColumns,
   ORDER_OPTION_MAX,
 } from "@/lib/quiz-question-options";
-import { quizQuestionBodyKey } from "@/lib/quiz-library";
+import { sameQuizQuestionVariant } from "@/lib/quiz-library";
 
 export const CUSTOM_BANK_STORAGE_KEY = "mudrc-custom-bank-questions";
 const DELETED_CUSTOM_BANK_KEY = "mudrc-deleted-custom-bank-ids";
@@ -448,9 +448,8 @@ export async function removeCustomBankQuestionAsync(id: string): Promise<void> {
 
   const local = readCustomBankQuestions();
   const target = local.find((question) => question.id === id);
-  const bodyKey = target ? quizQuestionBodyKey(target.body) : "";
   const dropIds = local
-    .filter((question) => question.id === id || (bodyKey && quizQuestionBodyKey(question.body) === bodyKey))
+    .filter((question) => question.id === id || (target ? sameQuizQuestionVariant(question, target) : false))
     .map((question) => question.id);
   if (!dropIds.includes(id)) dropIds.push(id);
 
@@ -465,7 +464,7 @@ export async function removeCustomBankQuestionAsync(id: string): Promise<void> {
   const returned = parseCustomBankQuestionList(data.questions);
   if (
     returned.some(
-      (question) => question.id === id || (bodyKey && quizQuestionBodyKey(question.body) === bodyKey)
+      (question) => question.id === id || (target ? sameQuizQuestionVariant(question, target) : false)
     )
   ) {
     throw new Error("Otázka v banke zostala. Skús vymazať znova.");

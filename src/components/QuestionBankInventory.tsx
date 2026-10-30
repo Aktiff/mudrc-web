@@ -12,7 +12,7 @@ import EditCustomBankQuestionDialog from "@/components/EditCustomBankQuestionDia
 import BankMediaPreview from "@/components/BankMediaPreview";
 import { BankThemeFilters } from "@/components/BankThemeControls";
 import { bankQuestionTheme, DEFAULT_BANK_THEME, DEFAULT_BANK_THEMES, mergeBankThemes } from "@/lib/bank-themes";
-import { quizQuestionBodyKey } from "@/lib/quiz-library";
+import { sameQuizQuestionVariant } from "@/lib/quiz-library";
 import { fetchBankThemes } from "@/lib/bank-themes-client";
 import {
   countTextBankSources,
@@ -269,9 +269,8 @@ export default function QuestionBankInventory({
   const removeQuestion = async (id: string) => {
     if (!window.confirm("Odstrániť otázku z banky?")) return;
     const current = sourceQuestions.find((item) => item.id === id);
-    const bodyKey = current ? quizQuestionBodyKey(current.body) : "";
     const dropIds = sourceQuestions
-      .filter((item) => item.id === id || (bodyKey && quizQuestionBodyKey(item.body) === bodyKey))
+      .filter((item) => item.id === id || (current ? sameQuizQuestionVariant(item, current) : false))
       .map((item) => item.id);
     if (!dropIds.includes(id)) dropIds.push(id);
     pendingAdded.current = pendingAdded.current.filter((item) => !dropIds.includes(item.id));

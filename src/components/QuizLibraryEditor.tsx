@@ -10,7 +10,9 @@ import {
   collectUsedQuestionBodyKeys,
   countFilledQuizQuestions,
   normalizeLibraryQuiz,
+  quizQuestionAnswerKey,
   quizQuestionBodyKey,
+  sameQuizQuestionVariant,
   type QuizLibraryItem,
   type QuizQuestionItem,
   type QuizQuestionKind,
@@ -37,7 +39,6 @@ import {
   isCustomBankQuestionId,
   readCustomBankQuestions,
   readDeletedCustomBankIds,
-  updateCustomBankQuestionAsync,
   type CustomBankQuestion,
 } from "@/lib/quiz-custom-bank";
 import {
@@ -1091,11 +1092,10 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
           setMsg({ text: "Slot vyprázdnený, video sa nepodarilo vrátiť do banky.", ok: false });
         });
     } else if (customRestore) {
-      const bodyKey = quizQuestionBodyKey(customRestore.body);
       const alreadyThere =
         customBankQuestions.some(
-          (item) => item.id === bankId || quizQuestionBodyKey(item.body) === bodyKey
-        ) || recentCustomBank.current.some((item) => quizQuestionBodyKey(item.body) === bodyKey);
+          (item) => item.id === bankId || sameQuizQuestionVariant(item, customRestore)
+        ) || recentCustomBank.current.some((item) => sameQuizQuestionVariant(item, customRestore));
       window.dispatchEvent(
         new CustomEvent("mudrc-show-bank-question", {
           detail: { theme: customRestore.theme, photo: customRestore.isImageQuestion === true },
@@ -1229,10 +1229,6 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
     while (!question.isMatchQuestion && !question.isOrderQuestion && options.length < 6) options.push("");
     const hasChoices = options.some((option) => option.trim());
     const matched = hasChoices ? options.findIndex((option) => option.trim() === question.answer.trim()) : -1;
-    const bodyKey = quizQuestionBodyKey(question.body);
-    const existing = customBankQuestions.find(
-      (item) => isCustomBankQuestionId(item.id) && quizQuestionBodyKey(item.body) === bodyKey
-    );
     const input = {
       body: question.body.trim(),
       options: question.isMatchQuestion
@@ -1249,20 +1245,29 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
           : question.answer.trim(),
       note: question.hostNote?.trim() || undefined,
       tags: question.tags,
-      theme:
-        existing?.theme ||
-        inferBankTheme({
-          tags: question.tags,
-          body: question.body,
-          note: question.hostNote,
-          hint: quiz?.title,
-        }),
+      theme: inferBankTheme({
+        tags: question.tags,
+        body: question.body,
+        note: question.hostNote,
+        hint: quiz?.title,
+      }),
       isOpenQuestion: question.isMatchQuestion || question.isOrderQuestion ? false : matched < 0,
       isOrderQuestion: question.isOrderQuestion === true && question.isMatchQuestion !== true,
       isMatchQuestion: question.isMatchQuestion === true,
       isImageQuestion: Boolean(question.imageUrl?.trim() || question.imageDuringQuestion),
       suggestedImageUrl: question.imageUrl?.trim() || undefined,
     };
+    const answerKey = quizQuestionAnswerKey(input.answer);
+    const existing = customBankQuestions.find(
+      (item) =>
+        isCustomBankQuestionId(item.id) &&
+        quizQuestionBodyKey(item.body) === quizQuestionBodyKey(input.body) &&
+        quizQuestionAnswerKey(item.answer) === answerKey
+    ) || recentCustomBank.current.find(
+      (item) =>
+        quizQuestionBodyKey(item.body) === quizQuestionBodyKey(input.body) &&
+        quizQuestionAnswerKey(item.answer) === answerKey
+    );
 
     const finish = () => {
       takeQuestionOutOfQuiz(questionId);
@@ -1276,9 +1281,8 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
     };
 
     if (existing) {
-      void updateCustomBankQuestionAsync(existing.id, input)
-        .then(() => finish())
-        .catch(() => setMsg({ text: "Otázku sa nepodarilo uložiť do banky.", ok: false }));
+      finish();
+      setMsg({ text: "Táto otázka s rovnakou odpoveďou už v banke je. Z tohto kvízu je preč.", ok: true });
       return;
     }
 

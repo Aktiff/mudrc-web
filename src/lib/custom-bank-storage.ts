@@ -9,7 +9,7 @@ import {
   type NewCustomBankQuestionInput,
 } from "@/lib/quiz-custom-bank";
 import { readLatestAppStorageBlob } from "@/lib/blob-app-storage";
-import { quizQuestionBodyKey } from "@/lib/quiz-library";
+import { sameQuizQuestionVariant } from "@/lib/quiz-library";
 import { writeAppStorageWithFallback } from "@/lib/app-storage-fallback";
 import { hasBlobStorage } from "@/lib/storage";
 
@@ -201,9 +201,8 @@ export async function updateStoredCustomBankQuestion(
 export async function removeStoredCustomBankQuestion(id: string): Promise<CustomBankQuestion[]> {
   const before = await readBankFile();
   const target = before.questions.find((question) => question.id === id);
-  const bodyKey = target ? quizQuestionBodyKey(target.body) : "";
   const dropIds = before.questions
-    .filter((question) => question.id === id || (bodyKey && quizQuestionBodyKey(question.body) === bodyKey))
+    .filter((question) => question.id === id || (target ? sameQuizQuestionVariant(question, target) : false))
     .map((question) => question.id);
   if (!dropIds.includes(id)) dropIds.push(id);
 
@@ -213,11 +212,11 @@ export async function removeStoredCustomBankQuestion(id: string): Promise<Custom
       deletedIds: rememberDeleted(existing.deletedIds, dropIds),
       questions: existing.questions.filter((question) => {
         if (gone.has(question.id)) return false;
-        return !bodyKey || quizQuestionBodyKey(question.body) !== bodyKey;
+        return !target || !sameQuizQuestionVariant(question, target);
       }),
     };
   });
-  if (after.some((question) => question.id === id || (bodyKey && quizQuestionBodyKey(question.body) === bodyKey))) {
+  if (after.some((question) => question.id === id || (target ? sameQuizQuestionVariant(question, target) : false))) {
     throw new Error("Otázku sa nepodarilo vymazať. Skús to znova.");
   }
   return after;

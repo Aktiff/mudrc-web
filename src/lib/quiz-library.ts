@@ -452,6 +452,19 @@ export function quizQuestionBodyKey(body: string | undefined | null): string {
   return (body ?? "").trim().toLocaleLowerCase("sk").replace(/\s+/g, " ");
 }
 
+export function quizQuestionAnswerKey(answer: string | undefined | null): string {
+  return (answer ?? "").trim().toLocaleLowerCase("sk").replace(/\s+/g, " ");
+}
+
+/** Rovnaké zadanie aj rovnaká odpoveď. Iná odpoveď je iná otázka, aj keď text zadania sedí. */
+export function sameQuizQuestionVariant(
+  left: { body?: string | null; answer?: string | null },
+  right: { body?: string | null; answer?: string | null }
+): boolean {
+  const body = quizQuestionBodyKey(left.body);
+  return Boolean(body) && body === quizQuestionBodyKey(right.body) && quizQuestionAnswerKey(left.answer) === quizQuestionAnswerKey(right.answer);
+}
+
 const GENERIC_MEDIA_QUESTION_BODIES = new Set(
   [
     DEFAULT_MUSIC_QUESTION_BODY,
@@ -463,15 +476,15 @@ const GENERIC_MEDIA_QUESTION_BODIES = new Set(
 
 /** Znenie otázky, ktorá už prišla z banky. Otázka napísaná v editore banku neschová. */
 export function collectUsedQuestionBodyKeys(
-  quizzes: Array<{ questions?: Array<{ body?: string; bankQuestionId?: string }> }>
+  quizzes: Array<{ questions?: Array<{ body?: string; answer?: string; bankQuestionId?: string }> }>
 ): string[] {
   const keys = new Set<string>();
   for (const quiz of quizzes) {
     for (const question of quiz.questions ?? []) {
       if (!question.bankQuestionId) continue;
-      const key = quizQuestionBodyKey(question.body);
-      if (!key || GENERIC_MEDIA_QUESTION_BODIES.has(key)) continue;
-      keys.add(key);
+      const body = quizQuestionBodyKey(question.body);
+      if (!body || GENERIC_MEDIA_QUESTION_BODIES.has(body)) continue;
+      keys.add(`${body}\n${quizQuestionAnswerKey(question.answer)}`);
     }
   }
   return Array.from(keys);
