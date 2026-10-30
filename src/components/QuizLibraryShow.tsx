@@ -175,7 +175,8 @@ function RulesSlide({
 function questionTextStyle(
   text: string,
   withImage = false,
-  imageWithOptions = false
+  imageWithOptions = false,
+  matchQuestion = false
 ): CSSProperties {
   const len = text.length;
   const lineHeight = 1.45;
@@ -193,6 +194,12 @@ function questionTextStyle(
     return { fontSize: "clamp(4rem, 8.5vmin, 8.5rem)", lineHeight };
   }
 
+  if (matchQuestion) {
+    if (len > 100) return { fontSize: "clamp(2.35rem, 5vmin, 5.25rem)", lineHeight };
+    if (len > 60) return { fontSize: "clamp(2.55rem, 5.4vmin, 5.75rem)", lineHeight };
+    return { fontSize: "clamp(2.75rem, 5.8vmin, 6.25rem)", lineHeight };
+  }
+
   if (len > 140) return { fontSize: "clamp(3rem, 6.5vmin, 7rem)", lineHeight };
   if (len > 100) return { fontSize: "clamp(3.25rem, 7vmin, 7.75rem)", lineHeight };
   if (len > 70) return { fontSize: "clamp(3.5rem, 7.5vmin, 8.5rem)", lineHeight };
@@ -203,9 +210,34 @@ function questionTextStyle(
 const OPTION_LETTER_STYLE = { fontSize: "clamp(3.5rem, 7.5vmin, 8.5rem)" } as const;
 const OPTION_TEXT_STYLE = { fontSize: "clamp(3rem, 6.5vmin, 7.5rem)", lineHeight: 1.45 } as const;
 const ANSWER_TEXT_STYLE = { fontSize: "clamp(3.25rem, 7vmin, 8.5rem)", lineHeight: 1.45 } as const;
-const MATCH_MARK_STYLE = { fontSize: "clamp(1.35rem, 3.2vmin, 2.8rem)" } as const;
-const MATCH_TEXT_STYLE = { fontSize: "clamp(1.15rem, 2.6vmin, 2.2rem)", lineHeight: 1.3 } as const;
-const MATCH_ANSWER_STYLE = { fontSize: "clamp(1.2rem, 3vmin, 2.4rem)", lineHeight: 1.35 } as const;
+function matchMarkStyle(rows: number, compact: boolean): CSSProperties {
+  if (compact) return { fontSize: rows > 5 ? "clamp(1.45rem, 3vmin, 2.6rem)" : "clamp(1.8rem, 3.8vmin, 3.4rem)" };
+  if (rows <= 3) return { fontSize: "clamp(2.8rem, 6vmin, 5.5rem)" };
+  if (rows <= 4) return { fontSize: "clamp(2.4rem, 5.2vmin, 4.6rem)" };
+  if (rows <= 6) return { fontSize: "clamp(2rem, 4.2vmin, 3.6rem)" };
+  return { fontSize: "clamp(1.55rem, 3.2vmin, 2.8rem)" };
+}
+
+function matchTextStyle(rows: number, compact: boolean): CSSProperties {
+  const lineHeight = 1.25;
+  if (compact) {
+    return {
+      fontSize: rows > 5 ? "clamp(1.25rem, 2.6vmin, 2.2rem)" : "clamp(1.5rem, 3.2vmin, 2.8rem)",
+      lineHeight,
+    };
+  }
+  if (rows <= 3) return { fontSize: "clamp(2.35rem, 5vmin, 4.6rem)", lineHeight };
+  if (rows <= 4) return { fontSize: "clamp(2.05rem, 4.4vmin, 4rem)", lineHeight };
+  if (rows <= 6) return { fontSize: "clamp(1.7rem, 3.6vmin, 3.15rem)", lineHeight };
+  return { fontSize: "clamp(1.35rem, 2.8vmin, 2.4rem)", lineHeight };
+}
+
+function matchAnswerStyle(answer: string): CSSProperties {
+  const lines = answer.split("\n").filter((line) => line.trim()).length;
+  if (lines <= 4) return { fontSize: "clamp(1.75rem, 3.8vmin, 3.4rem)", lineHeight: 1.35 };
+  if (lines <= 6) return { fontSize: "clamp(1.45rem, 3.1vmin, 2.7rem)", lineHeight: 1.3 };
+  return { fontSize: "clamp(1.2rem, 2.5vmin, 2.15rem)", lineHeight: 1.28 };
+}
 
 const QUESTION_TEXT_CLASS =
   "relative z-[1] font-sans font-semibold text-white text-center tracking-normal whitespace-pre-wrap [text-wrap:pretty] drop-shadow-[0_4px_24px_rgba(0,0,0,0.85)] w-full max-w-full px-1 sm:px-2 py-[0.1em] shrink-0 normal-case overflow-visible";
@@ -305,30 +337,34 @@ function MatchColumns({
   right: string[];
   compact?: boolean;
 }) {
-  const card = `flex items-center gap-3 sm:gap-4 w-full rounded-2xl border-[3px] border-white/20 bg-white/[0.06] text-white shadow-[0_12px_48px_rgba(0,0,0,0.45)] ${
-    compact ? "px-4 py-3" : "px-5 sm:px-6 py-3 sm:py-4"
+  const rows = Math.max(left.length, right.length, 1);
+  const card = `flex items-center w-full rounded-2xl border-[3px] border-white/35 bg-white/[0.14] text-white shadow-[0_12px_48px_rgba(0,0,0,0.45)] ${
+    compact ? "gap-3 px-4 py-3" : rows > 6 ? "gap-3 sm:gap-4 px-5 py-3" : "gap-4 sm:gap-5 px-6 sm:px-8 py-4 sm:py-5"
+  }`;
+  const markClass = `font-display leading-none shrink-0 text-[#f0c800] text-left ${
+    compact ? "w-10 sm:w-12" : rows > 6 ? "w-12 sm:w-14" : "w-14 sm:w-20"
   }`;
   return (
-    <div className={`grid grid-cols-2 items-start w-full max-w-full ${compact ? "gap-3" : "gap-4 sm:gap-5"}`}>
-      <div className="flex flex-col gap-2.5 min-w-0">
+    <div className={`grid grid-cols-2 items-start w-full max-w-full ${compact ? "gap-3" : rows > 6 ? "gap-3 sm:gap-4" : "gap-4 sm:gap-6"}`}>
+      <div className={`flex flex-col min-w-0 ${compact || rows > 6 ? "gap-2.5" : "gap-3 sm:gap-4"}`}>
         {left.map((item, index) => (
           <div key={`left-${index}`} className={card}>
-            <span className="font-display leading-none shrink-0 text-[#f0c800] w-10 sm:w-12" style={MATCH_MARK_STYLE}>
+            <span className={markClass} style={matchMarkStyle(rows, compact)}>
               {index + 1}
             </span>
-            <p className="flex-1 min-w-0 font-sans font-semibold normal-case text-left break-words" style={MATCH_TEXT_STYLE}>
+            <p className="flex-1 min-w-0 font-sans font-semibold normal-case text-left break-words" style={matchTextStyle(rows, compact)}>
               {fixSlovakLineBreaks(item)}
             </p>
           </div>
         ))}
       </div>
-      <div className="flex flex-col gap-2.5 min-w-0">
+      <div className={`flex flex-col min-w-0 ${compact || rows > 6 ? "gap-2.5" : "gap-3 sm:gap-4"}`}>
         {right.map((item, index) => (
           <div key={`right-${index}`} className={card}>
-            <span className="font-display leading-none shrink-0 text-[#f0c800] w-10 sm:w-12" style={MATCH_MARK_STYLE}>
+            <span className={markClass} style={matchMarkStyle(rows, compact)}>
               {matchLetter(index)}
             </span>
-            <p className="flex-1 min-w-0 font-sans font-semibold normal-case text-left break-words" style={MATCH_TEXT_STYLE}>
+            <p className="flex-1 min-w-0 font-sans font-semibold normal-case text-left break-words" style={matchTextStyle(rows, compact)}>
               {fixSlovakLineBreaks(item)}
             </p>
           </div>
@@ -459,7 +495,7 @@ function QuestionContent({
   const questionBlock = (
     <p
       className={`${QUESTION_TEXT_CLASS} shrink-0`}
-      style={questionTextStyle(questionText, imageFocusedLayout, imageWithOptions)}
+      style={questionTextStyle(questionText, imageFocusedLayout, imageWithOptions, question.isMatchQuestion === true)}
     >
       {questionText}
     </p>
@@ -494,7 +530,7 @@ function QuestionContent({
             className={`font-sans font-bold tracking-normal break-words normal-case whitespace-pre-line ${
               question.isMatchQuestion ? "text-left" : ""
             }`}
-            style={question.isMatchQuestion ? MATCH_ANSWER_STYLE : ANSWER_TEXT_STYLE}
+            style={question.isMatchQuestion ? matchAnswerStyle(question.answer) : ANSWER_TEXT_STYLE}
           >
             {fixSlovakLineBreaks(question.answer)}
           </p>
