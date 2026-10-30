@@ -31,10 +31,11 @@ function currentPointerKey(name: string): string {
 
 type CurrentPointer = { pathname: string; url: string };
 
-const freshPayloads = new Map<string, { at: number; data: unknown }>();
+const freshPayloads = new Map<string, { at: number; data: unknown; key?: string }>();
 
-function rememberPayload(name: string, data: unknown) {
-  freshPayloads.set(name, { at: Date.now(), data });
+function rememberPayload(name: string, data: unknown, key?: string) {
+  const previous = freshPayloads.get(name);
+  freshPayloads.set(name, { at: Date.now(), data, key: key ?? previous?.key });
 }
 
 function recallPayload<T>(name: string, maxAgeMs: number): T | undefined {
@@ -114,10 +115,15 @@ async function readListed<T>(blob: ListedBlob): Promise<T | null> {
   return readBlobBody<T>(blob.pathname, blob.pathname);
 }
 
+function versionStamp(pathname: string): number {
+  const match = pathname.match(/(\d{13})-[0-9a-f-]+\.json$/i);
+  return match ? Number(match[1]) : 0;
+}
+
 async function latestVersion(name: string): Promise<ListedBlob | null> {
   const blobs = await listBlobs(versionPrefix(name), true);
   if (!blobs.length) return null;
-  blobs.sort((a, b) => b.uploadedAt - a.uploadedAt || b.pathname.localeCompare(a.pathname));
+  blobs.sort((a, b) => versionStamp(b.pathname) - versionStamp(a.pathname) || b.uploadedAt - a.uploadedAt || b.pathname.localeCompare(a.pathname));
   return blobs[0];
 }
 
@@ -215,8 +221,9 @@ async function pruneVersions(name: string, keepKey: string): Promise<void> {
  */
 export async function readLatestAppStorageBlob<T>(name: string): Promise<T | null> {
   if (!hasBlobStorage()) return null;
-  const cached = recallPayload<T>(name, 20_000);
-  const cachedAt = freshPayloads.get(name)?.at ?? 0;
+  const remembered = freshPayloads.get(name);
+  const cached = remembered && Date.now() - remembered.at <= 20_000 ? (remembered.data as T) : undefined;
+  const cachedAt = remembered?.at ?? 0;
 
   let latest: ListedBlob | null = null;
   try {
@@ -225,7 +232,11 @@ export async function readLatestAppStorageBlob<T>(name: string): Promise<T | nul
     latest = null;
   }
 
-  if (cached !== undefined && (!latest || latest.uploadedAt <= cachedAt)) {
+  const listedIsNewer =
+    Boolean(latest) &&
+    ((remembered?.key && latest!.pathname.localeCompare(remembered.key) > 0) ||
+      (!remembered?.key && latest!.uploadedAt > cachedAt));
+  if (cached !== undefined && !listedIsNewer) {
     return cached;
   }
 
@@ -311,7 +322,7 @@ export async function writeAppStorageBlob(name: string, data: unknown): Promise<
   } catch (error) {
     console.error(`current pointer write failed (${name}):`, error);
   }
-  rememberPayload(name, data);
+  rememberPayload(name, data, key);
   void pruneVersions(name, key);
 }
 

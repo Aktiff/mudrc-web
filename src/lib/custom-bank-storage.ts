@@ -97,9 +97,32 @@ function sameQuestionIds(left: CustomBankQuestion[], right: CustomBankQuestion[]
   return left.every((question) => ids.has(question.id));
 }
 
+function sameTextList(left: string[] | undefined, right: string[] | undefined): boolean {
+  return (left ?? []).join("\n") === (right ?? []).join("\n");
+}
+
+function savedQuestionMatches(expected: CustomBankQuestion, actual: CustomBankQuestion): boolean {
+  return (
+    expected.body === actual.body &&
+    expected.answer === actual.answer &&
+    sameTextList(expected.options, actual.options) &&
+    expected.correctIndex === actual.correctIndex &&
+    expected.note === actual.note &&
+    expected.difficulty === actual.difficulty &&
+    expected.isImageQuestion === actual.isImageQuestion &&
+    expected.isOpenQuestion === actual.isOpenQuestion &&
+    expected.isOrderQuestion === actual.isOrderQuestion &&
+    expected.isMatchQuestion === actual.isMatchQuestion &&
+    sameTextList(expected.matchRight, actual.matchRight) &&
+    (expected.suggestedImageUrl ?? "") === (actual.suggestedImageUrl ?? "") &&
+    (expected.theme ?? "") === (actual.theme ?? "")
+  );
+}
+
 /** Zapíše celý zoznam a znova ho prečíta. Keď medzitým prišiel iný zápis, skúsi to znova. */
 async function mutateStoredCustomBank(
-  mutate: (current: BankFile) => BankFile
+  mutate: (current: BankFile) => BankFile,
+  confirm?: (written: CustomBankQuestion[], read: CustomBankQuestion[]) => boolean
 ): Promise<CustomBankQuestion[]> {
   return enqueueBankWrite(async () => {
     let lastError: Error | null = null;
@@ -115,10 +138,10 @@ async function mutateStoredCustomBank(
       }
       const after = await readBankFile();
       const deleted = new Set(next.deletedIds);
-      if (
+      const idsMatch =
         sameQuestionIds(next.questions, after.questions) &&
-        after.questions.every((question) => !deleted.has(question.id))
-      ) {
+        after.questions.every((question) => !deleted.has(question.id));
+      if (idsMatch && (!confirm || confirm(next.questions, after.questions))) {
         return after.questions;
       }
       await sleep(250);
@@ -154,15 +177,22 @@ export async function updateStoredCustomBankQuestion(
   if (!isCustomBankQuestionId(id)) throw new Error("NOT_FOUND");
   if (!input?.body?.trim()) throw new Error("Chýba text otázky");
 
-  const questions = await mutateStoredCustomBank((existing) => {
-    const current = existing.questions.find((q) => q.id === id);
-    if (!current) throw new Error("NOT_FOUND");
-    const updated = applyCustomBankQuestionUpdate(current, input);
-    return {
-      ...existing,
-      questions: existing.questions.map((q) => (q.id === id ? updated : q)),
-    };
-  });
+  const questions = await mutateStoredCustomBank(
+    (existing) => {
+      const current = existing.questions.find((q) => q.id === id);
+      if (!current) throw new Error("NOT_FOUND");
+      const updated = applyCustomBankQuestionUpdate(current, input);
+      return {
+        ...existing,
+        questions: existing.questions.map((q) => (q.id === id ? updated : q)),
+      };
+    },
+    (written, read) => {
+      const expected = written.find((question) => question.id === id);
+      const actual = read.find((question) => question.id === id);
+      return Boolean(expected && actual && savedQuestionMatches(expected, actual));
+    }
+  );
   const saved = questions.find((q) => q.id === id);
   if (!saved) throw new Error("NOT_FOUND");
   return saved;

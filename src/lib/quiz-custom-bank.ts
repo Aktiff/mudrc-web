@@ -18,6 +18,8 @@ export const CUSTOM_BANK_ID_PREFIX = "custom-";
 
 export type CustomBankQuestion = QuizBankQuestion & {
   createdAt: number;
+  /** Čas poslednej úpravy. Novší zápis sa nestratí pri staršom načítaní. */
+  updatedAt?: number;
   /** Predvolená fotka pri vložení do foto slotu */
   suggestedImageUrl?: string;
   /** Všeobecné, Hudobné, Filmové alebo vlastná téma */
@@ -169,6 +171,7 @@ export function normalizeStoredCustomQuestion(raw: unknown): CustomBankQuestion 
         : undefined,
     theme: typeof row.theme === "string" ? normalizeBankThemeName(row.theme) || undefined : undefined,
     createdAt: typeof row.createdAt === "number" ? row.createdAt : Date.now(),
+    ...(typeof row.updatedAt === "number" ? { updatedAt: row.updatedAt } : {}),
   };
 }
 
@@ -291,6 +294,7 @@ export function createCustomBankQuestion(input: NewCustomBankQuestionInput): Cus
       note: input.note,
     }),
     createdAt: Date.now(),
+    updatedAt: Date.now(),
   };
 }
 
@@ -352,6 +356,18 @@ export async function syncLocalCustomBankToServerOnce(): Promise<void> {
   window.sessionStorage.setItem(CUSTOM_BANK_SYNC_FLAG, "1");
 }
 
+function preferNewerCustomQuestions(
+  local: CustomBankQuestion[],
+  server: CustomBankQuestion[]
+): CustomBankQuestion[] {
+  const localById = new Map(local.map((question) => [question.id, question]));
+  return server.map((question) => {
+    const previous = localById.get(question.id);
+    if (previous && (previous.updatedAt ?? 0) > (question.updatedAt ?? 0)) return previous;
+    return question;
+  });
+}
+
 export async function fetchCustomBankQuestionsFromServer(): Promise<CustomBankQuestion[]> {
   await ensureCustomBankSynced().catch(() => undefined);
 
@@ -359,8 +375,11 @@ export async function fetchCustomBankQuestionsFromServer(): Promise<CustomBankQu
     const res = await fetch(`/api/admin/custom-bank?_=${Date.now()}`, { cache: "no-store" });
     if (!res.ok) return readCustomBankQuestions();
     const data = await res.json();
-    const questions = withoutDeletedCustomQuestions(
-      parseCustomBankQuestionList(data.questions).sort((a, b) => b.createdAt - a.createdAt)
+    const questions = preferNewerCustomQuestions(
+      readCustomBankQuestions(),
+      withoutDeletedCustomQuestions(
+        parseCustomBankQuestionList(data.questions).sort((a, b) => b.createdAt - a.createdAt)
+      )
     );
     writeCustomBankQuestions(questions);
     notifyCustomBankUpdated();

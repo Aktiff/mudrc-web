@@ -68,8 +68,41 @@ export default function EditCustomBankQuestionDialog({ question, onClose, onSave
   const [savedTick, setSavedTick] = useState(0);
   const baseline = useRef("");
   const questionRef = useRef(question);
-  const persistRef = useRef<(closeAfter: boolean) => Promise<void>>(async () => {});
+  const saveQueue = useRef(Promise.resolve());
+  const saveRef = useRef<(closeAfter: boolean) => Promise<unknown>>(async () => undefined);
   questionRef.current = question;
+  const formRef = useRef({
+    questionMode,
+    body,
+    options,
+    orderItems,
+    matchLeft,
+    matchRight,
+    openAnswer,
+    correctIndex,
+    note,
+    tagsText,
+    theme,
+    difficulty,
+    isImageQuestion,
+    suggestedImageUrl,
+  });
+  formRef.current = {
+    questionMode,
+    body,
+    options,
+    orderItems,
+    matchLeft,
+    matchRight,
+    openAnswer,
+    correctIndex,
+    note,
+    tagsText,
+    theme,
+    difficulty,
+    isImageQuestion,
+    suggestedImageUrl,
+  };
 
   const snapshot = () =>
     JSON.stringify({
@@ -146,7 +179,7 @@ export default function EditCustomBankQuestionDialog({ question, onClose, onSave
     const current = snapshot();
     if (!baseline.current || current === baseline.current) return;
     const timer = window.setTimeout(() => {
-      void persistRef.current(false);
+      void saveRef.current(false);
     }, 400);
     return () => window.clearTimeout(timer);
   }, [question, questionMode, body, options, orderItems, matchLeft, matchRight, openAnswer, correctIndex, note, tagsText, theme, difficulty, isImageQuestion, suggestedImageUrl]);
@@ -162,132 +195,143 @@ export default function EditCustomBankQuestionDialog({ question, onClose, onSave
 
   if (!question) return null;
 
-  const persist = async (closeAfter: boolean) => {
-    const current = questionRef.current;
-    if (!current) return;
-    setError("");
-    const trimmedBody = body.trim();
-    if (!trimmedBody) {
-      if (closeAfter) setError("Zadaj text otázky.");
-      return;
-    }
+  const save = (closeAfter: boolean) => {
+    const run = saveQueue.current.then(async () => {
+      const current = questionRef.current;
+      const form = formRef.current;
+      if (!current) return;
+      setError("");
+      const trimmedBody = form.body.trim();
+      if (!trimmedBody) {
+        if (closeAfter) setError("Zadaj text otázky.");
+        return;
+      }
 
-    const filledOrder = orderItems.map((item) => item.trim()).filter(Boolean);
-    if (questionMode === "open") {
-      if (!openAnswer.trim()) {
-        if (closeAfter) setError("Zadaj správnu odpoveď.");
-        return;
+      const filledOrder = form.orderItems.map((item) => item.trim()).filter(Boolean);
+      if (form.questionMode === "open") {
+        if (!form.openAnswer.trim()) {
+          if (closeAfter) setError("Zadaj správnu odpoveď.");
+          return;
+        }
+      } else if (form.questionMode === "order") {
+        if (filledOrder.length < 2) {
+          if (closeAfter) setError("Zadaj aspoň dve položky v správnom poradí.");
+          return;
+        }
+      } else if (form.questionMode === "match") {
+        const checked = validateMatchColumns(form.matchLeft, form.matchRight);
+        if (checked.error) {
+          if (closeAfter) setError(checked.error);
+          return;
+        }
+      } else {
+        const filledOptions = form.options.map((option) => option.trim());
+        if (!filledOptions[0] || !filledOptions[1]) {
+          if (closeAfter) setError("Možnosti A a B sú povinné.");
+          return;
+        }
+        if (!filledOptions[form.correctIndex]) {
+          if (closeAfter) setError("Správna možnosť musí mať text.");
+          return;
+        }
       }
-    } else if (questionMode === "order") {
-      if (filledOrder.length < 2) {
-        if (closeAfter) setError("Zadaj aspoň dve položky v správnom poradí.");
-        return;
-      }
-    } else if (questionMode === "match") {
-      const checked = validateMatchColumns(matchLeft, matchRight);
-      if (checked.error) {
-        if (closeAfter) setError(checked.error);
-        return;
-      }
-    } else {
-      const filledOptions = options.map((o) => o.trim());
-      if (!filledOptions[0] || !filledOptions[1]) {
-        if (closeAfter) setError("Možnosti A a B sú povinné.");
-        return;
-      }
-      if (!filledOptions[correctIndex]) {
-        if (closeAfter) setError("Správna možnosť musí mať text.");
-        return;
-      }
-    }
 
-    const currentSnapshot = snapshot();
-    setSubmitting(true);
-    try {
-      const payload =
-        questionMode === "open"
-          ? {
-              body: trimmedBody,
-              options: ["", "", "", "", "", ""] as string[],
-              correctIndex: 0,
-              answer: openAnswer.trim(),
-              note: note.trim() || undefined,
-              tags: parseTagsInput(tagsText),
-              theme,
-              difficulty,
-              isImageQuestion,
-              isOpenQuestion: true,
-              isOrderQuestion: false,
-              isMatchQuestion: false,
-              suggestedImageUrl: suggestedImageUrl.trim() || undefined,
-            }
-          : questionMode === "order"
+      const currentSnapshot = JSON.stringify(form);
+      if (!closeAfter && currentSnapshot === baseline.current) return;
+
+      setSubmitting(true);
+      try {
+        const payload =
+          form.questionMode === "open"
             ? {
                 body: trimmedBody,
-                options: filledOrder,
+                options: ["", "", "", "", "", ""] as string[],
                 correctIndex: 0,
-                answer: formatOrderAnswer(filledOrder),
-                note: note.trim() || undefined,
-                tags: parseTagsInput(tagsText),
-                theme,
-                difficulty,
-                isImageQuestion,
-                isOpenQuestion: false,
-                isOrderQuestion: true,
+                answer: form.openAnswer.trim(),
+                note: form.note.trim() || undefined,
+                tags: parseTagsInput(form.tagsText),
+                theme: form.theme,
+                difficulty: form.difficulty,
+                isImageQuestion: form.isImageQuestion,
+                isOpenQuestion: true,
+                isOrderQuestion: false,
                 isMatchQuestion: false,
-                suggestedImageUrl: suggestedImageUrl.trim() || undefined,
+                suggestedImageUrl: form.suggestedImageUrl.trim() || undefined,
               }
-            : questionMode === "match"
-              ? (() => {
-                  const pairs = validateMatchColumns(matchLeft, matchRight).pairs;
-                  return {
+            : form.questionMode === "order"
+              ? {
+                  body: trimmedBody,
+                  options: filledOrder,
+                  correctIndex: 0,
+                  answer: formatOrderAnswer(filledOrder),
+                  note: form.note.trim() || undefined,
+                  tags: parseTagsInput(form.tagsText),
+                  theme: form.theme,
+                  difficulty: form.difficulty,
+                  isImageQuestion: form.isImageQuestion,
+                  isOpenQuestion: false,
+                  isOrderQuestion: true,
+                  isMatchQuestion: false,
+                  suggestedImageUrl: form.suggestedImageUrl.trim() || undefined,
+                }
+              : form.questionMode === "match"
+                ? (() => {
+                    const pairs = validateMatchColumns(form.matchLeft, form.matchRight).pairs;
+                    return {
+                      body: trimmedBody,
+                      options: pairs.map((pair) => pair.left),
+                      matchRight: pairs.map((pair) => pair.right),
+                      correctIndex: 0,
+                      answer: formatMatchBankAnswer(pairs),
+                      note: form.note.trim() || undefined,
+                      tags: parseTagsInput(form.tagsText),
+                      theme: form.theme,
+                      difficulty: form.difficulty,
+                      isImageQuestion: form.isImageQuestion,
+                      isOpenQuestion: false,
+                      isOrderQuestion: false,
+                      isMatchQuestion: true,
+                      suggestedImageUrl: form.suggestedImageUrl.trim() || undefined,
+                    };
+                  })()
+                : {
                     body: trimmedBody,
-                    options: pairs.map((pair) => pair.left),
-                    matchRight: pairs.map((pair) => pair.right),
-                    correctIndex: 0,
-                    answer: formatMatchBankAnswer(pairs),
-                    note: note.trim() || undefined,
-                    tags: parseTagsInput(tagsText),
-                    theme,
-                    difficulty,
-                    isImageQuestion,
+                    options: form.options.map((option) => option.trim()),
+                    correctIndex: form.correctIndex,
+                    note: form.note.trim() || undefined,
+                    tags: parseTagsInput(form.tagsText),
+                    theme: form.theme,
+                    difficulty: form.difficulty,
+                    isImageQuestion: form.isImageQuestion,
                     isOpenQuestion: false,
                     isOrderQuestion: false,
-                    isMatchQuestion: true,
-                    suggestedImageUrl: suggestedImageUrl.trim() || undefined,
+                    isMatchQuestion: false,
+                    suggestedImageUrl: form.suggestedImageUrl.trim() || undefined,
                   };
-                })()
-            : {
-              body: trimmedBody,
-              options: options.map((o) => o.trim()),
-              correctIndex,
-              note: note.trim() || undefined,
-              tags: parseTagsInput(tagsText),
-              theme,
-              difficulty,
-              isImageQuestion,
-              isOpenQuestion: false,
-              isOrderQuestion: false,
-              isMatchQuestion: false,
-              suggestedImageUrl: suggestedImageUrl.trim() || undefined,
-            };
 
-      await updateCustomBankQuestionAsync(current.id, payload);
-      baseline.current = currentSnapshot;
-      setSavedTick((value) => value + 1);
-      onSaved();
-      if (closeAfter) onClose();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Uloženie zlyhalo.");
-    } finally {
-      setSubmitting(false);
-    }
+        await updateCustomBankQuestionAsync(current.id, payload);
+        baseline.current = currentSnapshot;
+        setSavedTick((value) => value + 1);
+        onSaved();
+        if (closeAfter && JSON.stringify(formRef.current) === currentSnapshot) onClose();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Uloženie zlyhalo.");
+      } finally {
+        setSubmitting(false);
+      }
+    });
+    saveQueue.current = run.then(
+      () => undefined,
+      () => undefined
+    );
+    return run;
   };
+  saveRef.current = save;
 
   const handleSave = () => {
-    void persist(true);
+    void save(true);
   };
-  persistRef.current = persist;
+  const formIsDirty = baseline.current !== snapshot();
 
   return (
     <div
@@ -445,7 +489,7 @@ export default function EditCustomBankQuestionDialog({ question, onClose, onSave
             onClick={handleSave}
             className="btn-primary text-sm py-2 px-4 flex-1 disabled:opacity-60"
           >
-            {submitting ? "Ukladám…" : savedTick > 0 ? "Uložené" : "Uložiť"}
+            {submitting ? "Ukladám…" : formIsDirty ? "Uložiť" : savedTick > 0 ? "Uložené" : "Uložiť"}
           </button>
         </div>
       </div>
