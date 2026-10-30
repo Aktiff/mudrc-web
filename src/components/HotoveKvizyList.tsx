@@ -25,6 +25,7 @@ export default function HotoveKvizyList() {
   const [listMessage, setListMessage] = useState<{ text: string; ok: boolean } | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [answerKeyQuizId, setAnswerKeyQuizId] = useState<string | null>(null);
+  const [pdfQuizId, setPdfQuizId] = useState<string | null>(null);
   const [answerKey, setAnswerKey] = useState<{ title: string; questions: QuizQuestionItem[] } | null>(null);
 
   const loadQuizzes = useCallback(async () => {
@@ -120,6 +121,32 @@ export default function HotoveKvizyList() {
       setListMessage({ text: "Odpovede sa nepodarilo načítať.", ok: false });
     } finally {
       setAnswerKeyQuizId(null);
+    }
+  };
+
+  const exportPdf = async (quiz: QuizListItem) => {
+    setPdfQuizId(quiz.id);
+    setListMessage(null);
+    try {
+      const res = await fetch(`/api/admin/quiz-library/${quiz.id}?_=${Date.now()}`, {
+        cache: "no-store",
+        credentials: "same-origin",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setListMessage({ text: data.error ?? "Kvíz sa nepodarilo načítať.", ok: false });
+        return;
+      }
+      const { downloadQuizPdf } = await import("@/lib/quiz-pdf");
+      await downloadQuizPdf(
+        typeof data.title === "string" ? data.title : quiz.title,
+        Array.isArray(data.questions) ? data.questions : []
+      );
+      setListMessage({ text: "PDF je stiahnuté. Otázky sú v ňom ako obrázok, text sa nedá označiť.", ok: true });
+    } catch (error) {
+      setListMessage({ text: error instanceof Error ? error.message : "PDF sa nepodarilo vytvoriť.", ok: false });
+    } finally {
+      setPdfQuizId(null);
     }
   };
 
@@ -266,6 +293,15 @@ export default function HotoveKvizyList() {
                 className="inline-flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded-xl border border-brand-border text-brand-text hover:border-brand-orange hover:text-brand-orange-readable transition-colors disabled:opacity-50"
               >
                 {answerKeyQuizId === quiz.id ? "Načítavam…" : "Správne odpovede"}
+              </button>
+              <button
+                type="button"
+                onClick={() => void exportPdf(quiz)}
+                disabled={pdfQuizId === quiz.id}
+                title="Stiahne celý kvíz ako PDF, v ktorom sa otázky nedajú označiť ani skopírovať"
+                className="inline-flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded-xl border border-brand-border text-brand-text hover:border-brand-orange hover:text-brand-orange-readable transition-colors disabled:opacity-50"
+              >
+                {pdfQuizId === quiz.id ? "Pripravujem PDF…" : "PDF"}
               </button>
               <a
                 href={`/admin/hotove-kvizy/${quiz.id}/prehrat`}

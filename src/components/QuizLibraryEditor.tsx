@@ -379,6 +379,7 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
   const [events, setEvents] = useState<QuizEvent[]>([]);
   const [playEventSlug, setPlayEventSlug] = useState("");
   const [answerKeyOpen, setAnswerKeyOpen] = useState(false);
+  const [exportingPdf, setExportingPdf] = useState(false);
   const [openRound, setOpenRound] = useState<number>(1);
   const [dragRound, setDragRound] = useState<number | null>(null);
   const [dragQuestionId, setDragQuestionId] = useState<string | null>(null);
@@ -1545,6 +1546,22 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
     await persistQuizNow(snapshot, seq);
   };
 
+  const exportPdf = async () => {
+    const snapshot = quizRef.current;
+    if (!snapshot || exportingPdf) return;
+    setExportingPdf(true);
+    setMsg(null);
+    try {
+      const { downloadQuizPdf } = await import("@/lib/quiz-pdf");
+      await downloadQuizPdf(snapshot.title, snapshot.questions);
+      setMsg({ text: "PDF je stiahnuté. Otázky sú v ňom ako obrázok, text sa nedá označiť.", ok: true });
+    } catch (error) {
+      setMsg({ text: error instanceof Error ? error.message : "PDF sa nepodarilo vytvoriť.", ok: false });
+    } finally {
+      setExportingPdf(false);
+    }
+  };
+
   if (loading) return <p className="text-brand-muted text-sm">Načítavam…</p>;
   if (!quiz) return <p className="text-red-500 text-sm">Kvíz sa nepodarilo načítať.</p>;
 
@@ -1622,6 +1639,15 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
             className="btn-outline text-sm py-2.5 px-4"
           >
             Správne odpovede
+          </button>
+          <button
+            type="button"
+            onClick={() => void exportPdf()}
+            disabled={exportingPdf}
+            className="btn-outline text-sm py-2.5 px-4 disabled:opacity-60"
+            title="Stiahne celý kvíz ako PDF, v ktorom sa otázky nedajú označiť ani skopírovať"
+          >
+            {exportingPdf ? "Pripravujem PDF…" : "PDF"}
           </button>
           <a
             href={`/admin/hotove-kvizy/${quizId}/prehrat${playEventSlug ? `?event=${playEventSlug}` : ""}`}
