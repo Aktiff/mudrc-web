@@ -148,13 +148,18 @@ export function visiblePublicNights(
   });
 }
 
-/** Ďalší bežný termín o 14 dní. Špeciálne dátumy preskočí, aby neprepísali popis udalosti. */
-export function nextGeneralDateSkippingSpecials(playedDate: string, extras: FutureQuiz[]): string | null {
-  let advanced = addDaysToSkDate(playedDate, 14);
+/** Ďalší bežný termín o 7 alebo 14 dní. Špeciálne dátumy preskočí, aby neprepísali popis udalosti. */
+export function nextGeneralDateSkippingSpecials(
+  playedDate: string,
+  extras: FutureQuiz[],
+  intervalDays = 14
+): string | null {
+  const step = intervalDays === 7 ? 7 : 14;
+  let advanced = addDaysToSkDate(playedDate, step);
   while (advanced) {
     const day = advanced;
     if (!extras.some((quiz) => futureQuizMatchesDate(quiz, day))) break;
-    advanced = addDaysToSkDate(day, 14);
+    advanced = addDaysToSkDate(day, step);
   }
   return advanced;
 }

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
-import { eventDateIsPlayedNight, sortLeagueTable } from "@/lib/data";
+import { eventDateIsPlayedNight, quizIntervalDays, sortLeagueTable } from "@/lib/data";
 import { teamKey } from "@/lib/poll";
 import { normalizeDateKey } from "@/lib/quiz-result-key";
 import { buildQuizTeamsDetail } from "@/lib/quiz-save";
@@ -97,7 +97,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
       const event = events[idx];
       const extras = event.futureQuizzes ?? [];
       const playedIsExtra = extras.some((quiz) => futureQuizMatchesDate(quiz, date));
-      const advanced = nextGeneralDateSkippingSpecials(date, extras);
+      const advanced = nextGeneralDateSkippingSpecials(date, extras, quizIntervalDays(event));
       if (advanced && eventDateIsPlayedNight(event.date, date) && !playedIsExtra) nextEventDate = advanced;
       const futureQuizzes = playedIsExtra
         ? (event.futureQuizzes ?? []).filter((quiz) => !futureQuizMatchesDate(quiz, date))

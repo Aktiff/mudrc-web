@@ -12,6 +12,8 @@ export type QuizEvent = {
   entryFee: number;
   /** Typ aktuálneho kvízu v podniku, napr. Hudobný kvíz. História má typ na každom výsledku. */
   quizType?: string;
+  /** true = ďalší bežný termín o týždeň. Inak každý druhý týždeň. */
+  weeklyQuiz?: boolean;
   /** Ďalšie termíny v tom istom podniku. Nemení sa nimi dátum najbližšieho kvízu. */
   futureQuizzes?: FutureQuiz[];
   /** Tematický kvíz má nad bežnými pravidlami vlastné špeciálne pravidlá. */
@@ -155,6 +157,11 @@ export function sortEventsForAdminOverview(events: QuizEvent[]): QuizEvent[] {
     if (futureA) return tA - tB || venueA.localeCompare(venueB, "sk");
     return tB - tA || venueA.localeCompare(venueB, "sk");
   });
+}
+
+/** 7 pri týždennom kvíze, inak 14. */
+export function quizIntervalDays(event: { weeklyQuiz?: boolean } | null | undefined): number {
+  return event?.weeklyQuiz === true ? 7 : 14;
 }
 
 /** Posun slovenského dátumu d.m.yyyy o počet dní. Čas dňa sa nepočíta. */

@@ -1,4 +1,4 @@
-import { parseSkEventDateTime, type QuizEvent } from "@/lib/data";
+import { parseSkEventDateTime, quizIntervalDays, type QuizEvent } from "@/lib/data";
 
 export const MAX_NEXT_QUIZ_LINES = 5;
 
@@ -86,7 +86,7 @@ export function findHomeQuizEvent(events: QuizEvent[], eventSlug: string): QuizE
 }
 
 /**
- * Domáci podnik s dnešným alebo starším termínom sa ukáže o 14 dní v rovnakom čase.
+ * Domáci podnik s dnešným alebo starším termínom sa ukáže o týždeň alebo o dva v rovnakom čase.
  * Ostatné podniky ostanú na dátume a čase z udalosti.
  */
 export function nextQuizMomentForEvent(event: QuizEvent, home: boolean): Date | null {
@@ -95,7 +95,7 @@ export function nextQuizMomentForEvent(event: QuizEvent, home: boolean): Date | 
   if (!home) return at;
   if (calendarDay(at) <= calendarDay(new Date())) {
     const next = new Date(at);
-    next.setDate(next.getDate() + 14);
+    next.setDate(next.getDate() + quizIntervalDays(event));
     return next;
   }
   return at;

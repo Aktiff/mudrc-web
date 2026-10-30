@@ -1478,6 +1478,20 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
               <AdminTimePicker value={form.time} onChange={(v) => set("time", v)} />
             </div>
           </div>
+          <label className="flex items-start gap-2 text-sm font-semibold text-brand-text">
+            <input
+              type="checkbox"
+              className="mt-0.5 accent-brand-orange"
+              checked={form.weeklyQuiz === true}
+              onChange={(e) => set("weeklyQuiz", e.target.checked)}
+            />
+            <span>
+              Každý týždeň
+              <span className="block font-normal text-brand-muted text-xs mt-0.5">
+                Po uložení výsledku sa ďalší bežný termín posunie o týždeň. Bez zaškrtnutia ostáva každý druhý týždeň.
+              </span>
+            </span>
+          </label>
           {!isNew && (
             <FutureQuizPanel
               slug={params.slug}

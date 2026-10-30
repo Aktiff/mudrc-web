@@ -13,13 +13,14 @@ import {
   type MutableRefObject,
 } from "react";
 import { Maximize2 } from "lucide-react";
-import { formatEventDateLabel, type QuizEvent } from "@/lib/data";
+import { formatEventDateLabel, quizIntervalDays, type QuizEvent } from "@/lib/data";
 import { playbackMediaSrc } from "@/lib/media-url";
 import { attachVolumeWheel } from "@/lib/media-volume";
 import { displayQuestionNumber } from "@/lib/quiz-template";
 import { VolumeAudio, VolumeVideo } from "@/components/VolumeMedia";
 import { visibleRuleTexts } from "@/lib/quiz-rules";
 import { findFutureQuiz, upcomingFutureQuizzes } from "@/lib/future-quizzes";
+import { quizTypeOrDefault } from "@/lib/quiz-type";
 import type { QuizLibraryItem, QuizQuestionItem } from "@/lib/quiz-library";
 import { parseQuizPayload } from "@/lib/quiz-editor-draft";
 import {
@@ -1093,20 +1094,28 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
             ))}
           </select>
           {futureTerms.length > 0 && (
-            <select
-              className="w-full rounded-xl bg-white/10 border border-white/20 px-4 py-3 text-white"
-              value={rulesTerm}
-              onChange={(e) => setRulesTerm(e.target.value)}
-            >
-              <option value="" className="text-black">
-                Najbližší kvíz · {selectedEvent ? formatEventDateLabel(selectedEvent.date) : ""}
-              </option>
-              {futureTerms.map((quiz) => (
-                <option key={quiz.id} value={quiz.date} className="text-black">
-                  {formatEventDateLabel(quiz.date)} · {quiz.quizType}
+            <div className="space-y-2">
+              <span className="text-sm text-white/70">Pravidlá na prvom slide</span>
+              <select
+                className="w-full rounded-xl bg-white/10 border border-white/20 px-4 py-3 text-white"
+                value={rulesTerm}
+                onChange={(e) => setRulesTerm(e.target.value)}
+              >
+                <option value="" className="text-black">
+                  {selectedEvent
+                    ? `${formatEventDateLabel(selectedEvent.date)} · ${quizTypeOrDefault(selectedEvent.quizType)}`
+                    : "Bežný termín podniku"}
                 </option>
-              ))}
-            </select>
+                {futureTerms.map((quiz) => (
+                  <option key={quiz.id} value={quiz.date} className="text-black">
+                    {formatEventDateLabel(quiz.date)} · {quiz.quizType}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-white/45">
+                Bežný termín podniku je prvý. Ďalšie riadky sú špeciálne večery. Formát obrazovky je až v poli pod tým.
+              </p>
+            </div>
           )}
           <div className="space-y-2">
             <span className="text-sm text-white/70">Formát obrazovky</span>
@@ -1151,8 +1160,11 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
                 <p className="text-[#f0c800]/80 text-xs uppercase tracking-[0.25em] mb-2">Pred projekciou</p>
                 <h2 className="font-display text-2xl tracking-wide">Najbližšie kvízy</h2>
                 <p className="text-white/50 text-sm mt-2">
-                  Zaklikni podniky. Na plátne budú zoradené podľa dátumu. Podnik, v ktorom práve si, je o dva
-                  týždne v rovnakom čase. Ostatné berú dátum a čas zo svojej udalosti. Najviac {MAX_NEXT_QUIZ_LINES}.
+                  Zaklikni podniky. Na plátne budú zoradené podľa dátumu. Podnik, v ktorom práve si, je{" "}
+                  {quizIntervalDays(events.find((event) => event.slug === homeNextQuizSlug)) === 7
+                    ? "o týždeň"
+                    : "o dva týždne"}{" "}
+                  v rovnakom čase. Ostatné berú dátum a čas zo svojej udalosti. Najviac {MAX_NEXT_QUIZ_LINES}.
                 </p>
               </div>
               <div className="min-h-0 flex-1 overflow-y-auto space-y-2 pr-1">
