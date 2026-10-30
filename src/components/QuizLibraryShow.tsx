@@ -309,7 +309,7 @@ function MatchColumns({
     compact ? "px-4 py-3" : "px-5 sm:px-6 py-3 sm:py-4"
   }`;
   return (
-    <div className={`grid grid-cols-2 w-full max-w-full ${compact ? "gap-3" : "gap-4 sm:gap-5"}`}>
+    <div className={`grid grid-cols-2 items-start w-full max-w-full ${compact ? "gap-3" : "gap-4 sm:gap-5"}`}>
       <div className="flex flex-col gap-2.5 min-w-0">
         {left.map((item, index) => (
           <div key={`left-${index}`} className={card}>

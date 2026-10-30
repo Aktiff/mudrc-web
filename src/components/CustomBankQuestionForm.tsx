@@ -9,13 +9,15 @@ import { fetchBankThemes } from "@/lib/bank-themes-client";
 import { addCustomBankQuestionAsync, type CustomBankQuestion } from "@/lib/quiz-custom-bank";
 import TagSuggestInput from "@/components/TagSuggestInput";
 import { parseTagsInput } from "@/lib/quiz-question-tags";
-import { formatMatchBankAnswer, formatOrderAnswer, validateMatchColumns } from "@/lib/quiz-question-options";
+import { formatMatchBankAnswer, formatOrderAnswer, validateMatchDraft } from "@/lib/quiz-question-options";
 import MatchPairFields from "@/components/MatchPairFields";
 import OrderItemFields from "@/components/OrderItemFields";
 
 const OPTION_LETTERS = ["A", "B", "C", "D", "E", "F"] as const;
 const EMPTY_ORDER = ["", "", "", ""];
-const EMPTY_MATCH = ["", "", ""];
+const EMPTY_MATCH_LEFT = ["", ""];
+const EMPTY_MATCH_RIGHT = ["", ""];
+const EMPTY_MATCH_ASSIGN = [0, 1];
 
 type QuestionMode = "choice" | "open" | "order" | "match";
 
@@ -29,8 +31,9 @@ export default function CustomBankQuestionForm({ onAdded }: Props) {
   const [body, setBody] = useState("");
   const [options, setOptions] = useState(["", "", "", "", "", ""]);
   const [orderItems, setOrderItems] = useState(EMPTY_ORDER);
-  const [matchLeft, setMatchLeft] = useState(EMPTY_MATCH);
-  const [matchRight, setMatchRight] = useState(EMPTY_MATCH);
+  const [matchLeft, setMatchLeft] = useState(EMPTY_MATCH_LEFT);
+  const [matchRight, setMatchRight] = useState(EMPTY_MATCH_RIGHT);
+  const [matchAssign, setMatchAssign] = useState(EMPTY_MATCH_ASSIGN);
   const [openAnswer, setOpenAnswer] = useState("");
   const [correctIndex, setCorrectIndex] = useState(0);
   const [note, setNote] = useState("");
@@ -48,8 +51,9 @@ export default function CustomBankQuestionForm({ onAdded }: Props) {
     setBody("");
     setOptions(["", "", "", "", "", ""]);
     setOrderItems([...EMPTY_ORDER]);
-    setMatchLeft([...EMPTY_MATCH]);
-    setMatchRight([...EMPTY_MATCH]);
+    setMatchLeft([...EMPTY_MATCH_LEFT]);
+    setMatchRight([...EMPTY_MATCH_RIGHT]);
+    setMatchAssign([...EMPTY_MATCH_ASSIGN]);
     setOpenAnswer("");
     setCorrectIndex(0);
     setNote("");
@@ -91,7 +95,7 @@ export default function CustomBankQuestionForm({ onAdded }: Props) {
         return;
       }
     } else if (questionMode === "match") {
-      const checked = validateMatchColumns(matchLeft, matchRight);
+      const checked = validateMatchDraft(matchLeft, matchRight, matchAssign);
       if (checked.error) {
         setError(checked.error);
         return;
@@ -141,7 +145,7 @@ export default function CustomBankQuestionForm({ onAdded }: Props) {
           suggestedImageUrl: suggestedImageUrl.trim() || undefined,
         });
       } else if (questionMode === "match") {
-        const pairs = validateMatchColumns(matchLeft, matchRight).pairs;
+        const pairs = validateMatchDraft(matchLeft, matchRight, matchAssign).pairs;
         created = await addCustomBankQuestionAsync({
           body: trimmedBody,
           options: pairs.map((pair) => pair.left),
@@ -272,13 +276,15 @@ export default function CustomBankQuestionForm({ onAdded }: Props) {
             </div>
           ) : questionMode === "match" ? (
             <div>
-              <label className="label">Dvojice v správnom priradení</label>
+              <label className="label">Priradenie</label>
               <MatchPairFields
                 left={matchLeft}
                 right={matchRight}
-                onChange={(left, right) => {
+                assign={matchAssign}
+                onChange={(left, right, assign) => {
                   setMatchLeft(left);
                   setMatchRight(right);
+                  setMatchAssign(assign);
                 }}
               />
             </div>

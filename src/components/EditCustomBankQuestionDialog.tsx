@@ -13,23 +13,17 @@ import { formatTagsInput, parseTagsInput } from "@/lib/quiz-question-tags";
 import {
   formatMatchBankAnswer,
   formatOrderAnswer,
+  matchDraftFromColumns,
   orderItemsFromAnswer,
-  validateMatchColumns,
+  validateMatchDraft,
 } from "@/lib/quiz-question-options";
 import MatchPairFields from "@/components/MatchPairFields";
 import OrderItemFields from "@/components/OrderItemFields";
 
 const OPTION_LETTERS = ["A", "B", "C", "D", "E", "F"] as const;
 
-function matchFieldsFromQuestion(question: CustomBankQuestion): { left: string[]; right: string[] } {
-  const storedLeft = question.options.map((option) => option.trim()).filter(Boolean);
-  const storedRight = (question.matchRight ?? []).map((option) => option.trim()).filter(Boolean);
-  const count = Math.max(storedLeft.length, storedRight.length, 2);
-  const left = [...storedLeft];
-  const right = [...storedRight];
-  while (left.length < count) left.push("");
-  while (right.length < count) right.push("");
-  return { left, right };
+function matchFieldsFromQuestion(question: CustomBankQuestion): { left: string[]; right: string[]; assign: number[] } {
+  return matchDraftFromColumns(question.options, question.matchRight ?? []);
 }
 
 function orderFieldsFromQuestion(question: CustomBankQuestion): string[] {
@@ -52,8 +46,9 @@ export default function EditCustomBankQuestionDialog({ question, onClose, onSave
   const [body, setBody] = useState("");
   const [options, setOptions] = useState(["", "", "", "", "", ""]);
   const [orderItems, setOrderItems] = useState(["", "", "", ""]);
-  const [matchLeft, setMatchLeft] = useState(["", "", ""]);
-  const [matchRight, setMatchRight] = useState(["", "", ""]);
+  const [matchLeft, setMatchLeft] = useState(["", ""]);
+  const [matchRight, setMatchRight] = useState(["", ""]);
+  const [matchAssign, setMatchAssign] = useState([0, 1]);
   const [openAnswer, setOpenAnswer] = useState("");
   const [correctIndex, setCorrectIndex] = useState(0);
   const [note, setNote] = useState("");
@@ -78,6 +73,7 @@ export default function EditCustomBankQuestionDialog({ question, onClose, onSave
     orderItems,
     matchLeft,
     matchRight,
+    matchAssign,
     openAnswer,
     correctIndex,
     note,
@@ -94,6 +90,7 @@ export default function EditCustomBankQuestionDialog({ question, onClose, onSave
     orderItems,
     matchLeft,
     matchRight,
+    matchAssign,
     openAnswer,
     correctIndex,
     note,
@@ -112,6 +109,7 @@ export default function EditCustomBankQuestionDialog({ question, onClose, onSave
       orderItems,
       matchLeft,
       matchRight,
+      matchAssign,
       openAnswer,
       correctIndex,
       note,
@@ -147,6 +145,7 @@ export default function EditCustomBankQuestionDialog({ question, onClose, onSave
     setOrderItems(nextOrder);
     setMatchLeft(nextMatch.left);
     setMatchRight(nextMatch.right);
+    setMatchAssign(nextMatch.assign);
     setOpenAnswer(nextAnswer);
     setCorrectIndex(question.correctIndex);
     setNote(nextNote);
@@ -163,6 +162,7 @@ export default function EditCustomBankQuestionDialog({ question, onClose, onSave
       orderItems: nextOrder,
       matchLeft: nextMatch.left,
       matchRight: nextMatch.right,
+      matchAssign: nextMatch.assign,
       openAnswer: nextAnswer,
       correctIndex: question.correctIndex,
       note: nextNote,
@@ -182,7 +182,7 @@ export default function EditCustomBankQuestionDialog({ question, onClose, onSave
       void saveRef.current(false);
     }, 400);
     return () => window.clearTimeout(timer);
-  }, [question, questionMode, body, options, orderItems, matchLeft, matchRight, openAnswer, correctIndex, note, tagsText, theme, difficulty, isImageQuestion, suggestedImageUrl]);
+  }, [question, questionMode, body, options, orderItems, matchLeft, matchRight, matchAssign, openAnswer, correctIndex, note, tagsText, theme, difficulty, isImageQuestion, suggestedImageUrl]);
 
   useEffect(() => {
     void fetchBankThemes().then(setThemes);
@@ -219,7 +219,7 @@ export default function EditCustomBankQuestionDialog({ question, onClose, onSave
           return;
         }
       } else if (form.questionMode === "match") {
-        const checked = validateMatchColumns(form.matchLeft, form.matchRight);
+        const checked = validateMatchDraft(form.matchLeft, form.matchRight, form.matchAssign);
         if (checked.error) {
           if (closeAfter) setError(checked.error);
           return;
@@ -276,7 +276,7 @@ export default function EditCustomBankQuestionDialog({ question, onClose, onSave
                 }
               : form.questionMode === "match"
                 ? (() => {
-                    const pairs = validateMatchColumns(form.matchLeft, form.matchRight).pairs;
+                    const pairs = validateMatchDraft(form.matchLeft, form.matchRight, form.matchAssign).pairs;
                     return {
                       body: trimmedBody,
                       options: pairs.map((pair) => pair.left),
@@ -405,13 +405,15 @@ export default function EditCustomBankQuestionDialog({ question, onClose, onSave
           </div>
         ) : questionMode === "match" ? (
           <div>
-            <label className="label">Dvojice v správnom priradení</label>
+            <label className="label">Priradenie</label>
             <MatchPairFields
               left={matchLeft}
               right={matchRight}
-              onChange={(left, right) => {
+              assign={matchAssign}
+              onChange={(left, right, assign) => {
                 setMatchLeft(left);
                 setMatchRight(right);
+                setMatchAssign(assign);
               }}
             />
           </div>

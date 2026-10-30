@@ -1,116 +1,209 @@
 "use client";
 
 import { ChevronDown, ChevronUp, Plus, X } from "lucide-react";
-import { MATCH_PAIR_MAX, matchLetter } from "@/lib/quiz-question-options";
+import { MATCH_LEFT_MAX, MATCH_RIGHT_MAX, matchLetter } from "@/lib/quiz-question-options";
 
 type MatchPairFieldsProps = {
   left: string[];
   right: string[];
-  onChange: (left: string[], right: string[]) => void;
+  assign: number[];
+  onChange: (left: string[], right: string[], assign: number[]) => void;
 };
 
-export default function MatchPairFields({ left, right, onChange }: MatchPairFieldsProps) {
-  const count = Math.max(left.length, right.length);
-
-  const update = (side: "left" | "right", index: number, value: string) => {
-    const nextLeft = [...left];
-    const nextRight = [...right];
-    while (nextLeft.length < count) nextLeft.push("");
-    while (nextRight.length < count) nextRight.push("");
-    if (side === "left") nextLeft[index] = value;
-    else nextRight[index] = value;
-    onChange(nextLeft, nextRight);
+export default function MatchPairFields({ left, right, assign, onChange }: MatchPairFieldsProps) {
+  const updateLeft = (index: number, value: string) => {
+    const next = [...left];
+    next[index] = value;
+    onChange(next, right, assign);
   };
 
-  const move = (index: number, direction: -1 | 1) => {
+  const updateRight = (index: number, value: string) => {
+    const next = [...right];
+    next[index] = value;
+    onChange(left, next, assign);
+  };
+
+  const setAssign = (index: number, letterIndex: number) => {
+    const next = [...assign];
+    next[index] = letterIndex;
+    onChange(left, right, next);
+  };
+
+  const moveLeft = (index: number, direction: -1 | 1) => {
     const target = index + direction;
-    if (target < 0 || target >= count) return;
+    if (target < 0 || target >= left.length) return;
     const nextLeft = [...left];
-    const nextRight = [...right];
-    while (nextLeft.length < count) nextLeft.push("");
-    while (nextRight.length < count) nextRight.push("");
-    const leftItem = nextLeft[index] ?? "";
+    const nextAssign = [...assign];
+    const item = nextLeft[index] ?? "";
     nextLeft[index] = nextLeft[target] ?? "";
-    nextLeft[target] = leftItem;
-    const rightItem = nextRight[index] ?? "";
+    nextLeft[target] = item;
+    const letter = nextAssign[index] ?? 0;
+    nextAssign[index] = nextAssign[target] ?? 0;
+    nextAssign[target] = letter;
+    onChange(nextLeft, right, nextAssign);
+  };
+
+  const moveRight = (index: number, direction: -1 | 1) => {
+    const target = index + direction;
+    if (target < 0 || target >= right.length) return;
+    const nextRight = [...right];
+    const item = nextRight[index] ?? "";
     nextRight[index] = nextRight[target] ?? "";
-    nextRight[target] = rightItem;
-    onChange(nextLeft, nextRight);
+    nextRight[target] = item;
+    const nextAssign = assign.map((value) => {
+      if (value === index) return target;
+      if (value === target) return index;
+      return value;
+    });
+    onChange(left, nextRight, nextAssign);
+  };
+
+  const removeLeft = (index: number) => {
+    if (left.length <= 2) return;
+    onChange(
+      left.filter((_, itemIndex) => itemIndex !== index),
+      right,
+      assign.filter((_, itemIndex) => itemIndex !== index)
+    );
+  };
+
+  const removeRight = (index: number) => {
+    if (right.length <= 2) return;
+    onChange(
+      left,
+      right.filter((_, itemIndex) => itemIndex !== index),
+      assign.map((value) => {
+        if (value === index) return 0;
+        if (value > index) return value - 1;
+        return value;
+      })
+    );
   };
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
       <p className="text-xs text-brand-muted">
-        Rovnaký riadok je správna dvojica. Do kvízu sa obe strany zamiešajú a vznikne odpoveď typu 1C, 2A, 3B.
+        Ľavá a pravá strana majú vlastný počet. Ku každej položke vľavo vyber možnosť vpravo, napríklad štyroch politikov k dvom stranám.
       </p>
-      {Array.from({ length: count }, (_, index) => (
-        <div key={index} className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <div className="flex items-center gap-2 flex-1 min-w-0">
-            <span className="w-6 shrink-0 text-sm font-mono font-semibold text-brand-muted">{index + 1}.</span>
-            <input
-              value={left[index] ?? ""}
-              onChange={(event) => update("left", index, event.target.value)}
-              placeholder="Ľavá strana"
-              className="input text-sm py-2 min-w-0 flex-1"
-            />
-          </div>
-          <span className="hidden sm:inline text-brand-muted text-sm">→</span>
-          <div className="flex items-center gap-2 flex-1 min-w-0">
-            <span className="w-6 shrink-0 text-sm font-mono font-semibold text-brand-muted">{matchLetter(index)}</span>
-            <input
-              value={right[index] ?? ""}
-              onChange={(event) => update("right", index, event.target.value)}
-              placeholder="Pravá strana"
-              className="input text-sm py-2 min-w-0 flex-1"
-            />
-          </div>
-          <div className="flex items-center gap-1 shrink-0">
-            <button
-              type="button"
-              onClick={() => move(index, -1)}
-              disabled={index === 0}
-              className="rounded-lg border border-brand-border p-2 text-brand-muted disabled:opacity-30"
-              title="Vyššie"
-            >
-              <ChevronUp className="h-4 w-4" />
-            </button>
-            <button
-              type="button"
-              onClick={() => move(index, 1)}
-              disabled={index === count - 1}
-              className="rounded-lg border border-brand-border p-2 text-brand-muted disabled:opacity-30"
-              title="Nižšie"
-            >
-              <ChevronDown className="h-4 w-4" />
-            </button>
-            {count > 2 ? (
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div className="space-y-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-brand-muted">Ľavá strana</p>
+          {left.map((item, index) => (
+            <div key={`left-${index}`} className="flex items-center gap-2">
+              <span className="w-6 shrink-0 text-sm font-mono font-semibold text-brand-muted">{index + 1}.</span>
+              <input
+                value={item}
+                onChange={(event) => updateLeft(index, event.target.value)}
+                placeholder="Položka"
+                className="input text-sm py-2 min-w-0 flex-1"
+              />
+              <select
+                value={String(Math.min(assign[index] ?? 0, Math.max(0, right.length - 1)))}
+                onChange={(event) => setAssign(index, Number(event.target.value))}
+                className="input text-sm py-2 w-36 shrink-0"
+                title="Pravá strana"
+              >
+                {right.map((target, targetIndex) => (
+                  <option key={targetIndex} value={targetIndex}>
+                    {matchLetter(targetIndex)}
+                    {target.trim() ? ` ${target.trim()}` : ""}
+                  </option>
+                ))}
+              </select>
               <button
                 type="button"
-                onClick={() =>
-                  onChange(
-                    left.filter((_, itemIndex) => itemIndex !== index),
-                    right.filter((_, itemIndex) => itemIndex !== index)
-                  )
-                }
-                className="rounded-lg border border-brand-border p-2 text-brand-muted"
-                title="Odstrániť"
+                onClick={() => moveLeft(index, -1)}
+                disabled={index === 0}
+                className="rounded-lg border border-brand-border p-2 text-brand-muted disabled:opacity-30"
+                title="Vyššie"
               >
-                <X className="h-4 w-4" />
+                <ChevronUp className="h-4 w-4" />
               </button>
-            ) : null}
-          </div>
+              <button
+                type="button"
+                onClick={() => moveLeft(index, 1)}
+                disabled={index === left.length - 1}
+                className="rounded-lg border border-brand-border p-2 text-brand-muted disabled:opacity-30"
+                title="Nižšie"
+              >
+                <ChevronDown className="h-4 w-4" />
+              </button>
+              {left.length > 2 ? (
+                <button
+                  type="button"
+                  onClick={() => removeLeft(index)}
+                  className="rounded-lg border border-brand-border p-2 text-brand-muted"
+                  title="Odstrániť"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              ) : null}
+            </div>
+          ))}
+          {left.length < MATCH_LEFT_MAX ? (
+            <button
+              type="button"
+              onClick={() => onChange([...left, ""], right, [...assign, 0])}
+              className="inline-flex items-center gap-1 rounded-lg border border-brand-border px-3 py-1.5 text-xs text-brand-muted hover:border-brand-orange"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Pridať položku
+            </button>
+          ) : null}
         </div>
-      ))}
-      {count < MATCH_PAIR_MAX ? (
-        <button
-          type="button"
-          onClick={() => onChange([...left, ""], [...right, ""])}
-          className="inline-flex items-center gap-1 rounded-lg border border-brand-border px-3 py-1.5 text-xs text-brand-muted hover:border-brand-orange"
-        >
-          <Plus className="h-3.5 w-3.5" />
-          Pridať dvojicu
-        </button>
-      ) : null}
+        <div className="space-y-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-brand-muted">Pravá strana</p>
+          {right.map((item, index) => (
+            <div key={`right-${index}`} className="flex items-center gap-2">
+              <span className="w-6 shrink-0 text-sm font-mono font-semibold text-brand-muted">{matchLetter(index)}</span>
+              <input
+                value={item}
+                onChange={(event) => updateRight(index, event.target.value)}
+                placeholder="Možnosť"
+                className="input text-sm py-2 min-w-0 flex-1"
+              />
+              <button
+                type="button"
+                onClick={() => moveRight(index, -1)}
+                disabled={index === 0}
+                className="rounded-lg border border-brand-border p-2 text-brand-muted disabled:opacity-30"
+                title="Vyššie"
+              >
+                <ChevronUp className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => moveRight(index, 1)}
+                disabled={index === right.length - 1}
+                className="rounded-lg border border-brand-border p-2 text-brand-muted disabled:opacity-30"
+                title="Nižšie"
+              >
+                <ChevronDown className="h-4 w-4" />
+              </button>
+              {right.length > 2 ? (
+                <button
+                  type="button"
+                  onClick={() => removeRight(index)}
+                  className="rounded-lg border border-brand-border p-2 text-brand-muted"
+                  title="Odstrániť"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              ) : null}
+            </div>
+          ))}
+          {right.length < MATCH_RIGHT_MAX ? (
+            <button
+              type="button"
+              onClick={() => onChange(left, [...right, ""], assign)}
+              className="inline-flex items-center gap-1 rounded-lg border border-brand-border px-3 py-1.5 text-xs text-brand-muted hover:border-brand-orange"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Pridať možnosť
+            </button>
+          ) : null}
+        </div>
+      </div>
     </div>
   );
 }

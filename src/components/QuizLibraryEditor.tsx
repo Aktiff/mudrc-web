@@ -21,12 +21,18 @@ import QuizPromoEditor from "@/components/admin/QuizPromoEditor";
 import { inferBankTheme } from "@/lib/bank-themes";
 import { findBankQuestionById, findRawBankQuestionById } from "@/lib/quiz-question-bank";
 import {
+  addMatchSide,
   applyMatchColumnEdit,
   formatMatchBankAnswer,
   formatOrderAnswer,
+  letterIndexesFromMatchAnswer,
+  MATCH_LEFT_MAX,
+  MATCH_RIGHT_MAX,
   matchLetter,
   matchPairsFromQuiz,
   moveMatchColumn,
+  removeMatchSide,
+  setMatchLetter,
   orderItemsFromAnswer,
   ORDER_OPTION_MAX,
   shuffleMatchPairs,
@@ -1931,9 +1937,35 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
             {(question.kind === "normal" || question.kind === "video") && question.isMatchQuestion ? (
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <label className="label">Ľavá strana (čísla)</label>
-                  <p className="text-brand-muted text-xs">Toto ide na plátno. Posun prepočíta odpoveď.</p>
-                  {(question.options ?? []).map((option, optionIndex) => (
+                  <div className="flex items-center justify-between gap-2">
+                    <label className="label mb-0">Ľavá strana (čísla)</label>
+                    {(question.options?.length ?? 0) < MATCH_LEFT_MAX ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const next = addMatchSide({
+                            left: question.options ?? [],
+                            right: question.matchRight ?? [],
+                            answer: question.answer,
+                            side: "left",
+                          });
+                          if (next) updateQuestion(question.id, { options: next.left, matchRight: next.right, answer: next.answer });
+                        }}
+                        className="text-xs font-semibold text-brand-orange-readable hover:underline inline-flex items-center gap-1"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        Pridať
+                      </button>
+                    ) : null}
+                  </div>
+                  <p className="text-brand-muted text-xs">Počet môže byť iný ako vpravo. Písmeno je správna pravá strana.</p>
+                  {(question.options ?? []).map((option, optionIndex) => {
+                    const letters = letterIndexesFromMatchAnswer(
+                      question.answer,
+                      question.options?.length ?? 0,
+                      question.matchRight?.length ?? 0
+                    );
+                    return (
                     <div key={`left-${optionIndex}`} className="flex items-center gap-2">
                       <span className="text-xs font-mono font-bold text-brand-muted w-6 shrink-0">{optionIndex + 1}.</span>
                       <input
@@ -1951,6 +1983,26 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
                           updateQuestion(question.id, { options: next.left, matchRight: next.right, answer: next.answer });
                         }}
                       />
+                      <select
+                        className="input w-16 shrink-0"
+                        value={String(letters[optionIndex] ?? 0)}
+                        onChange={(event) => {
+                          const next = setMatchLetter({
+                            left: question.options ?? [],
+                            right: question.matchRight ?? [],
+                            answer: question.answer,
+                            index: optionIndex,
+                            letterIndex: Number(event.target.value),
+                          });
+                          updateQuestion(question.id, { options: next.left, matchRight: next.right, answer: next.answer });
+                        }}
+                      >
+                        {(question.matchRight ?? []).map((_, letterIndex) => (
+                          <option key={letterIndex} value={letterIndex}>
+                            {matchLetter(letterIndex)}
+                          </option>
+                        ))}
+                      </select>
                       <button
                         type="button"
                         onClick={() => {
@@ -1989,12 +2041,52 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
                       >
                         <ChevronDown className="w-4 h-4" />
                       </button>
+                      {(question.options?.length ?? 0) > 2 ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const next = removeMatchSide({
+                              left: question.options ?? [],
+                              right: question.matchRight ?? [],
+                              answer: question.answer,
+                              side: "left",
+                              index: optionIndex,
+                            });
+                            if (next) updateQuestion(question.id, { options: next.left, matchRight: next.right, answer: next.answer });
+                          }}
+                          className="p-2 rounded-lg border border-brand-border text-brand-muted shrink-0"
+                          title="Odstrániť"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      ) : null}
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
                 <div className="space-y-2">
-                  <label className="label">Pravá strana (písmená)</label>
-                  <p className="text-brand-muted text-xs">Písmená idú na plátno vedľa čísel.</p>
+                  <div className="flex items-center justify-between gap-2">
+                    <label className="label mb-0">Pravá strana (písmená)</label>
+                    {(question.matchRight?.length ?? 0) < MATCH_RIGHT_MAX ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const next = addMatchSide({
+                            left: question.options ?? [],
+                            right: question.matchRight ?? [],
+                            answer: question.answer,
+                            side: "right",
+                          });
+                          if (next) updateQuestion(question.id, { options: next.left, matchRight: next.right, answer: next.answer });
+                        }}
+                        className="text-xs font-semibold text-brand-orange-readable hover:underline inline-flex items-center gap-1"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        Pridať
+                      </button>
+                    ) : null}
+                  </div>
+                  <p className="text-brand-muted text-xs">Na plátno idú len tieto možnosti, každá raz.</p>
                   {(question.matchRight ?? []).map((option, optionIndex) => (
                     <div key={`right-${optionIndex}`} className="flex items-center gap-2">
                       <span className="text-xs font-mono font-bold text-brand-muted w-6 shrink-0">{matchLetter(optionIndex)}</span>
@@ -2051,6 +2143,25 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
                       >
                         <ChevronDown className="w-4 h-4" />
                       </button>
+                      {(question.matchRight?.length ?? 0) > 2 ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const next = removeMatchSide({
+                              left: question.options ?? [],
+                              right: question.matchRight ?? [],
+                              answer: question.answer,
+                              side: "right",
+                              index: optionIndex,
+                            });
+                            if (next) updateQuestion(question.id, { options: next.left, matchRight: next.right, answer: next.answer });
+                          }}
+                          className="p-2 rounded-lg border border-brand-border text-brand-muted shrink-0"
+                          title="Odstrániť"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      ) : null}
                     </div>
                   ))}
                 </div>
