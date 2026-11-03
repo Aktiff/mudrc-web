@@ -2,6 +2,8 @@ import { inferBankTheme, normalizeBankThemeName } from "@/lib/bank-themes";
 import type { QuizBankQuestion } from "@/lib/quiz-question-bank";
 import { refreshStoredCustomQuestionTags, resolveCustomQuestionTags } from "@/lib/quiz-bank-tag-inference";
 import {
+  findCorrectOptionIndexes,
+  formatChoiceAnswer,
   formatMatchBankAnswer,
   formatOrderAnswer,
   MATCH_PAIR_MAX,
@@ -131,7 +133,10 @@ export function normalizeStoredCustomQuestion(raw: unknown): CustomBankQuestion 
     const filled = options.map((option) => option.trim()).filter(Boolean);
     options.splice(0, options.length, ...filled);
   }
-  const correctIndex = typeof row.correctIndex === "number" ? row.correctIndex : 0;
+  const storedIndexes = Array.isArray(row.correctIndexes)
+    ? row.correctIndexes.filter((index): index is number => typeof index === "number" && index >= 0 && index < 6)
+    : [];
+  const correctIndex = typeof row.correctIndex === "number" ? row.correctIndex : storedIndexes[0] ?? 0;
   const answer = isMatchQuestion
     ? formatMatchBankAnswer(matchPairsFromColumns(options, matchRight ?? []))
     : isOrderQuestion
@@ -143,7 +148,15 @@ export function normalizeStoredCustomQuestion(raw: unknown): CustomBankQuestion 
         : isOpenQuestion
           ? ""
           : options[correctIndex]?.trim() ?? "";
-  if (!answer) return null;
+  const choiceIndexes = !isMatchQuestion && !isOrderQuestion && !isOpenQuestion
+    ? (findCorrectOptionIndexes(options, answer).length
+        ? findCorrectOptionIndexes(options, answer)
+        : storedIndexes.length
+          ? storedIndexes
+          : [Math.min(Math.max(0, correctIndex), 5)])
+    : [];
+  const choiceAnswer = choiceIndexes.length ? formatChoiceAnswer(options, choiceIndexes) : "";
+  if (!answer && !choiceAnswer) return null;
   if (isOrderQuestion && options.filter((option) => option.trim()).length < 2) return null;
 
   const tagsRaw = Array.isArray(row.tags)
@@ -154,9 +167,10 @@ export function normalizeStoredCustomQuestion(raw: unknown): CustomBankQuestion 
   return {
     id: row.id,
     body: row.body.trim(),
-    answer,
+    answer: choiceAnswer || answer,
     options,
-    correctIndex: Math.min(Math.max(0, correctIndex), 5),
+    correctIndex: choiceIndexes[0] ?? Math.min(Math.max(0, correctIndex), 5),
+    ...(choiceIndexes.length ? { correctIndexes: choiceIndexes } : {}),
     difficulty: typeof row.difficulty === "number" ? Math.min(10, Math.max(1, row.difficulty)) : 5,
     note: typeof row.note === "string" ? row.note.trim() : "",
     tags: tags.length ? tags : resolveCustomQuestionTags(undefined, row.body as string, answer),
@@ -189,6 +203,7 @@ export type NewCustomBankQuestionInput = {
   body: string;
   options: string[];
   correctIndex: number;
+  correctIndexes?: number[];
   answer?: string;
   note?: string;
   tags?: string[];
@@ -210,10 +225,12 @@ export function compactChoiceBankQuestion(item: QuizBankQuestion): QuizBankQuest
   if (filled.length < 2) return item;
 
   const options = filled.map((entry) => entry.opt);
-  const correctSource = Math.min(Math.max(item.correctIndex, 0), item.options.length - 1);
-  let correctIndex = filled.findIndex((entry) => entry.index === correctSource);
-  if (correctIndex < 0) correctIndex = 0;
-  const answer = options[correctIndex] ?? item.answer;
+  const sourceIndexes = (item.correctIndexes?.length ? item.correctIndexes : findCorrectOptionIndexes(item.options, item.answer));
+  const correctIndexes = (sourceIndexes.length ? sourceIndexes : [item.correctIndex])
+    .map((index) => filled.findIndex((entry) => entry.index === index))
+    .filter((index) => index >= 0);
+  const correctIndex = correctIndexes[0] ?? 0;
+  const answer = formatChoiceAnswer(options, correctIndexes) || options[correctIndex] || item.answer;
 
   const padded = [...options] as QuizBankQuestion["options"];
   while (padded.length < 6) padded.push("");
@@ -222,6 +239,7 @@ export function compactChoiceBankQuestion(item: QuizBankQuestion): QuizBankQuest
     ...item,
     options: padded,
     correctIndex,
+    correctIndexes,
     answer,
   };
 }
@@ -255,6 +273,7 @@ export function createCustomBankQuestion(input: NewCustomBankQuestionInput): Cus
   }
 
   let correctIndex = 0;
+  let correctIndexes: number[] | undefined;
   let answer = "";
   let matchRight: string[] | undefined;
 
@@ -266,8 +285,13 @@ export function createCustomBankQuestion(input: NewCustomBankQuestionInput): Cus
   } else if (isOpenQuestion) {
     answer = input.answer?.trim() ?? "";
   } else {
-    correctIndex = Math.min(Math.max(0, input.correctIndex), 5);
-    answer = options[correctIndex]?.trim() || input.answer?.trim() || "";
+    const requested = (input.correctIndexes?.length ? input.correctIndexes : [input.correctIndex]).filter(
+      (index) => options[index]?.trim()
+    );
+    const indexes = requested.length ? requested : [Math.min(Math.max(0, input.correctIndex), 5)];
+    correctIndex = indexes[0] ?? 0;
+    correctIndexes = indexes;
+    answer = formatChoiceAnswer(options, indexes) || input.answer?.trim() || "";
   }
 
   const tags = resolveCustomQuestionTags(input.tags, input.body.trim(), answer, input.note);
@@ -278,6 +302,7 @@ export function createCustomBankQuestion(input: NewCustomBankQuestionInput): Cus
     answer,
     options,
     correctIndex,
+    ...(correctIndexes ? { correctIndexes } : {}),
     difficulty: input.difficulty ?? 5,
     note: input.note?.trim() ?? "",
     tags: tags.slice(0, 8),

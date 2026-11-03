@@ -23,12 +23,15 @@ import { findBankQuestionById, findRawBankQuestionById } from "@/lib/quiz-questi
 import {
   addMatchSide,
   applyMatchColumnEdit,
+  findCorrectOptionIndexes,
+  formatChoiceAnswer,
   formatMatchBankAnswer,
   formatOrderAnswer,
   letterIndexesFromMatchAnswer,
   MATCH_LEFT_MAX,
   MATCH_RIGHT_MAX,
   matchLetter,
+  matchDraftFromColumns,
   matchPairsFromQuiz,
   moveMatchColumn,
   removeMatchSide,
@@ -38,7 +41,10 @@ import {
   shuffleMatchPairs,
   shuffleOrderItems,
   shuffleQuestionOptionsForBankInsert,
+  validateMatchDraft,
 } from "@/lib/quiz-question-options";
+import MatchPairFields from "@/components/MatchPairFields";
+import OrderItemFields from "@/components/OrderItemFields";
 import {
   addCustomBankQuestionAsync,
   fetchCustomBankQuestionsFromServer,
@@ -380,6 +386,11 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
   const [draftRestored, setDraftRestored] = useState(false);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
+  const [orderDrafts, setOrderDrafts] = useState<Record<string, string[]>>({});
+  const [matchDrafts, setMatchDrafts] = useState<
+    Record<string, { left: string[]; right: string[]; assign: number[] }>
+  >({});
+  const [choiceChecks, setChoiceChecks] = useState<Record<string, number[]>>({});
   const [normalMediaChoice, setNormalMediaChoice] = useState<
     Record<string, "none" | "image" | "audio" | "video">
   >({});
@@ -661,6 +672,7 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
       const shuffled = shuffleQuestionOptionsForBankInsert({
         options: sourceOptions,
         correctIndex: rawBank.correctIndex,
+        correctIndexes: rawBank.correctIndexes,
         answer: rawBank.answer,
       });
       finalBody = rawBank.body;
@@ -1244,6 +1256,9 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
           : options.slice(0, 6),
       matchRight: question.isMatchQuestion ? matchPairs.map((pair) => pair.right) : undefined,
       correctIndex: question.isMatchQuestion || question.isOrderQuestion ? 0 : matched >= 0 ? matched : 0,
+      correctIndexes: question.isMatchQuestion || question.isOrderQuestion
+        ? undefined
+        : findCorrectOptionIndexes(options, question.answer),
       answer: question.isMatchQuestion
         ? formatMatchBankAnswer(matchPairs)
         : question.isOrderQuestion
@@ -1257,7 +1272,7 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
         note: question.hostNote,
         hint: quiz?.title,
       }),
-      isOpenQuestion: question.isMatchQuestion || question.isOrderQuestion ? false : matched < 0,
+      isOpenQuestion: question.isMatchQuestion || question.isOrderQuestion ? false : !hasChoices,
       isOrderQuestion: question.isOrderQuestion === true && question.isMatchQuestion !== true,
       isMatchQuestion: question.isMatchQuestion === true,
       isImageQuestion: Boolean(question.imageUrl?.trim() || question.imageDuringQuestion),
@@ -1349,6 +1364,126 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
     const next = [...(question.options ?? [])];
     next[index] = value;
     updateQuestion(id, { options: next });
+  };
+
+  const editorMode = (question: QuizQuestionItem): "choice" | "open" | "order" | "match" => {
+    if (question.isMatchQuestion) return "match";
+    if (question.isOrderQuestion) return "order";
+    if ((question.options ?? []).some((option) => option.trim()) || choiceChecks[question.id]) return "choice";
+    if (question.answer.trim()) return "open";
+    return "choice";
+  };
+
+  const choiceRows = (question: QuizQuestionItem) => {
+    const rows = [...(question.options ?? [])];
+    while (rows.length < 6) rows.push("");
+    return rows.slice(0, 6);
+  };
+
+  const writeChoice = (question: QuizQuestionItem, options: string[], checks: number[]) => {
+    setChoiceChecks((current) => ({ ...current, [question.id]: checks }));
+    updateQuestion(question.id, {
+      options,
+      answer: formatChoiceAnswer(options, checks),
+      isOrderQuestion: undefined,
+      isMatchQuestion: undefined,
+      matchRight: undefined,
+    });
+  };
+
+  const orderRows = (question: QuizQuestionItem) => {
+    const draft = orderDrafts[question.id];
+    if (draft?.length) return draft;
+    const fromAnswer = orderItemsFromAnswer(question.answer);
+    if (fromAnswer.length >= 2) return fromAnswer;
+    const fromOptions = (question.options ?? []).map((item) => item.trim()).filter(Boolean);
+    return fromOptions.length >= 2 ? fromOptions : ["", "", "", ""];
+  };
+
+  const writeOrder = (question: QuizQuestionItem, items: string[]) => {
+    setOrderDrafts((current) => ({ ...current, [question.id]: items }));
+    const filled = items.map((item) => item.trim()).filter(Boolean);
+    const previous = new Set((question.options ?? []).map((item) => item.trim()).filter(Boolean));
+    const next = new Set(filled);
+    const sameItems = previous.size === next.size && Array.from(next).every((item) => previous.has(item));
+    updateQuestion(question.id, {
+      isOrderQuestion: true,
+      isMatchQuestion: undefined,
+      matchRight: undefined,
+      answer: formatOrderAnswer(filled),
+      options: sameItems ? question.options : shuffleOrderItems(filled),
+    });
+  };
+
+  const matchRows = (question: QuizQuestionItem) => {
+    const draft = matchDrafts[question.id];
+    if (draft) return draft;
+    const pairs = matchPairsFromQuiz(question.options ?? [], question.matchRight ?? [], question.answer);
+    return matchDraftFromColumns(
+      pairs.map((pair) => pair.left),
+      pairs.map((pair) => pair.right)
+    );
+  };
+
+  const writeMatch = (
+    question: QuizQuestionItem,
+    left: string[],
+    right: string[],
+    assign: number[]
+  ) => {
+    setMatchDrafts((current) => ({ ...current, [question.id]: { left, right, assign } }));
+    const checked = validateMatchDraft(left, right, assign);
+    if (checked.pairs.length < 2) {
+      updateQuestion(question.id, {
+        isMatchQuestion: true,
+        isOrderQuestion: undefined,
+        options: left,
+        matchRight: left.map((_, index) => right[assign[index] ?? 0] ?? ""),
+        answer: "",
+      });
+      return;
+    }
+    const mixed = shuffleMatchPairs(
+      checked.pairs.map((pair) => pair.left),
+      checked.pairs.map((pair) => pair.right)
+    );
+    updateQuestion(question.id, {
+      isMatchQuestion: true,
+      isOrderQuestion: undefined,
+      options: mixed.left,
+      matchRight: mixed.right,
+      answer: mixed.answer,
+    });
+  };
+
+  const setEditorMode = (question: QuizQuestionItem, mode: "choice" | "open" | "order" | "match") => {
+    if (mode === "open") {
+      setChoiceChecks((current) => {
+        const next = { ...current };
+        delete next[question.id];
+        return next;
+      });
+      updateQuestion(question.id, {
+        isOrderQuestion: undefined,
+        isMatchQuestion: undefined,
+        matchRight: undefined,
+        options: undefined,
+      });
+      return;
+    }
+    if (mode === "choice") {
+      const options = choiceRows(question);
+      const checks = findCorrectOptionIndexes(options, question.answer);
+      writeChoice(question, options, checks.length ? checks : [0]);
+      return;
+    }
+    if (mode === "order") {
+      const items = orderRows(question);
+      writeOrder(question, items);
+      return;
+    }
+    const draft = matchRows(question);
+    writeMatch(question, draft.left, draft.right, draft.assign);
   };
 
   const roundQuestions = useMemo(() => questionsInRound(questions, openRound), [questions, openRound]);
@@ -1875,6 +2010,88 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
                 }
               />
             </div>
+            {question.kind === "normal" && (
+              <div className="flex flex-wrap gap-2">
+                {(
+                  [
+                    ["choice", "S možnosťami (A–F)"],
+                    ["open", "Bez možností (otvorená)"],
+                    ["order", "Usporiadaj"],
+                    ["match", "Priraď"],
+                  ] as const
+                ).map(([mode, label]) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => setEditorMode(question, mode)}
+                    className={`text-sm font-semibold px-3 py-1.5 rounded-xl border transition-colors ${
+                      editorMode(question) === mode
+                        ? "bg-brand-orange text-brand-btn-fg border-brand-orange"
+                        : "border-brand-border text-brand-muted hover:border-brand-orange"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
+            {question.kind === "normal" && editorMode(question) === "order" ? (
+              <div>
+                <label className="label">Položky v správnom poradí</label>
+                <OrderItemFields items={orderRows(question)} onChange={(items) => writeOrder(question, items)} />
+              </div>
+            ) : null}
+            {question.kind === "normal" && editorMode(question) === "match" ? (
+              <div>
+                <label className="label">Priradenie</label>
+                <MatchPairFields
+                  left={matchRows(question).left}
+                  right={matchRows(question).right}
+                  assign={matchRows(question).assign}
+                  onChange={(left, right, assign) => writeMatch(question, left, right, assign)}
+                />
+              </div>
+            ) : null}
+            {question.kind === "normal" && editorMode(question) === "choice" ? (
+              <div>
+                <label className="label">Možnosti A–F</label>
+                <div className="space-y-2">
+                  {choiceRows(question).map((option, optionIndex) => {
+                    const checks = choiceChecks[question.id] ?? findCorrectOptionIndexes(choiceRows(question), question.answer);
+                    return (
+                      <div key={optionIndex} className="flex items-center gap-2">
+                        <label className="flex items-center gap-2 shrink-0 w-16 cursor-pointer text-sm">
+                          <input
+                            type="checkbox"
+                            checked={checks.includes(optionIndex)}
+                            onChange={() => {
+                              const next = checks.includes(optionIndex)
+                                ? checks.filter((index) => index !== optionIndex)
+                                : [...checks, optionIndex];
+                              writeChoice(question, choiceRows(question), next);
+                            }}
+                            className="rounded border-brand-border"
+                          />
+                          <span className="font-mono font-semibold text-brand-muted">{optionLetter(optionIndex)})</span>
+                        </label>
+                        <input
+                          className="input text-sm py-2 flex-1"
+                          value={option}
+                          placeholder={optionIndex < 2 ? "Povinné" : "Voliteľné"}
+                          onChange={(event) => {
+                            const options = choiceRows(question);
+                            options[optionIndex] = event.target.value;
+                            writeChoice(question, options, checks);
+                          }}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+                <p className="text-brand-muted text-xs mt-1.5">Zaškrtni všetky správne možnosti. Povinné sú A a B, C–F sú voliteľné.</p>
+              </div>
+            ) : null}
+            {(question.kind !== "normal" || editorMode(question) === "open") && (
             <div>
               <label className="label">
                 {question.isMatchQuestion ? "Správne priradenie" : question.isOrderQuestion ? "Správne poradie" : "Správna odpoveď"}
@@ -1901,6 +2118,7 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
                 />
               )}
             </div>
+            )}
             {(question.kind === "sound" || question.kind === "video" || question.kind === "music") && (
               <div>
                 <label className="label">Popis ukážky (pre teba / banku)</label>
@@ -1934,7 +2152,7 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
                 )}
               </div>
             )}
-            {(question.kind === "normal" || question.kind === "video") && question.isMatchQuestion ? (
+            {question.kind === "video" && question.isMatchQuestion ? (
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <div className="flex items-center justify-between gap-2">
@@ -2167,7 +2385,7 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
                 </div>
               </div>
             ) : null}
-            {(question.kind === "normal" || question.kind === "video") && !question.isMatchQuestion && (
+            {question.kind === "video" && !question.isMatchQuestion && (
               <div className="space-y-2">
                 <div className="flex items-center justify-between gap-2">
                   <label className="label mb-0">

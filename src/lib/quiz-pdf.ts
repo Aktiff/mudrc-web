@@ -1,7 +1,7 @@
 import { resolveMediaSrc } from "@/lib/media-url";
 import { isQuestionSlotEmpty, type QuizQuestionItem } from "@/lib/quiz-library";
 import {
-  findCorrectOptionIndex,
+  findCorrectOptionIndexes,
   getQuestionBodyText,
   matchPairsFromQuiz,
   optionLetter,
@@ -118,9 +118,9 @@ function choiceLines(question: QuizQuestionItem): string[] {
   const stored = (question.options ?? []).map((option) => option.trim()).filter(Boolean);
   const choices = stored.length ? stored : parseEmbeddedOptions(question.body).options;
   if (!choices.length || question.isOrderQuestion || question.isMatchQuestion) return [];
-  const correct = findCorrectOptionIndex(choices, question.answer);
+  const correct = new Set(findCorrectOptionIndexes(choices, question.answer));
   return choices.map((choice, index) => {
-    const mark = index === correct ? "  ← správne" : "";
+    const mark = correct.has(index) ? "  ← správne" : "";
     return `${optionLetter(index)}) ${choice}${mark}`;
   });
 }

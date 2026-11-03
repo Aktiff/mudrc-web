@@ -11,6 +11,7 @@ import type { CustomBankQuestion } from "@/lib/quiz-custom-bank";
 import { updateCustomBankQuestionAsync } from "@/lib/quiz-custom-bank";
 import { formatTagsInput, parseTagsInput } from "@/lib/quiz-question-tags";
 import {
+  findCorrectOptionIndexes,
   formatMatchBankAnswer,
   formatOrderAnswer,
   matchDraftFromColumns,
@@ -51,6 +52,7 @@ export default function EditCustomBankQuestionDialog({ question, onClose, onSave
   const [matchAssign, setMatchAssign] = useState([0, 1]);
   const [openAnswer, setOpenAnswer] = useState("");
   const [correctIndex, setCorrectIndex] = useState(0);
+  const [correctIndexes, setCorrectIndexes] = useState<number[]>([0]);
   const [note, setNote] = useState("");
   const [tagsText, setTagsText] = useState("");
   const [theme, setTheme] = useState("");
@@ -76,6 +78,7 @@ export default function EditCustomBankQuestionDialog({ question, onClose, onSave
     matchAssign,
     openAnswer,
     correctIndex,
+    correctIndexes,
     note,
     tagsText,
     theme,
@@ -93,6 +96,7 @@ export default function EditCustomBankQuestionDialog({ question, onClose, onSave
     matchAssign,
     openAnswer,
     correctIndex,
+    correctIndexes,
     note,
     tagsText,
     theme,
@@ -112,6 +116,7 @@ export default function EditCustomBankQuestionDialog({ question, onClose, onSave
       matchAssign,
       openAnswer,
       correctIndex,
+      correctIndexes,
       note,
       tagsText,
       theme,
@@ -147,7 +152,13 @@ export default function EditCustomBankQuestionDialog({ question, onClose, onSave
     setMatchRight(nextMatch.right);
     setMatchAssign(nextMatch.assign);
     setOpenAnswer(nextAnswer);
-    setCorrectIndex(question.correctIndex);
+    const nextIndexes = question.correctIndexes?.length
+      ? question.correctIndexes
+      : findCorrectOptionIndexes(nextOptions, question.answer).length
+        ? findCorrectOptionIndexes(nextOptions, question.answer)
+        : [question.correctIndex];
+    setCorrectIndex(nextIndexes[0] ?? question.correctIndex);
+    setCorrectIndexes(nextIndexes);
     setNote(nextNote);
     setTagsText(nextTags);
     setTheme(nextTheme);
@@ -164,7 +175,8 @@ export default function EditCustomBankQuestionDialog({ question, onClose, onSave
       matchRight: nextMatch.right,
       matchAssign: nextMatch.assign,
       openAnswer: nextAnswer,
-      correctIndex: question.correctIndex,
+      correctIndex: nextIndexes[0] ?? question.correctIndex,
+      correctIndexes: nextIndexes,
       note: nextNote,
       tagsText: nextTags,
       theme: nextTheme,
@@ -182,7 +194,7 @@ export default function EditCustomBankQuestionDialog({ question, onClose, onSave
       void saveRef.current(false);
     }, 400);
     return () => window.clearTimeout(timer);
-  }, [question, questionMode, body, options, orderItems, matchLeft, matchRight, matchAssign, openAnswer, correctIndex, note, tagsText, theme, difficulty, isImageQuestion, suggestedImageUrl]);
+  }, [question, questionMode, body, options, orderItems, matchLeft, matchRight, matchAssign, openAnswer, correctIndex, correctIndexes, note, tagsText, theme, difficulty, isImageQuestion, suggestedImageUrl]);
 
   useEffect(() => {
     void fetchBankThemes().then(setThemes);
@@ -230,8 +242,8 @@ export default function EditCustomBankQuestionDialog({ question, onClose, onSave
           if (closeAfter) setError("Možnosti A a B sú povinné.");
           return;
         }
-        if (!filledOptions[form.correctIndex]) {
-          if (closeAfter) setError("Správna možnosť musí mať text.");
+        if (!form.correctIndexes.some((index) => filledOptions[index])) {
+          if (closeAfter) setError("Zaškrtni aspoň jednu vyplnenú správnu možnosť.");
           return;
         }
       }
@@ -297,7 +309,8 @@ export default function EditCustomBankQuestionDialog({ question, onClose, onSave
                 : {
                     body: trimmedBody,
                     options: form.options.map((option) => option.trim()),
-                    correctIndex: form.correctIndex,
+                    correctIndex: form.correctIndexes.find((index) => form.options[index]?.trim()) ?? form.correctIndex,
+                    correctIndexes: form.correctIndexes.filter((index) => form.options[index]?.trim()),
                     note: form.note.trim() || undefined,
                     tags: parseTagsInput(form.tagsText),
                     theme: form.theme,
@@ -423,9 +436,15 @@ export default function EditCustomBankQuestionDialog({ question, onClose, onSave
               <div key={letter} className="flex items-center gap-2">
                 <label className="flex items-center gap-1 shrink-0 w-20 cursor-pointer text-sm">
                   <input
-                    type="radio"
-                    checked={correctIndex === index}
-                    onChange={() => setCorrectIndex(index)}
+                    type="checkbox"
+                    checked={correctIndexes.includes(index)}
+                    onChange={() => {
+                      const next = correctIndexes.includes(index)
+                        ? correctIndexes.filter((item) => item !== index)
+                        : [...correctIndexes, index];
+                      setCorrectIndexes(next);
+                      setCorrectIndex(next[0] ?? 0);
+                    }}
                   />
                   <span className="font-mono text-brand-muted">{letter})</span>
                 </label>

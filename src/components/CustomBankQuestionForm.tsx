@@ -35,7 +35,7 @@ export default function CustomBankQuestionForm({ onAdded }: Props) {
   const [matchRight, setMatchRight] = useState(EMPTY_MATCH_RIGHT);
   const [matchAssign, setMatchAssign] = useState(EMPTY_MATCH_ASSIGN);
   const [openAnswer, setOpenAnswer] = useState("");
-  const [correctIndex, setCorrectIndex] = useState(0);
+  const [correctIndexes, setCorrectIndexes] = useState<number[]>([0]);
   const [note, setNote] = useState("");
   const [tagsText, setTagsText] = useState("");
   const [theme, setTheme] = useState<string>(DEFAULT_BANK_THEME);
@@ -55,7 +55,7 @@ export default function CustomBankQuestionForm({ onAdded }: Props) {
     setMatchRight([...EMPTY_MATCH_RIGHT]);
     setMatchAssign([...EMPTY_MATCH_ASSIGN]);
     setOpenAnswer("");
-    setCorrectIndex(0);
+    setCorrectIndexes([0]);
     setNote("");
     setTagsText("");
     setTheme(DEFAULT_BANK_THEME);
@@ -106,8 +106,8 @@ export default function CustomBankQuestionForm({ onAdded }: Props) {
         setError("Možnosti A a B sú povinné.");
         return;
       }
-      if (!filledOptions[correctIndex]) {
-        setError("Správna odpoveď musí mať vyplnený text v zvolenej možnosti.");
+      if (!correctIndexes.some((index) => filledOptions[index])) {
+        setError("Zaškrtni aspoň jednu vyplnenú správnu možnosť.");
         return;
       }
     }
@@ -167,7 +167,8 @@ export default function CustomBankQuestionForm({ onAdded }: Props) {
         created = await addCustomBankQuestionAsync({
           body: trimmedBody,
           options: filledOptions,
-          correctIndex,
+          correctIndex: correctIndexes.find((index) => filledOptions[index]) ?? 0,
+          correctIndexes: correctIndexes.filter((index) => filledOptions[index]),
           note: note.trim() || undefined,
           tags: parseTagsInput(tagsText),
           theme,
@@ -296,11 +297,14 @@ export default function CustomBankQuestionForm({ onAdded }: Props) {
                   <div key={letter} className="flex items-center gap-2">
                     <label className="flex items-center gap-2 shrink-0 w-24 cursor-pointer text-sm">
                       <input
-                        type="radio"
-                        name="custom-bank-correct"
-                        checked={correctIndex === index}
-                        onChange={() => setCorrectIndex(index)}
-                        className="rounded-full border-brand-border"
+                        type="checkbox"
+                        checked={correctIndexes.includes(index)}
+                        onChange={() =>
+                          setCorrectIndexes((current) =>
+                            current.includes(index) ? current.filter((item) => item !== index) : [...current, index]
+                          )
+                        }
+                        className="rounded border-brand-border"
                       />
                       <span className="font-mono font-semibold text-brand-muted">{letter})</span>
                     </label>
@@ -320,7 +324,7 @@ export default function CustomBankQuestionForm({ onAdded }: Props) {
                 ))}
               </div>
               <p className="text-brand-muted text-xs mt-1.5">
-                Povinné sú A a B, C–F voliteľné. Označ kolieskom správnu možnosť.
+                Povinné sú A a B, C–F voliteľné. Zaškrtni všetky správne možnosti.
               </p>
             </div>
           ) : (

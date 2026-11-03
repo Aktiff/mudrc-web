@@ -4,6 +4,8 @@ export type QuizBankQuestion = {
   answer: string;
   options: string[];
   correctIndex: number;
+  /** Všetky správne možnosti. Prázdne znamená len correctIndex. */
+  correctIndexes?: number[];
   /** Obtiažnosť 1–10 pre tím cca 5 hráčov */
   difficulty: number;
   /** Overená poznámka / prečo je to tak */
@@ -60,12 +62,14 @@ export function formatBankQuestionBody(item: QuizBankQuestion): string {
 
 export function formatBankQuestionClipboard(item: QuizBankQuestion): string {
   const letters = ["A", "B", "C", "D", "E", "F"] as const;
-  const correctLetter = letters[item.correctIndex];
+  const correctLetters = (item.correctIndexes?.length ? item.correctIndexes : [item.correctIndex])
+    .filter((index) => item.options[index]?.trim())
+    .map((index) => `${letters[index] ?? index + 1}) ${item.options[index]?.trim() ?? ""}`);
   const answerLine = item.isMatchQuestion
     ? `Správne priradenie:\n${item.answer}`
     : item.isOrderQuestion
       ? `Správne poradie:\n${item.answer}`
-      : `Správna odpoveď: ${correctLetter}) ${item.answer}`;
+      : `Správna odpoveď: ${correctLetters.join(", ") || item.answer}`;
   return [
     formatBankQuestionBody(item),
     "",

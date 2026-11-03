@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { ChevronDown, X } from "lucide-react";
 import { isQuestionSlotEmpty, type QuizQuestionItem } from "@/lib/quiz-library";
-import { findCorrectOptionIndex, optionLetter, parseEmbeddedOptions } from "@/lib/quiz-question-options";
+import { findCorrectOptionIndexes, optionLetter, parseEmbeddedOptions } from "@/lib/quiz-question-options";
 import { displayQuestionNumber, sortQuizQuestions } from "@/lib/quiz-template";
 
 function choicesOf(question: QuizQuestionItem): string[] {
@@ -17,8 +17,13 @@ function answerLine(question: QuizQuestionItem): { letter: string; text: string 
   if (question.isOrderQuestion || question.isMatchQuestion) return { letter: "", text: answer || "bez odpovede" };
   const choices = choicesOf(question);
   if (choices.length && answer) {
-    const index = findCorrectOptionIndex(choices, answer);
-    if (index >= 0) return { letter: optionLetter(index), text: choices[index] ?? answer };
+    const indexes = findCorrectOptionIndexes(choices, answer);
+    if (indexes.length) {
+      return {
+        letter: indexes.map((index) => optionLetter(index)).join(", "),
+        text: indexes.map((index) => choices[index] ?? "").filter(Boolean).join("\n"),
+      };
+    }
   }
   if (question.kind === "music" && question.musicArtist?.trim() && question.musicTitle?.trim()) {
     return { letter: "", text: `${question.musicArtist.trim()} — ${question.musicTitle.trim()}` };
@@ -109,7 +114,7 @@ export default function QuizAnswerKey({
                               {displayQuestionNumber(question)}
                             </span>
                             {line.letter ? (
-                              <span className="w-4 shrink-0 font-bold text-brand-orange-readable">{line.letter}</span>
+                              <span className="shrink-0 font-bold text-brand-orange-readable">{line.letter}</span>
                             ) : null}
                             <span className={`whitespace-pre-line ${line.text === "bez odpovede" ? "text-brand-muted" : "text-brand-text"}`}>
                               {line.text}

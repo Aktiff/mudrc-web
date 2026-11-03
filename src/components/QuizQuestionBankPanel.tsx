@@ -1107,7 +1107,7 @@ export default function QuizQuestionBankPanel({
                     <li
                       key={optionIndex}
                       className={`text-xs px-2 py-1.5 rounded-md border leading-snug break-words ${
-                        optionIndex === item.correctIndex
+                        (item.correctIndexes?.length ? item.correctIndexes : [item.correctIndex]).includes(optionIndex)
                           ? "border-green-500/50 bg-green-50 text-green-800 dark:bg-green-950/40 dark:text-green-200 font-semibold"
                           : "border-brand-border text-brand-text bg-brand-card"
                       }`}

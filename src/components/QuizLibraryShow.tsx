@@ -33,7 +33,7 @@ import {
   videoQuestionClipSeconds,
   type PresentationSlide,
 } from "@/lib/quiz-presentation";
-import { findCorrectOptionIndex, getQuestionBodyText, getQuestionOptions, matchLetter, optionLetter } from "@/lib/quiz-question-options";
+import { findCorrectOptionIndexes, getQuestionBodyText, getQuestionOptions, matchLetter, optionLetter } from "@/lib/quiz-question-options";
 import {
   findHomeQuizEvent,
   formatNextQuizLine,
@@ -277,14 +277,15 @@ function PresentationImage({
 
 function OptionsGrid({
   options,
-  highlightCorrectIndex = -1,
+  highlightCorrectIndexes = [],
   compact = false,
 }: {
   options: string[];
-  highlightCorrectIndex?: number;
+  highlightCorrectIndexes?: number[];
   compact?: boolean;
 }) {
   if (!options.length) return null;
+  const highlighted = new Set(highlightCorrectIndexes);
 
   return (
     <div
@@ -293,7 +294,7 @@ function OptionsGrid({
       }`}
     >
       {options.map((option, index) => {
-        const isCorrect = index === highlightCorrectIndex;
+        const isCorrect = highlighted.has(index);
 
         return (
           <div
@@ -441,12 +442,10 @@ function QuestionContent({
     phase === "question" ? shouldShowVideoInQuestionPhase(question) : shouldShowVideoInAnswerPhase(question);
   const questionText = fixSlovakLineBreaks(getQuestionBodyText(question) || "Otázka");
   const options = getQuestionOptions(question);
-  const correctOptionIndex =
-    question.isOrderQuestion || question.isMatchQuestion
-      ? -1
-      : phase === "answer"
-        ? findCorrectOptionIndex(options, question.answer)
-        : -1;
+  const correctOptionIndexes =
+    question.isOrderQuestion || question.isMatchQuestion || phase !== "answer"
+      ? []
+      : findCorrectOptionIndexes(options, question.answer);
   const imageHero = showImage && options.length === 0;
   const imageWithOptions = showImage && options.length > 0;
   const imageFocusedLayout = imageHero || imageWithOptions;
@@ -520,12 +519,12 @@ function QuestionContent({
       ) : options.length > 0 ? (
         <OptionsGrid
           options={options}
-          highlightCorrectIndex={correctOptionIndex}
+          highlightCorrectIndexes={correctOptionIndexes}
           compact={imageWithOptions}
         />
       ) : null}
 
-      {phase === "answer" && options.length > 0 && correctOptionIndex < 0 && question.answer.trim() && (
+      {phase === "answer" && options.length > 0 && correctOptionIndexes.length === 0 && question.answer.trim() && (
         <div className={answerBoxClass}>
           <p
             className={`font-sans font-bold tracking-normal break-words normal-case whitespace-pre-line ${

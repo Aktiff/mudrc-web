@@ -107,6 +107,7 @@ function savedQuestionMatches(expected: CustomBankQuestion, actual: CustomBankQu
     expected.answer === actual.answer &&
     sameTextList(expected.options, actual.options) &&
     expected.correctIndex === actual.correctIndex &&
+    (expected.correctIndexes ?? []).join(",") === (actual.correctIndexes ?? []).join(",") &&
     expected.note === actual.note &&
     expected.difficulty === actual.difficulty &&
     expected.isImageQuestion === actual.isImageQuestion &&

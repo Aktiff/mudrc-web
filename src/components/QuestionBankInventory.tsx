@@ -465,7 +465,10 @@ export default function QuestionBankInventory({
                       ? q.answer
                       : q.isOpenQuestion
                         ? `Odpoveď: ${q.answer}`
-                        : `Správne: ${q.options[q.correctIndex] || q.answer}`}
+                        : `Správne: ${(q.correctIndexes?.length ? q.correctIndexes : [q.correctIndex])
+                            .map((index) => q.options[index]?.trim())
+                            .filter(Boolean)
+                            .join(" · ") || q.answer}`}
                   </p>
                   <div className="flex flex-wrap gap-2">
                     {isCustom ? (

@@ -65,9 +65,42 @@ export function optionLetter(index: number): string {
 }
 
 export function findCorrectOptionIndex(options: string[], answer: string): number {
-  const normalizedAnswer = answer.trim().toLowerCase();
-  if (!normalizedAnswer) return -1;
-  return options.findIndex((option) => option.trim().toLowerCase() === normalizedAnswer);
+  const indexes = findCorrectOptionIndexes(options, answer);
+  return indexes[0] ?? -1;
+}
+
+export function choiceAnswerLines(answer: string): string[] {
+  return answer
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+/** Jedna odpoveď sedí na jednu možnosť. Viac riadkov sú viaceré správne možnosti. */
+export function findCorrectOptionIndexes(options: string[], answer: string): number[] {
+  const lines = choiceAnswerLines(answer);
+  if (!lines.length) return [];
+  const used = new Set<number>();
+  const indexes: number[] = [];
+  for (const line of lines) {
+    const key = line.toLocaleLowerCase("sk");
+    const index = options.findIndex(
+      (option, optionIndex) => !used.has(optionIndex) && option.trim().toLocaleLowerCase("sk") === key
+    );
+    if (index >= 0) {
+      used.add(index);
+      indexes.push(index);
+    }
+  }
+  return indexes;
+}
+
+export function formatChoiceAnswer(options: string[], indexes: number[]): string {
+  return Array.from(new Set(indexes))
+    .filter((index) => index >= 0 && Boolean(options[index]?.trim()))
+    .sort((a, b) => a - b)
+    .map((index) => options[index]!.trim())
+    .join("\n");
 }
 
 function hashSeed(input: string): number {
@@ -508,25 +541,26 @@ export function shuffleOrderItems(items: string[]): string[] {
 export function shuffleQuestionOptionsForBankInsert(input: {
   options: string[];
   correctIndex: number;
+  correctIndexes?: number[];
   answer: string;
 }): { options: string[]; answer: string } {
   const padded = [...input.options];
   while (padded.length < 6) padded.push("");
 
   const activeOptions = padded.map((o) => o.trim()).filter(Boolean);
+  const fromAnswer = findCorrectOptionIndexes(padded, input.answer);
+  const sourceIndexes = (input.correctIndexes?.length ? input.correctIndexes : fromAnswer).filter(
+    (index) => padded[index]?.trim()
+  );
+  const answer = formatChoiceAnswer(padded, sourceIndexes.length ? sourceIndexes : [input.correctIndex]) || input.answer.trim();
   if (activeOptions.length < 2) {
-    return { options: activeOptions, answer: input.answer.trim() };
+    return { options: activeOptions, answer };
   }
 
   const activeSourceIndices = padded
     .map((option, index) => (option.trim() ? index : -1))
     .filter((index) => index >= 0);
-  let correctIndex = activeSourceIndices.indexOf(input.correctIndex);
-  if (correctIndex < 0) {
-    correctIndex = activeOptions.findIndex(
-      (o) => o.trim().toLowerCase() === input.answer.trim().toLowerCase()
-    );
-  }
+  let correctIndex = activeSourceIndices.indexOf(sourceIndexes[0] ?? input.correctIndex);
   if (correctIndex < 0) correctIndex = 0;
 
   const six: string[] = [...activeOptions];
@@ -535,11 +569,11 @@ export function shuffleQuestionOptionsForBankInsert(input: {
   const mixed = shuffleQuestionOptionsRandom({
     options: six as string[] & { length: 6 },
     correctIndex,
-    answer: activeOptions[correctIndex] ?? input.answer,
+    answer,
   });
 
   return {
     options: mixed.options.map((o) => o.trim()).filter(Boolean),
-    answer: mixed.answer.trim(),
+    answer,
   };
 }
