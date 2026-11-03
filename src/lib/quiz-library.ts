@@ -1,5 +1,6 @@
 import {
   buildStandardMudrcQuestions,
+  compareQuizQuestions,
   migrateSlidesToQuestions,
   renumberQuizQuestionGroups,
 } from "@/lib/quiz-template";
@@ -410,11 +411,9 @@ export function findFirstEmptyMusicSlot(questions: QuizQuestionItem[]): QuizQues
     .find(isQuestionSlotEmpty);
 }
 
-/** Prvá prázdna otázka v kole (vrátane bývalých hudobných slotov). */
+/** Prvá prázdna otázka v poradí, v akom je na obrazovke. Vo 4. kole idú najprv otázky 1–5, až potom zvuky. */
 export function findFirstEmptyContentSlot(questions: QuizQuestionItem[]): QuizQuestionItem | undefined {
-  return [...questions]
-    .sort((a, b) => a.questionNumber - b.questionNumber)
-    .find(isQuestionSlotEmpty);
+  return [...questions].sort(compareQuizQuestions).find(isQuestionSlotEmpty);
 }
 
 export function findFirstEmptyQuestionSlot(questions: QuizQuestionItem[]): QuizQuestionItem | undefined {
