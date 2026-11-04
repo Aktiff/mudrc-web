@@ -490,7 +490,13 @@ function QuestionContent({
         playUntilSeconds={phase === "question" ? videoQuestionClipSeconds(question) : undefined}
         src={playbackMediaSrc(question.videoUrl)}
         className="w-full max-w-4xl max-h-[min(28vh,360px)] rounded-xl border border-white/10 bg-black touch-auto pointer-events-auto"
+        controlsList="nofullscreen"
+        disablePictureInPicture
         onClick={(e) => e.stopPropagation()}
+        onDoubleClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+        }}
         onContextMenu={(e) => e.stopPropagation()}
       />
       )
@@ -581,6 +587,77 @@ function QuestionContent({
   );
 }
 
+function FullSlideVideo({
+  src,
+  playUntilSeconds,
+  mediaRef,
+}: {
+  src: string;
+  playUntilSeconds?: number;
+  mediaRef?: MutableRefObject<HTMLMediaElement | null>;
+}) {
+  const [node, setNode] = useState<HTMLVideoElement | null>(null);
+  const [paused, setPaused] = useState(true);
+  const [ended, setEnded] = useState(false);
+
+  useEffect(() => {
+    if (!node) return;
+    void node.play().catch(() => {});
+  }, [node]);
+
+  return (
+    <div
+      className="absolute inset-0 z-[1] bg-black"
+      onClick={(e) => {
+        const clipDone =
+          ended ||
+          (playUntilSeconds != null && node != null && node.currentTime >= playUntilSeconds - 0.2);
+        if (!node || clipDone || !node.paused) return;
+        e.stopPropagation();
+        void node.play().catch(() => {});
+      }}
+    >
+      <VolumeVideo
+        ref={(el) => {
+          setNode(el);
+          if (mediaRef) mediaRef.current = el;
+        }}
+        boost
+        captureWheel={false}
+        autoPlay
+        playsInline
+        preload="auto"
+        playUntilSeconds={playUntilSeconds}
+        src={src}
+        controlsList="nofullscreen"
+        disablePictureInPicture
+        className="absolute inset-0 h-full w-full object-contain bg-black pointer-events-none"
+        onPlay={() => {
+          setPaused(false);
+          setEnded(false);
+        }}
+        onPause={() => {
+          setPaused(true);
+          if (playUntilSeconds != null && node && node.currentTime >= playUntilSeconds - 0.2) setEnded(true);
+        }}
+        onEnded={() => {
+          setEnded(true);
+          setPaused(true);
+        }}
+        onDoubleClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+        }}
+      />
+      {paused && !ended ? (
+        <p className="pointer-events-none absolute left-1/2 top-1/2 z-[2] -translate-x-1/2 -translate-y-1/2 rounded-full bg-black/70 border border-white/30 px-8 py-4 text-xl font-semibold text-white">
+          Pustiť ukážku
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 function ImageSlide({
   question,
   media = "image",
@@ -609,19 +686,11 @@ function ImageSlide({
   if (media === "video") {
     if (!question.videoUrl?.trim()) return null;
     return (
-      <div className="w-full h-full max-h-full min-h-0 flex-1 flex items-center justify-center overflow-hidden px-2 py-2">
-        <VolumeVideo
-          boost
-          captureWheel={false}
-          controls
-          playsInline
-          playUntilSeconds={playUntilSeconds}
-          src={playbackMediaSrc(question.videoUrl)}
-          className="w-full h-full max-h-full max-w-full object-contain bg-black touch-auto pointer-events-auto"
-          onClick={(e) => e.stopPropagation()}
-          onContextMenu={(e) => e.stopPropagation()}
-        />
-      </div>
+      <FullSlideVideo
+        src={playbackMediaSrc(question.videoUrl) ?? ""}
+        playUntilSeconds={playUntilSeconds}
+        mediaRef={presentationAudioRef}
+      />
     );
   }
   if (!question.imageUrl?.trim()) return null;
@@ -746,9 +815,20 @@ function PresentationView({
       </div>
     );
   }
+  if (slide.type === "image_slide" && slide.media === "video" && !slide.audioOnly) {
+    return (
+      <ImageSlide
+        question={slide.question}
+        media={slide.media}
+        playUntilSeconds={slide.playUntilSeconds}
+        audioOnly={slide.audioOnly}
+        presentationAudioRef={presentationAudioRef}
+      />
+    );
+  }
   if (slide.type === "image_slide") {
     return (
-      <div className="w-full max-h-full min-h-0 flex flex-col items-center justify-center overflow-hidden">
+      <div className="w-full h-full max-h-full min-h-0 flex flex-col items-center justify-center overflow-hidden">
         <ImageSlide
           question={slide.question}
           media={slide.media}
@@ -1246,8 +1326,7 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
     slide?.type === "image_slide"
       ? slide.question
       : null;
-  const showQuestionBadge =
-    slide?.type === "question_phase" || slide?.type === "image_slide" || slide?.type === "answer_phase";
+  const showQuestionBadge = slide?.type === "question_phase" || slide?.type === "answer_phase";
 
   const stageStyle = presentationStageBoxStyle(aspectMode);
   const slideKey = `${index}-${slide?.type ?? "none"}`;
@@ -1350,7 +1429,17 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
         onMiddleClick={handleStageAuxClick}
         onViewChange={onSlideView}
       >
-        {slide?.type !== "rules" && (
+        {slide?.type === "image_slide" && slide.media === "video" && !slide.audioOnly ? (
+          <PresentationView
+            slide={slide}
+            eventRules={eventRules}
+            specialRules={specialRules}
+            venueName={venueName}
+            nextQuizLines={nextQuizLines}
+            presentationAudioRef={presentationAudioRef}
+          />
+        ) : null}
+        {slide?.type !== "rules" && !(slide?.type === "image_slide" && slide.media === "video" && !slide.audioOnly) && (
           <PresentationStageAutoFit enabled={questionAutoFit} slideKey={slideKey} className={SLIDE_SAFE_AREA_CLASS}>
             {slide && (
               <div className="w-full h-full min-h-0 max-h-full flex flex-col items-center justify-center overflow-hidden">
