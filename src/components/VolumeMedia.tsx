@@ -5,37 +5,49 @@ import { createPortal } from "react-dom";
 import {
   MEDIA_VOLUME_EVENT,
   attachVolumeWheel,
+  getBoostVolume,
   getMediaVolume,
+  setBoostPlaybackReady,
+  setBoostVolume,
   setMediaVolume,
+  subscribeBoostVolume,
   subscribeMediaVolume,
 } from "@/lib/media-volume";
 import { attachPresentationEdgeFade, restorePresentationAudio } from "@/lib/presentation-audio-fade";
+import {
+  applyElementVolume,
+  hasVolumeGraph,
+  isApplyingElementVolume,
+  resolveBoostSrc,
+} from "@/lib/presentation-volume-boost";
 
 function assignRef<T>(ref: ForwardedRef<T>, value: T | null) {
   if (typeof ref === "function") ref(value);
   else if (ref) ref.current = value;
 }
 
-function useAppliedVolume(node: HTMLMediaElement | null, edgeFade: boolean) {
+function useAppliedVolume(node: HTMLMediaElement | null, edgeFade: boolean, boost: boolean, mediaSrc: string | undefined) {
   useEffect(() => {
     if (!node || edgeFade) return;
-    const apply = () => {
-      const next = getMediaVolume();
-      if (Math.abs(node.volume - next) > 0.001) node.volume = next;
-    };
+    const level = () => (boost ? getBoostVolume() : getMediaVolume());
+    const apply = () => applyElementVolume(node, level());
     apply();
-    const unsubscribe = subscribeMediaVolume(apply);
+    const unsubscribe = (boost ? subscribeBoostVolume : subscribeMediaVolume)(apply);
     const onVolume = () => {
-      if (Math.abs(node.volume - getMediaVolume()) > 0.001) {
-        setMediaVolume(node.volume, { user: true });
+      if (isApplyingElementVolume() || hasVolumeGraph(node)) return;
+      const next = node.volume;
+      if (boost) {
+        if (Math.abs(next - getBoostVolume()) > 0.001) setBoostVolume(next, { user: true });
+        return;
       }
+      if (Math.abs(next - getMediaVolume()) > 0.001) setMediaVolume(next, { user: true });
     };
     node.addEventListener("volumechange", onVolume);
     return () => {
       unsubscribe();
       node.removeEventListener("volumechange", onVolume);
     };
-  }, [node, edgeFade]);
+  }, [node, edgeFade, boost, mediaSrc]);
 }
 
 function useWheelTarget(node: HTMLElement | null, enabled: boolean) {
@@ -55,15 +67,48 @@ function VolumeCaption() {
   return <p className="text-[11px] text-brand-muted mt-1">Hlasitosť {pct} % · koliesko hore pridá, dole uberá</p>;
 }
 
-function useEdgeFade(node: HTMLAudioElement | null, enabled: boolean) {
+function useEdgeFade(node: HTMLAudioElement | null, enabled: boolean, boost: boolean, mediaSrc: string | undefined) {
   useEffect(() => {
     if (!node) return;
+    const level = () => (boost ? getBoostVolume() : getMediaVolume());
+    const subscribe = boost ? subscribeBoostVolume : subscribeMediaVolume;
     if (!enabled) {
-      restorePresentationAudio(node);
+      restorePresentationAudio(node, level());
       return;
     }
-    return attachPresentationEdgeFade(node);
-  }, [enabled, node]);
+    return attachPresentationEdgeFade(node, level, subscribe);
+  }, [enabled, node, boost, mediaSrc]);
+}
+
+function useBoostPlayback(src: string | undefined, boost: boolean) {
+  const [state, setState] = useState<{ src?: string; crossOrigin?: "anonymous" }>({
+    src: boost ? undefined : src,
+  });
+
+  useEffect(() => {
+    if (!boost) {
+      setState({ src });
+      return;
+    }
+    if (!src) {
+      setState({});
+      setBoostPlaybackReady(false);
+      return;
+    }
+    let cancel = false;
+    setState({ src: undefined });
+    void resolveBoostSrc(src).then((next) => {
+      if (cancel) return;
+      setBoostPlaybackReady(next.boostReady);
+      setState({ src: next.src, crossOrigin: next.crossOrigin });
+    });
+    return () => {
+      cancel = true;
+      if (boost) setBoostPlaybackReady(false);
+    };
+  }, [src, boost]);
+
+  return state;
 }
 
 type Extra = {
@@ -73,6 +118,8 @@ type Extra = {
   edgeFade?: boolean;
   /** Zastaví prehrávanie na tejto sekunde. Prázdne = celé video. */
   playUntilSeconds?: number;
+  /** Prezentácia: video a hudobná ukážka môžu ísť až na 300 %. */
+  boost?: boolean;
 };
 
 function usePlayUntil(node: HTMLMediaElement | null, seconds: number | undefined) {
@@ -118,18 +165,21 @@ function VolumeShell({
 }
 
 export const VolumeAudio = forwardRef<HTMLAudioElement, ComponentProps<"audio"> & Extra>(function VolumeAudio(
-  { hint = false, captureWheel = true, edgeFade = false, playUntilSeconds, ...props },
+  { hint = false, captureWheel = true, edgeFade = false, playUntilSeconds, boost = false, src, ...props },
   forwarded
 ) {
   const [node, setNode] = useState<HTMLAudioElement | null>(null);
   const [box, setBox] = useState<HTMLDivElement | null>(null);
-  useAppliedVolume(node, edgeFade);
-  useEdgeFade(node, edgeFade);
+  const playback = useBoostPlayback(typeof src === "string" ? src : undefined, boost);
+  useAppliedVolume(node, edgeFade, boost, playback.src);
+  useEdgeFade(node, edgeFade, boost, playback.src);
   usePlayUntil(node, playUntilSeconds);
   return (
     <VolumeShell hint={hint} captureWheel={captureWheel} box={box} setBox={setBox}>
       <audio
         {...props}
+        crossOrigin={playback.crossOrigin}
+        src={playback.src}
         ref={(el) => {
           setNode(el);
           assignRef(forwarded, el);
@@ -140,17 +190,20 @@ export const VolumeAudio = forwardRef<HTMLAudioElement, ComponentProps<"audio"> 
 });
 
 export const VolumeVideo = forwardRef<HTMLVideoElement, ComponentProps<"video"> & Extra>(function VolumeVideo(
-  { hint = false, captureWheel = true, playUntilSeconds, ...props },
+  { hint = false, captureWheel = true, playUntilSeconds, boost = false, src, ...props },
   forwarded
 ) {
   const [node, setNode] = useState<HTMLVideoElement | null>(null);
   const [box, setBox] = useState<HTMLDivElement | null>(null);
-  useAppliedVolume(node, false);
+  const playback = useBoostPlayback(typeof src === "string" ? src : undefined, boost);
+  useAppliedVolume(node, false, boost, playback.src);
   usePlayUntil(node, playUntilSeconds);
   return (
     <VolumeShell hint={hint} captureWheel={captureWheel} box={box} setBox={setBox}>
       <video
         {...props}
+        crossOrigin={playback.crossOrigin}
+        src={playback.src}
         ref={(el) => {
           setNode(el);
           assignRef(forwarded, el);

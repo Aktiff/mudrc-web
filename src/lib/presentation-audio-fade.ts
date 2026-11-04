@@ -1,6 +1,7 @@
-import { getMediaVolume, subscribeMediaVolume } from "@/lib/media-volume";
+import { getMediaVolume } from "@/lib/media-volume";
+import { applyElementVolume } from "@/lib/presentation-volume-boost";
 
-/** Nabeh a dobeh. Web Audio sa nepoužíva — po ňom vie prehrávač ostať ticho. */
+/** Nabeh a dobeh násobí hlasitosť. Nad 100 % zosilní prehrávač a graf ostane pripojený. */
 const FADE_SECONDS = 1;
 
 function fadeGain(audio: HTMLAudioElement): number {
@@ -15,17 +16,20 @@ function fadeGain(audio: HTMLAudioElement): number {
   return gain;
 }
 
-export function restorePresentationAudio(audio: HTMLAudioElement) {
-  audio.volume = getMediaVolume();
+export function restorePresentationAudio(audio: HTMLAudioElement, level = getMediaVolume()) {
+  applyElementVolume(audio, level, 1);
 }
 
-export function attachPresentationEdgeFade(audio: HTMLAudioElement): () => void {
+export function attachPresentationEdgeFade(
+  audio: HTMLAudioElement,
+  level: () => number = getMediaVolume,
+  subscribe: (listener: () => void) => () => void = () => () => undefined
+): () => void {
   let frame = 0;
   let running = false;
 
   const apply = () => {
-    const next = getMediaVolume() * fadeGain(audio);
-    if (Math.abs(audio.volume - next) > 0.004) audio.volume = next;
+    applyElementVolume(audio, level(), fadeGain(audio));
   };
 
   const tick = () => {
@@ -50,7 +54,7 @@ export function attachPresentationEdgeFade(audio: HTMLAudioElement): () => void 
   audio.addEventListener("pause", stop);
   audio.addEventListener("ended", stop);
   audio.addEventListener("emptied", stop);
-  const unsubscribe = subscribeMediaVolume(apply);
+  const unsubscribe = subscribe(apply);
 
   apply();
   if (!audio.paused) start();
@@ -63,6 +67,6 @@ export function attachPresentationEdgeFade(audio: HTMLAudioElement): () => void 
     audio.removeEventListener("pause", stop);
     audio.removeEventListener("ended", stop);
     audio.removeEventListener("emptied", stop);
-    restorePresentationAudio(audio);
+    restorePresentationAudio(audio, level());
   };
 }

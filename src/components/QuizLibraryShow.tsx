@@ -15,6 +15,7 @@ import {
 import { Maximize2 } from "lucide-react";
 import { formatEventDateLabel, quizIntervalDays, type QuizEvent } from "@/lib/data";
 import { playbackMediaSrc } from "@/lib/media-url";
+import { isMusicBankId } from "@/lib/music-bank";
 import { attachVolumeWheel } from "@/lib/media-volume";
 import { displayQuestionNumber } from "@/lib/quiz-template";
 import { VolumeAudio, VolumeVideo } from "@/components/VolumeMedia";
@@ -399,6 +400,7 @@ function SoundOnlyVideo({
           setNode(el);
           if (mediaRef) mediaRef.current = el;
         }}
+        boost
         captureWheel={false}
         playsInline
         preload="auto"
@@ -459,6 +461,7 @@ function QuestionContent({
         ref={(el) => {
           if (presentationAudioRef) presentationAudioRef.current = el;
         }}
+        boost={question.kind === "music" || isMusicBankId(question.bankQuestionId ?? "")}
         captureWheel={false}
         edgeFade={question.kind === "music" || question.audioEdgeFade === true}
         controls
@@ -480,6 +483,7 @@ function QuestionContent({
         />
       ) : (
       <VolumeVideo
+        boost
         captureWheel={false}
         controls
         playsInline
@@ -607,6 +611,7 @@ function ImageSlide({
     return (
       <div className="w-full h-full max-h-full min-h-0 flex-1 flex items-center justify-center overflow-hidden px-2 py-2">
         <VolumeVideo
+          boost
           captureWheel={false}
           controls
           playsInline
@@ -1331,6 +1336,13 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
           (slide?.type === "image_slide" && slide.media === "video")
             ? "volume"
             : "zoom"
+        }
+        volumeBoost={
+          (slide?.type === "image_slide" && slide.media === "video") ||
+          activeQuestion?.kind === "music" ||
+          activeQuestion?.kind === "video" ||
+          Boolean(activeQuestion?.videoUrl?.trim()) ||
+          isMusicBankId(activeQuestion?.bankQuestionId ?? "")
         }
         className="relative z-[2] flex-1 flex min-h-0 w-full"
         innerClassName="min-h-0"

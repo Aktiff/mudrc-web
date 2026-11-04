@@ -39,6 +39,8 @@ type Props = {
   onMiddleClick?: (e: MouseEvent<HTMLDivElement>) => void;
   /** zoom = textové slidy, volume = otázka s nahrávkou (koliesko nemení veľkosť). */
   wheelMode?: "zoom" | "volume";
+  /** Video a hudobná ukážka: koliesko ide až na 300 %. */
+  volumeBoost?: boolean;
   /** Aktuálny zoom. Pri oddialení ho aplikuje rodič na celý slide, aby sa ukázalo aj to, čo bolo mimo obrazovky. */
   onViewChange?: (view: { scale: number; x: number; y: number }) => void;
 };
@@ -51,12 +53,15 @@ export default function PresentationZoomLayer({
   onBackgroundClick,
   onMiddleClick,
   wheelMode = "zoom",
+  volumeBoost = false,
   onViewChange,
 }: Props) {
   const [transform, setTransform] = useState({ scale: 1, x: 0, y: 0 });
   const viewportRef = useRef<HTMLDivElement>(null);
   const wheelModeRef = useRef(wheelMode);
+  const volumeBoostRef = useRef(volumeBoost);
   wheelModeRef.current = wheelMode;
+  volumeBoostRef.current = volumeBoost;
   const scaleRef = useRef(1);
   const transformRef = useRef(transform);
   const dragRef = useRef<{
@@ -89,7 +94,7 @@ export default function PresentationZoomLayer({
       e.preventDefault();
       e.stopPropagation();
       if (wheelModeRef.current === "volume") {
-        acc = consumeVolumeWheel(acc, e);
+        acc = consumeVolumeWheel(acc, e, volumeBoostRef.current);
         return;
       }
       const { min: MIN_SCALE, max: MAX_SCALE } = manualZoomLimits();
