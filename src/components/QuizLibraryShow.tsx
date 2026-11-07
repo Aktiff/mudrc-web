@@ -15,7 +15,6 @@ import {
 import { Maximize2 } from "lucide-react";
 import { formatEventDateLabel, quizIntervalDays, type QuizEvent } from "@/lib/data";
 import { playbackMediaSrc } from "@/lib/media-url";
-import { isMusicBankId } from "@/lib/music-bank";
 import { attachVolumeWheel } from "@/lib/media-volume";
 import { playHandInGong, prepareHandInGong } from "@/lib/hand-in-gong";
 import { displayQuestionNumber } from "@/lib/quiz-template";
@@ -463,7 +462,7 @@ function QuestionContent({
         ref={(el) => {
           if (presentationAudioRef) presentationAudioRef.current = el;
         }}
-        boost={question.kind === "music" || isMusicBankId(question.bankQuestionId ?? "")}
+        boost
         captureWheel={false}
         edgeFade={question.kind === "music" || question.audioEdgeFade === true}
         controls
@@ -1297,6 +1296,16 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
     slide?.type === "image_slide"
       ? slide.question
       : null;
+  const presentationHasSound = Boolean(
+    ((slide?.type === "question_phase" || slide?.type === "answer_phase") &&
+      activeQuestion &&
+      (activeQuestion.kind === "music" ||
+        activeQuestion.kind === "sound" ||
+        activeQuestion.kind === "video" ||
+        activeQuestion.audioUrl?.trim() ||
+        activeQuestion.videoUrl?.trim())) ||
+      (slide?.type === "image_slide" && slide.media === "video")
+  );
   const showQuestionBadge =
     slide?.type === "question_phase" || slide?.type === "image_slide" || slide?.type === "answer_phase";
 
@@ -1395,24 +1404,11 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
       <PresentationZoomLayer
         slideKey={slideKey}
         wheelMode={
-          (slide?.type === "question_phase" || slide?.type === "answer_phase") &&
-          activeQuestion &&
-          (activeQuestion.kind === "music" ||
-            activeQuestion.kind === "sound" ||
-            activeQuestion.kind === "video" ||
-            Boolean(activeQuestion.audioUrl?.trim()) ||
-            Boolean(activeQuestion.videoUrl?.trim())) ||
-          (slide?.type === "image_slide" && slide.media === "video")
+          presentationHasSound
             ? "volume"
             : "zoom"
         }
-        volumeBoost={
-          (slide?.type === "image_slide" && slide.media === "video") ||
-          activeQuestion?.kind === "music" ||
-          activeQuestion?.kind === "video" ||
-          Boolean(activeQuestion?.videoUrl?.trim()) ||
-          isMusicBankId(activeQuestion?.bankQuestionId ?? "")
-        }
+        volumeBoost={presentationHasSound}
         className="relative z-[2] flex-1 flex min-h-0 w-full"
         innerClassName="min-h-0"
         onBackgroundClick={handleStageClick}

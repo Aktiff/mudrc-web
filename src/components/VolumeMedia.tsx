@@ -118,7 +118,7 @@ type Extra = {
   edgeFade?: boolean;
   /** Zastaví prehrávanie na tejto sekunde. Prázdne = celé video. */
   playUntilSeconds?: number;
-  /** Prezentácia: video a hudobná ukážka môžu ísť až na 300 %. */
+  /** Prezentácia: video a ukážky so zvukom môžu ísť až na 300 %. */
   boost?: boolean;
 };
 

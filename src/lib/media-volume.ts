@@ -1,5 +1,5 @@
 export const DEFAULT_MEDIA_VOLUME = 0.7;
-/** Video a hudobné ukážky v prezentácii môžu ísť nad 100 %, lebo sú tichšie. */
+/** Video a všetky ukážky so zvukom v prezentácii môžu ísť nad 100 %. */
 export const MEDIA_BOOST_MAX = 3;
 
 const STORAGE_KEY = "mudrc-media-volume";
