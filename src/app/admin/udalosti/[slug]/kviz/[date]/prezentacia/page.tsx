@@ -3,19 +3,23 @@ import { useState, useEffect, useLayoutEffect, useRef, useMemo, type CSSProperti
 import Link from "next/link";
 import type { LeagueEntry, PastResultTeam } from "@/lib/data";
 import { collapseLeagueTable, leagueMergeGroups, type LeagueMergeGroup } from "@/lib/team-links";
+import PresentationZoomLayer from "@/components/PresentationZoomLayer";
 
 type TeamDisplay = PastResultTeam & { totalWithBonus: number; rowId: number };
 type ScoreGroup = { teams: TeamDisplay[]; baseTotal: number; startRank: number };
 
-function fontsForRowHeight(rowH: number) {
+function fontsForRowHeight(rowH: number, boost = 1) {
+  const nameRatio = boost > 1 ? 0.5 : 0.31;
+  const scoreRatio = boost > 1 ? 0.54 : 0.34;
+  const rankRatio = boost > 1 ? 0.34 : 0.21;
   return {
-    namePx: Math.min(38, Math.max(10, rowH * 0.31)),
-    scorePx: Math.min(42, Math.max(11, rowH * 0.34)),
-    rankPx: Math.min(26, Math.max(9, rowH * 0.21)),
+    namePx: Math.min(38 * boost, Math.max(10, rowH * nameRatio)),
+    scorePx: Math.min(42 * boost, Math.max(11, rowH * scoreRatio)),
+    rankPx: Math.min(26 * boost, Math.max(9, rowH * rankRatio)),
     subPx: Math.min(14, Math.max(7, rowH * 0.12)),
     roundColPx: Math.min(64, Math.max(30, rowH * 0.75)),
     totalColPx: Math.min(72, Math.max(34, rowH * 0.8)),
-    rankColPx: Math.min(40, Math.max(22, rowH * 0.48)),
+    rankColPx: Math.min(40 * boost, Math.max(22, rowH * 0.48)),
     compactBtns: rowH < 50,
   };
 }
@@ -117,10 +121,16 @@ export default function PrezentaciaPage({ params }: { params: { slug: string; da
 
   const finalSorted = [...teamsWithBonus].sort((a, b) => b.totalWithBonus - a.totalWithBonus);
 
+  const leagueSplit = isLeague && shownLeague.length > 1;
+  const leaguePerColumn = leagueSplit ? Math.ceil(shownLeague.length / 2) : shownLeague.length;
+  const leagueColumns = leagueSplit
+    ? [shownLeague.slice(0, leaguePerColumn), shownLeague.slice(leaguePerColumn)]
+    : [shownLeague];
+
   const visibleRowCount = isStartScreen
     ? 0
     : isLeague
-    ? shownLeague.length
+    ? leaguePerColumn
     : isFinal
     ? finalSorted.length
     : displayGroups.reduce((sum, group) => sum + group.teams.length, 0);
@@ -144,7 +154,7 @@ export default function PrezentaciaPage({ params }: { params: { slug: string; da
     visibleRowCount > 0
       ? (listHeight - gapPx * Math.max(0, visibleRowCount - 1)) / visibleRowCount
       : 48;
-  const layout = useMemo(() => fontsForRowHeight(rowHeight), [rowHeight]);
+  const layout = useMemo(() => fontsForRowHeight(rowHeight, isLeague ? 1.7 : 1), [rowHeight, isLeague]);
 
   const addBonus = (rowId: number) =>
     setBonus((prev) => ({ ...prev, [rowId]: parseFloat(((prev[rowId] ?? 0) + 0.1).toFixed(2)) }));
@@ -269,40 +279,59 @@ export default function PrezentaciaPage({ params }: { params: { slug: string; da
           </div>
         ) : isLeague ? (
           <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
-            <div className="shrink-0 py-2 px-2">
+            <div className="shrink-0 py-2 px-2 flex items-end justify-between gap-4">
               <div className="font-bold text-[#f0b429] leading-tight" style={{ fontSize: `${Math.min(34, layout.namePx * 1.05)}px` }}>
                 Ligová tabuľka
               </div>
+              {shownLeague.length > 0 ? (
+                <p className="text-stone-500 text-sm shrink-0">Koliesko priblíži, ťahaním posunieš</p>
+              ) : null}
             </div>
             {shownLeague.length === 0 ? (
               <div className="flex-1 flex items-center justify-center text-stone-400 text-2xl text-center px-6">
                 Tento podnik zatiaľ nemá ligovú tabuľku.
               </div>
             ) : (
-              <div ref={listRef} className="flex-1 min-h-0 flex flex-col overflow-hidden w-full" style={listGapStyle}>
-                {shownLeague.map((entry) => (
-                  <div
-                    key={`${entry.rank}-${entry.teamName}`}
-                    className={`grid items-center gap-3 rounded-xl w-full ${entry.rank === 1 ? "border-2 border-[#f0b429] bg-[#211900]" : "border border-[#2a2a2a] bg-[#1a1a1a]"}`}
-                    style={{ ...rowFlex, display: "grid", alignItems: "center", gridTemplateColumns: rowGrid, padding: "0 0.5rem" }}
-                  >
-                    <span
-                      className={`font-bold shrink-0 ${entry.rank === 1 ? "text-[#f0b429]" : "text-stone-400"}`}
-                      style={{ fontSize: `${layout.rankPx}px` }}
-                    >
-                      {entry.rank === 1 ? "🏆" : `${entry.rank}.`}
-                    </span>
-                    <span
-                      className={`font-bold truncate ${entry.rank === 1 ? "text-[#ffd54f]" : "text-white"}`}
-                      style={{ fontSize: `${layout.namePx}px` }}
-                    >
-                      {entry.teamName}
-                    </span>
-                    <span className="text-[#f0b429] font-bold text-right whitespace-nowrap tabular-nums" style={{ fontSize: `${layout.scorePx}px` }}>
-                      {entry.points}
-                    </span>
+              <div ref={listRef} className="flex-1 min-h-0 w-full">
+                <PresentationZoomLayer slideKey="league" className="h-full w-full" innerClassName="h-full w-full min-h-0">
+                  <div className={`h-full w-full grid ${leagueSplit ? "grid-cols-2 gap-x-3" : "grid-cols-1"}`}>
+                    {leagueColumns.map((column, columnIndex) => (
+                      <div key={columnIndex} className="flex flex-col min-h-0 min-w-0" style={listGapStyle}>
+                        {column.map((entry) => (
+                          <div
+                            key={`${entry.rank}-${entry.teamName}`}
+                            className={`grid items-center gap-3 rounded-xl w-full ${entry.rank === 1 ? "border-2 border-[#f0b429] bg-[#211900]" : "border border-[#2a2a2a] bg-[#1a1a1a]"}`}
+                            style={{
+                              height: `${Math.max(rowHeight, 0)}px`,
+                              overflow: "hidden",
+                              boxSizing: "border-box",
+                              display: "grid",
+                              alignItems: "center",
+                              gridTemplateColumns: rowGrid,
+                              padding: "0 0.5rem",
+                            }}
+                          >
+                            <span
+                              className={`font-bold shrink-0 ${entry.rank === 1 ? "text-[#f0b429]" : "text-stone-400"}`}
+                              style={{ fontSize: `${layout.rankPx}px` }}
+                            >
+                              {entry.rank === 1 ? "🏆" : `${entry.rank}.`}
+                            </span>
+                            <span
+                              className={`font-bold truncate ${entry.rank === 1 ? "text-[#ffd54f]" : "text-white"}`}
+                              style={{ fontSize: `${layout.namePx}px` }}
+                            >
+                              {entry.teamName}
+                            </span>
+                            <span className="text-[#f0b429] font-bold text-right whitespace-nowrap tabular-nums" style={{ fontSize: `${layout.scorePx}px` }}>
+                              {entry.points}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    ))}
                   </div>
-                ))}
+                </PresentationZoomLayer>
               </div>
             )}
           </div>
