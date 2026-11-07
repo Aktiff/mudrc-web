@@ -154,6 +154,28 @@ export function presentationRoundAtSlide(
   return 1;
 }
 
+/** Posledná otázka kola (pri bežnom kole je to 15.). Klik tu spúšťa odovzdanie, nie ďalší slide. */
+export function isLastRoundQuestionSlide(slides: PresentationSlide[], index: number): boolean {
+  const slide = slides[index];
+  if (!slide || slide.type !== "question_phase") return false;
+  const round = slide.question.roundNumber;
+  for (let i = index + 1; i < slides.length; i += 1) {
+    const next = slides[i];
+    if (next.type === "question_phase") return next.question.roundNumber !== round;
+    if (
+      next.type === "correction" ||
+      next.type === "answers_intro" ||
+      next.type === "round" ||
+      next.type === "scores" ||
+      next.type === "promo" ||
+      next.type === "rules"
+    ) {
+      return true;
+    }
+  }
+  return true;
+}
+
 /** Slide úvodu kola („1. kolo“). */
 export function findSlideIndexForRoundIntro(
   slides: PresentationSlide[],

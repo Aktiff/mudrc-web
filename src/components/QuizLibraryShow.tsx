@@ -17,6 +17,7 @@ import { formatEventDateLabel, quizIntervalDays, type QuizEvent } from "@/lib/da
 import { playbackMediaSrc } from "@/lib/media-url";
 import { isMusicBankId } from "@/lib/music-bank";
 import { attachVolumeWheel } from "@/lib/media-volume";
+import { playHandInGong, prepareHandInGong } from "@/lib/hand-in-gong";
 import { displayQuestionNumber } from "@/lib/quiz-template";
 import { VolumeAudio, VolumeVideo } from "@/components/VolumeMedia";
 import { visibleRuleTexts } from "@/lib/quiz-rules";
@@ -27,6 +28,7 @@ import { parseQuizPayload } from "@/lib/quiz-editor-draft";
 import {
   bestPresentationImageUrl,
   buildPresentationSlides,
+  isLastRoundQuestionSlide,
   shouldShowImageInAnswerPhase,
   shouldShowImageInQuestionPhase,
   shouldShowVideoInAnswerPhase,
@@ -798,6 +800,10 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
   const [selectedNextQuizSlugs, setSelectedNextQuizSlugs] = useState<string[]>([]);
   const [homeNextQuizSlug, setHomeNextQuizSlug] = useState("");
   const [aspectMode, setAspectMode] = useState<PresentationAspectMode>("tv-16:9");
+  const handInRef = useRef<{ index: number; endsAt: number } | null>(null);
+  const gongPlayedRef = useRef(false);
+  const [handIn, setHandIn] = useState<{ index: number; endsAt: number } | null>(null);
+  const [handInLeft, setHandInLeft] = useState<number | null>(null);
   useEffect(() => {
     let cancelled = false;
     const signal = AbortSignal.timeout(20000);
@@ -897,6 +903,7 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
   const slide = slides[index];
   const progress = slides.length ? ((index + 1) / slides.length) * 100 : 0;
   const showSlideTimer = Boolean(started && slide && slide.type !== "rules");
+  const handInShown = handIn?.index === index ? handInLeft : null;
   const slideTimerKey = showSlideTimer ? `${index}:${slide.type}` : null;
 
   const [slideElapsed, setSlideElapsed] = useState(0);
@@ -963,12 +970,50 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
     setIndex((i) => Math.max(0, i - 1));
   }, []);
 
+  const advanceOrStartHandIn = useCallback(() => {
+    if (isLastRoundQuestionSlide(slides, index)) {
+      const current = handInRef.current;
+      if (!current || current.index !== index) {
+        const next = { index, endsAt: Date.now() + 90_000 };
+        handInRef.current = next;
+        gongPlayedRef.current = false;
+        prepareHandInGong();
+        setHandIn(next);
+        return;
+      }
+      if (Date.now() < current.endsAt) return;
+    }
+    goNext();
+  }, [slides, index, goNext]);
+
+  useEffect(() => {
+    handInRef.current = null;
+    gongPlayedRef.current = false;
+    setHandIn(null);
+    setHandInLeft(null);
+  }, [index]);
+
+  useEffect(() => {
+    if (!handIn || handIn.index !== index) return;
+    const tick = () => {
+      const left = Math.max(0, Math.ceil((handIn.endsAt - Date.now()) / 1000));
+      setHandInLeft(left);
+      if (left === 0 && !gongPlayedRef.current) {
+        gongPlayedRef.current = true;
+        playHandInGong();
+      }
+    };
+    tick();
+    const timer = window.setInterval(tick, 200);
+    return () => window.clearInterval(timer);
+  }, [handIn, index]);
+
   const handleStageClick = useCallback(
     (e: MouseEvent<HTMLDivElement>) => {
       if (e.button !== 0) return;
-      goNext();
+      advanceOrStartHandIn();
     },
-    [goNext]
+    [advanceOrStartHandIn]
   );
 
   const togglePresentationAudio = useCallback(() => {
@@ -1013,7 +1058,7 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "ArrowRight" || e.key === " " || e.key === "Enter") {
         e.preventDefault();
-        goNext();
+        advanceOrStartHandIn();
       }
       if (e.key === "ArrowLeft") {
         e.preventDefault();
@@ -1030,7 +1075,7 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [goNext, goPrev, started, toggleFullscreen]);
+  }, [advanceOrStartHandIn, goPrev, started, toggleFullscreen]);
 
   useEffect(() => {
     if (!started) return;
@@ -1319,11 +1364,29 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
       {showSlideTimer && (
         <div className="absolute top-4 sm:top-5 right-4 sm:right-5 z-[1] pointer-events-none">
           <div
-            className={`${badgeTimer.timerClass} px-3 sm:px-4 rounded-2xl bg-black/80 border-2 border-white/30 backdrop-blur-sm shadow-[0_10px_40px_rgba(0,0,0,0.6)] flex items-center justify-center`}
-            style={badgeTimer.timerStyle}
+            className={`${
+              handInShown != null
+                ? "min-w-[7.5rem] sm:min-w-[9.5rem] h-[4.75rem] sm:h-24 md:h-28 px-4"
+                : badgeTimer.timerClass
+            } rounded-2xl backdrop-blur-sm shadow-[0_10px_40px_rgba(0,0,0,0.6)] flex items-center justify-center ${
+              handInShown != null
+                ? handInShown <= 10
+                  ? "bg-red-950/90 border-2 border-red-500"
+                  : "bg-black/80 border-2 border-[#f0c800]"
+                : "bg-black/80 border-2 border-white/30"
+            }`}
+            style={handInShown != null ? undefined : badgeTimer.timerStyle}
           >
-            <span className={`font-mono ${badgeTimer.textClass} font-bold text-white tabular-nums leading-none`}>
-              {slideElapsed}
+            <span
+              className={`font-mono font-bold tabular-nums leading-none ${
+                handInShown != null
+                  ? `text-5xl sm:text-6xl md:text-7xl ${handInShown <= 10 ? "text-red-200" : "text-white"}`
+                  : `${badgeTimer.textClass} text-white`
+              }`}
+            >
+              {handInShown != null
+                ? `${Math.floor(handInShown / 60)}:${String(handInShown % 60).padStart(2, "0")}`
+                : slideElapsed}
             </span>
           </div>
         </div>
