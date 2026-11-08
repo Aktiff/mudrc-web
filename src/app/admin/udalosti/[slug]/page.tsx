@@ -456,6 +456,18 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
     () => registrationTermChoices({ date: form.date, quizType: form.quizType, futureQuizzes: form.futureQuizzes }),
     [form.date, form.quizType, form.futureQuizzes]
   );
+  const otherRegistrationGroups = useMemo(() => {
+    const shown = new Set(visibleRegistrationGroups.map((group) => group.key));
+    return registrationGroups.filter((group) => group.registrations.length > 0 && !shown.has(group.key));
+  }, [registrationGroups, visibleRegistrationGroups]);
+  const displayedRegistrationGroups = useMemo(
+    () => (termChoices.length > 1 ? visibleRegistrationGroups : [...visibleRegistrationGroups, ...otherRegistrationGroups]),
+    [termChoices.length, visibleRegistrationGroups, otherRegistrationGroups]
+  );
+  const displayedRegistrationCount = useMemo(
+    () => displayedRegistrationGroups.reduce((sum, group) => sum + group.registrations.length, 0),
+    [displayedRegistrationGroups]
+  );
   const nearestNight = useMemo(() => nearestUpcomingNight(form), [form]);
   const nearestRegsOpen = nearestNight ? nearestNight.registrationOpen : form.registrationOpen !== false;
   const nearestRegButton = nearestNight?.extraId
@@ -1393,7 +1405,7 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
         <button className={tabClass("info")} onClick={() => setTab("info")}>Základné info</button>
         <button className={tabClass("liga")} onClick={() => setTab("liga")}>Liga ({leagueEditorRows.length})</button>
         <button className={tabClass("vysledky")} onClick={() => setTab("vysledky")}>Výsledky ({form.pastResults.length})</button>
-        <button className={tabClass("registracie")} onClick={() => setTab("registracie")}>Registrácie ({registrations.length})</button>
+        <button className={tabClass("registracie")} onClick={() => setTab("registracie")}>Registrácie ({displayedRegistrationCount})</button>
         <button className={tabClass("anketa")} onClick={() => setTab("anketa")}>Anketa ({pollAdmin?.teamCount ?? 0})</button>
         <button className={tabClass("pravidla")} onClick={() => setTab("pravidla")}>
           Pravidlá ({(form.rules ?? []).length + (form.thematic ? (form.specialRules ?? []).length : 0)})
@@ -1918,7 +1930,7 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
             </p>
           </div>
 
-          {visibleRegistrationGroups.filter((group) => group.registrations.length > 0).map((group) => (
+          {displayedRegistrationGroups.filter((group) => group.registrations.length > 0).map((group) => (
             <RegistrationShareList
               key={group.key}
               venue={form.venue}
@@ -1930,7 +1942,7 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
           {registrations.length > 0 && (
             <div className="flex flex-wrap items-center justify-between gap-3 mb-6 pb-6 border-b border-brand-border">
               <div className="text-brand-muted text-sm space-y-1">
-                {visibleRegistrationGroups.map((group) => {
+                {displayedRegistrationGroups.map((group) => {
                   const players = group.registrations.reduce(
                     (sum, reg) => sum + (parseRegistrationPlayerCount(reg.players) || Math.max(1, form.minPlayers ?? 2)),
                     0
@@ -1939,7 +1951,12 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
                     <p key={group.key}>
                       <span className="text-brand-text font-semibold">{group.title}</span>
                       {" · "}
-                      {group.registrations.length} {group.registrations.length === 1 ? "registrácia" : "registrácií"}
+                      {group.registrations.length}{" "}
+                      {group.registrations.length === 1
+                        ? "registrácia"
+                        : group.registrations.length < 5
+                          ? "registrácie"
+                          : "registrácií"}
                       {" · "}
                       {players} hráčov
                       {" · "}
@@ -1958,6 +1975,21 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
               </button>
             </div>
           )}
+          {termChoices.length > 1 && otherRegistrationGroups.length > 0 && (
+            <p className="text-sm text-brand-muted mb-4">
+              {otherRegistrationGroups.map((group) => {
+                const count = group.registrations.length;
+                const word = count === 1 ? "registrácia" : count < 5 ? "registrácie" : "registrácií";
+                return (
+                  <span key={group.key} className="block">
+                    Na termíne <span className="font-semibold text-brand-text">{group.title}</span>{" "}
+                    {count === 1 ? "je" : "sú"} ešte {count} {word}.
+                  </span>
+                );
+              })}
+              Prepni termín v poli vyššie, ak ich chceš vidieť.
+            </p>
+          )}
           {regsLoading && <p className="text-brand-muted text-sm">Načítavam...</p>}
           {!regsLoading && registrations.length > 0 && (
             <p className="text-brand-muted text-xs mb-4">
@@ -1967,7 +1999,7 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
           )}
           {!regsLoading && (
             <div className="space-y-8">
-            {visibleRegistrationGroups.map((group) => (
+            {displayedRegistrationGroups.map((group) => (
               <section key={group.key}>
                 <h3 className="font-semibold text-brand-text mb-3">{group.title}</h3>
                 {group.registrations.length === 0 ? (
