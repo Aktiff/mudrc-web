@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, CheckCircle2 } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AlertTriangle, CheckCircle2, ChevronDown } from "lucide-react";
 import Link from "next/link";
 import { quizLibraryListRequestUrl, type LibraryQuizListItem } from "@/lib/quiz-library-client";
 import { questionCountLabel } from "@/lib/quiz-library";
@@ -10,6 +10,14 @@ import { CANVAS_LIBRARY_QUIZ_ID } from "@/lib/quiz-result-library";
 import type { QuizUsageExclude } from "@/lib/quiz-library-usage";
 
 type QuizOption = LibraryQuizListItem;
+
+function libraryOptionLabel(option: QuizOption, hasTeams: boolean): string {
+  const usage = option.usageCount ? ` (${option.usageCount}× hraný)` : " (nepoužitý)";
+  const average =
+    typeof option.averagePoints === "number" ? ` · priemer ${formatAveragePoints(option.averagePoints)}` : "";
+  const fitness = !hasTeams ? "" : option.isSafe ? " ✓ vhodný" : " ⚠ konflikt";
+  return `${option.title} · ${questionCountLabel(option.filledCount ?? 0)}${usage}${average}${fitness}`;
+}
 
 type Props = {
   value: string;
@@ -33,6 +41,8 @@ export default function LibraryQuizPicker({
   const [options, setOptions] = useState<QuizOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
 
   const activeTeams = useMemo(
     () => teamNames.map((name) => name.trim()).filter(Boolean),
@@ -84,6 +94,55 @@ export default function LibraryQuizPicker({
   }, [load]);
 
   const selected = options.find((option) => option.id === value);
+  const hasTeams = activeTeams.length > 0;
+  const usable = options.filter((option) => !hasTeams || option.isSafe);
+  const blocked = hasTeams ? options.filter((option) => !option.isSafe) : [];
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointer = (event: MouseEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", onPointer);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onPointer);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  const closedLabel = loading
+    ? "Načítavam kvízy…"
+    : value === CANVAS_LIBRARY_QUIZ_ID
+      ? "Kvíz v Canve (bez knižnice)"
+      : selected
+        ? libraryOptionLabel(selected, hasTeams)
+        : "— Vyber —";
+
+  const pick = (id: string) => {
+    onChange(id);
+    setOpen(false);
+  };
+
+  const renderOption = (option: QuizOption, canUse: boolean) => (
+    <button
+      key={option.id}
+      type="button"
+      role="option"
+      aria-selected={value === option.id}
+      onClick={() => pick(option.id)}
+      className={`block w-full text-left px-3 py-2 text-sm ${
+        canUse
+          ? "bg-green-700 text-green-50 font-semibold hover:bg-green-600"
+          : "text-brand-text hover:bg-brand-hover"
+      } ${value === option.id ? "ring-1 ring-inset ring-brand-orange" : ""}`}
+    >
+      {libraryOptionLabel(option, hasTeams)}
+    </button>
+  );
 
   return (
     <div className="mb-6 bg-brand-warm border border-brand-border rounded-2xl p-5 space-y-3">
@@ -106,24 +165,55 @@ export default function LibraryQuizPicker({
         </Link>
       </div>
 
-      <select
-        className={`input ${invalid && !value ? "border-red-500" : ""}`}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        disabled={loading}
-      >
-        <option value="">{loading ? "Načítavam kvízy…" : "— Vyber —"}</option>
-        <option value={CANVAS_LIBRARY_QUIZ_ID}>Kvíz v Canve (bez knižnice)</option>
-        {options.map((option) => (
-          <option key={option.id} value={option.id}>
-            {option.title}
-            {` · ${questionCountLabel(option.filledCount ?? 0)}`}
-            {option.usageCount ? ` (${option.usageCount}× hraný)` : " (nepoužitý)"}
-            {typeof option.averagePoints === "number" ? ` · priemer ${formatAveragePoints(option.averagePoints)}` : ""}
-            {activeTeams.length && !option.isSafe ? " ⚠ konflikt" : activeTeams.length && option.isSafe ? " ✓ vhodný" : ""}
-          </option>
-        ))}
-      </select>
+      <div className="relative" ref={rootRef}>
+        <button
+          type="button"
+          className={`input flex items-center justify-between gap-3 text-left ${invalid && !value ? "border-red-500" : ""}`}
+          disabled={loading}
+          aria-expanded={open}
+          aria-haspopup="listbox"
+          onClick={() => setOpen((current) => !current)}
+        >
+          <span className="truncate">{closedLabel}</span>
+          <ChevronDown className={`w-4 h-4 shrink-0 text-brand-muted transition-transform ${open ? "rotate-180" : ""}`} />
+        </button>
+        {open && !loading && (
+          <div
+            role="listbox"
+            className="absolute z-30 mt-1 w-full max-h-[70vh] overflow-y-auto rounded-xl border border-brand-border bg-brand-card shadow-xl py-1"
+          >
+            <button
+              type="button"
+              role="option"
+              className="block w-full text-left px-3 py-2 text-sm text-brand-muted hover:bg-brand-hover"
+              onClick={() => pick("")}
+            >
+              — Vyber —
+            </button>
+            <button
+              type="button"
+              role="option"
+              aria-selected={value === CANVAS_LIBRARY_QUIZ_ID}
+              className="block w-full text-left px-3 py-2 text-sm text-brand-text hover:bg-brand-hover"
+              onClick={() => pick(CANVAS_LIBRARY_QUIZ_ID)}
+            >
+              Kvíz v Canve (bez knižnice)
+            </button>
+            {hasTeams && usable.length > 0 && (
+              <div className="px-3 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wider text-green-400">
+                Môžu byť
+              </div>
+            )}
+            {usable.map((option) => renderOption(option, hasTeams && option.isSafe))}
+            {blocked.length > 0 && (
+              <div className="px-3 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wider text-brand-muted">
+                Konflikt
+              </div>
+            )}
+            {blocked.map((option) => renderOption(option, false))}
+          </div>
+        )}
+      </div>
 
       {variant !== "editResult" && selected && selected.id !== CANVAS_LIBRARY_QUIZ_ID && activeTeams.length > 0 && (
         <div
