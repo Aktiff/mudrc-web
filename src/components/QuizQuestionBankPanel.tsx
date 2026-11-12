@@ -312,7 +312,7 @@ export default function QuizQuestionBankPanel({
     return () => window.removeEventListener("mudrc-bank-themes-updated", refreshThemes);
   }, []);
 
-  /** Všetky sloty v kole — vrátane konca 4. kola (bývalá hudba). */
+  /** Všetky sloty v kole. */
   const bankTargetSlots = useMemo(
     () => [...roundQuestions].sort(compareQuizQuestions),
     [roundQuestions]

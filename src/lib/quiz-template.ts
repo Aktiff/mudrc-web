@@ -3,7 +3,8 @@ import type { QuizQuestionItem, QuizQuestionKind } from "@/lib/quiz-library";
 import { createSlideId } from "@/lib/quiz-deck";
 import { DEFAULT_MUSIC_QUESTION_BODY } from "@/lib/music-bank";
 
-export const MUDRC_ROUND_QUESTION_COUNTS = [15, 15, 15, 10] as const;
+export const MUDRC_ROUND_QUESTION_COUNTS = [15, 15, 15, 15] as const;
+/** Starý posun čísla, keď hudobná otázka ešte nemá uložené poradie. */
 export const MUDRC_ROUND4_NORMAL = 5;
 export const MUDRC_ROUND4_MUSIC = 5;
 
@@ -11,7 +12,7 @@ export const roundLabels: Record<number, string> = {
   1: "15 otázok",
   2: "15 otázok",
   3: "15 otázok",
-  4: "5 otázok + 5 zvukových ukážok (koniec kola)",
+  4: "15 otázok",
 };
 
 /** Číslo podľa poradia v kole: prvá je 1, ďalšia 2, bez ohľadu na typ. */
@@ -183,24 +184,70 @@ function createEmptyQuestion(
   };
 }
 
-/** Štandardný Mudrc formát — 55 slotov; zvuk/video vkladáš do ľubovoľného slotu, hudba len na konci 4. kola. */
+function isUntouchedMusicSlot(question: QuizQuestionItem): boolean {
+  if (question.kind !== "music") return false;
+  if (question.audioUrl?.trim() || question.videoUrl?.trim() || question.imageUrl?.trim()) return false;
+  if (question.answer.trim() || question.musicArtist?.trim() || question.musicTitle?.trim()) return false;
+  if (question.bankQuestionId?.trim()) return false;
+  if ((question.options ?? []).some((option) => option.trim())) return false;
+  const body = question.body.trim();
+  return !body || body === DEFAULT_MUSIC_QUESTION_BODY;
+}
+
+/** Štandardný formát: 4 kolá, v každom 15 prázdnych otázok. */
 export function buildStandardMudrcQuestions(): QuizQuestionItem[] {
   const questions: QuizQuestionItem[] = [];
-
-  for (let round = 1; round <= 3; round += 1) {
+  for (let round = 1; round <= 4; round += 1) {
     for (let num = 1; num <= 15; num += 1) {
       questions.push(createEmptyQuestion(round, num, "normal"));
     }
   }
-
-  for (let num = 1; num <= MUDRC_ROUND4_NORMAL; num += 1) {
-    questions.push(createEmptyQuestion(4, num, "normal"));
-  }
-  for (let num = 1; num <= MUDRC_ROUND4_MUSIC; num += 1) {
-    questions.push(createEmptyQuestion(4, num, "music"));
-  }
-
   return questions;
+}
+
+/**
+ * Staré 4. kolo malo na konci 5 prázdnych hudobných slotov. Tie sa zmenia na bežné otázky
+ * a nedotknuté kolo sa doplní na 15. Vyplnená hudobná ukážka ostane.
+ */
+export function releaseEmptyRound4MusicSlots(questions: QuizQuestionItem[]): QuizQuestionItem[] {
+  const byRound = new Map<number, QuizQuestionItem[]>();
+  for (const question of sortQuizQuestions(questions)) {
+    const list = byRound.get(question.roundNumber) ?? [];
+    list.push(question);
+    byRound.set(question.roundNumber, list);
+  }
+
+  const out: QuizQuestionItem[] = [];
+  for (const [roundNumber, round] of Array.from(byRound.entries()).sort((a, b) => a[0] - b[0])) {
+    const music = round.filter((question) => question.kind === "music");
+    const others = round.filter((question) => question.kind !== "music");
+    const stockRound4 =
+      roundNumber === 4 &&
+      music.length === MUDRC_ROUND4_MUSIC &&
+      others.length === MUDRC_ROUND4_NORMAL &&
+      music.every(isUntouchedMusicSlot);
+
+    const converted = round.map((question, index) => {
+      const next = isUntouchedMusicSlot(question)
+        ? {
+            ...question,
+            kind: "normal" as const,
+            body: "",
+            musicArtist: undefined,
+            musicTitle: undefined,
+          }
+        : question;
+      return { ...next, questionNumber: index + 1, order: index };
+    });
+
+    if (stockRound4) {
+      for (let index = converted.length; index < 15; index += 1) {
+        converted.push({ ...createEmptyQuestion(4, index + 1, "normal"), order: index });
+      }
+    }
+    out.push(...converted);
+  }
+  return out;
 }
 
 /** Vloží prázdnu otázku za dané číslo v kole (0 = na začiatok skupiny). */

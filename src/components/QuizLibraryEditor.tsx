@@ -690,15 +690,15 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
       }
       usedIds = Array.from(new Set([...usedIds, bankId]));
 
-      const nextKind = target.kind === "music" ? "music" : "normal";
-
       return {
         ...prev,
         questions: prev.questions.map((q) =>
           q.id === targetQuestionId
             ? {
                 ...q,
-                kind: nextKind,
+                kind: "normal",
+                musicArtist: undefined,
+                musicTitle: undefined,
                 body: finalBody,
                 answer: finalAnswer,
                 options: finalOptions.length ? finalOptions : undefined,
@@ -1565,7 +1565,7 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
   };
 
   const regenerateTemplate = () => {
-    if (!window.confirm("Vymazať obsah a vytvoriť prázdnu štruktúru (klasické + zvuk + video + hudba)?")) return;
+    if (!window.confirm("Vymazať obsah a vytvoriť prázdnu štruktúru (4 kolá po 15 otázok)?")) return;
     setQuiz((prev) => (prev ? { ...prev, questions: buildStandardMudrcQuestions() } : prev));
     setMsg({ text: "Štruktúra pripravená — doplň otázky a odpovede.", ok: true });
   };

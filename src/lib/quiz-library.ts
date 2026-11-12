@@ -2,6 +2,7 @@ import {
   buildStandardMudrcQuestions,
   compareQuizQuestions,
   migrateSlidesToQuestions,
+  releaseEmptyRound4MusicSlots,
   renumberQuizQuestionGroups,
 } from "@/lib/quiz-template";
 import { normalizeMatchColumn, normalizeQuestionOptions, parseEmbeddedOptions } from "@/lib/quiz-question-options";
@@ -339,7 +340,7 @@ export function normalizeLibraryQuiz(
   if (!questions.length) {
     questions = buildStandardMudrcQuestions();
   } else {
-    questions = renumberQuizQuestionGroups(questions);
+    questions = renumberQuizQuestionGroups(releaseEmptyRound4MusicSlots(questions));
   }
 
   const bankIdsFromQuestions = questions
@@ -411,7 +412,7 @@ export function findFirstEmptyMusicSlot(questions: QuizQuestionItem[]): QuizQues
     .find(isQuestionSlotEmpty);
 }
 
-/** Prvá prázdna otázka v poradí, v akom je na obrazovke. Vo 4. kole idú najprv otázky 1–5, až potom zvuky. */
+/** Prvá prázdna otázka v poradí, v akom je na obrazovke. */
 export function findFirstEmptyContentSlot(questions: QuizQuestionItem[]): QuizQuestionItem | undefined {
   return [...questions].sort(compareQuizQuestions).find(isQuestionSlotEmpty);
 }
