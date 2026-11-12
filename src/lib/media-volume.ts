@@ -1,8 +1,6 @@
 export const DEFAULT_MEDIA_VOLUME = 0.7;
 /** Video a všetky ukážky so zvukom v prezentácii môžu ísť nad 100 %. */
 export const MEDIA_BOOST_MAX = 3;
-/** Video v prezentácii: koliesko a posuvník skončia na 200 %. */
-export const VIDEO_BOOST_MAX = 2;
 
 const STORAGE_KEY = "mudrc-media-volume";
 const BOOST_STORAGE_KEY = "mudrc-media-volume-boost";
@@ -107,9 +105,9 @@ export function setMediaVolume(next: number, options?: { snap?: boolean; user?: 
   }
 }
 
-export function setBoostVolume(next: number, options?: { snap?: boolean; user?: boolean; max?: number }) {
+export function setBoostVolume(next: number, options?: { snap?: boolean; user?: boolean }) {
   hydrateBoost();
-  const cap = Math.min(options?.max ?? MEDIA_BOOST_MAX, boostCap());
+  const cap = boostCap();
   const value = options?.snap ? clampStep(next, cap) : clampTo(next, cap);
   if (value !== boostVolume) {
     boostVolume = value;
@@ -129,12 +127,12 @@ export function bumpMediaVolume(delta: number) {
   setMediaVolume(getMediaVolume() + delta, { snap: true, user: true });
 }
 
-export function bumpBoostVolume(delta: number, max = MEDIA_BOOST_MAX) {
-  setBoostVolume(getBoostVolume() + delta, { snap: true, user: true, max });
+export function bumpBoostVolume(delta: number) {
+  setBoostVolume(getBoostVolume() + delta, { snap: true, user: true });
 }
 
 /** Koliesko hore pridá hlasitosť, dole ju uberá. Vráti zvyšok akumulátora. */
-export function consumeVolumeWheel(acc: number, event: WheelEvent, boost = false, max = MEDIA_BOOST_MAX): number {
+export function consumeVolumeWheel(acc: number, event: WheelEvent, boost = false): number {
   let pixels = event.deltaY;
   if (event.deltaMode === 1) pixels *= 16;
   else if (event.deltaMode === 2) pixels *= 800;
@@ -146,7 +144,7 @@ export function consumeVolumeWheel(acc: number, event: WheelEvent, boost = false
     acc -= Math.sign(acc) * notch;
   }
   if (delta !== 0) {
-    if (boost) bumpBoostVolume(delta, max);
+    if (boost) bumpBoostVolume(delta);
     else bumpMediaVolume(delta);
   }
   return acc;

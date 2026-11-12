@@ -26,19 +26,10 @@ function assignRef<T>(ref: ForwardedRef<T>, value: T | null) {
   else if (ref) ref.current = value;
 }
 
-function useAppliedVolume(
-  node: HTMLMediaElement | null,
-  edgeFade: boolean,
-  boost: boolean,
-  mediaSrc: string | undefined,
-  boostMax?: number
-) {
+function useAppliedVolume(node: HTMLMediaElement | null, edgeFade: boolean, boost: boolean, mediaSrc: string | undefined) {
   useEffect(() => {
     if (!node || edgeFade) return;
-    const level = () => {
-      const raw = boost ? getBoostVolume() : getMediaVolume();
-      return boostMax != null ? Math.min(raw, boostMax) : raw;
-    };
+    const level = () => (boost ? getBoostVolume() : getMediaVolume());
     const apply = () => applyElementVolume(node, level());
     apply();
     const unsubscribe = (boost ? subscribeBoostVolume : subscribeMediaVolume)(apply);
@@ -46,8 +37,7 @@ function useAppliedVolume(
       if (isApplyingElementVolume() || hasVolumeGraph(node)) return;
       const next = node.volume;
       if (boost) {
-        if (getBoostVolume() > 1.001 && next <= 1) return;
-        if (Math.abs(next - getBoostVolume()) > 0.001) setBoostVolume(next, { user: true, max: boostMax });
+        if (Math.abs(next - getBoostVolume()) > 0.001) setBoostVolume(next, { user: true });
         return;
       }
       if (Math.abs(next - getMediaVolume()) > 0.001) setMediaVolume(next, { user: true });
@@ -57,7 +47,7 @@ function useAppliedVolume(
       unsubscribe();
       node.removeEventListener("volumechange", onVolume);
     };
-  }, [node, edgeFade, boost, mediaSrc, boostMax]);
+  }, [node, edgeFade, boost, mediaSrc]);
 }
 
 function useWheelTarget(node: HTMLElement | null, enabled: boolean) {
@@ -130,10 +120,6 @@ type Extra = {
   playUntilSeconds?: number;
   /** Prezentácia: video a ukážky so zvukom môžu ísť až na 300 %. */
   boost?: boolean;
-  /** Strop zosilnenia. Video v prezentácii má 2 (200 %). */
-  boostMax?: number;
-  /** Posuvník hlasitosti pod prehrávačom. */
-  showBoostControl?: boolean;
 };
 
 function usePlayUntil(node: HTMLMediaElement | null, seconds: number | undefined) {
@@ -203,66 +189,26 @@ export const VolumeAudio = forwardRef<HTMLAudioElement, ComponentProps<"audio"> 
   );
 });
 
-function BoostControl({ max }: { max: number }) {
-  const [level, setLevel] = useState(0.7);
-  useEffect(() => {
-    const show = () => setLevel(getBoostVolume());
-    show();
-    return subscribeBoostVolume(show);
-  }, []);
-  const pct = Math.round(Math.min(level, max) * 100);
-  const maxPct = Math.round(max * 100);
-  return (
-    <label
-      className="mt-2 flex items-center gap-3 w-full text-white text-sm font-semibold"
-      onClick={(event) => event.stopPropagation()}
-      onPointerDown={(event) => event.stopPropagation()}
-    >
-      <span className="shrink-0 tabular-nums">Hlasitosť {pct} %</span>
-      <input
-        type="range"
-        min={0}
-        max={maxPct}
-        step={5}
-        value={pct}
-        aria-label="Hlasitosť videa"
-        onChange={(event) => setBoostVolume(Number(event.target.value) / 100, { snap: true, user: true, max })}
-        className="flex-1 accent-[#f0c800] cursor-pointer"
-      />
-    </label>
-  );
-}
-
 export const VolumeVideo = forwardRef<HTMLVideoElement, ComponentProps<"video"> & Extra>(function VolumeVideo(
-  { hint = false, captureWheel = true, playUntilSeconds, boost = false, boostMax, showBoostControl = false, src, ...props },
+  { hint = false, captureWheel = true, playUntilSeconds, boost = false, src, ...props },
   forwarded
 ) {
   const [node, setNode] = useState<HTMLVideoElement | null>(null);
   const [box, setBox] = useState<HTMLDivElement | null>(null);
   const playback = useBoostPlayback(typeof src === "string" ? src : undefined, boost);
-  useAppliedVolume(node, false, boost, playback.src, boost ? boostMax : undefined);
+  useAppliedVolume(node, false, boost, playback.src);
   usePlayUntil(node, playUntilSeconds);
-  const video = (
-    <video
-      {...props}
-      crossOrigin={playback.crossOrigin}
-      src={playback.src}
-      ref={(el) => {
-        setNode(el);
-        assignRef(forwarded, el);
-      }}
-    />
-  );
   return (
     <VolumeShell hint={hint} captureWheel={captureWheel} box={box} setBox={setBox}>
-      {showBoostControl && boost && boostMax ? (
-        <div className="w-full">
-          {video}
-          <BoostControl max={boostMax} />
-        </div>
-      ) : (
-        video
-      )}
+      <video
+        {...props}
+        crossOrigin={playback.crossOrigin}
+        src={playback.src}
+        ref={(el) => {
+          setNode(el);
+          assignRef(forwarded, el);
+        }}
+      />
     </VolumeShell>
   );
 });

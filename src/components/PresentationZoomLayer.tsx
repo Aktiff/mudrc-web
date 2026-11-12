@@ -11,7 +11,7 @@ import {
   type ReactNode,
 } from "react";
 import { PRESENTATION_FEATURES } from "@/lib/presentation-features";
-import { MEDIA_BOOST_MAX, consumeVolumeWheel } from "@/lib/media-volume";
+import { consumeVolumeWheel } from "@/lib/media-volume";
 
 function manualZoomLimits() {
   const { manualZoomOut, minManualZoomScale, maxManualZoomScale } = PRESENTATION_FEATURES;
@@ -39,10 +39,8 @@ type Props = {
   onMiddleClick?: (e: MouseEvent<HTMLDivElement>) => void;
   /** zoom = textové slidy, volume = otázka s nahrávkou (koliesko nemení veľkosť). */
   wheelMode?: "zoom" | "volume";
-  /** Video a hudobná ukážka: koliesko ide nad 100 %. */
+  /** Video a hudobná ukážka: koliesko ide až na 300 %. */
   volumeBoost?: boolean;
-  /** Strop kolieska pri zosilnení. Video používa 2 (200 %). */
-  volumeBoostMax?: number;
   /** Aktuálny zoom. Pri oddialení ho aplikuje rodič na celý slide, aby sa ukázalo aj to, čo bolo mimo obrazovky. */
   onViewChange?: (view: { scale: number; x: number; y: number }) => void;
 };
@@ -56,17 +54,14 @@ export default function PresentationZoomLayer({
   onMiddleClick,
   wheelMode = "zoom",
   volumeBoost = false,
-  volumeBoostMax = MEDIA_BOOST_MAX,
   onViewChange,
 }: Props) {
   const [transform, setTransform] = useState({ scale: 1, x: 0, y: 0 });
   const viewportRef = useRef<HTMLDivElement>(null);
   const wheelModeRef = useRef(wheelMode);
   const volumeBoostRef = useRef(volumeBoost);
-  const volumeBoostMaxRef = useRef(volumeBoostMax);
   wheelModeRef.current = wheelMode;
   volumeBoostRef.current = volumeBoost;
-  volumeBoostMaxRef.current = volumeBoostMax;
   const scaleRef = useRef(1);
   const transformRef = useRef(transform);
   const dragRef = useRef<{
@@ -99,7 +94,7 @@ export default function PresentationZoomLayer({
       e.preventDefault();
       e.stopPropagation();
       if (wheelModeRef.current === "volume") {
-        acc = consumeVolumeWheel(acc, e, volumeBoostRef.current, volumeBoostMaxRef.current);
+        acc = consumeVolumeWheel(acc, e, volumeBoostRef.current);
         return;
       }
       const { min: MIN_SCALE, max: MAX_SCALE } = manualZoomLimits();

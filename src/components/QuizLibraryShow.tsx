@@ -15,7 +15,7 @@ import {
 import { Maximize2 } from "lucide-react";
 import { formatEventDateLabel, quizIntervalDays, type QuizEvent } from "@/lib/data";
 import { playbackMediaSrc } from "@/lib/media-url";
-import { VIDEO_BOOST_MAX, attachVolumeWheel } from "@/lib/media-volume";
+import { attachVolumeWheel } from "@/lib/media-volume";
 import { playHandInGong, prepareHandInGong } from "@/lib/hand-in-gong";
 import { displayQuestionNumber } from "@/lib/quiz-template";
 import { VolumeAudio, VolumeVideo } from "@/components/VolumeMedia";
@@ -402,8 +402,6 @@ function SoundOnlyVideo({
           if (mediaRef) mediaRef.current = el;
         }}
         boost
-        boostMax={VIDEO_BOOST_MAX}
-        showBoostControl
         captureWheel={false}
         playsInline
         preload="auto"
@@ -487,8 +485,6 @@ function QuestionContent({
       ) : (
       <VolumeVideo
         boost
-        boostMax={VIDEO_BOOST_MAX}
-        showBoostControl
         captureWheel={false}
         controls
         playsInline
@@ -624,8 +620,6 @@ function ImageSlide({
             if (presentationAudioRef) presentationAudioRef.current = el;
           }}
           boost
-          boostMax={VIDEO_BOOST_MAX}
-          showBoostControl
           captureWheel={false}
           controls
           playsInline
@@ -1302,12 +1296,6 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
     slide?.type === "image_slide"
       ? slide.question
       : null;
-  const presentationShowsVideo = Boolean(
-    activeQuestion?.videoUrl?.trim() &&
-      ((slide?.type === "image_slide" && slide.media === "video") ||
-        (slide?.type === "question_phase" && shouldShowVideoInQuestionPhase(activeQuestion)) ||
-        (slide?.type === "answer_phase" && shouldShowVideoInAnswerPhase(activeQuestion)))
-  );
   const presentationHasSound = Boolean(
     ((slide?.type === "question_phase" || slide?.type === "answer_phase") &&
       activeQuestion &&
@@ -1421,7 +1409,6 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
             : "zoom"
         }
         volumeBoost={presentationHasSound}
-        volumeBoostMax={presentationShowsVideo ? VIDEO_BOOST_MAX : undefined}
         className="relative z-[2] flex-1 flex min-h-0 w-full"
         innerClassName="min-h-0"
         onBackgroundClick={handleStageClick}
