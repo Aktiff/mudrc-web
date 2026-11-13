@@ -460,9 +460,23 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
     const shown = new Set(visibleRegistrationGroups.map((group) => group.key));
     return registrationGroups.filter((group) => group.registrations.length > 0 && !shown.has(group.key));
   }, [registrationGroups, visibleRegistrationGroups]);
+  const selectableOtherGroups = useMemo(
+    () =>
+      otherRegistrationGroups.filter((group) =>
+        termChoices.some((choice) => futureQuizMatchesDate({ id: "", date: choice.date }, group.date))
+      ),
+    [otherRegistrationGroups, termChoices]
+  );
+  const strandedRegistrationGroups = useMemo(
+    () =>
+      otherRegistrationGroups.filter(
+        (group) => !termChoices.some((choice) => futureQuizMatchesDate({ id: "", date: choice.date }, group.date))
+      ),
+    [otherRegistrationGroups, termChoices]
+  );
   const displayedRegistrationGroups = useMemo(
-    () => (termChoices.length > 1 ? visibleRegistrationGroups : [...visibleRegistrationGroups, ...otherRegistrationGroups]),
-    [termChoices.length, visibleRegistrationGroups, otherRegistrationGroups]
+    () => [...visibleRegistrationGroups, ...strandedRegistrationGroups],
+    [visibleRegistrationGroups, strandedRegistrationGroups]
   );
   const displayedRegistrationCount = useMemo(
     () => displayedRegistrationGroups.reduce((sum, group) => sum + group.registrations.length, 0),
@@ -1975,9 +1989,9 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
               </button>
             </div>
           )}
-          {termChoices.length > 1 && otherRegistrationGroups.length > 0 && (
+          {selectableOtherGroups.length > 0 && (
             <p className="text-sm text-brand-muted mb-4">
-              {otherRegistrationGroups.map((group) => {
+              {selectableOtherGroups.map((group) => {
                 const count = group.registrations.length;
                 const word = count === 1 ? "registrácia" : count < 5 ? "registrácie" : "registrácií";
                 return (
