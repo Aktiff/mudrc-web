@@ -2,10 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowLeft, Mail } from "lucide-react";
 
-export const metadata: Metadata = {
+import { buildPageMetadata } from "@/lib/seo";
+
+export const metadata: Metadata = buildPageMetadata({
   title: "Ochrana osobných údajov",
   description: "Ako Mudrc Kvíz spracúva údaje z registrácie tímu a príspevkov na Facebooku.",
-};
+  path: "/ochrana-udajov",
+});
 
 export default function PrivacyPage() {
   return (

@@ -82,6 +82,51 @@ export function buildEventMetadata(event: QuizEvent, region: RegionSlug, options
   };
 }
 
+export function buildPageMetadata(input: { title: string; description: string; path: string }): Metadata {
+  const url = absoluteUrl(input.path);
+  return {
+    title: input.title,
+    description: input.description,
+    alternates: { canonical: url },
+    openGraph: {
+      title: input.title,
+      description: input.description,
+      url,
+      type: "website",
+      locale: "sk_SK",
+      siteName: "Mudrc kvíz",
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: input.title,
+      description: input.description,
+    },
+  };
+}
+
+export function buildOrganizationJsonLd() {
+  return {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    name: "Mudrc kvíz",
+    url: SITE_URL,
+    email: "kontakt@mudrc.sk",
+    telephone: "+421951457439",
+    sameAs: ["https://www.facebook.com/mudrc.sk"],
+  };
+}
+
+export function buildWebSiteJsonLd() {
+  return {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    name: "Mudrc kvíz",
+    url: SITE_URL,
+    inLanguage: "sk",
+    publisher: { "@type": "Organization", name: "Mudrc kvíz", url: SITE_URL },
+  };
+}
+
 export function buildRegionMetadata(region: RegionSlug): Metadata {
   const config = getRegion(region)!;
   const path = `/kvizy/${region}`;

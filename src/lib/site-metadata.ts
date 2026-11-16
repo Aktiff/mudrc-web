@@ -11,7 +11,8 @@ export const defaultSiteMetadata: Metadata = {
     default: "Mudrc kvíz",
     template: "%s | Mudrc",
   },
-  description: "Vedomostné pub kvízy plné zábavy. Zaregistruj tím a otestuj vedomosti!",
+  description: DEFAULT_SITE_DESCRIPTION,
+  robots: { index: true, follow: true },
   icons: {
     icon: [{ url: "/icon", type: "image/png" }],
     apple: [{ url: "/apple-icon", type: "image/png" }],

@@ -6,6 +6,7 @@ import Breadcrumbs from "@/components/Breadcrumbs";
 import PollVoting from "@/components/PollVoting";
 import { collectEventTeamNames } from "@/lib/data";
 import { getPollPublicData } from "@/lib/poll-storage";
+import { absoluteUrl } from "@/lib/site-url";
 import { getEventRegionSlug, getRegion, isRegionSlug } from "@/lib/regions";
 import { getPublicEvent } from "@/lib/public-events";
 import { readRegistrations } from "@/lib/storage";
@@ -24,6 +25,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   return {
     title: poll.config.title,
     description: poll.config.description,
+    alternates: { canonical: absoluteUrl(`/kvizy/${params.region}/${event.slug}/hlasovanie`) },
+    robots: { index: false, follow: true },
   };
 }
 

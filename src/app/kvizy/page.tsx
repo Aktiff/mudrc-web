@@ -2,16 +2,16 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight, MapPin } from "lucide-react";
 import { readEvents } from "@/lib/storage";
-import { absoluteUrl } from "@/lib/site-url";
 import { getEventRegionSlug, getRegionsWithVisibleEvents } from "@/lib/regions";
 import { isQuizVisible } from "@/lib/data";
+import { buildPageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = buildPageMetadata({
   title: "Kvízy na Slovensku",
   description:
     "Prehľad vedomostných pub kvízov Mudrc podľa regiónov. Prievidza a okolie, čoskoro Bratislava a Trnava.",
-  alternates: { canonical: absoluteUrl("/kvizy") },
-};
+  path: "/kvizy",
+});
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

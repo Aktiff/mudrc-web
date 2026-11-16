@@ -1,9 +1,13 @@
 import type { Metadata } from "next";
 import LigaList from "@/components/LigaList";
+import { buildPageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = buildPageMetadata({
   title: "Liga",
-};
+  description:
+    "Ligové tabuľky pub kvízov Mudrc. Pozri poradie tímov, body a históriu večerov v každom podniku.",
+  path: "/liga",
+});
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;

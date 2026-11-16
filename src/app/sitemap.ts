@@ -1,5 +1,7 @@
 import type { MetadataRoute } from "next";
-import { isQuizVisible } from "@/lib/data";
+import { isLeagueVisible, isQuizVisible } from "@/lib/data";
+import { visiblePublicNights } from "@/lib/future-quizzes";
+import { normalizeDateKey } from "@/lib/quiz-result-key";
 import { eventPath, getEventRegionSlug, getRegionsWithVisibleEvents } from "@/lib/regions";
 import { SITE_URL } from "@/lib/site-url";
 import { readEvents } from "@/lib/storage";
@@ -31,23 +33,48 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.85,
     }));
 
-  const eventPages: MetadataRoute.Sitemap = events
-    .filter(isQuizVisible)
-    .map((event) => ({
+  const eventPages: MetadataRoute.Sitemap = events.filter(isQuizVisible).flatMap((event) => {
+    const base = {
       url: `${SITE_URL}${eventPath(event)}`,
       lastModified: now,
       changeFrequency: "weekly" as const,
       priority: 0.8,
-    }));
+    };
+    const terms = visiblePublicNights(event)
+      .filter((night) => night.extraId)
+      .map((night) => ({
+        url: `${SITE_URL}${eventPath(event)}?termin=${encodeURIComponent(night.date)}`,
+        lastModified: now,
+        changeFrequency: "weekly" as const,
+        priority: 0.75,
+      }));
+    return [base, ...terms];
+  });
 
-  const leaguePages: MetadataRoute.Sitemap = events
-    .filter((event) => event.leagueTable.length > 0 || event.pastResults.length > 0)
-    .map((event) => ({
+  const leaguePages: MetadataRoute.Sitemap = events.filter(isLeagueVisible).flatMap((event) => {
+    const table = {
       url: `${SITE_URL}/liga/${event.slug}`,
       lastModified: now,
       changeFrequency: "weekly" as const,
       priority: 0.6,
-    }));
+    };
+    const seen = new Set<string>();
+    const nights = event.pastResults
+      .filter((result) => result.teams && result.teams.length > 0 && result.date?.trim())
+      .map((result) => `${SITE_URL}/liga/${event.slug}/${normalizeDateKey(result.date)}`)
+      .filter((url) => {
+        if (seen.has(url)) return false;
+        seen.add(url);
+        return true;
+      })
+      .map((url) => ({
+        url,
+        lastModified: now,
+        changeFrequency: "monthly" as const,
+        priority: 0.45,
+      }));
+    return [table, ...nights];
+  });
 
   return [...staticPages, ...regionPages, ...eventPages, ...leaguePages];
 }

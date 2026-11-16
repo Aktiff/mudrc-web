@@ -1,12 +1,31 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import type { Metadata } from "next";
 import { ChevronLeft, Trophy } from "lucide-react";
 import { findQuizResult } from "@/lib/quiz-result-key";
+import { buildPageMetadata } from "@/lib/seo";
 import { readEvents } from "@/lib/storage";
+import { quizTypeOrDefault } from "@/lib/quiz-type";
 
 export const dynamic = "force-dynamic";
 
-export default async function QuizDetailPage({ params }: { params: { slug: string; date: string } }) {
+type PageProps = { params: { slug: string; date: string } };
+
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const { events } = await readEvents();
+  const event = events.find((entry) => entry.slug === params.slug);
+  const result = event ? findQuizResult(event.pastResults, params.date) : undefined;
+  if (!event || !result) return { title: "Výsledok kvízu", robots: { index: false, follow: false } };
+  const when = params.date.replace(/-/g, ".");
+  const kind = quizTypeOrDefault(result.quizType);
+  return buildPageMetadata({
+    title: `${kind} ${when} · ${event.venue}`,
+    description: `Výsledky kvízu ${kind} v podniku ${event.venue} (${when}). Víťaz: ${result.winnerTeam}.`,
+    path: `/liga/${event.slug}/${params.date}`,
+  });
+}
+
+export default async function QuizDetailPage({ params }: PageProps) {
   const { events } = await readEvents();
   const event = events.find((e) => e.slug === params.slug);
   if (!event) notFound();

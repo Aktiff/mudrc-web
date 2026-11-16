@@ -3,10 +3,13 @@ import Link from "next/link";
 import { ArrowLeft, BarChart3, CheckCircle2, Mail, Megaphone, Moon, ShieldCheck, Trash2 } from "lucide-react";
 import CookiePreferencesPanel from "@/components/CookiePreferencesPanel";
 
-export const metadata: Metadata = {
+import { buildPageMetadata } from "@/lib/seo";
+
+export const metadata: Metadata = buildPageMetadata({
   title: "Cookies",
   description: "Informácie o cookies, súhlase a meraní na webe Mudrc Kvíz.",
-};
+  path: "/cookies",
+});
 
 const storedItems = [
   {

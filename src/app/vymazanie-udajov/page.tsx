@@ -2,10 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowLeft, Mail } from "lucide-react";
 
-export const metadata: Metadata = {
+import { buildPageMetadata } from "@/lib/seo";
+
+export const metadata: Metadata = buildPageMetadata({
   title: "Vymazanie údajov",
   description: "Ako požiadať Mudrc Kvíz o vymazanie údajov tímu a čo robí aplikácia Mudrc post.",
-};
+  path: "/vymazanie-udajov",
+});
 
 export default function DataDeletionPage() {
   return (

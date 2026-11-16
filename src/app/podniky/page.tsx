@@ -2,10 +2,14 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Mail, Phone, BarChart2, RefreshCw, TrendingUp, Megaphone, Tv, Users, Gift, Mic, FileText, Volume2, Share2, Trophy } from "lucide-react";
 import SocialLinks from "@/components/SocialLinks";
+import { buildPageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = buildPageMetadata({
   title: "Pre podniky",
-};
+  description:
+    "Chcete pub kvíz vo svojom podniku? Mudrc prinesie moderátora, otázky, techniku a hostí v slabší deň týždňa.",
+  path: "/podniky",
+});
 
 const steps = [
   {
