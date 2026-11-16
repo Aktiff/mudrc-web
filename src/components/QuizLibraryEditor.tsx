@@ -9,7 +9,9 @@ import {
   collectUsedBankQuestionIdsFromQuiz,
   collectUsedQuestionBodyKeys,
   countFilledQuizQuestions,
+  isQuizQuestionFilled,
   normalizeLibraryQuiz,
+  questionCountLabel,
   quizQuestionAnswerKey,
   quizQuestionBodyKey,
   sameQuizQuestionVariant,
@@ -61,6 +63,7 @@ import {
   moveQuestionByDirection,
   moveQuestionToRoundIndex,
   removeQuestion,
+  removeQuizRound,
   roundLabels,
   sortQuizQuestions,
   displayQuestionNumber,
@@ -998,11 +1001,13 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
     );
   };
 
-  const returnQuestionToBank = (questionId: string) => {
+  const returnQuestionToBank = (questionId: string, options?: { confirm?: boolean; clearSlot?: boolean }) => {
     const question = questions.find((q) => q.id === questionId);
     const bankId = question?.bankQuestionId;
-    if (!bankId) return;
-    if (!window.confirm("Vrátiť otázku do banky? Obsah otázky sa vymaže.")) return;
+    if (!question || !bankId) return;
+    const ask = options?.confirm !== false;
+    const clearSlot = options?.clearSlot !== false;
+    if (ask && !window.confirm("Vrátiť otázku do banky? Obsah otázky sa vymaže.")) return;
 
     const soundRestore =
       (question?.kind === "sound" || question?.kind === "music") &&
@@ -1097,7 +1102,7 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
           })()
         : null;
 
-    takeQuestionOutOfQuiz(questionId, bankId);
+    if (clearSlot) takeQuestionOutOfQuiz(questionId, bankId);
 
     if (soundRestore) {
       void restoreAudioClip(soundRestore).catch(() => {
@@ -1130,7 +1135,7 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
       }
     }
 
-    setMsg({ text: "Otázka vrátená do banky.", ok: true });
+    if (ask) setMsg({ text: "Otázka vrátená do banky.", ok: true });
   };
 
   const saveOwnQuestionToBank = (questionId: string) => {
@@ -1492,7 +1497,7 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
   }, [roundQuestions]);
 
   const roundNumbers = useMemo(() => {
-    const rounds = new Set<number>([1, 2, 3, 4]);
+    const rounds = new Set<number>();
     for (const question of questions) {
       if (question.roundNumber >= 1) rounds.add(question.roundNumber);
     }
@@ -1511,7 +1516,7 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
   };
 
   const addRound = () => {
-    const next = Math.max(4, ...questions.map((question) => question.roundNumber), 0) + 1;
+    const next = Math.max(0, ...questions.map((question) => question.roundNumber)) + 1;
     setOpenRound(next);
     setQuiz((prev) =>
       prev
@@ -1522,6 +1527,219 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
         : prev
     );
     setMsg({ text: `Kolo ${next} pridané. Vlož doň otázky.`, ok: true });
+  };
+
+  const saveQuestionBackToBank = async (question: QuizQuestionItem) => {
+    const videoUrl = question.videoUrl?.trim() ?? "";
+    const audioUrl = question.audioUrl?.trim() ?? "";
+    const answer = question.answer.trim();
+    const keepIfAlreadyThere = async (run: () => Promise<unknown>) => {
+      try {
+        await run();
+      } catch (err) {
+        const text = err instanceof Error ? err.message : "";
+        if (!/už je v banke/i.test(text)) throw err;
+      }
+    };
+
+    if ((question.kind === "video" || videoUrl) && videoUrl && answer) {
+      await keepIfAlreadyThere(() =>
+        addVideoBankItemAsync({
+          label: question.mediaLabel?.trim() || answer,
+          answer,
+          videoUrl,
+          note: question.hostNote?.trim() || undefined,
+          questionBody: question.body.trim() || undefined,
+          tags: question.tags,
+        })
+      );
+      await refreshVideoBank();
+      return;
+    }
+
+    if (
+      (question.kind === "sound" || question.kind === "music" || audioUrl) &&
+      audioUrl &&
+      (answer || (question.musicArtist?.trim() && question.musicTitle?.trim()))
+    ) {
+      const song = artistTitleFromAnswer(question.answer);
+      const namedSong =
+        song ??
+        (question.musicArtist?.trim() && question.musicTitle?.trim()
+          ? { artist: question.musicArtist.trim(), title: question.musicTitle.trim() }
+          : null);
+      if (namedSong) {
+        await keepIfAlreadyThere(() =>
+          addMusicBankItemAsync(
+            {
+              artist: namedSong.artist,
+              title: namedSong.title,
+              audioUrl,
+              note: question.hostNote?.trim() || undefined,
+              tags: question.tags,
+              presentationFade: question.audioEdgeFade === true ? true : undefined,
+            },
+            quizRef.current?.id
+          )
+        );
+        await refreshMusicBank();
+        return;
+      }
+      await keepIfAlreadyThere(() =>
+        addSoundBankItemAsync({
+          label: question.mediaLabel?.trim() || question.body.trim() || answer,
+          answer,
+          audioUrl,
+          note: question.hostNote?.trim() || undefined,
+          questionBody: question.body.trim() || undefined,
+          tags: question.tags,
+        })
+      );
+      await refreshSoundBank();
+      return;
+    }
+
+    const bankId = question.bankQuestionId;
+    if (bankId && !isCustomBankQuestionId(bankId)) return;
+
+    if (!question.body.trim() || !answer) return;
+
+    const matchPairs = question.isMatchQuestion
+      ? matchPairsFromQuiz(question.options ?? [], question.matchRight ?? [], question.answer)
+      : [];
+    if (question.isMatchQuestion && matchPairs.length < 2) {
+      throw new Error(`Otázka ${displayQuestionNumber(question)} potrebuje aspoň dve dvojice, kolo ostalo.`);
+    }
+    const ordered = !question.isMatchQuestion && question.isOrderQuestion ? orderItemsFromAnswer(question.answer) : [];
+    const options = question.isMatchQuestion
+      ? matchPairs.map((pair) => pair.left)
+      : ordered.length >= 2
+        ? ordered
+        : [...(question.options ?? [])];
+    while (!question.isMatchQuestion && !question.isOrderQuestion && options.length < 6) options.push("");
+    const hasChoices = options.some((option) => option.trim());
+    const matched = hasChoices ? options.findIndex((option) => option.trim() === answer) : -1;
+    const input = {
+      body: question.body.trim(),
+      options: question.isMatchQuestion
+        ? matchPairs.map((pair) => pair.left)
+        : question.isOrderQuestion
+          ? options.filter((option) => option.trim())
+          : options.slice(0, 6),
+      matchRight: question.isMatchQuestion ? matchPairs.map((pair) => pair.right) : undefined,
+      correctIndex: question.isMatchQuestion || question.isOrderQuestion ? 0 : matched >= 0 ? matched : 0,
+      correctIndexes:
+        question.isMatchQuestion || question.isOrderQuestion ? undefined : findCorrectOptionIndexes(options, question.answer),
+      answer: question.isMatchQuestion
+        ? formatMatchBankAnswer(matchPairs)
+        : question.isOrderQuestion
+          ? question.answer.trim() || formatOrderAnswer(options)
+          : answer,
+      note: question.hostNote?.trim() || undefined,
+      tags: question.tags,
+      theme: inferBankTheme({
+        tags: question.tags,
+        body: question.body,
+        note: question.hostNote,
+        hint: quizRef.current?.title,
+      }),
+      isOpenQuestion: question.isMatchQuestion || question.isOrderQuestion ? false : !hasChoices,
+      isOrderQuestion: question.isOrderQuestion === true && question.isMatchQuestion !== true,
+      isMatchQuestion: question.isMatchQuestion === true,
+      isImageQuestion: Boolean(question.imageUrl?.trim() || question.imageDuringQuestion),
+      suggestedImageUrl: question.imageUrl?.trim() || undefined,
+    };
+    const alreadyThere =
+      customBankQuestions.some(
+        (item) =>
+          (bankId && item.id === bankId) ||
+          (quizQuestionBodyKey(item.body) === quizQuestionBodyKey(input.body) &&
+            quizQuestionAnswerKey(item.answer) === quizQuestionAnswerKey(input.answer))
+      ) ||
+      recentCustomBank.current.some(
+        (item) =>
+          quizQuestionBodyKey(item.body) === quizQuestionBodyKey(input.body) &&
+          quizQuestionAnswerKey(item.answer) === quizQuestionAnswerKey(input.answer)
+      );
+    if (!alreadyThere) {
+      const created = await addCustomBankQuestionAsync(input);
+      recentCustomBank.current = [created, ...recentCustomBank.current.filter((item) => item.id !== created.id)];
+    }
+    await refreshCustomBank();
+  };
+
+  const deleteRound = async (round: number) => {
+    const inRound = questions.filter((question) => question.roundNumber === round);
+    if (inRound.length === 0) return;
+    const filled = inRound.filter(isQuizQuestionFilled);
+    if (filled.length === 0) {
+      if (!window.confirm(`Zmazať prázdne kolo ${round}?`)) return;
+    } else {
+      const label = questionCountLabel(filled.length);
+      if (
+        !window.confirm(
+          `Kolo ${round} nie je prázdne (${label}). Zmazať ho a vrátiť otázky do banky?`
+        )
+      ) {
+        return;
+      }
+      if (
+        !window.confirm(
+          `Druhé potvrdenie: naozaj zmazať kolo ${round}? Otázky sa vrátia do banky a kolo zmizne.`
+        )
+      ) {
+        return;
+      }
+      const stuck = filled.find(
+        (question) =>
+          !question.bankQuestionId &&
+          !(question.videoUrl?.trim() && question.answer.trim()) &&
+          !(question.audioUrl?.trim() && (question.answer.trim() || (question.musicArtist?.trim() && question.musicTitle?.trim()))) &&
+          !(question.body.trim() && question.answer.trim())
+      );
+      if (stuck) {
+        setMsg({
+          text: `Otázka ${displayQuestionNumber(stuck)} sa nedá vrátiť do banky. Doplň text aj odpoveď, alebo ju zmaž zvlášť.`,
+          ok: false,
+        });
+        return;
+      }
+      try {
+        for (const question of filled) {
+          await saveQuestionBackToBank(question);
+        }
+      } catch (err) {
+        setMsg({
+          text: err instanceof Error ? err.message : "Kolo ostalo. Otázku sa nepodarilo vrátiť do banky.",
+          ok: false,
+        });
+        return;
+      }
+    }
+
+    const bankIds = new Set(
+      inRound.map((question) => question.bankQuestionId).filter((id): id is string => Boolean(id))
+    );
+    setQuiz((prev) =>
+      prev
+        ? {
+            ...prev,
+            questions: removeQuizRound(prev.questions, round),
+            usedBankQuestionIds: (prev.usedBankQuestionIds ?? []).filter((id) => !bankIds.has(id)),
+          }
+        : prev
+    );
+    setOpenRound((current) => {
+      const shifted = current > round ? current - 1 : current;
+      return Math.max(1, Math.min(shifted, Math.max(1, roundNumbers.length - 1)));
+    });
+    setMsg({
+      text:
+        filled.length > 0
+          ? `Kolo ${round} je preč. ${questionCountLabel(filled.length)} ${filled.length === 1 ? "je späť" : "sú späť"} v banke.`
+          : `Prázdne kolo ${round} je preč.`,
+      ok: true,
+    });
   };
 
   const insertEmptyQuestion = (afterQuestionNumber: number, kind: QuizQuestionKind, afterLabel?: number) => {
@@ -1883,10 +2101,22 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
             </button>
           </div>
 
-          <h3 className="font-display text-xl text-brand-text">
-            Kolo {openRound}
-            {roundLabels[openRound] ? ` — ${roundLabels[openRound]}` : ""}
-          </h3>
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <h3 className="font-display text-xl text-brand-text">
+              Kolo {openRound}
+              {roundLabels[openRound] ? ` — ${roundLabels[openRound]}` : ""}
+            </h3>
+            {roundNumbers.includes(openRound) && (
+              <button
+                type="button"
+                onClick={() => void deleteRound(openRound)}
+                className="text-sm font-semibold text-red-400 hover:text-red-300 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-red-500/40 hover:border-red-400"
+              >
+                <Trash2 className="w-4 h-4" />
+                Zmazať kolo
+              </button>
+            )}
+          </div>
 
           <div className="space-y-1">
         {roundQuestions.length === 0 && (

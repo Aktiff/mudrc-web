@@ -63,6 +63,13 @@ export function reorderQuizRounds(
   });
 }
 
+/** Zmaže kolo a ostatné prečísluje na 1…n. */
+export function removeQuizRound(questions: QuizQuestionItem[], roundNumber: number): QuizQuestionItem[] {
+  const kept = questions.filter((question) => question.roundNumber !== roundNumber);
+  const order = Array.from(new Set(kept.map((question) => question.roundNumber))).sort((a, b) => a - b);
+  return reorderQuizRounds(kept, order);
+}
+
 /** Otázky v tom istom bloku na prehadzovanie poradia (kolo + obsah alebo hudba). */
 export function questionsInSameReorderGroup(
   questions: QuizQuestionItem[],
