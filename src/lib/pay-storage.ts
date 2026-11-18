@@ -5,6 +5,7 @@ import {
   applyHoldExpiry,
   createTeamBooking,
   createWalkUpSeat,
+  markNextPendingSeatPaid,
   markSeatPaid,
   toggleSeatCheckIn,
   type PayBookingStore,
@@ -115,6 +116,34 @@ export async function paySeatMock(
       return teams;
     }
     const outcome = markSeatPaid(teams[idx], seatToken, payer);
+    if ("error" in outcome) {
+      fail = outcome.error;
+      return teams;
+    }
+    paid = outcome;
+    const next = [...teams];
+    next[idx] = outcome.team;
+    return next;
+  });
+  if (fail) return { error: fail, status: 400 };
+  if (!paid) return { error: "Platba zlyhala.", status: 500 };
+  return paid;
+}
+
+/** Pay one seat via the shared team link (claims next pending prepaid seat). */
+export async function payTeamNextSeatMock(
+  teamToken: string,
+  payer?: { name?: string; email?: string }
+): Promise<{ team: PayTeam; seat: PaySeat } | { error: string; status: number }> {
+  let paid: { team: PayTeam; seat: PaySeat } | undefined;
+  let fail: string | undefined;
+  await updateStore((teams) => {
+    const idx = teams.findIndex((t) => t.token === teamToken);
+    if (idx < 0) {
+      fail = "Tím neexistuje.";
+      return teams;
+    }
+    const outcome = markNextPendingSeatPaid(teams[idx], payer);
     if ("error" in outcome) {
       fail = outcome.error;
       return teams;

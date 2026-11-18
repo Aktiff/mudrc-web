@@ -121,14 +121,14 @@ export default function PayRegisterForm({
           autoComplete="email"
         />
         <span className="text-xs text-brand-muted mt-1 block">
-          Na doklady, refund a zdieľanie pay-linkov.
+          Na doklady, refund a zdieľanie pay-linku tímu.
         </span>
       </label>
 
       {error ? <p className="text-red-600 text-sm">{error}</p> : null}
 
       <button type="submit" className="btn-primary w-full justify-center" disabled={loading}>
-        {loading ? "Ukladám…" : "Rezervovať miesta a získať pay-linky"}
+        {loading ? "Ukladám…" : "Rezervovať miesta a získať pay-link"}
       </button>
     </form>
   );

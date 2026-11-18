@@ -17,8 +17,8 @@ export default async function PayHomePage() {
           Predplatné miesta
         </h1>
         <p className="text-brand-muted">
-          Kapitán zaregistruje tím (e-mail povinný) → zdieľateľné pay-linky → každý platí svoje miesto. Mock platba kartou
-          okamžite potvrdí rezerváciu. Rovnaké podniky a termíny ako na mudrc.sk.
+          Kapitán zaregistruje tím (e-mail povinný) → jeden zdieľateľný pay-link → každý zaplatí jedno miesto.
+          Mock platba kartou okamžite potvrdí rezerváciu. Rovnaké podniky a termíny ako na mudrc.sk.
         </p>
       </header>
 
