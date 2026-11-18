@@ -79,37 +79,27 @@ export async function sendPaymentConfirmationEmail(input: {
   const text = [
     "Potvrdenie tvojej platby — MUDRC Kvíz",
     "",
-    "Tento e-mail je pre teba ako platiteľa (adresa zadaná pri platbe).",
+    "Ďakujeme za registráciu. Platbu sme prijali a vaše miesto v tíme je rezervované.",
     "",
     `Tím: ${input.team.teamName}`,
-    `Miesto: ${seatLabel}`,
     `Suma: ${amount}`,
     `Podnik: ${input.team.venue}${input.team.city ? `, ${input.team.city}` : ""}`,
     `Termín: ${when}`,
-    input.seat.payerName ? `Platiteľ: ${input.seat.payerName}` : "",
     "",
-    "Toto je testovacie potvrdenie z pay.mudrc.sk — platba prebehla ako mock (bez skutočnej karty).",
     "Ukáž toto potvrdenie pri check-ine.",
-  ]
-    .filter(Boolean)
-    .join("\n");
+  ].join("\n");
 
   const html = `<!DOCTYPE html>
 <html lang="sk">
 <body style="font-family:Arial,sans-serif;line-height:1.5;color:#111;">
   <h2 style="color:#d97706;">Tvoja platba je potvrdená</h2>
-  <p>Ďakujeme — toto potvrdenie ide tebe ako platiteľovi. Tvoje miesto je rezervované.</p>
+  <p>Ďakujeme za registráciu. Platbu sme prijali a vaše miesto v tíme je rezervované.</p>
   <table style="border-collapse:collapse;">
     <tr><td style="padding:4px 12px 4px 0;"><b>Tím:</b></td><td>${escapeHtml(input.team.teamName)}</td></tr>
-    <tr><td style="padding:4px 12px 4px 0;"><b>Miesto:</b></td><td>${escapeHtml(seatLabel)}</td></tr>
     <tr><td style="padding:4px 12px 4px 0;"><b>Suma:</b></td><td>${escapeHtml(amount)}</td></tr>
     <tr><td style="padding:4px 12px 4px 0;"><b>Podnik:</b></td><td>${escapeHtml(input.team.venue)}${input.team.city ? `, ${escapeHtml(input.team.city)}` : ""}</td></tr>
     <tr><td style="padding:4px 12px 4px 0;"><b>Termín:</b></td><td>${escapeHtml(when)}</td></tr>
-    ${input.seat.payerName ? `<tr><td style="padding:4px 12px 4px 0;"><b>Platiteľ:</b></td><td>${escapeHtml(input.seat.payerName)}</td></tr>` : ""}
   </table>
-  <p style="margin-top:16px;color:#666;font-size:12px;">
-    Mock staging pay.mudrc.sk — bez skutočnej karty. MUDRC Kvíz
-  </p>
 </body>
 </html>`;
 

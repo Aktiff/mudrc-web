@@ -19,11 +19,27 @@ export function walkUpPriceEur(entryFee: number): number {
   return Math.round((prepaidPriceEur(entryFee) + walkUpSurchargeEur()) * 100) / 100;
 }
 
-export function isPayHostname(host: string | null | undefined): boolean {
-  const h = String(host ?? "")
+function hostnameOnly(host: string | null | undefined): string {
+  return String(host ?? "")
     .split(":")[0]
     .trim()
     .toLowerCase();
+}
+
+function isLocalHostname(host: string): boolean {
+  return (
+    !host ||
+    host === "localhost" ||
+    host === "127.0.0.1" ||
+    host === "::1" ||
+    host === "pay.localhost" ||
+    host === "pay.127.0.0.1" ||
+    host.endsWith(".localhost")
+  );
+}
+
+export function isPayHostname(host: string | null | undefined): boolean {
+  const h = hostnameOnly(host);
   if (!h) return false;
   if (h === "pay.mudrc.sk") return true;
   if (h === "pay.localhost" || h === "pay.127.0.0.1") return true;
@@ -44,20 +60,58 @@ export function payHref(basePath: "" | "/pay", path: string): string {
   return `${basePath}${clean}`;
 }
 
-export function payPublicOrigin(host?: string | null): string {
-  if (isPayHostname(host)) {
-    const proto = process.env.VERCEL ? "https" : "http";
-    const h = String(host ?? "pay.mudrc.sk").split(":")[0];
-    return `${proto}://${h}`;
-  }
+function envPublicOrigin(): string | null {
   const site = process.env.NEXT_PUBLIC_SITE_URL?.trim() || process.env.NEXT_PUBLIC_PAY_URL?.trim();
-  if (site) {
+  if (!site) return null;
+  try {
+    return new URL(site).origin;
+  } catch {
+    return null;
+  }
+}
+
+function requestProtocol(proto?: string | null): "http" | "https" {
+  const p = String(proto ?? "")
+    .split(",")[0]
+    .trim()
+    .toLowerCase();
+  if (p === "http" || p === "https") return p;
+  if (process.env.VERCEL || process.env.NODE_ENV === "production") return "https";
+  return "http";
+}
+
+/**
+ * Absolute origin for pay share links.
+ * Prefer the real request host (never localhost in production).
+ */
+export function payPublicOrigin(host?: string | null, proto?: string | null): string {
+  const rawHost = String(host ?? "")
+    .split(",")[0]
+    .trim();
+  const h = hostnameOnly(rawHost);
+  const protocol = requestProtocol(proto);
+  const isProd = !!(process.env.VERCEL || process.env.NODE_ENV === "production");
+
+  if (h && !(isLocalHostname(h) && isProd)) {
+    return `${protocol}://${rawHost}`;
+  }
+
+  const fromEnv = envPublicOrigin();
+  if (fromEnv) {
     try {
-      return new URL(site).origin;
+      const url = new URL(fromEnv);
+      if (!(isLocalHostname(url.hostname) && isProd)) {
+        return url.origin;
+      }
     } catch {
       /* fall through */
     }
   }
+
+  if (isProd || isPayHostname(host)) {
+    return "https://pay.mudrc.sk";
+  }
+
   return "http://localhost:3000";
 }
 
