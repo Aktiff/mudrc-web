@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { absoluteCaptainTeamUrl, sendCaptainTeamAccessEmail } from "@/lib/pay-email";
 import { resolvePayQuiz } from "@/lib/pay-events";
 import { registerPayTeam } from "@/lib/pay-storage";
 
@@ -22,7 +23,7 @@ export async function POST(req: NextRequest) {
   }
   const phoneDigits = phone.replace(/\D/g, "");
   if (phoneDigits.length < 9) {
-    return NextResponse.json({ error: "Telefónne číslo musí mať aspoň 9 číslic." }, { status: 400 });
+    return NextResponse.json({ error: "Telefónne číslo kapitána je povinné (aspoň 9 číslic)." }, { status: 400 });
   }
 
   const quiz = await resolvePayQuiz(eventSlug, quizDate || undefined);
@@ -39,10 +40,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Registrácie na tento termín sú uzavreté." }, { status: 403 });
   }
 
+  const playerMin = Math.max(2, quiz.minPlayers);
   const players = Math.floor(playersRaw);
-  if (!Number.isFinite(players) || players < quiz.minPlayers || players > quiz.maxPlayers) {
+  if (!Number.isFinite(players) || players < playerMin || players > quiz.maxPlayers) {
     return NextResponse.json(
-      { error: `Počet hráčov musí byť ${quiz.minPlayers}–${quiz.maxPlayers}.` },
+      { error: `Počet hráčov musí byť ${playerMin}–${quiz.maxPlayers}.` },
       { status: 400 }
     );
   }
@@ -60,11 +62,34 @@ export async function POST(req: NextRequest) {
       captainEmail: email,
       entryFee: quiz.entryFee,
     });
+
+    const host = req.headers.get("x-forwarded-host") || req.headers.get("host");
+    const proto = req.headers.get("x-forwarded-proto");
+    const teamUrl = absoluteCaptainTeamUrl(team.token, { host, proto });
+
+    let captainEmailSent = false;
+    let captainEmailSkipped = false;
+    let captainEmailWarning: string | undefined;
+    let captainEmailId: string | undefined;
+    const mail = await sendCaptainTeamAccessEmail({ team, teamUrl });
+    captainEmailSent = mail.ok && !mail.skipped;
+    captainEmailSkipped = !!mail.skipped;
+    captainEmailId = mail.id;
+    if (!mail.ok) {
+      captainEmailWarning = mail.error;
+      console.warn("Pay register succeeded but captain access email failed:", mail.error);
+    }
+
     return NextResponse.json({
       ok: true,
       mock: true,
       teamToken: team.token,
       teamId: team.id,
+      teamUrl,
+      captainEmailSent,
+      captainEmailSkipped,
+      captainEmailId,
+      ...(captainEmailWarning ? { captainEmailWarning } : {}),
       seats: team.seats.map((s) => ({
         index: s.index,
         token: s.token,
