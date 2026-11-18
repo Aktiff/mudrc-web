@@ -3,6 +3,8 @@ import { Calendar, Plus, PauseCircle } from "lucide-react";
 import EventPromoChecks from "@/components/admin/EventPromoChecks";
 import FacebookEventPostButton from "@/components/admin/FacebookEventPostButton";
 import { formatEventDateLabel, sortEventsForAdminOverview } from "@/lib/data";
+import { mergeRegistrationsWithPayBookings } from "@/lib/pay-admin";
+import { readPayTeams } from "@/lib/pay-storage";
 import { estimatedEntryRevenue, formatEuroAmount, formatSkPlayerCountTotal, registrationTotalsForEvent } from "@/lib/registration-utils";
 import { venueQuizLabel } from "@/lib/quiz-type";
 import { readEvents, readRegistrations } from "@/lib/storage";
@@ -10,7 +12,12 @@ import { readEvents, readRegistrations } from "@/lib/storage";
 export const dynamic = "force-dynamic";
 
 export default async function AdminDashboard() {
-  const [{ events }, { registrations }] = await Promise.all([readEvents(), readRegistrations()]);
+  const [{ events }, { registrations }, payTeams] = await Promise.all([
+    readEvents(),
+    readRegistrations(),
+    readPayTeams(),
+  ]);
+  const allRegistrations = mergeRegistrationsWithPayBookings(registrations, payTeams);
   const sortedEvents = sortEventsForAdminOverview(events);
 
   return (
@@ -46,7 +53,7 @@ export default async function AdminDashboard() {
 
       <div className="space-y-3">
         {sortedEvents.map((e) => {
-          const regTotals = registrationTotalsForEvent(registrations, e.slug, e.venue);
+          const regTotals = registrationTotalsForEvent(allRegistrations, e.slug, e.venue);
           return (
           <article
             key={e.slug}

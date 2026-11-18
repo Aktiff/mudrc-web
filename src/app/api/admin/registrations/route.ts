@@ -2,7 +2,8 @@ import { randomUUID } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { isAdminRequest } from "@/lib/admin-session";
 import { registrationOnTerm } from "@/lib/future-quizzes";
-import { registrationsForEvent } from "@/lib/registration-utils";
+import { isPayRegistrationId, mergeRegistrationsWithPayBookings } from "@/lib/pay-admin";
+import { readPayTeams } from "@/lib/pay-storage";
 import {
   addRegistration,
   deleteRegistrationById,
@@ -21,18 +22,24 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Neautorizované" }, { status: 401 });
   }
 
-  const data = await readRegistrations();
+  const [{ registrations }, payTeams] = await Promise.all([readRegistrations(), readPayTeams()]);
   const slug = req.nextUrl.searchParams.get("slug");
   const venue = req.nextUrl.searchParams.get("venue");
   if (slug || venue) {
     return NextResponse.json(
       {
-        registrations: registrationsForEvent(data.registrations, slug ?? "", venue ?? ""),
+        registrations: mergeRegistrationsWithPayBookings(registrations, payTeams, {
+          slug: slug ?? "",
+          venue: venue ?? "",
+        }),
       },
       { headers: NO_STORE }
     );
   }
-  return NextResponse.json(data, { headers: NO_STORE });
+  return NextResponse.json(
+    { registrations: mergeRegistrationsWithPayBookings(registrations, payTeams) },
+    { headers: NO_STORE }
+  );
 }
 
 export async function POST(req: NextRequest) {
@@ -98,6 +105,12 @@ export async function PATCH(req: NextRequest) {
 
   if (!id) {
     return NextResponse.json({ error: "Chýba id registrácie" }, { status: 400 });
+  }
+  if (isPayRegistrationId(id)) {
+    return NextResponse.json(
+      { error: "Predplatné rezervácie upravuj cez pay dashboard tímu." },
+      { status: 400 }
+    );
   }
   if (!hasPlayers && !hasQuizDate) {
     return NextResponse.json({ error: "Chýba úprava registrácie" }, { status: 400 });
@@ -176,14 +189,21 @@ export async function DELETE(req: NextRequest) {
 
   try {
     if (id) {
+      if (isPayRegistrationId(id)) {
+        return NextResponse.json(
+          { error: "Predplatnú rezerváciu zatiaľ nemožno zmazať z adminu." },
+          { status: 400 }
+        );
+      }
       const ok = await deleteRegistrationById(id);
       if (!ok) return NextResponse.json({ error: "Registrácia neexistuje" }, { status: 404 });
       return NextResponse.json({ ok: true, removed: 1, id });
     }
 
     if (ids.length > 0) {
-      const removed = await deleteRegistrationsByIds(ids);
-      return NextResponse.json({ ok: true, removed, ids });
+      const classicIds = ids.filter((value) => !isPayRegistrationId(value));
+      const removed = await deleteRegistrationsByIds(classicIds);
+      return NextResponse.json({ ok: true, removed, ids: classicIds });
     }
 
     if (slug || venue) {

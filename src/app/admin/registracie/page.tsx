@@ -15,6 +15,7 @@ import {
 } from "@/lib/registration-utils";
 import AdminRegistrationRow, { type AdminRegistration } from "@/components/admin/AdminRegistrationRow";
 import RegistrationShareList from "@/components/admin/RegistrationShareList";
+import { isPayRegistration } from "@/lib/pay-admin";
 
 function matchesFilter(reg: AdminRegistration, filter: string): boolean {
   const q = filter.trim().toLowerCase();
@@ -224,18 +225,22 @@ export default function RegistraciaPage() {
     }
   };
 
-  const clearVenue = async (event: QuizEvent, count: number) => {
+  const clearVenue = async (event: QuizEvent, _count: number) => {
+    const classic = (registrationsForEvent(regs, event.slug, event.venue) as AdminRegistration[]).filter(
+      (entry) => !isPayRegistration(entry)
+    );
+    if (classic.length === 0) return;
     if (
       !confirm(
-        `Naozaj vymazať všetkých ${count} ${count === 1 ? "registráciu" : "registrácií"} pre ${event.venue}?`
+        `Naozaj vymazať všetkých ${classic.length} klasických ${classic.length === 1 ? "registráciu" : "registrácií"} pre ${event.venue}? Predplatné rezervácie ostanú.`
       )
     ) {
       return;
     }
-    const ids = (registrationsForEvent(regs, event.slug, event.venue) as AdminRegistration[]).map((entry) => entry.id);
+    const ids = classic.map((entry) => entry.id);
     const previous = regs;
     for (const id of ids) removedRegIds.current.add(id);
-    setRegs((prev) => prev.filter((entry) => !removedRegIds.current.has(entry.id)));
+    setRegs((prev) => prev.filter((entry) => !ids.includes(entry.id)));
     setClearingVenueSlug(event.slug);
     setMsg(null);
     try {
@@ -332,7 +337,7 @@ export default function RegistraciaPage() {
           <Link href={`/admin/udalosti/${event.slug}?tab=registracie`} className="text-sm font-semibold text-brand-orange-readable hover:underline">
             Otvoriť v udalosti
           </Link>
-          {list.length > 0 && (
+          {list.some((entry) => !isPayRegistration(entry)) && (
             <button
               type="button"
               onClick={() => clearVenue(event, list.length)}
@@ -340,7 +345,7 @@ export default function RegistraciaPage() {
               className="ml-auto flex items-center gap-2 text-sm font-semibold px-3 py-2 rounded-xl border border-red-200 dark:border-red-900 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 disabled:opacity-50"
             >
               <Trash2 className="w-4 h-4" />
-              {clearingVenueSlug === event.slug ? "Mažem…" : "Vymazať všetky"}
+              {clearingVenueSlug === event.slug ? "Mažem…" : "Vymazať klasické"}
             </button>
           )}
         </div>
