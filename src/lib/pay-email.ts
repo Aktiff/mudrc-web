@@ -74,10 +74,12 @@ export async function sendPaymentConfirmationEmail(input: {
   const when = `${formatEventDateLabel(input.team.quizDate)} · ${input.team.quizTime}`;
   const seatLabel = formatSeatLabel(input.seat);
   const amount = `${input.seat.amountEur} €`;
-  const subject = `Potvrdenie platby: ${seatLabel} · ${input.team.teamName}`;
+  const subject = `Tvoje potvrdenie platby: ${seatLabel} · ${input.team.teamName}`;
 
   const text = [
-    "Potvrdenie platby — MUDRC Kvíz (mock staging)",
+    "Potvrdenie tvojej platby — MUDRC Kvíz",
+    "",
+    "Tento e-mail je pre teba ako platiteľa (adresa zadaná pri platbe).",
     "",
     `Tím: ${input.team.teamName}`,
     `Miesto: ${seatLabel}`,
@@ -95,8 +97,8 @@ export async function sendPaymentConfirmationEmail(input: {
   const html = `<!DOCTYPE html>
 <html lang="sk">
 <body style="font-family:Arial,sans-serif;line-height:1.5;color:#111;">
-  <h2 style="color:#d97706;">Platba potvrdená</h2>
-  <p>Ďakujeme — tvoje miesto je rezervované.</p>
+  <h2 style="color:#d97706;">Tvoja platba je potvrdená</h2>
+  <p>Ďakujeme — toto potvrdenie ide tebe ako platiteľovi. Tvoje miesto je rezervované.</p>
   <table style="border-collapse:collapse;">
     <tr><td style="padding:4px 12px 4px 0;"><b>Tím:</b></td><td>${escapeHtml(input.team.teamName)}</td></tr>
     <tr><td style="padding:4px 12px 4px 0;"><b>Miesto:</b></td><td>${escapeHtml(seatLabel)}</td></tr>

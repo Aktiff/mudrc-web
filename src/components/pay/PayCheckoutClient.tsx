@@ -70,12 +70,16 @@ export default function PayCheckoutClient({
       if (typeof data.remainingPending === "number") {
         setLeftAfterPay(data.remainingPending);
       }
-      if (data.emailSent) {
-        setEmailNote(`Potvrdenie sme poslali na ${payerEmail.trim()}.`);
-      } else if (payerEmail.trim() && data.emailWarning) {
-        setEmailNote("Platba prebehla, ale potvrdenie e-mailom sa nepodarilo odoslať.");
-      } else if (!payerEmail.trim()) {
-        setEmailNote("");
+      const sentTo =
+        (typeof data.emailTo === "string" && data.emailTo.trim()) || payerEmail.trim();
+      if (data.emailSent && sentTo) {
+        setEmailNote(`Potvrdenie platby sme poslali tebe na ${sentTo}.`);
+      } else if (sentTo && data.emailWarning) {
+        setEmailNote(
+          `Platba prebehla, ale potvrdenie na ${sentTo} sa nepodarilo odoslať: ${String(data.emailWarning)}`
+        );
+      } else if (!sentTo) {
+        setEmailNote("Bez e-mailu neposielame potvrdenie — nabudúce ho vyplň pri platbe.");
       }
       setPaid(true);
     } catch {
@@ -107,7 +111,11 @@ export default function PayCheckoutClient({
           {paidSeatLabel} · {teamName} · {amountEur}&nbsp;€ (mock)
         </p>
         <p className="text-sm text-brand-muted">Rezervácia je potvrdená. Ukáž toto pri check-ine.</p>
-        {emailNote ? <p className="text-sm text-brand-muted">{emailNote}</p> : null}
+        {emailNote ? (
+          <p className="text-sm text-brand-text bg-brand-card border border-brand-border rounded-xl px-3 py-2">
+            {emailNote}
+          </p>
+        ) : null}
         {typeof leftAfterPay === "number" && leftAfterPay > 0 ? (
           <p className="text-sm text-brand-muted">
             V tíme ešte ostáva {leftAfterPay}{" "}
@@ -175,15 +183,17 @@ export default function PayCheckoutClient({
         />
       </label>
       <label className="block">
-        <span className="text-sm font-medium">E-mail na potvrdenie (voliteľné)</span>
+        <span className="text-sm font-medium">Tvoj e-mail — potvrdenie platby</span>
         <input
           className="mt-1 w-full rounded-xl border border-brand-border bg-brand-card px-4 py-3"
           type="email"
           value={payerEmail}
           onChange={(e) => setPayerEmail(e.target.value)}
+          autoComplete="email"
+          placeholder="napr. ty@email.sk"
         />
         <span className="text-xs text-brand-muted mt-1 block">
-          Ak vyplníš e-mail, pošleme potvrdenie platby (Resend).
+          Potvrdenie príde na túto adresu (platiteľ), nie kapitánovi tímu. Odporúčame vyplniť.
         </span>
       </label>
 

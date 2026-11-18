@@ -1,9 +1,11 @@
 import { isQuizVisible, sortEventsByDate } from "@/lib/data";
 import { isValidStoredEvent } from "@/lib/event-normalize";
+import { ensurePayTestEvent } from "@/lib/pay-test-event";
 import { getEventRegionSlug, isRegionSlug } from "@/lib/regions";
 import { readEvents } from "@/lib/storage";
 
 export async function readPublicEvents() {
+  await ensurePayTestEvent();
   const { events } = await readEvents();
   return sortEventsByDate(events.filter((event) => isValidStoredEvent(event) && isQuizVisible(event)));
 }
