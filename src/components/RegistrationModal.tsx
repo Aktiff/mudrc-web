@@ -165,7 +165,7 @@ export default function RegistrationModal({
                 <select
                   value={players}
                   onChange={(e) => setPlayers(e.target.value)}
-                  className="w-full border border-brand-border rounded-xl px-4 py-3 text-brand-text bg-brand-surface focus:outline-none focus:border-brand-orange transition-colors"
+                  className="input px-4 py-3"
                 >
                   {Array.from({ length: maxPlayers - minPlayers + 1 }, (_, i) => minPlayers + i).map((n) => (
                     <option key={n} value={n}>{n} {n === 1 ? "hráč" : n < 5 ? "hráči" : "hráčov"}</option>

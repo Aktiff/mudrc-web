@@ -130,7 +130,7 @@ export default function PayTeamDashboard({ team, whenLabel, basePath, origin, ma
               {shareUrl}
             </p>
             <div className="flex flex-wrap gap-2">
-              <a href={sharedPayPath(basePath, team.token)} className="btn-primary text-sm px-4 py-2">
+              <a href={shareUrl} className="btn-primary text-sm px-4 py-2">
                 Otvoriť platbu
               </a>
               <button type="button" className="btn-outline text-sm px-4 py-2" onClick={copySharedLink}>
