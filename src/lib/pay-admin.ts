@@ -1,7 +1,18 @@
-import type { PayTeam } from "@/lib/pay-domain";
+import type { PaySeat, PayTeam } from "@/lib/pay-domain";
 import { prepaidSeatCount, teamSummary } from "@/lib/pay-domain";
 import { registrationMatchesEvent } from "@/lib/registration-utils";
 import type { Registration } from "@/lib/storage";
+
+/** Compact seat row for admin expand (same info captains see). */
+export type AdminPaySeatView = {
+  id: string;
+  index: number;
+  status: PaySeat["status"];
+  amountEur: number;
+  payerName?: string;
+  payerEmail?: string;
+  kind: PaySeat["kind"];
+};
 
 /** Admin registration row that may come from classic web signup or prepaid pay flow. */
 export type AdminRegistrationView = Registration & {
@@ -11,6 +22,10 @@ export type AdminRegistrationView = Registration & {
   paidSeats?: number;
   pendingSeats?: number;
   payStatus?: PayTeam["status"];
+  /** Captain dashboard token — open /pay/t/<token>. */
+  payTeamToken?: string;
+  captainEmail?: string;
+  paySeats?: AdminPaySeatView[];
 };
 
 function formatCreatedAt(iso: string): string {
@@ -23,6 +38,17 @@ function formatCreatedAt(iso: string): string {
 export function payTeamToAdminRegistration(team: PayTeam): AdminRegistrationView {
   const summary = teamSummary(team);
   const reserved = prepaidSeatCount(team) || team.players || summary.total;
+  const paySeats: AdminPaySeatView[] = team.seats
+    .filter((seat) => seat.kind === "prepaid")
+    .map((seat) => ({
+      id: seat.id,
+      index: seat.index,
+      status: seat.status,
+      amountEur: seat.amountEur,
+      payerName: seat.payerName,
+      payerEmail: seat.payerEmail,
+      kind: seat.kind,
+    }));
   return {
     id: `pay:${team.id}`,
     eventSlug: team.eventSlug,
@@ -37,6 +63,9 @@ export function payTeamToAdminRegistration(team: PayTeam): AdminRegistrationView
     paidSeats: summary.paid,
     pendingSeats: summary.pending,
     payStatus: team.status,
+    payTeamToken: team.token,
+    captainEmail: team.captainEmail || undefined,
+    paySeats,
   };
 }
 

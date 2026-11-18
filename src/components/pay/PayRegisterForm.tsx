@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 type Props = {
@@ -15,6 +15,12 @@ type Props = {
   basePath: "" | "/pay";
 };
 
+function playersNoun(n: number): string {
+  if (n === 1) return "hráč";
+  if (n < 5) return "hráči";
+  return "hráčov";
+}
+
 export default function PayRegisterForm({
   eventSlug,
   quizDate,
@@ -26,8 +32,15 @@ export default function PayRegisterForm({
   basePath,
 }: Props) {
   const router = useRouter();
+  /** Product rule: dropdown from 2 … quiz maxPlayers (still clamped by event min). */
+  const playerMin = Math.max(2, minPlayers);
+  const playerMax = Math.max(playerMin, maxPlayers);
+  const playerOptions = useMemo(
+    () => Array.from({ length: playerMax - playerMin + 1 }, (_, i) => playerMin + i),
+    [playerMin, playerMax]
+  );
   const [teamName, setTeamName] = useState("");
-  const [players, setPlayers] = useState(String(minPlayers));
+  const [players, setPlayers] = useState(String(playerMin));
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
@@ -116,26 +129,32 @@ export default function PayRegisterForm({
 
       <label className="block">
         <span className="text-sm font-medium text-brand-text">Počet miest (hráčov)</span>
-        <input
-          className="mt-1 w-full rounded-xl border border-brand-border bg-brand-card px-4 py-3"
-          type="number"
-          min={minPlayers}
-          max={maxPlayers}
+        <select
+          className="mt-1 w-full rounded-xl border border-brand-border bg-brand-card px-4 py-3 pr-10"
           value={players}
           onChange={(e) => setPlayers(e.target.value)}
           required
-        />
+        >
+          {playerOptions.map((n) => (
+            <option key={n} value={n}>
+              {n} {playersNoun(n)}
+            </option>
+          ))}
+        </select>
       </label>
 
       <label className="block">
-        <span className="text-sm font-medium text-brand-text">Telefón kapitána</span>
+        <span className="text-sm font-medium text-brand-text">Telefón kapitána (povinný)</span>
         <input
           className="mt-1 w-full rounded-xl border border-brand-border bg-brand-card px-4 py-3"
           type="tel"
+          inputMode="tel"
           value={phone}
           onChange={(e) => setPhone(e.target.value)}
           required
           autoComplete="tel"
+          placeholder="+421 912 345 678"
+          aria-required="true"
         />
       </label>
 
@@ -150,7 +169,8 @@ export default function PayRegisterForm({
           autoComplete="email"
         />
         <span className="text-xs text-brand-muted mt-1 block">
-          Na doklady, refund a zdieľanie pay-linku tímu.
+          Po registrácii ti pošleme odkaz na stránku tímu — otvoríš ju kedykoľvek bez prihlásenia. Použije sa aj na
+          doklady, refund a zdieľanie pay-linku.
         </span>
       </label>
 
