@@ -34,9 +34,9 @@ To simulate the subdomain locally, map `pay.localhost` in `/etc/hosts` and set `
 ## Test flow
 
 1. `/pay` → pick a quiz → **Registrovať tím** (name, N seats, phone, **email**).
-2. Team page shows N shareable pay-links.
-3. Open a pay-link → **Zaplatiť kartou (mock)** → instant `paid`.
-4. Repeat for other seats; team status goes `open` → `partial` → `full`.
+2. Team page shows **one** shareable pay-link (copy button).
+3. Open that link → **Zaplatiť kartou (mock)** → instant `paid` for one seat.
+4. Others reuse the **same** link until seats are gone; team status goes `open` → `partial` → `full`.
 5. `/pay/check-in/<slug>?date=...` + PIN → check-in paid seats; **Walk-up** for on-site price (`entryFee` + surcharge).
 
 ## Routes
@@ -45,8 +45,9 @@ To simulate the subdomain locally, map `pay.localhost` in `/etc/hosts` and set `
 |-------------------|-----------------|
 | `/pay` | `/` |
 | `/pay/r/<slug>` | `/r/<slug>` |
-| `/pay/t/<teamToken>` | `/t/<teamToken>` |
-| `/pay/p/<seatToken>` | `/p/<seatToken>` |
+| `/pay/t/<teamToken>` | `/t/<teamToken>` (captain dashboard) |
+| `/pay/s/<teamToken>` | `/s/<teamToken>` (shared team pay link) |
+| `/pay/p/<seatToken>` | `/p/<seatToken>` (legacy per-seat; optional) |
 | `/pay/check-in/<slug>` | `/check-in/<slug>` |
 | `/pay/walk-up/<slug>` | `/walk-up/<slug>` |
 

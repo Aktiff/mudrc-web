@@ -13,13 +13,14 @@ type Props = {
   origin: string;
 };
 
-function seatPath(basePath: "" | "/pay", seatToken: string): string {
-  return `${basePath}/p/${seatToken}`;
+function sharedPayPath(basePath: "" | "/pay", teamToken: string): string {
+  return `${basePath}/s/${teamToken}`;
 }
 
 export default function PayTeamDashboard({ team, whenLabel, basePath, origin }: Props) {
   const summary = teamSummary(team);
-  const [copied, setCopied] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const shareUrl = `${origin}${sharedPayPath(basePath, team.token)}`;
 
   const statusLabel = useMemo(() => {
     switch (team.status) {
@@ -38,14 +39,13 @@ export default function PayTeamDashboard({ team, whenLabel, basePath, origin }: 
     }
   }, [team.status, summary.paid, summary.total]);
 
-  async function copyLink(token: string) {
-    const url = `${origin}${seatPath(basePath, token)}`;
+  async function copySharedLink() {
     try {
-      await navigator.clipboard.writeText(url);
-      setCopied(token);
-      setTimeout(() => setCopied(null), 2000);
+      await navigator.clipboard.writeText(shareUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
     } catch {
-      setCopied(null);
+      setCopied(false);
     }
   }
 
@@ -80,19 +80,42 @@ export default function PayTeamDashboard({ team, whenLabel, basePath, origin }: 
         </div>
       </div>
 
-      <div className="space-y-3">
-        <h2 className="font-display text-2xl uppercase tracking-wide text-brand-text">Pay-linky</h2>
+      <div className="space-y-3 rounded-2xl border border-brand-border bg-brand-surface px-4 py-4">
+        <h2 className="font-display text-2xl uppercase tracking-wide text-brand-text">Pay-link tímu</h2>
         <p className="text-sm text-brand-muted">
-          Pošli každému svoj link. Každý platí svoje miesto ({team.seats[0]?.amountEur ?? "—"}&nbsp;€). Hold platí do
-          štartu kvízu.
+          Jeden odkaz pre celý tím. Pošli ho kamarátom — každý zaplatí jedno miesto (
+          {team.seats[0]?.amountEur ?? "—"}&nbsp;€). Hold platí do štartu kvízu.
         </p>
-        <ul className="space-y-3">
+        {summary.pending > 0 ? (
+          <>
+            <p className="text-xs text-brand-muted break-all font-mono bg-brand-card rounded-xl px-3 py-2 border border-brand-border">
+              {shareUrl}
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <a href={sharedPayPath(basePath, team.token)} className="btn-primary text-sm px-4 py-2">
+                Otvoriť platbu
+              </a>
+              <button type="button" className="btn-outline text-sm px-4 py-2" onClick={copySharedLink}>
+                {copied ? "Skopírované" : "Kopírovať link"}
+              </button>
+            </div>
+          </>
+        ) : team.status === "full" ? (
+          <p className="text-sm font-semibold text-brand-orange-readable">Všetky miesta sú zaplatené.</p>
+        ) : (
+          <p className="text-sm text-brand-muted">Online platba už nie je dostupná (po štarte / uvoľnené).</p>
+        )}
+      </div>
+
+      <div className="space-y-3">
+        <h2 className="font-display text-2xl uppercase tracking-wide text-brand-text">Miesta</h2>
+        <ul className="space-y-2">
           {team.seats
             .filter((s) => s.kind === "prepaid")
             .map((seat) => (
               <li
                 key={seat.id}
-                className="rounded-2xl border border-brand-border bg-brand-surface px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3 justify-between"
+                className="rounded-xl border border-brand-border bg-brand-card px-4 py-3 flex items-center justify-between gap-3"
               >
                 <div>
                   <div className="font-semibold text-brand-text">
@@ -107,26 +130,13 @@ export default function PayTeamDashboard({ team, whenLabel, basePath, origin }: 
                         : "pending_payment"}
                   </div>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  {seat.status === "pending_payment" ? (
-                    <>
-                      <a href={seatPath(basePath, seat.token)} className="btn-primary text-sm px-4 py-2">
-                        Zaplatiť
-                      </a>
-                      <button
-                        type="button"
-                        className="btn-outline text-sm px-4 py-2"
-                        onClick={() => copyLink(seat.token)}
-                      >
-                        {copied === seat.token ? "Skopírované" : "Kopírovať link"}
-                      </button>
-                    </>
-                  ) : seat.status === "paid" ? (
-                    <span className="text-sm font-semibold text-brand-orange-readable self-center">Potvrdené</span>
-                  ) : (
-                    <span className="text-sm text-brand-muted self-center">Nedostupné</span>
-                  )}
-                </div>
+                {seat.status === "paid" ? (
+                  <span className="text-sm font-semibold text-brand-orange-readable">Potvrdené</span>
+                ) : seat.status === "pending_payment" ? (
+                  <span className="text-sm text-brand-muted">Čaká</span>
+                ) : (
+                  <span className="text-sm text-brand-muted">Nedostupné</span>
+                )}
               </li>
             ))}
         </ul>

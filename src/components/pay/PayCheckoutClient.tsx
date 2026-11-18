@@ -4,7 +4,10 @@ import { useState } from "react";
 import Link from "next/link";
 
 type Props = {
-  seatToken: string;
+  /** Shared team pay link — claims next unpaid seat */
+  teamToken?: string;
+  /** Legacy per-seat token */
+  seatToken?: string;
   amountEur: number;
   seatLabel: string;
   teamName: string;
@@ -12,11 +15,14 @@ type Props = {
   whenLabel: string;
   teamHref: string;
   homeHref: string;
+  remainingPending?: number;
+  totalSeats?: number;
   alreadyPaid?: boolean;
   blockedMessage?: string;
 };
 
 export default function PayCheckoutClient({
+  teamToken,
   seatToken,
   amountEur,
   seatLabel,
@@ -25,6 +31,8 @@ export default function PayCheckoutClient({
   whenLabel,
   teamHref,
   homeHref,
+  remainingPending,
+  totalSeats,
   alreadyPaid,
   blockedMessage,
 }: Props) {
@@ -33,21 +41,32 @@ export default function PayCheckoutClient({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [paid, setPaid] = useState(!!alreadyPaid);
+  const [paidSeatLabel, setPaidSeatLabel] = useState(seatLabel);
+  const [leftAfterPay, setLeftAfterPay] = useState<number | undefined>(undefined);
 
   async function payMock() {
     setError("");
     setLoading(true);
     try {
+      const body = teamToken
+        ? { teamToken, payerName, payerEmail }
+        : { seatToken, payerName, payerEmail };
       const res = await fetch("/api/pay/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ seatToken, payerName, payerEmail }),
+        body: JSON.stringify(body),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setError(typeof data.error === "string" ? data.error : "Platba zlyhala.");
         setLoading(false);
         return;
+      }
+      if (data.seat?.index) {
+        setPaidSeatLabel(`Miesto ${data.seat.index}`);
+      }
+      if (typeof data.remainingPending === "number") {
+        setLeftAfterPay(data.remainingPending);
       }
       setPaid(true);
     } catch {
@@ -76,10 +95,31 @@ export default function PayCheckoutClient({
         </p>
         <h1 className="font-display text-4xl text-brand-text uppercase tracking-wide">Zaplatené</h1>
         <p className="text-brand-muted">
-          {seatLabel} · {teamName} · {amountEur}&nbsp;€ (mock)
+          {paidSeatLabel} · {teamName} · {amountEur}&nbsp;€ (mock)
         </p>
         <p className="text-sm text-brand-muted">Rezervácia je potvrdená. Ukáž toto pri check-ine.</p>
+        {typeof leftAfterPay === "number" && leftAfterPay > 0 ? (
+          <p className="text-sm text-brand-muted">
+            V tíme ešte ostáva {leftAfterPay}{" "}
+            {leftAfterPay === 1 ? "miesto" : leftAfterPay < 5 ? "miesta" : "miest"} — rovnaký link môžu použiť
+            kamaráti.
+          </p>
+        ) : null}
         <div className="flex flex-wrap gap-3 justify-center">
+          {typeof leftAfterPay === "number" && leftAfterPay > 0 && teamToken ? (
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={() => {
+                setPaid(false);
+                setLeftAfterPay(undefined);
+                setPayerName("");
+                setPayerEmail("");
+              }}
+            >
+              Zaplatiť ďalšie miesto
+            </button>
+          ) : null}
           <Link href={teamHref} className="btn-primary">
             Stav tímu
           </Link>
@@ -91,6 +131,11 @@ export default function PayCheckoutClient({
     );
   }
 
+  const remainingLabel =
+    typeof remainingPending === "number" && typeof totalSeats === "number"
+      ? `Ostáva ${remainingPending} z ${totalSeats} miest`
+      : seatLabel;
+
   return (
     <div className="max-w-md space-y-5">
       <div>
@@ -99,10 +144,13 @@ export default function PayCheckoutClient({
         </p>
         <h1 className="font-display text-4xl text-brand-text uppercase tracking-wide mt-1">Platba kartou</h1>
         <p className="text-brand-muted mt-2">
-          {teamName} · {seatLabel}
+          {teamName} · {remainingLabel}
         </p>
         <p className="font-display text-5xl text-brand-orange-readable mt-4">{amountEur} €</p>
         <p className="text-xs text-brand-muted mt-2">
+          {teamToken
+            ? "Zaplatíš jedno miesto. Rovnaký odkaz môžu použiť aj ostatní, kým sú voľné miesta."
+            : null}{" "}
           Testovací checkout — kliknutím sa platba okamžite označí ako úspešná. Žiadna skutočná karta.
         </p>
       </div>

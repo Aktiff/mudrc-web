@@ -4,7 +4,7 @@ See also: [`hosting/pay.mudrc.sk/README.md`](../hosting/pay.mudrc.sk/README.md).
 
 ## Scope (this build)
 
-- Captain registers team (**email required**) → hold **N** seats until quiz start → shareable pay-links → each person pays own seat.
+- Captain registers team (**email required**) → hold **N** seats until quiz start → **one shared team pay-link** → each person pays one seat.
 - Clicking card payment **auto-succeeds** (mock). No Stripe / SK PSP.
 - Prepaid price = event `entryFee` (usually 4 €). Walk-up = `entryFee` + `NEXT_PUBLIC_WALK_UP_SURCHARGE_EUR` (default +1 €).
 - Events/quizzes loaded from the same storage as the main site.

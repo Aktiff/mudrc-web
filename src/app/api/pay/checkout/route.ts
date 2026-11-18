@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { PAY_MOCK_MODE } from "@/lib/pay-config";
-import { paySeatMock } from "@/lib/pay-storage";
+import { paySeatMock, payTeamNextSeatMock } from "@/lib/pay-storage";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
- * MOCK ONLY: clicking card payment instantly marks the seat as paid.
+ * MOCK ONLY: clicking card payment instantly marks a seat as paid.
+ * Prefer teamToken (shared team pay link → next pending seat).
+ * seatToken kept for legacy per-seat URLs.
  * No Stripe / PSP — staging for pay.mudrc.sk UX and capacity rules.
  */
 export async function POST(req: NextRequest) {
@@ -15,15 +17,19 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json().catch(() => ({}));
+  const teamToken = String(body.teamToken ?? "").trim();
   const seatToken = String(body.seatToken ?? "").trim();
   const payerName = typeof body.payerName === "string" ? body.payerName.trim() : undefined;
   const payerEmail = typeof body.payerEmail === "string" ? body.payerEmail.trim() : undefined;
 
-  if (!seatToken) {
-    return NextResponse.json({ error: "Chýba token lístka." }, { status: 400 });
+  if (!teamToken && !seatToken) {
+    return NextResponse.json({ error: "Chýba token tímu alebo lístka." }, { status: 400 });
   }
 
-  const result = await paySeatMock(seatToken, { name: payerName, email: payerEmail });
+  const result = teamToken
+    ? await payTeamNextSeatMock(teamToken, { name: payerName, email: payerEmail })
+    : await paySeatMock(seatToken, { name: payerName, email: payerEmail });
+
   if ("error" in result) {
     return NextResponse.json({ error: result.error }, { status: result.status });
   }
@@ -41,5 +47,8 @@ export async function POST(req: NextRequest) {
     },
     teamToken: result.team.token,
     teamStatus: result.team.status,
+    remainingPending: result.team.seats.filter(
+      (s) => s.kind === "prepaid" && s.status === "pending_payment"
+    ).length,
   });
 }

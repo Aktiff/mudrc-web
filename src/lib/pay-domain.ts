@@ -16,7 +16,7 @@ export type TeamPayStatus = "open" | "partial" | "full" | "closed_at_start" | "c
 
 export type PaySeat = {
   id: string;
-  /** Shareable pay-link token */
+  /** Per-seat token (legacy / internal; sharing uses team pay link) */
   token: string;
   index: number;
   status: SeatStatus;
@@ -31,7 +31,7 @@ export type PaySeat = {
 
 export type PayTeam = {
   id: string;
-  /** Captain dashboard token */
+  /** Captain dashboard + shared team pay-link token */
   token: string;
   eventSlug: string;
   venue: string;
@@ -167,6 +167,28 @@ export function markSeatPaid(
   seats[idx] = nextSeat;
   const next = { ...live, seats };
   return { team: { ...next, status: deriveTeamStatus(next, now) }, seat: nextSeat };
+}
+
+/** Claim the next unpaid prepaid seat via the shared team pay link. */
+export function markNextPendingSeatPaid(
+  team: PayTeam,
+  payer?: { name?: string; email?: string },
+  now = new Date()
+): { team: PayTeam; seat: PaySeat } | { error: string } {
+  const live = applyHoldExpiry(team, now);
+  if (quizHasStarted(live.quizDate, live.quizTime, now)) {
+    return { error: "Kvíz už začal — online predaj je ukončený. Walk-up na mieste." };
+  }
+  const pending = pendingPrepaidSeats(live);
+  if (pending.length === 0) {
+    const prepaid = live.seats.filter((s) => s.kind === "prepaid");
+    const paid = prepaid.filter((s) => s.status === "paid").length;
+    if (paid === prepaid.length && prepaid.length > 0) {
+      return { error: "Všetky miesta tímu sú už zaplatené." };
+    }
+    return { error: "Žiadne voľné miesto na zaplatenie." };
+  }
+  return markSeatPaid(live, pending[0].token, payer, now);
 }
 
 export function createWalkUpSeat(
