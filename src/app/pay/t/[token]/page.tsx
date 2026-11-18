@@ -12,7 +12,8 @@ export const dynamic = "force-dynamic";
 type Props = { params: { token: string } };
 
 export default async function PayTeamPage({ params }: Props) {
-  const raw = await getTeamByToken(params.token);
+  // Retries: Vercel Blob can take a moment to list a freshly written booking.
+  const raw = await getTeamByToken(params.token, { retries: 10, delayMs: 300 });
   if (!raw) notFound();
   const team = applyHoldExpiry(raw);
   const { href, basePath, origin } = payRequestContext();
