@@ -569,6 +569,15 @@ async function listRegistrationBlobIds(): Promise<string[]> {
 }
 
 function readBundledSeedEvents(): QuizEvent[] {
+  // Local overrides (gitignored) win for offline/dev without Blob.
+  try {
+    if (fs.existsSync(eventsLocalPath)) {
+      const local = readLocalEvents().events;
+      if (local.length) return local;
+    }
+  } catch (error) {
+    console.error("readLocalEvents override failed:", error);
+  }
   const imported = (seedEventsBundle as { events?: QuizEvent[] }).events;
   if (imported?.length) return imported;
   try {

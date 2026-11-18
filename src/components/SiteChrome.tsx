@@ -6,7 +6,7 @@ import Navbar from "@/components/Navbar";
 
 export default function SiteChrome({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const hide = pathname.startsWith("/zasadacie");
+  const hide = pathname.startsWith("/zasadacie") || pathname.startsWith("/pay");
   return (
     <>
       {hide ? null : <Navbar />}
