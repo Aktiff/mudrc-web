@@ -64,8 +64,8 @@ export default function PayRegisterForm({
   }
 
   return (
-    <form onSubmit={onSubmit} className="space-y-4 max-w-md">
-      <div>
+    <form onSubmit={onSubmit} className="mx-auto max-w-md space-y-4">
+      <div className="text-center sm:text-left">
         <p className="text-brand-muted text-sm mb-1">{venue}</p>
         <h1 className="font-display text-4xl text-brand-text tracking-wide uppercase">Registrácia tímu</h1>
         <p className="text-brand-muted mt-2 text-sm">{whenLabel}</p>

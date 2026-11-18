@@ -26,17 +26,19 @@ export default async function PaySeatPage({ params }: Props) {
   }
 
   return (
-    <PayCheckoutClient
-      seatToken={params.token}
-      amountEur={seat.amountEur}
-      seatLabel={formatSeatLabel(seat)}
-      teamName={team.teamName}
-      venue={team.venue}
-      whenLabel={whenLabel}
-      teamHref={href(`/t/${team.token}`)}
-      homeHref={href("/")}
-      alreadyPaid={seat.status === "paid"}
-      blockedMessage={blockedMessage}
-    />
+    <div className="mx-auto w-full max-w-md">
+      <PayCheckoutClient
+        seatToken={params.token}
+        amountEur={seat.amountEur}
+        seatLabel={formatSeatLabel(seat)}
+        teamName={team.teamName}
+        venue={team.venue}
+        whenLabel={whenLabel}
+        teamHref={href(`/t/${team.token}`)}
+        homeHref={href("/")}
+        alreadyPaid={seat.status === "paid"}
+        blockedMessage={blockedMessage}
+      />
+    </div>
   );
 }

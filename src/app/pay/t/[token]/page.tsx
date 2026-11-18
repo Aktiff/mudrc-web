@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import PayTeamDashboard from "@/components/pay/PayTeamDashboard";
 import { formatEventDateLabel } from "@/lib/data";
 import { applyHoldExpiry } from "@/lib/pay-domain";
+import { resolvePayQuiz } from "@/lib/pay-events";
 import { payRequestContext } from "@/lib/pay-request";
 import { getTeamByToken } from "@/lib/pay-storage";
 
@@ -16,14 +17,22 @@ export default async function PayTeamPage({ params }: Props) {
   const team = applyHoldExpiry(raw);
   const { href, basePath, origin } = payRequestContext();
   const whenLabel = `${formatEventDateLabel(team.quizDate)} · ${team.quizTime}`;
+  const quiz = await resolvePayQuiz(team.eventSlug, team.quizDate);
+  const maxPlayers = quiz?.maxPlayers ?? Math.max(team.players, 8);
 
   return (
-    <div className="space-y-6">
-      <Link href={href("/")} className="text-sm text-brand-muted hover:text-brand-text">
+    <div className="mx-auto w-full max-w-2xl space-y-6">
+      <Link href={href("/")} className="text-sm text-brand-muted hover:text-brand-text inline-block">
         ← Všetky kvízy
       </Link>
-      <PayTeamDashboard team={team} whenLabel={whenLabel} basePath={basePath} origin={origin} />
-      <p className="text-xs text-brand-muted">
+      <PayTeamDashboard
+        team={team}
+        whenLabel={whenLabel}
+        basePath={basePath}
+        origin={origin}
+        maxPlayers={maxPlayers}
+      />
+      <p className="text-xs text-brand-muted text-center sm:text-left">
         Check-in večer:{" "}
         <Link
           className="underline hover:text-brand-text"

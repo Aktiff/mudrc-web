@@ -10,20 +10,21 @@ export default async function PayHomePage() {
   const quizzes = await listPayQuizzes();
 
   return (
-    <div className="space-y-8">
-      <header className="space-y-3 max-w-2xl">
+    <div className="mx-auto w-full max-w-3xl space-y-8">
+      <header className="space-y-3 text-center sm:text-left">
         <p className="text-sm font-semibold text-brand-orange-readable uppercase tracking-wider">Mudrc · staging</p>
         <h1 className="font-display text-5xl md:text-6xl text-brand-text uppercase tracking-wide leading-none">
           Predplatné miesta
         </h1>
         <p className="text-brand-muted">
           Kapitán zaregistruje tím (e-mail povinný) → jeden zdieľateľný pay-link → každý zaplatí jedno miesto.
-          Mock platba kartou okamžite potvrdí rezerváciu. Rovnaké podniky a termíny ako na mudrc.sk.
+          Mock platba kartou okamžite potvrdí rezerváciu. Hore je vždy <strong>Staging demo kvíz</strong> na E2E
+          test; pod ním reálne podniky z mudrc.sk.
         </p>
       </header>
 
       {quizzes.length === 0 ? (
-        <p className="text-brand-muted">Žiadne nadchádzajúce kvízy v dátach.</p>
+        <p className="text-brand-muted text-center">Žiadne nadchádzajúce kvízy v dátach.</p>
       ) : (
         <ul className="space-y-3">
           {quizzes.map((q) => {
@@ -38,14 +39,20 @@ export default async function PayHomePage() {
                   <div className="font-semibold text-lg text-brand-text">
                     {q.venue}
                     <span className="text-brand-muted font-normal"> · {q.city}</span>
+                    {q.stagingDemo ? (
+                      <span className="ml-2 text-xs font-semibold uppercase tracking-wide text-brand-orange-readable">
+                        E2E demo
+                      </span>
+                    ) : null}
                   </div>
                   <div className="text-sm text-brand-muted mt-1">{q.whenLabel}</div>
                   <div className="text-sm text-brand-muted mt-1">
                     Predplatné {formatEuroAmount(q.prepaidPrice)} · walk-up {formatEuroAmount(q.walkUpPrice)}
+                    {` · ${q.minPlayers}–${q.maxPlayers} hráčov`}
                     {q.started ? " · po štarte" : q.registrationOpen ? "" : " · registrácia zatvorená"}
                   </div>
                 </div>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-2 sm:justify-end">
                   {q.registrationOpen ? (
                     <Link href={withDate} className="btn-primary text-sm px-4 py-2">
                       Registrovať tím
@@ -63,7 +70,7 @@ export default async function PayHomePage() {
         </ul>
       )}
 
-      <p className="text-xs text-brand-muted max-w-xl">
+      <p className="text-xs text-brand-muted max-w-xl mx-auto sm:mx-0 text-center sm:text-left">
         Lokálne: otvor <code className="text-brand-text">/pay</code>. Produkčný staging: doména{" "}
         <code className="text-brand-text">pay.mudrc.sk</code> (rovnaká Vercel app, rewrite na /pay). Žiadny Stripe.
       </p>

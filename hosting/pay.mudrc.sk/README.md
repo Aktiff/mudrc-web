@@ -10,8 +10,10 @@ Staging app for prepaid seats + mock card checkout. **No real PSP / Stripe.** Sa
 2. **Vercel project** (same project as www.mudrc.sk):
    - Settings → Domains → **Add** `pay.mudrc.sk`
    - Wait for HTTPS certificate (automatic).
-3. **Env** (optional overrides on the Vercel project):
-   - `PAY_CHECKIN_PIN` — PIN for check-in / walk-up moderator actions (defaults to `ADMIN_PASSWORD` or `mudrc2026`)
+3. **Env** on the Vercel project:
+   - `RESEND_API_KEY` — **required** for payment confirmation emails (and main-site registration notify). Redeploy after adding.
+   - `REGISTRATION_EMAIL_FROM` — From address, e.g. `Mudrc Kvíz <kontakt@mudrc.sk>` (domain must be verified in Resend)
+   - `PAY_CHECKIN_PIN` — PIN for check-in / walk-up (defaults to `ADMIN_PASSWORD` or `mudrc2026`)
    - `NEXT_PUBLIC_WALK_UP_SURCHARGE_EUR` — walk-up surcharge over `entryFee` (default `1`)
    - Blob storage already used by the main site: pay bookings store as `pay-bookings` in the same Blob
 4. Redeploy after domain + env are set.
@@ -33,9 +35,9 @@ To simulate the subdomain locally, map `pay.localhost` in `/etc/hosts` and set `
 
 ## Test flow
 
-1. `/pay` → pick a quiz → **Registrovať tím** (name, N seats, phone, **email**).
-2. Team page shows **one** shareable pay-link (copy button).
-3. Open that link → **Zaplatiť kartou (mock)** → instant `paid` for one seat.
+1. `/pay` → use **Staging demo kvíz** (top, always open, max 8) or any real open quiz → **Registrovať tím** (name, N seats, phone, **email**).
+2. Team page shows **one** shareable pay-link (copy button). Use **Pridať člena** to grow N up to quiz `maxPlayers`.
+3. Open that link → enter optional payer email → **Zaplatiť kartou (mock)** → instant `paid` + confirmation email when Resend is configured.
 4. Others reuse the **same** link until seats are gone; team status goes `open` → `partial` → `full`.
 5. `/pay/check-in/<slug>?date=...` + PIN → check-in paid seats; **Walk-up** for on-site price (`entryFee` + surcharge).
 
@@ -51,4 +53,4 @@ To simulate the subdomain locally, map `pay.localhost` in `/etc/hosts` and set `
 | `/pay/check-in/<slug>` | `/check-in/<slug>` |
 | `/pay/walk-up/<slug>` | `/walk-up/<slug>` |
 
-APIs: `POST /api/pay/register`, `/api/pay/checkout`, `/api/pay/walk-up`, `/api/pay/check-in`.
+APIs: `POST /api/pay/register`, `/api/pay/checkout`, `/api/pay/add-seat`, `/api/pay/walk-up`, `/api/pay/check-in`.

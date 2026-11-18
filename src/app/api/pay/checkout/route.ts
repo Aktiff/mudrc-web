@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { PAY_MOCK_MODE } from "@/lib/pay-config";
+import { sendPaymentConfirmationEmail } from "@/lib/pay-email";
 import { paySeatMock, payTeamNextSeatMock } from "@/lib/pay-storage";
 
 export const runtime = "nodejs";
@@ -10,6 +11,7 @@ export const dynamic = "force-dynamic";
  * Prefer teamToken (shared team pay link → next pending seat).
  * seatToken kept for legacy per-seat URLs.
  * No Stripe / PSP — staging for pay.mudrc.sk UX and capacity rules.
+ * When payerEmail is provided, sends a payment confirmation via Resend.
  */
 export async function POST(req: NextRequest) {
   if (!PAY_MOCK_MODE) {
@@ -34,6 +36,26 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: result.error }, { status: result.status });
   }
 
+  let emailSent = false;
+  let emailSkipped = false;
+  let emailWarning: string | undefined;
+  const toEmail = payerEmail || result.seat.payerEmail;
+  if (toEmail) {
+    const mail = await sendPaymentConfirmationEmail({
+      team: result.team,
+      seat: result.seat,
+      toEmail,
+    });
+    emailSent = mail.ok && !mail.skipped;
+    emailSkipped = !!mail.skipped;
+    if (!mail.ok) {
+      emailWarning = mail.error;
+      console.warn("Pay mock succeeded but confirmation email failed:", mail.error);
+    }
+  } else {
+    emailSkipped = true;
+  }
+
   return NextResponse.json({
     ok: true,
     mock: true,
@@ -50,5 +72,8 @@ export async function POST(req: NextRequest) {
     remainingPending: result.team.seats.filter(
       (s) => s.kind === "prepaid" && s.status === "pending_payment"
     ).length,
+    emailSent,
+    emailSkipped,
+    emailWarning,
   });
 }

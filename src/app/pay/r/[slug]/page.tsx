@@ -19,12 +19,12 @@ export default async function PayRegisterPage({ params, searchParams }: Props) {
 
   if (quiz.started || !quiz.registrationOpen) {
     return (
-      <div className="space-y-4 max-w-md">
+      <div className="mx-auto max-w-md space-y-4 text-center">
         <h1 className="font-display text-4xl uppercase tracking-wide text-brand-text">Registrácia uzavretá</h1>
         <p className="text-brand-muted">
           {quiz.venue} · {quiz.whenLabel}. Online hold už nie je k dispozícii.
         </p>
-        <div className="flex flex-wrap gap-3">
+        <div className="flex flex-wrap gap-3 justify-center">
           <Link href={href(`/walk-up/${quiz.eventSlug}?date=${encodeURIComponent(quiz.quizDate)}`)} className="btn-primary">
             Walk-up
           </Link>
@@ -37,8 +37,8 @@ export default async function PayRegisterPage({ params, searchParams }: Props) {
   }
 
   return (
-    <div className="space-y-6">
-      <Link href={href("/")} className="text-sm text-brand-muted hover:text-brand-text">
+    <div className="mx-auto w-full max-w-md space-y-6">
+      <Link href={href("/")} className="text-sm text-brand-muted hover:text-brand-text inline-block">
         ← Všetky kvízy
       </Link>
       <PayRegisterForm

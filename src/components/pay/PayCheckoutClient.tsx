@@ -43,9 +43,11 @@ export default function PayCheckoutClient({
   const [paid, setPaid] = useState(!!alreadyPaid);
   const [paidSeatLabel, setPaidSeatLabel] = useState(seatLabel);
   const [leftAfterPay, setLeftAfterPay] = useState<number | undefined>(undefined);
+  const [emailNote, setEmailNote] = useState("");
 
   async function payMock() {
     setError("");
+    setEmailNote("");
     setLoading(true);
     try {
       const body = teamToken
@@ -68,6 +70,13 @@ export default function PayCheckoutClient({
       if (typeof data.remainingPending === "number") {
         setLeftAfterPay(data.remainingPending);
       }
+      if (data.emailSent) {
+        setEmailNote(`Potvrdenie sme poslali na ${payerEmail.trim()}.`);
+      } else if (payerEmail.trim() && data.emailWarning) {
+        setEmailNote("Platba prebehla, ale potvrdenie e-mailom sa nepodarilo odoslať.");
+      } else if (!payerEmail.trim()) {
+        setEmailNote("");
+      }
       setPaid(true);
     } catch {
       setError("Sieťová chyba.");
@@ -77,10 +86,10 @@ export default function PayCheckoutClient({
 
   if (blockedMessage) {
     return (
-      <div className="max-w-md space-y-4">
+      <div className="mx-auto max-w-md space-y-4 text-center">
         <h1 className="font-display text-4xl text-brand-text uppercase tracking-wide">Platba nedostupná</h1>
         <p className="text-brand-muted">{blockedMessage}</p>
-        <Link href={homeHref} className="btn-outline">
+        <Link href={homeHref} className="btn-outline inline-flex">
           Späť na zoznam
         </Link>
       </div>
@@ -89,7 +98,7 @@ export default function PayCheckoutClient({
 
   if (paid) {
     return (
-      <div className="max-w-md space-y-4 text-center py-6">
+      <div className="mx-auto max-w-md space-y-4 text-center py-6">
         <p className="text-5xl" aria-hidden>
           ✓
         </p>
@@ -98,6 +107,7 @@ export default function PayCheckoutClient({
           {paidSeatLabel} · {teamName} · {amountEur}&nbsp;€ (mock)
         </p>
         <p className="text-sm text-brand-muted">Rezervácia je potvrdená. Ukáž toto pri check-ine.</p>
+        {emailNote ? <p className="text-sm text-brand-muted">{emailNote}</p> : null}
         {typeof leftAfterPay === "number" && leftAfterPay > 0 ? (
           <p className="text-sm text-brand-muted">
             V tíme ešte ostáva {leftAfterPay}{" "}
@@ -115,6 +125,7 @@ export default function PayCheckoutClient({
                 setLeftAfterPay(undefined);
                 setPayerName("");
                 setPayerEmail("");
+                setEmailNote("");
               }}
             >
               Zaplatiť ďalšie miesto
@@ -137,8 +148,8 @@ export default function PayCheckoutClient({
       : seatLabel;
 
   return (
-    <div className="max-w-md space-y-5">
-      <div>
+    <div className="mx-auto max-w-md space-y-5">
+      <div className="text-center sm:text-left">
         <p className="text-brand-muted text-sm">
           {venue} · {whenLabel}
         </p>
@@ -164,16 +175,19 @@ export default function PayCheckoutClient({
         />
       </label>
       <label className="block">
-        <span className="text-sm font-medium">E-mail na doklad (voliteľné)</span>
+        <span className="text-sm font-medium">E-mail na potvrdenie (voliteľné)</span>
         <input
           className="mt-1 w-full rounded-xl border border-brand-border bg-brand-card px-4 py-3"
           type="email"
           value={payerEmail}
           onChange={(e) => setPayerEmail(e.target.value)}
         />
+        <span className="text-xs text-brand-muted mt-1 block">
+          Ak vyplníš e-mail, pošleme potvrdenie platby (Resend).
+        </span>
       </label>
 
-      {error ? <p className="text-red-600 text-sm">{error}</p> : null}
+      {error ? <p className="text-red-600 text-sm text-center">{error}</p> : null}
 
       <button type="button" className="btn-primary w-full justify-center" onClick={payMock} disabled={loading}>
         {loading ? "Spracovávam…" : `Zaplatiť kartou ${amountEur} € (mock)`}
