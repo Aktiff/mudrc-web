@@ -10,8 +10,10 @@ import { findFutureQuiz, futureQuizMatchesDate, publicQuizCards } from "@/lib/fu
 import { getEventRegionSlug } from "@/lib/regions";
 import { readEvents } from "@/lib/storage";
 import { prepaidPriceEur, walkUpPriceEur } from "@/lib/pay-config";
+import { ensurePayTestEvent, PAY_TEST_EVENT_SLUG } from "@/lib/pay-test-event";
 
 export const PAY_STAGING_DEMO_SLUG = "pay-staging-demo";
+export { PAY_TEST_EVENT_SLUG };
 
 export type PayQuizOption = {
   listingKey: string;
@@ -116,19 +118,26 @@ function toOption(card: QuizEvent & { listingKey: string; termQuery?: string }):
 }
 
 export async function listPayQuizzes(): Promise<PayQuizOption[]> {
+  await ensurePayTestEvent();
   const { events } = await readEvents();
   const visible = events.filter((e) => isQuizVisible(e));
   const cards = publicQuizCards(visible).map(toOption);
   const demo = getPayStagingDemoQuiz();
   const { event: _event, ...demoOption } = demo;
-  // Pin demo at top so E2E testing is obvious.
-  return [demoOption, ...cards.filter((q) => q.eventSlug !== PAY_STAGING_DEMO_SLUG)];
+  const withoutSynthetic = cards.filter((q) => q.eventSlug !== PAY_STAGING_DEMO_SLUG);
+  const testEvent = withoutSynthetic.filter((q) => q.eventSlug === PAY_TEST_EVENT_SLUG);
+  const rest = withoutSynthetic.filter((q) => q.eventSlug !== PAY_TEST_EVENT_SLUG);
+  // Real Silvester TEST event first, then other venues, synthetic fallback last.
+  return [...testEvent, ...rest, demoOption];
 }
 
 export async function resolvePayQuiz(
   eventSlug: string,
   quizDate?: string
 ): Promise<(PayQuizOption & { event: QuizEvent }) | null> {
+  if (eventSlug === PAY_TEST_EVENT_SLUG) {
+    await ensurePayTestEvent();
+  }
   if (eventSlug === PAY_STAGING_DEMO_SLUG) {
     const demo = getPayStagingDemoQuiz();
     if (quizDate?.trim() && quizDate.trim() !== demo.quizDate) {

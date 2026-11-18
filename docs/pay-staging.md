@@ -9,7 +9,8 @@ See also: [`hosting/pay.mudrc.sk/README.md`](../hosting/pay.mudrc.sk/README.md).
 - If the payer enters an **email at checkout**, a **payment confirmation** is sent via Resend (same stack as registration notify).
 - Captain can **add seats** after registration up to the quiz **`maxPlayers`** (team max from event rules).
 - Prepaid price = event `entryFee` (usually 4 €). Walk-up = `entryFee` + `NEXT_PUBLIC_WALK_UP_SURCHARGE_EUR` (default +1 €).
-- Events/quizzes loaded from the same storage as the main site, plus a synthetic **Staging demo kvíz** (`pay-staging-demo`) always open for E2E tests. Prefer a **real upcoming venue** from the list for a realistic dry-run.
+- Events/quizzes loaded from the same storage as the main site. Preferred dry-run venue: **TEST Platby — Silvester** (`test-platby-silvester`, **31.12.2026**, max 8) — created automatically in Blob and visible on mudrc.sk. Synthetic `pay-staging-demo` remains as fallback.
+- Payment confirmation email goes to the **payer address typed at checkout** (not the captain), via Resend.
 - Bookings persist in Vercel Blob (`pay-bookings`). Register waits until the team is readable (avoids a brief 404 right after submit).
 - Check-in list of `paid` seats + mock walk-up.
 

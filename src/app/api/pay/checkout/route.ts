@@ -39,7 +39,9 @@ export async function POST(req: NextRequest) {
   let emailSent = false;
   let emailSkipped = false;
   let emailWarning: string | undefined;
-  const toEmail = payerEmail || result.seat.payerEmail;
+  let emailId: string | undefined;
+  // Always prefer the address the payer typed at checkout — confirmation is for the customer.
+  const toEmail = (payerEmail || result.seat.payerEmail || "").trim().toLowerCase() || undefined;
   if (toEmail) {
     const mail = await sendPaymentConfirmationEmail({
       team: result.team,
@@ -48,6 +50,7 @@ export async function POST(req: NextRequest) {
     });
     emailSent = mail.ok && !mail.skipped;
     emailSkipped = !!mail.skipped;
+    emailId = mail.id;
     if (!mail.ok) {
       emailWarning = mail.error;
       console.warn("Pay mock succeeded but confirmation email failed:", mail.error);
@@ -72,8 +75,10 @@ export async function POST(req: NextRequest) {
     remainingPending: result.team.seats.filter(
       (s) => s.kind === "prepaid" && s.status === "pending_payment"
     ).length,
+    emailTo: toEmail ?? null,
     emailSent,
     emailSkipped,
     emailWarning,
+    emailId: emailId ?? null,
   });
 }

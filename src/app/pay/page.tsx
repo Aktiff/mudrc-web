@@ -18,8 +18,8 @@ export default async function PayHomePage() {
         </h1>
         <p className="text-brand-muted">
           Kapitán zaregistruje tím (e-mail povinný) → jeden zdieľateľný pay-link → každý zaplatí jedno miesto.
-          Mock platba kartou okamžite potvrdí rezerváciu. Použi <strong>reálny podnik</strong> zo zoznamu
-          (napr. Alipub / Extreme Pub) alebo <strong>Staging demo kvíz</strong> hore na rýchly E2E test.
+          Na testovanie použi <strong>TEST Platby — Silvester</strong> (31.12.2026) — jasne označená testovacia
+          udalosť aj na mudrc.sk. Pri platbe vyplň svoj e-mail: potvrdenie príde tebe ako platiteľovi.
         </p>
       </header>
 
