@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 import { readAppStorageWithFallback, writeAppStorageWithFallback } from "@/lib/app-storage-fallback";
 import {
+  addPrepaidSeat,
   applyHoldExpiry,
   createTeamBooking,
   createWalkUpSeat,
@@ -156,6 +157,34 @@ export async function payTeamNextSeatMock(
   if (fail) return { error: fail, status: 400 };
   if (!paid) return { error: "Platba zlyhala.", status: 500 };
   return paid;
+}
+
+export async function addTeamSeat(
+  teamToken: string,
+  maxPlayers: number,
+  entryFee: number
+): Promise<{ team: PayTeam; seat: PaySeat } | { error: string; status: number }> {
+  let added: { team: PayTeam; seat: PaySeat } | undefined;
+  let fail: string | undefined;
+  await updateStore((teams) => {
+    const idx = teams.findIndex((t) => t.token === teamToken);
+    if (idx < 0) {
+      fail = "Tím neexistuje.";
+      return teams;
+    }
+    const outcome = addPrepaidSeat(teams[idx], maxPlayers, entryFee);
+    if ("error" in outcome) {
+      fail = outcome.error;
+      return teams;
+    }
+    added = outcome;
+    const next = [...teams];
+    next[idx] = outcome.team;
+    return next;
+  });
+  if (fail) return { error: fail, status: 400 };
+  if (!added) return { error: "Miesto sa nepodarilo pridať.", status: 500 };
+  return added;
 }
 
 export async function createAndPayWalkUp(input: {

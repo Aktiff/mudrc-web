@@ -191,6 +191,56 @@ export function markNextPendingSeatPaid(
   return markSeatPaid(live, pending[0].token, payer, now);
 }
 
+/** Count active prepaid seats (pending + paid; voids do not count toward team size). */
+export function prepaidSeatCount(team: PayTeam): number {
+  return team.seats.filter(
+    (s) => s.kind === "prepaid" && (s.status === "pending_payment" || s.status === "paid")
+  ).length;
+}
+
+/**
+ * Add one prepaid pending seat up to the quiz max team size.
+ * Cap comes from event rules (`maxPlayers`), not from the original registration N.
+ */
+export function addPrepaidSeat(
+  team: PayTeam,
+  maxPlayers: number,
+  entryFee: number,
+  now = new Date()
+): { team: PayTeam; seat: PaySeat } | { error: string } {
+  const live = applyHoldExpiry(team, now);
+  if (live.status === "cancelled") {
+    return { error: "Táto rezervácia bola zrušená." };
+  }
+  if (quizHasStarted(live.quizDate, live.quizTime, now) || live.status === "closed_at_start") {
+    return { error: "Kvíz už začal — miesta sa už nedajú pridávať." };
+  }
+  const cap = Math.max(1, Math.floor(maxPlayers));
+  const current = prepaidSeatCount(live);
+  if (current >= cap) {
+    return { error: `Tím môže mať najviac ${cap} hráčov na tomto kvíze.` };
+  }
+
+  const amount = prepaidPriceEur(entryFee);
+  const nextIndex =
+    live.seats.filter((s) => s.kind === "prepaid").reduce((max, s) => Math.max(max, s.index), 0) + 1;
+  const seat: PaySeat = {
+    id: newToken(8),
+    token: newToken(16),
+    index: nextIndex,
+    status: "pending_payment",
+    amountEur: amount,
+    kind: "prepaid",
+  };
+  const seats = [...live.seats, seat];
+  const next: PayTeam = {
+    ...live,
+    players: current + 1,
+    seats,
+  };
+  return { team: { ...next, status: deriveTeamStatus(next, now) }, seat };
+}
+
 export function createWalkUpSeat(
   teamOrEvent: {
     eventSlug: string;

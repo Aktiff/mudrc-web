@@ -32,8 +32,11 @@ export default async function PaySharedTeamPage({ params }: Props) {
   }
 
   return (
-    <div className="space-y-6">
-      <Link href={href(`/t/${team.token}`)} className="text-sm text-brand-muted hover:text-brand-text">
+    <div className="mx-auto w-full max-w-md space-y-6">
+      <Link
+        href={href(`/t/${team.token}`)}
+        className="text-sm text-brand-muted hover:text-brand-text inline-block"
+      >
         ← Stav tímu
       </Link>
       <PayCheckoutClient
