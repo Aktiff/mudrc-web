@@ -354,6 +354,12 @@ export async function cancelPayTeamsByIds(ids: string[]): Promise<number> {
  * Cancels mock teams attached to any slug other than the dedicated test/demo events.
  */
 export async function scrubStrayMockPayTeamsOffRealEvents(): Promise<number> {
+  const current = await readPayTeams();
+  const stray = current.filter(
+    (team) => team.status !== "cancelled" && team.mock && !isPayStagingEventSlug(team.eventSlug)
+  );
+  if (stray.length === 0) return 0;
+
   let cancelled = 0;
   await updateStore((teams) =>
     teams.map((team) => {
