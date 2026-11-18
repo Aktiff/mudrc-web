@@ -78,31 +78,31 @@ export default function AdminRegistrationRow({
           </span>
         </div>
       </div>
-      {!fromPay ? (
-        <div className="flex flex-col gap-2 shrink-0">
-          {moves.map((move) => (
-            <button
-              key={move.key}
-              type="button"
-              onClick={move.onMove}
-              disabled={moving || deleting}
-              className="flex items-center gap-1.5 text-sm font-medium px-3 py-2 rounded-xl border border-brand-border text-brand-text hover:border-brand-orange transition-colors disabled:opacity-50"
-            >
-              <ArrowRightLeft className="w-4 h-4" />
-              {moving ? "Presúvam…" : move.label}
-            </button>
-          ))}
-          <button
-            type="button"
-            onClick={onDelete}
-            disabled={deleting || moving}
-            className="flex items-center gap-1.5 text-sm font-medium px-3 py-2 rounded-xl border border-red-200 dark:border-red-900 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors disabled:opacity-50"
-          >
-            <Trash2 className="w-4 h-4" />
-            {deleting ? "..." : "Zmazať"}
-          </button>
-        </div>
-      ) : null}
+      <div className="flex flex-col gap-2 shrink-0">
+        {!fromPay
+          ? moves.map((move) => (
+              <button
+                key={move.key}
+                type="button"
+                onClick={move.onMove}
+                disabled={moving || deleting}
+                className="flex items-center gap-1.5 text-sm font-medium px-3 py-2 rounded-xl border border-brand-border text-brand-text hover:border-brand-orange transition-colors disabled:opacity-50"
+              >
+                <ArrowRightLeft className="w-4 h-4" />
+                {moving ? "Presúvam…" : move.label}
+              </button>
+            ))
+          : null}
+        <button
+          type="button"
+          onClick={onDelete}
+          disabled={deleting || moving}
+          className="flex items-center gap-1.5 text-sm font-medium px-3 py-2 rounded-xl border border-red-200 dark:border-red-900 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors disabled:opacity-50"
+        >
+          <Trash2 className="w-4 h-4" />
+          {deleting ? "..." : "Zmazať"}
+        </button>
+      </div>
     </div>
   );
 }

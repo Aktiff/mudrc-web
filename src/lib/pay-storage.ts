@@ -6,6 +6,7 @@ import { hasBlobStorage } from "@/lib/storage";
 import {
   addPrepaidSeat,
   applyHoldExpiry,
+  cancelTeamBooking,
   createTeamBooking,
   createWalkUpSeat,
   markNextPendingSeatsPaid,
@@ -15,6 +16,10 @@ import {
   type PaySeat,
   type PayTeam,
 } from "@/lib/pay-domain";
+import { PAY_TEST_EVENT_SLUG } from "@/lib/pay-test-event";
+
+/** Keep in sync with `PAY_STAGING_DEMO_SLUG` in pay-events (avoid circular import). */
+const PAY_STAGING_DEMO_SLUG = "pay-staging-demo";
 
 const localPath = path.join(process.cwd(), "src/data/pay-bookings.local.json");
 const seedPath = path.join(process.cwd(), "src/data/pay-bookings.json");
@@ -309,4 +314,55 @@ export async function teamsForEvent(eventSlug: string, quizDate?: string): Promi
     if (quizDate && t.quizDate !== quizDate) return false;
     return true;
   });
+}
+
+/** Slugs where mock/staging pay traffic is allowed to appear in admin. */
+export function isPayStagingEventSlug(eventSlug: string): boolean {
+  return eventSlug === PAY_TEST_EVENT_SLUG || eventSlug === PAY_STAGING_DEMO_SLUG;
+}
+
+export async function cancelPayTeamById(id: string): Promise<PayTeam | null> {
+  let cancelled: PayTeam | null = null;
+  await updateStore((teams) => {
+    const idx = teams.findIndex((t) => t.id === id);
+    if (idx < 0) return teams;
+    const nextTeam = cancelTeamBooking(teams[idx]);
+    cancelled = nextTeam;
+    const next = [...teams];
+    next[idx] = nextTeam;
+    return next;
+  });
+  return cancelled;
+}
+
+export async function cancelPayTeamsByIds(ids: string[]): Promise<number> {
+  const idSet = new Set(ids.filter(Boolean));
+  if (idSet.size === 0) return 0;
+  let removed = 0;
+  await updateStore((teams) =>
+    teams.map((team) => {
+      if (!idSet.has(team.id) || team.status === "cancelled") return team;
+      removed += 1;
+      return cancelTeamBooking(team);
+    })
+  );
+  return removed;
+}
+
+/**
+ * Mock/staging pay bookings must not pollute real venue admin lists.
+ * Cancels mock teams attached to any slug other than the dedicated test/demo events.
+ */
+export async function scrubStrayMockPayTeamsOffRealEvents(): Promise<number> {
+  let cancelled = 0;
+  await updateStore((teams) =>
+    teams.map((team) => {
+      if (team.status === "cancelled") return team;
+      if (!team.mock) return team;
+      if (isPayStagingEventSlug(team.eventSlug)) return team;
+      cancelled += 1;
+      return cancelTeamBooking(team);
+    })
+  );
+  return cancelled;
 }

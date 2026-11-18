@@ -89,6 +89,18 @@ export function applyHoldExpiry(team: PayTeam, now = new Date()): PayTeam {
   return { ...next, status: deriveTeamStatus(next, now) };
 }
 
+/** Admin/captain cancel: mark team cancelled and void unpaid prepaid seats. */
+export function cancelTeamBooking(team: PayTeam): PayTeam {
+  if (team.status === "cancelled") return team;
+  const seats = team.seats.map((seat) => {
+    if (seat.kind === "prepaid" && seat.status === "pending_payment") {
+      return { ...seat, status: "void" as const };
+    }
+    return seat;
+  });
+  return { ...team, seats, status: "cancelled" };
+}
+
 export function pendingPrepaidSeats(team: PayTeam): PaySeat[] {
   return team.seats.filter((s) => s.kind === "prepaid" && s.status === "pending_payment");
 }

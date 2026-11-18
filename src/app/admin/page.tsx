@@ -4,7 +4,7 @@ import EventPromoChecks from "@/components/admin/EventPromoChecks";
 import FacebookEventPostButton from "@/components/admin/FacebookEventPostButton";
 import { formatEventDateLabel, sortEventsForAdminOverview } from "@/lib/data";
 import { mergeRegistrationsWithPayBookings } from "@/lib/pay-admin";
-import { readPayTeams } from "@/lib/pay-storage";
+import { readPayTeams, scrubStrayMockPayTeamsOffRealEvents } from "@/lib/pay-storage";
 import { estimatedEntryRevenue, formatEuroAmount, formatSkPlayerCountTotal, registrationTotalsForEvent } from "@/lib/registration-utils";
 import { venueQuizLabel } from "@/lib/quiz-type";
 import { readEvents, readRegistrations } from "@/lib/storage";
@@ -12,6 +12,9 @@ import { readEvents, readRegistrations } from "@/lib/storage";
 export const dynamic = "force-dynamic";
 
 export default async function AdminDashboard() {
+  await scrubStrayMockPayTeamsOffRealEvents().catch((error) => {
+    console.error("scrubStrayMockPayTeamsOffRealEvents failed:", error);
+  });
   const [{ events }, { registrations }, payTeams] = await Promise.all([
     readEvents(),
     readRegistrations(),
