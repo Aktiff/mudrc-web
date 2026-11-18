@@ -199,7 +199,16 @@ export default function RegistraciaPage() {
   };
 
   const deleteOne = async (id: string, teamName: string) => {
-    if (!confirm(`Naozaj zmazať registráciu tímu „${teamName}"?`)) return;
+    const fromPay = isPayRegistration({ id });
+    if (
+      !confirm(
+        fromPay
+          ? `Naozaj zrušiť predplatnú rezerváciu tímu „${teamName}"?`
+          : `Naozaj zmazať registráciu tímu „${teamName}"?`
+      )
+    ) {
+      return;
+    }
     const previous = regs;
     removedRegIds.current.add(id);
     setRegs((prev) => prev.filter((entry) => entry.id !== id));

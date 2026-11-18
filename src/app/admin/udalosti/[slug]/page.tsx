@@ -730,11 +730,16 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
   };
 
   const deleteRegistration = async (id: string, teamName: string) => {
-    if (isPayRegistrationId(id)) {
-      setMsg({ text: "Predplatnú rezerváciu zatiaľ nemožno zmazať z adminu.", ok: false });
+    const fromPay = isPayRegistrationId(id);
+    if (
+      !confirm(
+        fromPay
+          ? `Naozaj zrušiť predplatnú rezerváciu tímu „${teamName}"?`
+          : `Naozaj zmazať registráciu tímu „${teamName}"?`
+      )
+    ) {
       return;
     }
-    if (!confirm(`Naozaj zmazať registráciu tímu „${teamName}"?`)) return;
     const previous = registrations;
     removedRegIds.current.add(id);
     setRegistrations((prev) => prev.filter((entry) => entry.id !== id));
@@ -747,7 +752,10 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        setMsg({ text: "Registrácia zmazaná", ok: true });
+        setMsg({
+          text: fromPay ? "Predplatná rezervácia zrušená" : "Registrácia zmazaná",
+          ok: true,
+        });
       } else {
         removedRegIds.current.delete(id);
         setRegistrations(previous);

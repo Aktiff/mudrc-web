@@ -44,8 +44,38 @@ export function isPayRegistrationId(id: string): boolean {
   return id.startsWith("pay:");
 }
 
+export function payTeamIdFromRegistrationId(id: string): string | null {
+  if (!isPayRegistrationId(id)) return null;
+  const teamId = id.slice("pay:".length).trim();
+  return teamId || null;
+}
+
 export function isPayRegistration(reg: Pick<AdminRegistrationView, "id" | "source">): boolean {
   return reg.source === "pay" || isPayRegistrationId(reg.id);
+}
+
+/**
+ * Pay bookings bind to a concrete eventSlug (+ quizDate on the team).
+ * Never fall back to venue-only matching — that mixed staging/test teams into real venues.
+ */
+export function payTeamMatchesAdminEvent(
+  team: Pick<PayTeam, "eventSlug" | "venue" | "quizDate">,
+  filter: { slug?: string; venue?: string; quizDate?: string }
+): boolean {
+  const slug = filter.slug?.trim() ?? "";
+  const venue = filter.venue?.trim().toLowerCase() ?? "";
+  const quizDate = filter.quizDate?.trim() ?? "";
+
+  if (slug) {
+    if (team.eventSlug !== slug) return false;
+  } else if (venue) {
+    if (team.venue.trim().toLowerCase() !== venue) return false;
+  } else {
+    return false;
+  }
+
+  if (quizDate && team.quizDate.trim() !== quizDate) return false;
+  return true;
 }
 
 /**
@@ -55,14 +85,22 @@ export function isPayRegistration(reg: Pick<AdminRegistrationView, "id" | "sourc
 export function mergeRegistrationsWithPayBookings(
   registrations: Registration[],
   payTeams: PayTeam[],
-  filter?: { slug?: string; venue?: string }
+  filter?: { slug?: string; venue?: string; quizDate?: string }
 ): AdminRegistrationView[] {
   const slug = filter?.slug?.trim() ?? "";
   const venue = filter?.venue?.trim() ?? "";
+  const quizDate = filter?.quizDate?.trim() ?? "";
   const filtered = Boolean(slug || venue);
 
   const classic: AdminRegistrationView[] = (filtered
-    ? registrations.filter((reg) => registrationMatchesEvent(reg, slug, venue))
+    ? registrations.filter((reg) => {
+        if (!registrationMatchesEvent(reg, slug, venue)) return false;
+        if (quizDate) {
+          const term = (reg.quizDate ?? "").trim();
+          if (term && term !== quizDate) return false;
+        }
+        return true;
+      })
     : registrations
   ).map((reg) => ({ ...reg, source: "web" as const }));
 
@@ -76,7 +114,7 @@ export function mergeRegistrationsWithPayBookings(
   const fromPay: AdminRegistrationView[] = [];
   for (const team of payTeams) {
     if (team.status === "cancelled") continue;
-    if (filtered && !registrationMatchesEvent(team, slug, venue)) continue;
+    if (filtered && !payTeamMatchesAdminEvent(team, { slug, venue, quizDate })) continue;
 
     const term = team.quizDate.trim().toLowerCase();
     const key = `${team.venue.trim().toLowerCase()}|${team.teamName.trim().toLowerCase()}|${term}`;
