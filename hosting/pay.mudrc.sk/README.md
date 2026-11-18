@@ -37,8 +37,8 @@ To simulate the subdomain locally, map `pay.localhost` in `/etc/hosts` and set `
 
 1. `/pay` → use **Staging demo kvíz** (top, always open, max 8) or any real open quiz → **Registrovať tím** (name, N seats, phone, **email**).
 2. Team page shows **one** shareable pay-link (copy button). Use **Pridať člena** to grow N up to quiz `maxPlayers`.
-3. Open that link → enter optional payer email → **Zaplatiť kartou (mock)** → instant `paid` + confirmation email when Resend is configured.
-4. Others reuse the **same** link until seats are gone; team status goes `open` → `partial` → `full`.
+3. Open that link → choose **1..remaining** unpaid seats (total = quantity × entry fee) → optional payer email → **Zaplatiť kartou (mock)** → those seats mark paid + **one** confirmation email summarizing the payment when Resend is configured.
+4. Others reuse the **same** link until seats are gone; team status goes `open` → `partial` → `full`. Seat list shows Slovak statuses (`zaplatené` / `čaká sa na zaplatenie`).
 5. `/pay/check-in/<slug>?date=...` + PIN → check-in paid seats; **Walk-up** for on-site price (`entryFee` + surcharge).
 
 ## Routes

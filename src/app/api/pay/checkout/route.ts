@@ -1,17 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { PAY_MOCK_MODE } from "@/lib/pay-config";
+import type { PaySeat, PayTeam } from "@/lib/pay-domain";
 import { sendPaymentConfirmationEmail } from "@/lib/pay-email";
-import { paySeatMock, payTeamNextSeatMock } from "@/lib/pay-storage";
+import { paySeatMock, payTeamSeatsMock } from "@/lib/pay-storage";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
- * MOCK ONLY: clicking card payment instantly marks a seat as paid.
- * Prefer teamToken (shared team pay link → next pending seat).
- * seatToken kept for legacy per-seat URLs.
+ * MOCK ONLY: clicking card payment instantly marks seat(s) as paid.
+ * Prefer teamToken (shared team pay link → next N pending seats; quantity default 1).
+ * seatToken kept for legacy per-seat URLs (always 1 seat).
  * No Stripe / PSP — staging for pay.mudrc.sk UX and capacity rules.
- * When payerEmail is provided, sends a payment confirmation via Resend.
+ * When payerEmail is provided, sends one payment confirmation covering all paid seats.
  */
 export async function POST(req: NextRequest) {
   if (!PAY_MOCK_MODE) {
@@ -23,29 +24,62 @@ export async function POST(req: NextRequest) {
   const seatToken = String(body.seatToken ?? "").trim();
   const payerName = typeof body.payerName === "string" ? body.payerName.trim() : undefined;
   const payerEmail = typeof body.payerEmail === "string" ? body.payerEmail.trim() : undefined;
+  const rawQuantity = body.quantity;
+  const quantity =
+    rawQuantity === undefined || rawQuantity === null || rawQuantity === ""
+      ? 1
+      : Math.floor(Number(rawQuantity));
 
   if (!teamToken && !seatToken) {
     return NextResponse.json({ error: "Chýba token tímu alebo lístka." }, { status: 400 });
   }
 
-  const result = teamToken
-    ? await payTeamNextSeatMock(teamToken, { name: payerName, email: payerEmail })
-    : await paySeatMock(seatToken, { name: payerName, email: payerEmail });
-
-  if ("error" in result) {
-    return NextResponse.json({ error: result.error }, { status: result.status });
+  if (seatToken && quantity !== 1) {
+    return NextResponse.json(
+      { error: "Jednotlivý lístok sa platí vždy po jednom mieste." },
+      { status: 400 }
+    );
   }
+
+  if (!Number.isFinite(quantity) || quantity < 1) {
+    return NextResponse.json({ error: "Počet miest musí byť aspoň 1." }, { status: 400 });
+  }
+
+  let seats: PaySeat[];
+  let team: PayTeam;
+
+  if (teamToken) {
+    const result = await payTeamSeatsMock(teamToken, quantity, {
+      name: payerName,
+      email: payerEmail,
+    });
+    if ("error" in result) {
+      return NextResponse.json({ error: result.error }, { status: result.status });
+    }
+    seats = result.seats;
+    team = result.team;
+  } else {
+    const result = await paySeatMock(seatToken, { name: payerName, email: payerEmail });
+    if ("error" in result) {
+      return NextResponse.json({ error: result.error }, { status: result.status });
+    }
+    seats = [result.seat];
+    team = result.team;
+  }
+
+  const primary = seats[0];
+  const totalEur = Math.round(seats.reduce((sum, s) => sum + s.amountEur, 0) * 100) / 100;
 
   let emailSent = false;
   let emailSkipped = false;
   let emailWarning: string | undefined;
   let emailId: string | undefined;
   // Always prefer the address the payer typed at checkout — confirmation is for the customer.
-  const toEmail = (payerEmail || result.seat.payerEmail || "").trim().toLowerCase() || undefined;
+  const toEmail = (payerEmail || primary.payerEmail || "").trim().toLowerCase() || undefined;
   if (toEmail) {
     const mail = await sendPaymentConfirmationEmail({
-      team: result.team,
-      seat: result.seat,
+      team,
+      seats,
       toEmail,
     });
     emailSent = mail.ok && !mail.skipped;
@@ -63,16 +97,25 @@ export async function POST(req: NextRequest) {
     ok: true,
     mock: true,
     message: "Testovacia platba úspešná (mock — bez skutočnej karty).",
+    quantity: seats.length,
+    totalEur,
     seat: {
-      id: result.seat.id,
-      index: result.seat.index,
-      status: result.seat.status,
-      amountEur: result.seat.amountEur,
-      paidAt: result.seat.paidAt,
+      id: primary.id,
+      index: primary.index,
+      status: primary.status,
+      amountEur: primary.amountEur,
+      paidAt: primary.paidAt,
     },
-    teamToken: result.team.token,
-    teamStatus: result.team.status,
-    remainingPending: result.team.seats.filter(
+    seats: seats.map((s) => ({
+      id: s.id,
+      index: s.index,
+      status: s.status,
+      amountEur: s.amountEur,
+      paidAt: s.paidAt,
+    })),
+    teamToken: team.token,
+    teamStatus: team.status,
+    remainingPending: team.seats.filter(
       (s) => s.kind === "prepaid" && s.status === "pending_payment"
     ).length,
     emailTo: toEmail ?? null,

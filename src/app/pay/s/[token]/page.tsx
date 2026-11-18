@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 
 type Props = { params: { token: string } };
 
-/** Shared team pay link — one URL for the whole team; each visitor pays one seat. */
+/** Shared team pay link — one URL for the whole team; visitor chooses 1..remaining seats. */
 export default async function PaySharedTeamPage({ params }: Props) {
   const raw = await getTeamByToken(params.token, { retries: 8, delayMs: 250 });
   if (!raw) notFound();
@@ -26,10 +26,17 @@ export default async function PaySharedTeamPage({ params }: Props) {
   if (team.status === "cancelled") {
     blockedMessage = "Táto rezervácia bola zrušená.";
   } else if (quizHasStarted(team.quizDate, team.quizTime) || team.status === "closed_at_start") {
-    blockedMessage = "Kvíz už začal — online predaj pending slotov skončil. Walk-up na mieste.";
+    blockedMessage = "Kvíz už začal — online predaj nezaplatených miest skončil. Walk-up na mieste.";
   } else if (pending.length === 0) {
     blockedMessage = "Všetky miesta tohto tímu sú už zaplatené.";
   }
+
+  const pendingLabel =
+    summary.pending === 1
+      ? "1 miesto ostáva"
+      : summary.pending < 5
+        ? `${summary.pending} miesta ostávajú`
+        : `${summary.pending} miest ostáva`;
 
   return (
     <div className="mx-auto w-full max-w-md space-y-6">
@@ -42,7 +49,7 @@ export default async function PaySharedTeamPage({ params }: Props) {
       <PayCheckoutClient
         teamToken={team.token}
         amountEur={amountEur}
-        seatLabel={`1 miesto (${summary.pending} ostáva)`}
+        seatLabel={pendingLabel}
         teamName={team.teamName}
         venue={team.venue}
         whenLabel={whenLabel}

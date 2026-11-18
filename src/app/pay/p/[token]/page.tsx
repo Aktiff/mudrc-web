@@ -22,7 +22,7 @@ export default async function PaySeatPage({ params }: Props) {
   if (seat.status === "void") {
     blockedMessage = "Toto miesto už nie je kúpiteľné online. Po štarte kvízu použi walk-up na mieste.";
   } else if (seat.status !== "paid" && seat.kind === "prepaid" && quizHasStarted(team.quizDate, team.quizTime)) {
-    blockedMessage = "Kvíz už začal — online predaj pending slotov skončil.";
+    blockedMessage = "Kvíz už začal — online predaj nezaplatených miest skončil.";
   }
 
   return (
