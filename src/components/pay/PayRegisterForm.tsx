@@ -33,6 +33,21 @@ export default function PayRegisterForm({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  async function waitUntilTeamReady(teamToken: string): Promise<boolean> {
+    for (let attempt = 0; attempt < 20; attempt++) {
+      try {
+        const res = await fetch(`/api/pay/team/${encodeURIComponent(teamToken)}`, {
+          cache: "no-store",
+        });
+        if (res.ok) return true;
+      } catch {
+        /* retry */
+      }
+      await new Promise((r) => setTimeout(r, 300 + attempt * 100));
+    }
+    return false;
+  }
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
@@ -56,7 +71,21 @@ export default function PayRegisterForm({
         setLoading(false);
         return;
       }
-      router.push(`${basePath}/t/${String(data.teamToken)}`);
+      const teamToken = String(data.teamToken ?? "");
+      if (!teamToken) {
+        setError("Registrácia prebehla, ale chýba odkaz na tím.");
+        setLoading(false);
+        return;
+      }
+      // Blob listing can lag — wait until the team page will not 404.
+      const ready = await waitUntilTeamReady(teamToken);
+      if (!ready) {
+        setError("Rezervácia sa ukladá dlhšie než obvykle. Skús obnoviť stránku o chvíľu.");
+        setLoading(false);
+        router.push(`${basePath}/t/${teamToken}`);
+        return;
+      }
+      router.push(`${basePath}/t/${teamToken}`);
     } catch {
       setError("Sieťová chyba. Skús znova.");
       setLoading(false);
@@ -128,7 +157,7 @@ export default function PayRegisterForm({
       {error ? <p className="text-red-600 text-sm">{error}</p> : null}
 
       <button type="submit" className="btn-primary w-full justify-center" disabled={loading}>
-        {loading ? "Ukladám…" : "Rezervovať miesta a získať pay-link"}
+        {loading ? "Ukladám rezerváciu…" : "Rezervovať miesta a získať pay-link"}
       </button>
     </form>
   );

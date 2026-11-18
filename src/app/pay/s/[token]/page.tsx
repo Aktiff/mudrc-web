@@ -12,7 +12,7 @@ type Props = { params: { token: string } };
 
 /** Shared team pay link — one URL for the whole team; each visitor pays one seat. */
 export default async function PaySharedTeamPage({ params }: Props) {
-  const raw = await getTeamByToken(params.token);
+  const raw = await getTeamByToken(params.token, { retries: 8, delayMs: 250 });
   if (!raw) notFound();
 
   const team = applyHoldExpiry(raw);
