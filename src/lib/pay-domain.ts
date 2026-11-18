@@ -175,6 +175,21 @@ export function markNextPendingSeatPaid(
   payer?: { name?: string; email?: string },
   now = new Date()
 ): { team: PayTeam; seat: PaySeat } | { error: string } {
+  const multi = markNextPendingSeatsPaid(team, 1, payer, now);
+  if ("error" in multi) return multi;
+  return { team: multi.team, seat: multi.seats[0] };
+}
+
+/**
+ * Claim the next N unpaid prepaid seats in one mock checkout.
+ * Quantity is clamped to 1..pending; callers should validate before charging.
+ */
+export function markNextPendingSeatsPaid(
+  team: PayTeam,
+  quantity: number,
+  payer?: { name?: string; email?: string },
+  now = new Date()
+): { team: PayTeam; seats: PaySeat[] } | { error: string } {
   const live = applyHoldExpiry(team, now);
   if (quizHasStarted(live.quizDate, live.quizTime, now)) {
     return { error: "Kvíz už začal — online predaj je ukončený. Walk-up na mieste." };
@@ -188,7 +203,52 @@ export function markNextPendingSeatPaid(
     }
     return { error: "Žiadne voľné miesto na zaplatenie." };
   }
-  return markSeatPaid(live, pending[0].token, payer, now);
+
+  const qty = Math.floor(Number(quantity));
+  if (!Number.isFinite(qty) || qty < 1) {
+    return { error: "Počet miest musí byť aspoň 1." };
+  }
+  if (qty > pending.length) {
+    return {
+      error:
+        pending.length === 1
+          ? "Dá sa zaplatiť už len 1 miesto."
+          : `Dá sa zaplatiť najviac ${pending.length} miest.`,
+    };
+  }
+
+  const tokens = pending.slice(0, qty).map((s) => s.token);
+  let current = live;
+  const seats: PaySeat[] = [];
+  for (const token of tokens) {
+    const outcome = markSeatPaid(current, token, payer, now);
+    if ("error" in outcome) return outcome;
+    current = outcome.team;
+    seats.push(outcome.seat);
+  }
+  return { team: current, seats };
+}
+
+/** Customer-facing Slovak label for seat payment status (never show raw enums). */
+export function formatSeatStatusLabel(status: SeatStatus): string {
+  switch (status) {
+    case "paid":
+      return "zaplatené";
+    case "pending_payment":
+      return "čaká sa na zaplatenie";
+    case "void":
+      return "uvoľnené po štarte";
+    case "refund_pending":
+      return "čaká sa na refundáciu";
+    case "refunded_50":
+      return "refundované 50 %";
+    case "forfeited":
+      return "prepadnuté";
+    case "transferred":
+      return "presunuté";
+    default:
+      return status;
+  }
 }
 
 /** Count active prepaid seats (pending + paid; voids do not count toward team size). */

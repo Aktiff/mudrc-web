@@ -33,15 +33,6 @@ export default async function PayTeamPage({ params }: Props) {
         origin={origin}
         maxPlayers={maxPlayers}
       />
-      <p className="text-xs text-brand-muted text-center sm:text-left">
-        Check-in večer:{" "}
-        <Link
-          className="underline hover:text-brand-text"
-          href={href(`/check-in/${team.eventSlug}?date=${encodeURIComponent(team.quizDate)}`)}
-        >
-          zoznam paid
-        </Link>
-      </p>
     </div>
   );
 }

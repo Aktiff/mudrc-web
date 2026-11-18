@@ -8,7 +8,7 @@ import {
   applyHoldExpiry,
   createTeamBooking,
   createWalkUpSeat,
-  markNextPendingSeatPaid,
+  markNextPendingSeatsPaid,
   markSeatPaid,
   toggleSeatCheckIn,
   type PayBookingStore,
@@ -200,7 +200,18 @@ export async function payTeamNextSeatMock(
   teamToken: string,
   payer?: { name?: string; email?: string }
 ): Promise<{ team: PayTeam; seat: PaySeat } | { error: string; status: number }> {
-  let paid: { team: PayTeam; seat: PaySeat } | undefined;
+  const result = await payTeamSeatsMock(teamToken, 1, payer);
+  if ("error" in result) return result;
+  return { team: result.team, seat: result.seats[0] };
+}
+
+/** Pay N seats via the shared team link (claims next N pending prepaid seats). */
+export async function payTeamSeatsMock(
+  teamToken: string,
+  quantity: number,
+  payer?: { name?: string; email?: string }
+): Promise<{ team: PayTeam; seats: PaySeat[] } | { error: string; status: number }> {
+  let paid: { team: PayTeam; seats: PaySeat[] } | undefined;
   let fail: string | undefined;
   await updateStore((teams) => {
     const idx = teams.findIndex((t) => t.token === teamToken);
@@ -208,7 +219,7 @@ export async function payTeamNextSeatMock(
       fail = "Tím neexistuje.";
       return teams;
     }
-    const outcome = markNextPendingSeatPaid(teams[idx], payer);
+    const outcome = markNextPendingSeatsPaid(teams[idx], quantity, payer);
     if ("error" in outcome) {
       fail = outcome.error;
       return teams;

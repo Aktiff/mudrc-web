@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { PayTeam } from "@/lib/pay-domain";
-import { formatSeatLabel, teamSummary } from "@/lib/pay-domain";
+import { formatSeatLabel, formatSeatStatusLabel, teamSummary } from "@/lib/pay-domain";
 
 type Props = {
   team: PayTeam;
@@ -34,6 +34,7 @@ export default function PayTeamDashboard({ team, whenLabel, basePath, origin, ma
   const [adding, setAdding] = useState(false);
   const [addError, setAddError] = useState("");
   const shareUrl = `${origin}${sharedPayPath(basePath, team.token)}`;
+  const unitPrice = team.seats.find((s) => s.kind === "prepaid")?.amountEur;
 
   const statusLabel = useMemo(() => {
     switch (team.status) {
@@ -42,7 +43,7 @@ export default function PayTeamDashboard({ team, whenLabel, basePath, origin, ma
       case "partial":
         return `Čiastočne zaplatené (${summary.paid}/${summary.total})`;
       case "full":
-        return "Tím kompletný — všetky miesta paid";
+        return "Tím kompletný — všetky miesta zaplatené";
       case "closed_at_start":
         return "Po štarte — neuhradené uvoľnené";
       case "cancelled":
@@ -103,11 +104,11 @@ export default function PayTeamDashboard({ team, whenLabel, basePath, origin, ma
       <div className="rounded-2xl border border-brand-border bg-brand-card p-4 grid grid-cols-3 gap-3 text-center">
         <div>
           <div className="font-display text-3xl text-brand-text">{summary.paid}</div>
-          <div className="text-xs text-brand-muted">paid</div>
+          <div className="text-xs text-brand-muted">zaplatené</div>
         </div>
         <div>
           <div className="font-display text-3xl text-brand-text">{summary.pending}</div>
-          <div className="text-xs text-brand-muted">pending</div>
+          <div className="text-xs text-brand-muted">čaká na zaplatenie</div>
         </div>
         <div>
           <div className="font-display text-3xl text-brand-text">{summary.total}</div>
@@ -121,8 +122,8 @@ export default function PayTeamDashboard({ team, whenLabel, basePath, origin, ma
       <div className="space-y-3 rounded-2xl border border-brand-border bg-brand-surface px-4 py-4">
         <h2 className="font-display text-2xl uppercase tracking-wide text-brand-text">Pay-link tímu</h2>
         <p className="text-sm text-brand-muted">
-          Jeden odkaz pre celý tím. Pošli ho kamarátom — každý zaplatí jedno miesto (
-          {team.seats[0]?.amountEur ?? "—"}&nbsp;€). Hold platí do štartu kvízu.
+          Jeden odkaz pre celý tím. Pošli ho kamarátom — každý môže zaplatiť jedno alebo viac miest naraz
+          {unitPrice != null ? ` (${unitPrice}\u00a0€ / miesto)` : ""}. Hold platí do štartu kvízu.
         </p>
         {summary.pending > 0 ? (
           <>
@@ -137,6 +138,12 @@ export default function PayTeamDashboard({ team, whenLabel, basePath, origin, ma
                 {copied ? "Skopírované" : "Kopírovať link"}
               </button>
             </div>
+            {summary.pending > 1 ? (
+              <p className="text-xs text-brand-muted">
+                Na platobnej stránke vieš zvoliť počet miest (1–{summary.pending}), napr. polovicu alebo celý
+                zvyšok tímu.
+              </p>
+            ) : null}
           </>
         ) : team.status === "full" ? (
           <p className="text-sm font-semibold text-brand-orange-readable">Všetky miesta sú zaplatené.</p>
@@ -179,11 +186,8 @@ export default function PayTeamDashboard({ team, whenLabel, basePath, origin, ma
                     <span className="text-brand-muted font-normal">· {seat.amountEur}&nbsp;€</span>
                   </div>
                   <div className="text-xs text-brand-muted mt-0.5">
-                    {seat.status === "paid"
-                      ? `paid${seat.payerName ? ` · ${seat.payerName}` : ""}`
-                      : seat.status === "void"
-                        ? "uvoľnené po štarte"
-                        : "pending_payment"}
+                    {formatSeatStatusLabel(seat.status)}
+                    {seat.status === "paid" && seat.payerName ? ` · ${seat.payerName}` : ""}
                   </div>
                 </div>
                 {seat.status === "paid" ? (
