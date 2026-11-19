@@ -33,6 +33,7 @@ function moderatorApiAllowed(pathname: string, method: string): boolean {
   if (pathname === "/api/admin/venue-teams" && m === "GET") return true;
   if (pathname === "/api/admin/quiz-library" && m === "GET") return true;
   if (/^\/api\/admin\/quiz-library\/[^/]+$/.test(pathname) && m === "GET") return true;
+  if (/^\/api\/admin\/quiz-library\/[^/]+\/offline\/?$/.test(pathname) && m === "GET") return true;
   if (/^\/api\/admin\/events\/[^/]+\/deck$/.test(pathname) && m === "GET") return true;
   if (/^\/api\/admin\/events\/[^/]+\/kviz$/.test(pathname) && m === "POST") return true;
   if (

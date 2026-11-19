@@ -7,6 +7,7 @@ import { questionCountLabel, type QuizLibraryItem, type QuizQuestionItem, type Q
 import { quizUsagePlaces } from "@/lib/quiz-library-usage";
 import { clearQuizDraft } from "@/lib/quiz-editor-draft";
 import QuizAnswerKey from "@/components/QuizAnswerKey";
+import OfflinePresentationDownloadButton from "@/components/OfflinePresentationDownloadButton";
 
 type QuizListItem = QuizLibraryItem & {
   usageCount: number;
@@ -314,6 +315,12 @@ export default function HotoveKvizyList() {
                 <Play className="w-4 h-4" />
                 Prehrať
               </a>
+              {quiz.questions?.length ? (
+                <OfflinePresentationDownloadButton
+                  quizId={quiz.id}
+                  className="inline-flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded-xl border border-brand-border text-brand-text hover:border-brand-orange hover:text-brand-orange-readable transition-colors disabled:opacity-50"
+                />
+              ) : null}
               <button
                 type="button"
                 onClick={() => renameQuiz(quiz)}

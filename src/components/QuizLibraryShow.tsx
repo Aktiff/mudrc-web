@@ -56,6 +56,7 @@ import {
 import { fixSlovakLineBreaks } from "@/lib/slovak-typography";
 import PresentationStageAutoFit from "@/components/PresentationStageAutoFit";
 import PresentationZoomLayer from "@/components/PresentationZoomLayer";
+import OfflinePresentationDownloadButton from "@/components/OfflinePresentationDownloadButton";
 
 type Props = {
   quizId: string;
@@ -1196,6 +1197,13 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
           >
             Spustiť projekciu
           </button>
+          <OfflinePresentationDownloadButton
+            quizId={quizId}
+            className="w-full rounded-xl border border-white/20 bg-white/5 text-white font-semibold py-3.5 hover:bg-white/10 transition-colors inline-flex items-center justify-center gap-2 disabled:opacity-60"
+          />
+          <p className="text-center text-white/40 text-xs">
+            Offline ZIP na disk — otvoríš index.html bez internetu pri výpadku siete.
+          </p>
           <Link href={`/admin/hotove-kvizy/${quizId}`} className="block text-center text-white/50 text-sm hover:text-white">
             Späť do editora
           </Link>

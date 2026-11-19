@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, Fragment } from "react";
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, GripVertical, MonitorPlay, Plus, RotateCcw, Save, Trash2, X } from "lucide-react";
+import OfflinePresentationDownloadButton from "@/components/OfflinePresentationDownloadButton";
 import type { QuizEvent } from "@/lib/data";
 import { playbackMediaSrc } from "@/lib/media-url";
 import {
@@ -2019,6 +2020,7 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
             <MonitorPlay className="w-4 h-4" />
             Spustiť
           </a>
+          <OfflinePresentationDownloadButton quizId={quizId} />
           <button type="button" onClick={restoreFromLocalBackup} className="btn-outline text-sm py-2.5 px-4">
             Obnoviť zálohu z prehliadača
           </button>
