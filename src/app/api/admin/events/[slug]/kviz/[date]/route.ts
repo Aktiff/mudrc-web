@@ -15,6 +15,12 @@ import { isAssignedLibraryQuiz, normalizeResultLibraryQuizId } from "@/lib/quiz-
 
 import { revalidatePublicEventPaths } from "@/lib/revalidate-public";
 import { normalizeQuizTypeLabel } from "@/lib/quiz-type";
+import {
+  requireEventAccess,
+  requireOwnerSession,
+  requireScoreEditAccess,
+  scoreSaverFields,
+} from "@/lib/admin-permissions";
 
 import {
   deleteStoredQuiz,
@@ -38,7 +44,9 @@ type TeamEntry = { name: string; scores: number[]; total?: number; players?: num
 
 
 
-export async function GET(_req: NextRequest, { params }: { params: { slug: string; date: string } }) {
+export async function GET(req: NextRequest, { params }: { params: { slug: string; date: string } }) {
+  const sessionOrRes = await requireEventAccess(req, params.slug);
+  if (sessionOrRes instanceof NextResponse) return sessionOrRes;
 
   const data = await readQuizResult(params.slug, params.date);
 
@@ -81,6 +89,15 @@ export async function PUT(req: NextRequest, { params }: { params: { slug: string
 
   }
 
+  const sessionOrRes = await requireScoreEditAccess(
+    req,
+    params.slug,
+    existing.result.savedBy,
+    existing.result.savedAt
+  );
+  if (sessionOrRes instanceof NextResponse) return sessionOrRes;
+  const saver = scoreSaverFields(sessionOrRes);
+
 
 
   const previousPlayers = new Map(
@@ -120,6 +137,8 @@ export async function PUT(req: NextRequest, { params }: { params: { slug: string
       teams: teamsDetail,
       libraryQuizId: existing.result.libraryQuizId,
       ...(quizType ? { quizType } : {}),
+      savedBy: existing.result.savedBy ?? saver.savedBy,
+      savedAt: existing.result.savedAt ?? saver.savedAt,
     });
   } catch (error) {
     console.error("upsertStoredQuiz PUT error:", error);
@@ -208,6 +227,8 @@ export async function PUT(req: NextRequest, { params }: { params: { slug: string
         libraryQuizId: existing.result.libraryQuizId,
         ...(quizType ? { quizType } : {}),
         ...(playerCount > 0 ? { playerCount } : {}),
+        savedBy: existing.result.savedBy ?? saver.savedBy,
+        savedAt: existing.result.savedAt ?? saver.savedAt,
       };
 
 
@@ -261,6 +282,7 @@ export async function PUT(req: NextRequest, { params }: { params: { slug: string
 
 
 async function updateQuizGuestTeams(
+  req: NextRequest,
   slug: string,
   date: string,
   guestUpdate: { teamName?: string; guestTeams?: unknown }
@@ -273,6 +295,13 @@ async function updateQuizGuestTeams(
   if (!existing?.result?.teams?.length) {
     return NextResponse.json({ error: "Result not found" }, { status: 404 });
   }
+  const sessionOrRes = await requireScoreEditAccess(
+    req,
+    slug,
+    existing.result.savedBy,
+    existing.result.savedAt
+  );
+  if (sessionOrRes instanceof NextResponse) return sessionOrRes;
   const key = teamKey(teamName);
   const guestTeams = normalizeGuestTeams(teamName, guestUpdate.guestTeams);
   let found = false;
@@ -299,6 +328,8 @@ async function updateQuizGuestTeams(
     teams,
     libraryQuizId: existing.result.libraryQuizId,
     ...(existing.result.quizType?.trim() ? { quizType: existing.result.quizType.trim() } : {}),
+    ...(existing.result.savedBy?.trim() ? { savedBy: existing.result.savedBy.trim() } : {}),
+    ...(existing.result.savedAt?.trim() ? { savedAt: existing.result.savedAt.trim() } : {}),
   });
   return NextResponse.json({ ok: true, teams });
 }
@@ -310,7 +341,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { slug: stri
     guestUpdate?: { teamName?: string; guestTeams?: unknown };
   };
   if (body.guestUpdate) {
-    return updateQuizGuestTeams(params.slug, params.date, body.guestUpdate);
+    return updateQuizGuestTeams(req, params.slug, params.date, body.guestUpdate);
   }
   const { libraryQuizId } = body;
 
@@ -331,6 +362,14 @@ export async function PATCH(req: NextRequest, { params }: { params: { slug: stri
     return NextResponse.json({ error: "Result not found" }, { status: 404 });
 
   }
+
+  const sessionOrRes = await requireScoreEditAccess(
+    req,
+    params.slug,
+    existing.result.savedBy,
+    existing.result.savedAt
+  );
+  if (sessionOrRes instanceof NextResponse) return sessionOrRes;
 
 
 
@@ -374,6 +413,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { slug: stri
       teams: existing.result.teams ?? [],
 
       libraryQuizId: normalizedLibraryQuizId,
+
+      ...(existing.result.savedBy?.trim() ? { savedBy: existing.result.savedBy.trim() } : {}),
+
+      ...(existing.result.savedAt?.trim() ? { savedAt: existing.result.savedAt.trim() } : {}),
 
     });
 
@@ -465,7 +508,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { slug: stri
 
 
 
-export async function DELETE(_req: NextRequest, { params }: { params: { slug: string; date: string } }) {
+export async function DELETE(req: NextRequest, { params }: { params: { slug: string; date: string } }) {
+  const ownerOrRes = requireOwnerSession(req);
+  if (ownerOrRes instanceof NextResponse) return ownerOrRes;
 
   const existing = await readQuizResult(params.slug, params.date);
 

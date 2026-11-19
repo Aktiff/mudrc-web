@@ -1,14 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
-
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? "mudrc2026";
+import { authenticateAdminLogin } from "@/lib/admin-auth";
 
 export async function POST(req: NextRequest) {
-  const { password } = await req.json();
-  if (password !== ADMIN_PASSWORD) {
-    return NextResponse.json({ error: "Nespravne heslo" }, { status: 401 });
+  const body = (await req.json().catch(() => ({}))) as {
+    username?: string;
+    password?: string;
+  };
+  const auth = authenticateAdminLogin({
+    username: body.username,
+    password: body.password,
+  });
+  if (!auth) {
+    return NextResponse.json({ error: "Nespravne prihlasovacie udaje" }, { status: 401 });
   }
-  const res = NextResponse.json({ ok: true });
-  res.cookies.set("admin_session", ADMIN_PASSWORD, {
+  const res = NextResponse.json({
+    ok: true,
+    role: auth.session.role,
+    username: auth.session.username,
+  });
+  res.cookies.set("admin_session", auth.cookieValue, {
     httpOnly: true,
     path: "/",
     maxAge: 60 * 60 * 24 * 7,

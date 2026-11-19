@@ -1,11 +1,30 @@
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? "mudrc2026";
+import {
+  parseAdminSessionFromCookieHeader,
+  resolveAdminSession,
+  type AdminSession,
+} from "@/lib/admin-auth";
 
+export type { AdminSession };
+
+/** @deprecated Prefer resolveAdminSession / getAdminSessionFromRequest — owner-only check. */
 export function isAdminCookieValue(session: string | undefined | null): boolean {
-  return session === ADMIN_PASSWORD;
+  const resolved = resolveAdminSession(session);
+  return resolved?.role === "owner";
 }
 
+/** True for any valid admin session (owner or moderator). */
 export function isAdminRequest(request: Request): boolean {
-  const cookie = request.headers.get("cookie") ?? "";
-  const match = cookie.match(/(?:^|;\s*)admin_session=([^;]+)/);
-  return isAdminCookieValue(match?.[1] ? decodeURIComponent(match[1]) : undefined);
+  return getAdminSessionFromRequest(request) != null;
+}
+
+export function isOwnerRequest(request: Request): boolean {
+  return getAdminSessionFromRequest(request)?.role === "owner";
+}
+
+export function getAdminSessionFromRequest(request: Request): AdminSession | null {
+  return parseAdminSessionFromCookieHeader(request.headers.get("cookie"));
+}
+
+export function getAdminSessionFromCookieValue(session: string | undefined | null): AdminSession | null {
+  return resolveAdminSession(session);
 }

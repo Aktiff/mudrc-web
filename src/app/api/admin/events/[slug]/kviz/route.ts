@@ -14,6 +14,7 @@ import {
 import { revalidatePublicEventPaths } from "@/lib/revalidate-public";
 import { futureQuizMatchesDate, nextGeneralDateSkippingSpecials } from "@/lib/future-quizzes";
 import { quizTypeOrDefault } from "@/lib/quiz-type";
+import { requireScoreCreateAccess, scoreSaverFields } from "@/lib/admin-permissions";
 import {
   hasQuizForDate,
   readAllEventsRaw,
@@ -30,6 +31,11 @@ export const dynamic = "force-dynamic";
 type TeamEntry = { name: string; scores: number[]; total?: number; players?: number };
 
 export async function POST(req: NextRequest, { params }: { params: { slug: string } }) {
+  const sessionOrRes = await requireScoreCreateAccess(req, params.slug);
+  if (sessionOrRes instanceof NextResponse) return sessionOrRes;
+  const session = sessionOrRes;
+  const saver = scoreSaverFields(session);
+
   const body = await req.json();
   const { date, teams, libraryQuizId }: { date: string; teams: TeamEntry[]; libraryQuizId?: string } = body;
   const quizType = quizTypeOrDefault(body.quizType);
@@ -81,6 +87,8 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
       teams: teamsDetail,
       libraryQuizId: normalizedLibraryQuizId,
       quizType,
+      savedBy: saver.savedBy,
+      savedAt: saver.savedAt,
     });
   } catch (error) {
     console.error("upsertStoredQuiz error:", error);
@@ -118,7 +126,19 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
       const sortedTable = sortLeagueTable(table);
       const pastResults = [
         ...(event.pastResults ?? []).filter((r) => normalizeDateKey(r.date) !== resultId && r.id !== resultId),
-        { id: resultId, date, winnerTeam, points: winnerTotal, teams: teamsDetail, leagueSynced: true, libraryQuizId: normalizedLibraryQuizId, quizType, ...(playerCount > 0 ? { playerCount } : {}) },
+        {
+          id: resultId,
+          date,
+          winnerTeam,
+          points: winnerTotal,
+          teams: teamsDetail,
+          leagueSynced: true,
+          libraryQuizId: normalizedLibraryQuizId,
+          quizType,
+          savedBy: saver.savedBy,
+          savedAt: saver.savedAt,
+          ...(playerCount > 0 ? { playerCount } : {}),
+        },
       ];
 
       events[idx] = {

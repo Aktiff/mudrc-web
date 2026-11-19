@@ -6,16 +6,24 @@ import { formatEventDateLabel, sortEventsForAdminOverview, type QuizEvent } from
 import { isValidStoredEvent } from "@/lib/event-normalize";
 import { getPollActiveFlagsBySlug } from "@/lib/poll-storage";
 import { estimatedEntryRevenue, formatEuroAmount, formatSkPlayerCountTotal, registrationTotalsForEvent } from "@/lib/registration-utils";
+import { getServerAdminContext } from "@/lib/admin-session-server";
 import { venueQuizLabel } from "@/lib/quiz-type";
 import { readAllEventsRaw, readRegistrations, type Registration } from "@/lib/storage";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminUdalostitPage() {
+  const { session, grantedEventSlugs } = await getServerAdminContext();
+  const isModerator = session?.role === "moderator";
+  const allowed = new Set(grantedEventSlugs);
+
   let events: QuizEvent[] = [];
   let registrations: Registration[] = [];
   try {
     events = (await readAllEventsRaw()).events.filter((event) => event && typeof event.slug === "string");
+    if (isModerator) {
+      events = events.filter((event) => allowed.has(event.slug));
+    }
   } catch (error) {
     console.error("admin events list:", error);
   }
@@ -37,11 +45,17 @@ export default async function AdminUdalostitPage() {
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-8">
         <div>
           <h1 className="font-display text-4xl text-brand-text tracking-wide mb-1">Udalosti</h1>
-          <p className="text-brand-muted text-sm">Spravuj kvízové udalosti a podniky</p>
+          <p className="text-brand-muted text-sm">
+            {isModerator
+              ? "Podniky, ktoré môžeš moderovať"
+              : "Spravuj kvízové udalosti a podniky"}
+          </p>
         </div>
-        <Link href="/admin/udalosti/nova" className="btn-primary text-sm py-2.5 px-5 shrink-0 self-start">
-          <Plus className="w-4 h-4" /> Nová udalosť
-        </Link>
+        {!isModerator && (
+          <Link href="/admin/udalosti/nova" className="btn-primary text-sm py-2.5 px-5 shrink-0 self-start">
+            <Plus className="w-4 h-4" /> Nová udalosť
+          </Link>
+        )}
       </div>
       <div className="space-y-4">
         {sortedEvents.map((e) => {
@@ -124,10 +138,12 @@ export default async function AdminUdalostitPage() {
                 </Link>
               </div>
             </div>
-            <div className="mt-4 sm:pl-[3.75rem] space-y-3">
-              <FacebookEventPostButton slug={e.slug} />
-              <EventPromoChecks event={e} />
-            </div>
+            {!isModerator && (
+              <div className="mt-4 sm:pl-[3.75rem] space-y-3">
+                <FacebookEventPostButton slug={e.slug} />
+                <EventPromoChecks event={e} />
+              </div>
+            )}
           </article>
           );
         })}

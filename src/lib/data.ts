@@ -92,6 +92,10 @@ export type PastResult = {
   leagueSynced?: boolean;
   /** Odkaz na hotový kvíz z knižnice (recyklácia otázok). */
   libraryQuizId?: string;
+  /** Kto uložil výsledkovú tabuľku (owner / moderátor). */
+  savedBy?: string;
+  /** ISO čas uloženia výsledkovej tabuľky. */
+  savedAt?: string;
 };
 
 import eventsData from "@/data/events.json";

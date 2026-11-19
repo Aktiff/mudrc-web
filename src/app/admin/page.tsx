@@ -6,27 +6,41 @@ import { formatEventDateLabel, sortEventsForAdminOverview } from "@/lib/data";
 import { mergeRegistrationsWithPayBookings } from "@/lib/pay-admin";
 import { readPayTeams, scrubStrayMockPayTeamsOffRealEvents } from "@/lib/pay-storage";
 import { estimatedEntryRevenue, formatEuroAmount, formatSkPlayerCountTotal, registrationTotalsForEvent } from "@/lib/registration-utils";
+import { getServerAdminContext } from "@/lib/admin-session-server";
 import { venueQuizLabel } from "@/lib/quiz-type";
 import { readEvents, readRegistrations } from "@/lib/storage";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminDashboard() {
-  await scrubStrayMockPayTeamsOffRealEvents().catch((error) => {
-    console.error("scrubStrayMockPayTeamsOffRealEvents failed:", error);
-  });
-  const [{ events }, { registrations }, payTeams] = await Promise.all([
+  const { session, grantedEventSlugs } = await getServerAdminContext();
+  const isModerator = session?.role === "moderator";
+
+  if (!isModerator) {
+    await scrubStrayMockPayTeamsOffRealEvents().catch((error) => {
+      console.error("scrubStrayMockPayTeamsOffRealEvents failed:", error);
+    });
+  }
+  const [{ events: allEvents }, { registrations }, payTeams] = await Promise.all([
     readEvents(),
     readRegistrations(),
-    readPayTeams(),
+    isModerator ? Promise.resolve([]) : readPayTeams(),
   ]);
-  const allRegistrations = mergeRegistrationsWithPayBookings(registrations, payTeams);
+  const allowed = new Set(grantedEventSlugs);
+  const events = isModerator ? allEvents.filter((event) => allowed.has(event.slug)) : allEvents;
+  const allRegistrations = isModerator
+    ? registrations
+    : mergeRegistrationsWithPayBookings(registrations, payTeams);
   const sortedEvents = sortEventsForAdminOverview(events);
 
   return (
     <div className="w-full">
       <h1 className="font-display text-4xl text-brand-text tracking-wide mb-1">Prehľad</h1>
-      <p className="text-brand-muted text-sm mb-8">Vitaj v admin rozhraní Mudrc kvíz</p>
+      <p className="text-brand-muted text-sm mb-8">
+        {isModerator
+          ? `Vitaj, ${session?.username}. Vidíš len podniky, kde máš moderátorské práva.`
+          : "Vitaj v admin rozhraní Mudrc kvíz"}
+      </p>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-10">
         <div className="bg-brand-card rounded-2xl border border-brand-border p-6">
@@ -49,9 +63,11 @@ export default async function AdminDashboard() {
 
       <div className="flex items-center justify-between mb-6">
         <h2 className="font-display text-2xl text-brand-text tracking-wide">Udalosti</h2>
-        <Link href="/admin/udalosti/nova" className="btn-primary text-sm py-2.5 px-5">
-          <Plus className="w-4 h-4" /> Nová udalosť
-        </Link>
+        {!isModerator && (
+          <Link href="/admin/udalosti/nova" className="btn-primary text-sm py-2.5 px-5">
+            <Plus className="w-4 h-4" /> Nová udalosť
+          </Link>
+        )}
       </div>
 
       <div className="space-y-3">
@@ -99,10 +115,12 @@ export default async function AdminDashboard() {
                 </div>
               </div>
             </div>
-            <div className="mt-4 sm:pl-14 space-y-3">
-              <FacebookEventPostButton slug={e.slug} />
-              <EventPromoChecks event={e} />
-            </div>
+            {!isModerator && (
+              <div className="mt-4 sm:pl-14 space-y-3">
+                <FacebookEventPostButton slug={e.slug} />
+                <EventPromoChecks event={e} />
+              </div>
+            )}
           </article>
           );
         })}

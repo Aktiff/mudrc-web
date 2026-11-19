@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { QuizEvent } from "@/lib/data";
+import { requireOwnerSession, requireAdminSession } from "@/lib/admin-permissions";
+import { listGrantedEventSlugs } from "@/lib/moderator-grants";
 import { normalizeNewEvent } from "@/lib/event-normalize";
 import { eventPath } from "@/lib/regions";
 import { revalidateAfterNewEvent } from "@/lib/revalidate-public";
@@ -8,16 +10,32 @@ import { readAllEventsRaw, updateEvents } from "@/lib/storage";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const sessionOrRes = requireAdminSession(req);
+  if (sessionOrRes instanceof NextResponse) return sessionOrRes;
+  const session = sessionOrRes;
+
   const data = await readAllEventsRaw();
-  return NextResponse.json(data, {
-    headers: {
-      "Cache-Control": "no-store, no-cache, must-revalidate",
-    },
-  });
+  let events: QuizEvent[] = data.events;
+  if (session.role === "moderator") {
+    const allowed = new Set(await listGrantedEventSlugs(session.username));
+    events = events.filter((event) => allowed.has(event.slug));
+  }
+
+  return NextResponse.json(
+    { ...data, events },
+    {
+      headers: {
+        "Cache-Control": "no-store, no-cache, must-revalidate",
+      },
+    }
+  );
 }
 
 export async function POST(req: NextRequest) {
+  const ownerOrRes = requireOwnerSession(req);
+  if (ownerOrRes instanceof NextResponse) return ownerOrRes;
+
   const body = await req.json();
   const newEvent = normalizeNewEvent(body);
 

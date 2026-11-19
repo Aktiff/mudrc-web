@@ -117,6 +117,10 @@ export type StoredQuiz = {
   teams: PastResultTeam[];
   libraryQuizId?: string;
   quizType?: string;
+  /** Kto uložil výsledkovú tabuľku (owner / moderátor). */
+  savedBy?: string;
+  /** ISO čas uloženia výsledkovej tabuľky. */
+  savedAt?: string;
 };
 
 export type WriteOptions = {
@@ -604,6 +608,8 @@ function pastResultToStoredQuiz(eventSlug: string, result: PastResult): StoredQu
     teams: result.teams ?? [],
     libraryQuizId: result.libraryQuizId,
     ...(result.quizType?.trim() ? { quizType: result.quizType.trim() } : {}),
+    ...(result.savedBy?.trim() ? { savedBy: result.savedBy.trim() } : {}),
+    ...(result.savedAt?.trim() ? { savedAt: result.savedAt.trim() } : {}),
   };
 }
 
@@ -616,6 +622,8 @@ function storedQuizToPastResult(quiz: StoredQuiz): PastResult {
     teams: quiz.teams,
     libraryQuizId: quiz.libraryQuizId,
     ...(quiz.quizType?.trim() ? { quizType: quiz.quizType.trim() } : {}),
+    ...(quiz.savedBy?.trim() ? { savedBy: quiz.savedBy.trim() } : {}),
+    ...(quiz.savedAt?.trim() ? { savedAt: quiz.savedAt.trim() } : {}),
   };
 }
 
@@ -642,12 +650,14 @@ function enrichEventsWithQuizzes(events: QuizEvent[], quizzes: StoredQuiz[]): Qu
       ...event,
       pastResults: merged.map((result) => {
         const stored = storedByKey.get(quizResultKey(result));
-        if (!stored?.teams?.length) return result;
-        const playerCount = stored.teams.reduce((sum, team) => sum + (team.players ?? 0), 0);
+        if (!stored) return result;
+        const playerCount = (stored.teams ?? []).reduce((sum, team) => sum + (team.players ?? 0), 0);
         return {
           ...result,
-          teams: stored.teams,
+          ...(stored.teams?.length ? { teams: stored.teams } : {}),
           ...(playerCount > 0 ? { playerCount } : {}),
+          ...(stored.savedBy?.trim() ? { savedBy: stored.savedBy.trim() } : {}),
+          ...(stored.savedAt?.trim() ? { savedAt: stored.savedAt.trim() } : {}),
         };
       }),
     };
