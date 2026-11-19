@@ -3,8 +3,9 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Armchair, BarChart3, Calendar, ClipboardList, LayoutDashboard, LogOut, MonitorPlay, Users } from "lucide-react";
 import { MediaVolumeHint } from "@/components/VolumeMedia";
+import { useAdminSession } from "@/hooks/useAdminSession";
 
-const navItems = [
+const ownerNavItems = [
   { href: "/admin", label: "Prehľad", icon: LayoutDashboard, exact: true },
   {
     href: "/admin/udalosti",
@@ -33,9 +34,22 @@ const navItems = [
   },
 ];
 
+const moderatorNavItems = [
+  { href: "/admin", label: "Prehľad", icon: LayoutDashboard, exact: true },
+  {
+    href: "/admin/udalosti",
+    label: "Udalosti",
+    icon: Calendar,
+    exact: false,
+    isActive: (pathname: string) =>
+      pathname.startsWith("/admin/udalosti") && !pathname.includes("/prezentacia-kvizu"),
+  },
+];
+
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
+  const { session, isModerator } = useAdminSession();
   const isFullscreen =
     pathname.includes("/prezentacia") || /\/hotove-kvizy\/[^/]+\/prehrat$/.test(pathname);
 
@@ -52,6 +66,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     await fetch("/api/admin/login", { method: "DELETE" });
     router.push("/admin/login");
   };
+
+  const navItems = isModerator ? moderatorNavItems : ownerNavItems;
 
   const linkClass = (active: boolean) =>
     `flex items-center gap-2 lg:gap-3 px-3 py-2 lg:py-2.5 rounded-xl text-sm font-semibold transition-colors whitespace-nowrap shrink-0 ${
@@ -70,6 +86,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               ADMIN
             </span>
           </Link>
+          {session?.username && (
+            <p className="text-xs text-brand-muted mt-2">
+              {isModerator ? `Moderátor · ${session.username}` : "Majiteľ"}
+            </p>
+          )}
         </div>
         <nav className="flex-1 p-3 space-y-1">
           {navItems.map((item) => {

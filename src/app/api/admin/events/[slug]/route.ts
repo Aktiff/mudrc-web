@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { QuizEvent, LeagueEntry, PastResult } from "@/lib/data";
 import { sortLeagueTable } from "@/lib/data";
+import { requireOwnerSession } from "@/lib/admin-permissions";
 import { rebuildLeagueFromPastResults } from "@/lib/league-rebuild";
 import { mergePastResults } from "@/lib/quiz-result-key";
 import { revalidatePublicEventPaths } from "@/lib/revalidate-public";
@@ -32,6 +33,8 @@ class NotFoundError extends Error {
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: { slug: string } }) {
+  const ownerOrRes = requireOwnerSession(req);
+  if (ownerOrRes instanceof NextResponse) return ownerOrRes;
   try {
     const body = await req.json();
     const leagueActive: boolean =
@@ -82,6 +85,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { slug: stri
 }
 
 export async function PUT(req: NextRequest, { params }: { params: { slug: string } }) {
+  const ownerOrRes = requireOwnerSession(req);
+  if (ownerOrRes instanceof NextResponse) return ownerOrRes;
   const body = await req.json();
   const resetLeague = body._resetLeague === true;
   const leagueToggle = body._leagueToggle === true;
@@ -249,7 +254,9 @@ export async function PUT(req: NextRequest, { params }: { params: { slug: string
   }
 }
 
-export async function DELETE(_req: NextRequest, { params }: { params: { slug: string } }) {
+export async function DELETE(req: NextRequest, { params }: { params: { slug: string } }) {
+  const ownerOrRes = requireOwnerSession(req);
+  if (ownerOrRes instanceof NextResponse) return ownerOrRes;
   try {
     const { events } = await readAllEventsRaw();
     const event = events.find((entry) => entry.slug === params.slug);

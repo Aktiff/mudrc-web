@@ -25,6 +25,7 @@ import QuizTypeField from "@/components/admin/QuizTypeField";
 import { DEFAULT_QUIZ_TYPE, normalizeQuizTypeLabel, quizTypeFromLibraryTitle, quizTypeOrDefault, rememberQuizTypes, STANDARD_QUIZ_TYPES, splitVenueQuizType, venueQuizLabel } from "@/lib/quiz-type";
 import FacebookEventPostButton from "@/components/admin/FacebookEventPostButton";
 import FutureQuizPanel from "@/components/admin/FutureQuizPanel";
+import ModeratorGrantsPanel from "@/components/admin/ModeratorGrantsPanel";
 import { futureQuizMatchesDate, groupRegistrationsByTerm, nearestUpcomingNight, normalizeFutureQuizzes, registrationGroupsForTerm, registrationMoveTargets, registrationTermChoices } from "@/lib/future-quizzes";
 import { RuleListEditor } from "@/components/admin/RuleListEditor";
 import { normalizeQuizRules } from "@/lib/quiz-rules";
@@ -34,14 +35,19 @@ import {
   isCanvasLibraryQuiz,
   playedQuizLabel,
 } from "@/lib/quiz-result-library";
+import { useAdminSession } from "@/hooks/useAdminSession";
 
 type Tab = "info" | "liga" | "vysledky" | "pravidla" | "pridat" | "registracie" | "anketa";
 
 const VALID_TABS: Tab[] = ["info", "liga", "vysledky", "pravidla", "pridat", "registracie", "anketa"];
+const MODERATOR_TABS: Tab[] = ["pridat", "vysledky"];
 
-function parseTab(value: string | null): Tab {
-  if (value && VALID_TABS.includes(value as Tab)) return value as Tab;
-  return "info";
+function parseTab(value: string | null, moderator = false): Tab {
+  if (value && VALID_TABS.includes(value as Tab)) {
+    if (moderator && !MODERATOR_TABS.includes(value as Tab)) return "pridat";
+    return value as Tab;
+  }
+  return moderator ? "pridat" : "info";
 }
 
 type PollAdminState = {
@@ -182,8 +188,10 @@ function formatDuration(minutes: number): string {
 
 export default function EditEventPage({ params }: { params: { slug: string } }) {
   const router = useRouter();
+  const { session, loading: sessionLoading, isOwner, isModerator } = useAdminSession();
   const isNew = params.slug === "nova";
   const [tab, setTabState] = useState<Tab>("info");
+  const [accessDenied, setAccessDenied] = useState(false);
   const [saving, setSaving] = useState(false);
   const [recalculating, setRecalculating] = useState(false);
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
@@ -238,19 +246,35 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
   const [pollOptionsSaving, setPollOptionsSaving] = useState(false);
 
   useEffect(() => {
-    setTabState(parseTab(new URLSearchParams(window.location.search).get("tab")));
-  }, [params.slug]);
+    setTabState(parseTab(new URLSearchParams(window.location.search).get("tab"), isModerator));
+  }, [params.slug, isModerator]);
+
+  useEffect(() => {
+    if (sessionLoading || !isModerator || isNew) return;
+    const allowed = session?.grantedEventSlugs ?? [];
+    if (!allowed.includes(params.slug)) {
+      setAccessDenied(true);
+      router.replace("/admin/udalosti");
+    }
+  }, [sessionLoading, isModerator, isNew, session?.grantedEventSlugs, params.slug, router]);
+
+  useEffect(() => {
+    if (isModerator && isNew) {
+      router.replace("/admin/udalosti");
+    }
+  }, [isModerator, isNew, router]);
 
   const setTab = useCallback(
     (next: Tab) => {
-      setTabState(next);
+      const safe = isModerator && !MODERATOR_TABS.includes(next) ? "pridat" : next;
+      setTabState(safe);
       const query = new URLSearchParams(window.location.search);
-      if (next === "info") query.delete("tab");
-      else query.set("tab", next);
+      if (safe === (isModerator ? "pridat" : "info")) query.delete("tab");
+      else query.set("tab", safe);
       const qs = query.toString();
       router.replace(`/admin/udalosti/${params.slug}${qs ? `?${qs}` : ""}`, { scroll: false });
     },
-    [params.slug, router]
+    [params.slug, router, isModerator]
   );
 
   const removedRegIds = useRef(new Set<string>());
@@ -589,9 +613,9 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
   }, [tab, params.slug, isNew]);
 
   useEffect(() => {
-    if (isNew || !form.venue) return;
+    if (isNew || !form.venue || isModerator) return;
     loadRegistrations();
-  }, [params.slug, form.venue, isNew]);
+  }, [params.slug, form.venue, isNew, isModerator]);
 
   const applyPollAdminData = (data: Record<string, unknown>) => {
     const configOptions = (data.configOptions as string[]) ?? [];
@@ -623,14 +647,14 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
   };
 
   useEffect(() => {
-    if (isNew) return;
+    if (isNew || isModerator) return;
     loadPollAdmin();
-  }, [params.slug, isNew, form.venue]);
+  }, [params.slug, isNew, form.venue, isModerator]);
 
   useEffect(() => {
-    if (isNew || tab !== "anketa") return;
+    if (isNew || isModerator || tab !== "anketa") return;
     loadPollAdmin();
-  }, [tab, params.slug, isNew, form.venue]);
+  }, [tab, params.slug, isNew, form.venue, isModerator]);
 
   const togglePollActive = async () => {
     const nextActive = !(pollAdmin?.config?.active ?? false);
@@ -1371,6 +1395,10 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
       tab === t ? "bg-brand-orange text-brand-btn-fg shadow-sm" : "text-brand-muted hover:text-brand-text hover:bg-brand-hover"
     }`;
 
+  if (accessDenied || (isModerator && isNew)) {
+    return <div className="p-8 text-brand-muted">Nemáš prístup k tejto udalosti.</div>;
+  }
+
   return (
     <div className="w-full">
       <div className="flex items-center justify-between mb-6">
@@ -1381,7 +1409,7 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
           <h1 className="font-display text-3xl text-brand-text tracking-wide">
             {isNew ? "Nová udalosť" : venueQuizLabel(form.venue, form.quizType) || params.slug}
           </h1>
-          {!isNew && (
+          {!isNew && !isModerator && (
             <>
               <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${form.active ? "bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-300" : "bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300"}`}>
                 {form.active ? "Kvíz aktívny" : "Kvíz vypnutý"}
@@ -1399,7 +1427,7 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
             </>
           )}
         </div>
-        {!isNew && (
+        {!isNew && isOwner && (
           <div className="flex flex-col sm:flex-row gap-2 shrink-0">
             <button
               onClick={() => void toggleRegistrationOpen()}
@@ -1427,22 +1455,39 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
         )}
       </div>
 
-      {!isNew && (
-        <div className="mb-6">
+      {!isNew && isOwner && (
+        <div className="mb-6 space-y-4">
           <FacebookEventPostButton slug={params.slug} />
+          <ModeratorGrantsPanel eventSlug={params.slug} />
         </div>
       )}
 
       <div className="flex gap-1 bg-brand-surface p-1 rounded-xl mb-6 w-fit flex-wrap border border-brand-border">
         <button className={tabClass("pridat")} onClick={() => setTab("pridat")}>+ Pridať kvíz</button>
-        <button className={tabClass("info")} onClick={() => setTab("info")}>Základné info</button>
-        <button className={tabClass("liga")} onClick={() => setTab("liga")}>Liga ({leagueEditorRows.length})</button>
-        <button className={tabClass("vysledky")} onClick={() => setTab("vysledky")}>Výsledky ({form.pastResults.length})</button>
-        <button className={tabClass("registracie")} onClick={() => setTab("registracie")}>Registrácie ({displayedRegistrationCount})</button>
-        <button className={tabClass("anketa")} onClick={() => setTab("anketa")}>Anketa ({pollAdmin?.teamCount ?? 0})</button>
-        <button className={tabClass("pravidla")} onClick={() => setTab("pravidla")}>
-          Pravidlá ({(form.rules ?? []).length + (form.thematic ? (form.specialRules ?? []).length : 0)})
+        {!isModerator && (
+          <button className={tabClass("info")} onClick={() => setTab("info")}>Základné info</button>
+        )}
+        {!isModerator && (
+          <button className={tabClass("liga")} onClick={() => setTab("liga")}>Liga ({leagueEditorRows.length})</button>
+        )}
+        <button className={tabClass("vysledky")} onClick={() => setTab("vysledky")}>
+          Výsledky (
+          {isModerator
+            ? form.pastResults.filter((r) => r.savedBy?.toLowerCase() === session?.username.toLowerCase()).length
+            : form.pastResults.length}
+          )
         </button>
+        {!isModerator && (
+          <button className={tabClass("registracie")} onClick={() => setTab("registracie")}>Registrácie ({displayedRegistrationCount})</button>
+        )}
+        {!isModerator && (
+          <button className={tabClass("anketa")} onClick={() => setTab("anketa")}>Anketa ({pollAdmin?.teamCount ?? 0})</button>
+        )}
+        {!isModerator && (
+          <button className={tabClass("pravidla")} onClick={() => setTab("pravidla")}>
+            Pravidlá ({(form.rules ?? []).length + (form.thematic ? (form.specialRules ?? []).length : 0)})
+          </button>
+        )}
       </div>
 
       {tab === "info" && (
@@ -2301,14 +2346,27 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
       {tab === "vysledky" && (
         <div className="bg-brand-card rounded-2xl border border-brand-border p-6">
           <div className="space-y-2 mb-4">
-            {form.pastResults.length === 0 && (
-              <p className="text-brand-muted text-sm py-4 text-center">Zatiaľ žiadne výsledky.</p>
-            )}
-            {[...form.pastResults].reverse().map((r, i) => {
+            {(() => {
+              const visibleResults = isModerator
+                ? form.pastResults.filter(
+                    (r) => r.savedBy?.toLowerCase() === session?.username.toLowerCase()
+                  )
+                : form.pastResults;
+              if (visibleResults.length === 0) {
+                return (
+                  <p className="text-brand-muted text-sm py-4 text-center">
+                    {isModerator
+                      ? "Zatiaľ nemáš uložené žiadne vlastné výsledkové tabuľky."
+                      : "Zatiaľ žiadne výsledky."}
+                  </p>
+                );
+              }
+              return [...visibleResults].reverse().map((r, i) => {
               const hasDetail = !!(r.teams && r.teams.length > 0);
               const quizKey = encodeURIComponent(quizResultKey(r));
+              const originalIndex = form.pastResults.findIndex((row) => quizResultKey(row) === quizResultKey(r));
               return (
-                <div key={i} className={`flex items-center gap-3 px-4 py-3 rounded-xl border transition-colors ${hasDetail ? "border-brand-border hover:border-brand-orange hover:bg-brand-warm group" : "border-brand-border bg-brand-surface"}`}>
+                <div key={`${quizResultKey(r)}-${i}`} className={`flex items-center gap-3 px-4 py-3 rounded-xl border transition-colors ${hasDetail ? "border-brand-border hover:border-brand-orange hover:bg-brand-warm group" : "border-brand-border bg-brand-surface"}`}>
                   {hasDetail ? (
                     <>
                       <Link href={`/admin/udalosti/${params.slug}/kviz/${quizKey}`} className="flex items-center gap-3 flex-1">
@@ -2321,13 +2379,15 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
                         <span className="ml-auto text-brand-muted text-sm">{r.points} bodov</span>
                         <ChevronLeft className="w-4 h-4 text-brand-muted-light group-hover:text-brand-orange rotate-180 transition-all" />
                       </Link>
-                      <button
-                        onClick={() => deleteQuiz(quizResultKey(r))}
-                        className="text-brand-muted-light hover:text-red-500 transition-colors shrink-0 p-1"
-                        title="Zmazať kvíz"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      {isOwner && (
+                        <button
+                          onClick={() => deleteQuiz(quizResultKey(r))}
+                          className="text-brand-muted-light hover:text-red-500 transition-colors shrink-0 p-1"
+                          title="Zmazať kvíz"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
                     </>
                   ) : (
                     <>
@@ -2335,28 +2395,31 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
                       <span className="text-brand-muted text-sm">víťaz</span>
                       <span className="font-semibold text-brand-muted text-sm">{r.winnerTeam}</span>
                       <span className="ml-auto text-brand-muted text-sm">{r.points} bodov</span>
-                      <button
-                        onClick={() => {
-                          if (!confirm("Naozaj zmazať tento výsledok?")) return;
-                          removeResult(form.pastResults.length - 1 - i);
-                        }}
-                        className="text-brand-muted-light hover:text-red-500 transition-colors shrink-0 p-1"
-                        title="Zmazať výsledok"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      {isOwner && (
+                        <button
+                          onClick={() => {
+                            if (!confirm("Naozaj zmazať tento výsledok?")) return;
+                            removeResult(originalIndex >= 0 ? originalIndex : form.pastResults.length - 1 - i);
+                          }}
+                          className="text-brand-muted-light hover:text-red-500 transition-colors shrink-0 p-1"
+                          title="Zmazať výsledok"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
                     </>
                   )}
                 </div>
               );
-            })}
+            });
+            })()}
           </div>
         </div>
       )}
 
       <div className="flex items-center justify-between mt-6">
         <div>
-          {!isNew && (
+          {!isNew && isOwner && (
             <button
               onClick={deleteEvent}
               disabled={deleting}
@@ -2379,12 +2442,12 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
               <Save className="w-4 h-4" />
               {quizSubmitting ? "Ukladám..." : "Uložiť kvíz"}
             </button>
-          ) : (
+          ) : !isModerator ? (
             <button onClick={save} disabled={saving} className="btn-primary text-sm py-2.5 px-6">
               <Save className="w-4 h-4" />
               {saving ? "Ukladám..." : "Uložiť zmeny"}
             </button>
-          )}
+          ) : null}
         </div>
       </div>
     </div>

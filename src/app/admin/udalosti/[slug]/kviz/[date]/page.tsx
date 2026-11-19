@@ -7,6 +7,7 @@ import { TeamAutocomplete } from "@/components/TeamAutocomplete";
 import { AdminDatePicker } from "@/components/AdminDatePicker";
 import LibraryQuizPicker from "@/components/LibraryQuizPicker";
 import { CANVAS_LIBRARY_QUIZ_ID, isCanvasLibraryQuiz } from "@/lib/quiz-result-library";
+import { useAdminSession } from "@/hooks/useAdminSession";
 
 type ResultDetail = {
   date: string;
@@ -14,6 +15,8 @@ type ResultDetail = {
   points: number;
   teams: PastResultTeam[];
   libraryQuizId?: string;
+  savedBy?: string;
+  savedAt?: string;
 };
 
 type EditRow = { name: string; scores: number[]; players: number };
@@ -106,6 +109,7 @@ async function loadQuizDetail(slug: string, quizParam: string) {
 }
 
 export default function AdminQuizDetailPage({ params }: { params: { slug: string; date: string } }) {
+  const { session, isOwner, isModerator } = useAdminSession();
   const [result, setResult] = useState<ResultDetail | null>(null);
   const [knownTeams, setKnownTeams] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
@@ -116,6 +120,11 @@ export default function AdminQuizDetailPage({ params }: { params: { slug: string
   const [saveError, setSaveError] = useState("");
   const [rounds, setRounds] = useState(4);
   const quizKey = decodeURIComponent(params.date);
+  const canEditScores =
+    isOwner ||
+    (!!isModerator &&
+      !!result?.savedBy &&
+      result.savedBy.toLowerCase() === session?.username.toLowerCase());
 
   const [editDate, setEditDate] = useState("");
   const [editTeams, setEditTeams] = useState<EditRow[]>([]);
@@ -303,7 +312,7 @@ export default function AdminQuizDetailPage({ params }: { params: { slug: string
           >
             Prezentácia
           </Link>
-          {!editing && (
+          {!editing && canEditScores && (
             <button
               onClick={startEdit}
               className="btn-outline text-sm py-2 px-3"
@@ -311,14 +320,16 @@ export default function AdminQuizDetailPage({ params }: { params: { slug: string
               <Pencil className="w-4 h-4" /> Upraviť
             </button>
           )}
-          <button
-            onClick={deleteQuiz}
-            disabled={deleting}
-            className="flex items-center gap-1.5 text-sm text-red-500 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300 px-3 py-2 rounded-xl border border-red-200 dark:border-red-900 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors"
-          >
-            <Trash2 className="w-4 h-4" />
-            {deleting ? "Mažem..." : "Zmazať"}
-          </button>
+          {isOwner && (
+            <button
+              onClick={deleteQuiz}
+              disabled={deleting}
+              className="flex items-center gap-1.5 text-sm text-red-500 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300 px-3 py-2 rounded-xl border border-red-200 dark:border-red-900 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors"
+            >
+              <Trash2 className="w-4 h-4" />
+              {deleting ? "Mažem..." : "Zmazať"}
+            </button>
+          )}
         </div>
       </div>
 
@@ -405,29 +416,31 @@ export default function AdminQuizDetailPage({ params }: { params: { slug: string
         </div>
       )}
 
-      <div className="bg-brand-card rounded-2xl border border-brand-border p-6 mb-5">
-        <h2 className="font-semibold text-brand-text mb-1">Hotový kvíz</h2>
-        <LibraryQuizPicker
-          value={assignmentLibraryQuizId}
-          onChange={setAssignmentLibraryQuizId}
-          teamNames={result.teams.map((team) => team.teamName)}
-          excludeUsage={{ eventSlug: params.slug, quizResultId: quizKey }}
-          variant="editResult"
-        />
-        {assignmentMsg && (
-          <p className={`text-sm mb-3 ${assignmentMsg.ok ? "text-green-600 dark:text-green-400" : "text-red-500"}`}>
-            {assignmentMsg.text}
-          </p>
-        )}
-        <button
-          onClick={saveAssignment}
-          disabled={savingAssignment || assignmentLibraryQuizId === (result.libraryQuizId ?? CANVAS_LIBRARY_QUIZ_ID)}
-          className="btn-primary text-sm py-2 px-5"
-        >
-          <Save className="w-4 h-4" />
-          {savingAssignment ? "Ukladám..." : "Uložiť priradenie"}
-        </button>
-      </div>
+      {canEditScores && (
+        <div className="bg-brand-card rounded-2xl border border-brand-border p-6 mb-5">
+          <h2 className="font-semibold text-brand-text mb-1">Hotový kvíz</h2>
+          <LibraryQuizPicker
+            value={assignmentLibraryQuizId}
+            onChange={setAssignmentLibraryQuizId}
+            teamNames={result.teams.map((team) => team.teamName)}
+            excludeUsage={{ eventSlug: params.slug, quizResultId: quizKey }}
+            variant="editResult"
+          />
+          {assignmentMsg && (
+            <p className={`text-sm mb-3 ${assignmentMsg.ok ? "text-green-600 dark:text-green-400" : "text-red-500"}`}>
+              {assignmentMsg.text}
+            </p>
+          )}
+          <button
+            onClick={saveAssignment}
+            disabled={savingAssignment || assignmentLibraryQuizId === (result.libraryQuizId ?? CANVAS_LIBRARY_QUIZ_ID)}
+            className="btn-primary text-sm py-2 px-5"
+          >
+            <Save className="w-4 h-4" />
+            {savingAssignment ? "Ukladám..." : "Uložiť priradenie"}
+          </button>
+        </div>
+      )}
 
       <div className="bg-brand-card rounded-2xl border border-brand-border overflow-hidden">
         <div className="px-6 py-4 border-b border-brand-border bg-brand-surface">
@@ -435,9 +448,11 @@ export default function AdminQuizDetailPage({ params }: { params: { slug: string
             Víťaz: <span className="font-semibold text-brand-orange">{result.winnerTeam}</span>
             {" · "}{result.teams.length} tímov
           </p>
-          <p className="text-xs text-brand-muted mt-2">
-            Hráč z iného tímu ostane len ako interná poznámka. Pri ďalšom použití tohto kvízu sa zablokuje aj jeho tím.
-          </p>
+          {canEditScores && (
+            <p className="text-xs text-brand-muted mt-2">
+              Hráč z iného tímu ostane len ako interná poznámka. Pri ďalšom použití tohto kvízu sa zablokuje aj jeho tím.
+            </p>
+          )}
           {saveError && <p className="text-sm text-red-500 mt-2">{saveError}</p>}
         </div>
         <table className="w-full">
@@ -457,12 +472,14 @@ export default function AdminQuizDetailPage({ params }: { params: { slug: string
                 </td>
                 <td className="px-2 py-3.5">
                   <span className={`font-semibold text-sm ${i === 0 ? "text-brand-orange" : "text-brand-text"}`}>{team.teamName}</span>
-                  <GuestFromTeam
-                    host={team.teamName}
-                    guests={team.guestTeams ?? []}
-                    suggestions={knownTeams}
-                    onChange={(guestTeams) => saveGuests(team.teamName, guestTeams)}
-                  />
+                  {canEditScores && (
+                    <GuestFromTeam
+                      host={team.teamName}
+                      guests={team.guestTeams ?? []}
+                      suggestions={knownTeams}
+                      onChange={(guestTeams) => saveGuests(team.teamName, guestTeams)}
+                    />
+                  )}
                 </td>
                 <td className="px-6 py-3.5 text-right">
                   <span className={`font-display text-xl ${i === 0 ? "text-brand-orange" : "text-brand-text"}`}>{fmtNum(team.total)}</span>
