@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import type { QuizEvent } from "@/lib/data";
 import { formatDuration, formatEventDateLabel, isRegistrationOpen, leagueTeamNameSuggestions } from "@/lib/data";
+import { isExternalEvent } from "@/lib/event-normalize";
 import type { RegionSlug } from "@/lib/regions";
 import { getRegion } from "@/lib/regions";
 import { mediaUrlForBrowser } from "@/lib/media-url";
@@ -55,6 +56,7 @@ export default function EventDetailPage({
   const leagueTable = event.leagueTable ?? [];
   const topThree = collapseLeagueTable(leagueTable, leagueMerges).slice(0, 3);
   const teamSuggestions = leagueTeamNameSuggestions(leagueTable);
+  const external = isExternalEvent(event);
 
   return (
     <>
@@ -78,8 +80,9 @@ export default function EventDetailPage({
               {event.city} &mdash; {event.address}
             </p>
             <p className="text-brand-muted text-sm mt-3 max-w-3xl leading-relaxed">
-              Vedomostný pub kvíz Mudrc v regióne {regionConfig.name}. Registruj tím vopred a príď si užiť večer plný
-              otázok, súťaže a dobrej atmosféry.
+              {external
+                ? `Špeciálny kvíz v regióne ${regionConfig.name}. Registrácia a všetky informácie sú mimo mudrc.sk — cez externý odkaz.`
+                : `Vedomostný pub kvíz Mudrc v regióne ${regionConfig.name}. Registruj tím vopred a príď si užiť večer plný otázok, súťaže a dobrej atmosféry.`}
             </p>
           </div>
         </section>
@@ -98,7 +101,7 @@ export default function EventDetailPage({
         )}
 
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-10">
+          <div className={`grid grid-cols-2 gap-4 mb-10 ${external ? "sm:grid-cols-3" : "sm:grid-cols-4"}`}>
             <div className="bg-brand-card rounded-2xl border border-brand-border p-5 text-center">
               <div className="font-display text-3xl text-brand-orange-readable">{event.questions}</div>
               <div className="text-brand-muted text-xs mt-1 uppercase tracking-wider">Otázok</div>
@@ -109,16 +112,24 @@ export default function EventDetailPage({
               </div>
               <div className="font-display text-xl text-brand-text mt-1">{formatDuration(event.durationMinutes)}</div>
             </div>
-            <div className="bg-brand-card rounded-2xl border border-brand-border p-5 text-center">
-              <div className="font-display text-3xl text-brand-orange-readable">{event.entryFee} €</div>
-              <div className="text-brand-muted text-xs mt-1 uppercase tracking-wider">Vstupné / hráč</div>
-            </div>
+            {!external && (
+              <div className="bg-brand-card rounded-2xl border border-brand-border p-5 text-center">
+                <div className="font-display text-3xl text-brand-orange-readable">{event.entryFee} €</div>
+                <div className="text-brand-muted text-xs mt-1 uppercase tracking-wider">Vstupné / hráč</div>
+              </div>
+            )}
             <div className="bg-brand-card rounded-2xl border border-brand-border p-5 text-center">
               <div className="font-display text-3xl text-brand-orange-readable">
-                {event.minPlayers}–{event.maxPlayers}
+                {external ? "Ext." : `${event.minPlayers}–${event.maxPlayers}`}
               </div>
               <div className="text-brand-muted text-xs mt-1 uppercase tracking-wider flex items-center justify-center gap-1">
-                <Users className="w-3 h-3" /> Hráčov
+                {external ? (
+                  "Mimo mudrc.sk"
+                ) : (
+                  <>
+                    <Users className="w-3 h-3" /> Hráčov
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -195,12 +206,14 @@ export default function EventDetailPage({
               <div className="bg-brand-card rounded-2xl border border-brand-border p-6 sticky top-24">
                 <h3 className="font-display text-xl text-brand-text tracking-wide mb-4">Príď si zasúťažiť</h3>
                 <p className="text-brand-muted text-sm mb-5">
-                  {event.registrationOpen === false
-                    ? "Kapacita podniku je naplnená. Registrácia je uzavretá."
-                    : "Zaregistruj svoj tím vopred — miesta sa rýchlo míňajú."}
+                  {external
+                    ? "Registrácia tímu a detaily sú na externej stránke — nie cez mudrc.sk."
+                    : event.registrationOpen === false
+                      ? "Kapacita podniku je naplnená. Registrácia je uzavretá."
+                      : "Zaregistruj svoj tím vopred — miesta sa rýchlo míňajú."}
                 </p>
                 <RegistrationAction event={event} onRegister={() => setShowModal(true)} className="mb-3 flex items-center gap-2" />
-                {pollHref && (
+                {!external && pollHref && (
                   <Link href={pollHref} className="btn-outline w-full text-sm py-3 mb-3 flex items-center justify-center gap-2">
                     <Vote className="w-4 h-4" /> Hlasovať o letnom termíne
                   </Link>
@@ -266,7 +279,7 @@ export default function EventDetailPage({
         </div>
       </div>
 
-      {showModal && isRegistrationOpen(event) && (
+      {showModal && !external && isRegistrationOpen(event) && (
         <RegistrationModal
           eventSlug={event.slug}
           venue={event.venue}

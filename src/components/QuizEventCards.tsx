@@ -11,6 +11,7 @@ import {
   isRegistrationOpen,
   leagueTeamNameSuggestions,
 } from "@/lib/data";
+import { eventExternalUrl, isExternalEvent } from "@/lib/event-normalize";
 import { publicQuizCards } from "@/lib/future-quizzes";
 import { eventPath } from "@/lib/regions";
 import { quizTypeOrDefault, venueQuizLabel } from "@/lib/quiz-type";
@@ -60,87 +61,114 @@ export default function QuizEventCards({ events }: { events: QuizEvent[] }) {
   return (
     <>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {sortedEvents.map((event, eventIndex) => (
-          <Link
-            key={event.listingKey}
-            href={
-              event.termQuery
-                ? `${eventPath(event)}?termin=${encodeURIComponent(event.termQuery)}`
-                : eventPath(event)
-            }
-            prefetch={false}
-            className="card group cursor-pointer block"
-          >
-            <div className="relative w-full aspect-video bg-brand-warm overflow-hidden flex items-center justify-center">
-              {event.imageUrl ? (
-                <EventCoverImage
-                  src={event.imageUrl}
-                  alt={`Kvíz ${event.venue}, ${event.city}`}
-                  priority={eventIndex === 0}
-                />
-              ) : (
-                <span className="text-7xl opacity-10">🎉</span>
-              )}
-              <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent pointer-events-none" />
-            </div>
-            <div className="p-6">
-              <div className="flex items-start justify-between gap-4 mb-1">
-                <div>
-                  <h3 className="font-display text-3xl text-brand-text tracking-wide group-hover:text-brand-orange transition-colors">
-                    {venueQuizLabel(event.venue, event.quizType)}
-                  </h3>
-                  <div className="flex items-center gap-1.5 text-brand-muted text-sm mt-1">
-                    <MapPin className="w-3.5 h-3.5 text-brand-orange" />
-                    {event.city}
+        {sortedEvents.map((event, eventIndex) => {
+          const external = isExternalEvent(event);
+          const externalHref = eventExternalUrl(event);
+          const detailHref = event.termQuery
+            ? `${eventPath(event)}?termin=${encodeURIComponent(event.termQuery)}`
+            : eventPath(event);
+          const cardClassName = "card group cursor-pointer block";
+          const cardBody = (
+            <>
+              <div className="relative w-full aspect-video bg-brand-warm overflow-hidden flex items-center justify-center">
+                {event.imageUrl ? (
+                  <EventCoverImage
+                    src={event.imageUrl}
+                    alt={`Kvíz ${event.venue}, ${event.city}`}
+                    priority={eventIndex === 0}
+                  />
+                ) : (
+                  <span className="text-7xl opacity-10">🎉</span>
+                )}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent pointer-events-none" />
+              </div>
+              <div className="p-6">
+                <div className="flex items-start justify-between gap-4 mb-1">
+                  <div>
+                    <h3 className="font-display text-3xl text-brand-text tracking-wide group-hover:text-brand-orange transition-colors">
+                      {venueQuizLabel(event.venue, event.quizType)}
+                    </h3>
+                    <div className="flex items-center gap-1.5 text-brand-muted text-sm mt-1">
+                      <MapPin className="w-3.5 h-3.5 text-brand-orange" />
+                      {event.city}
+                    </div>
+                    <div className="flex items-center gap-3 mt-2">
+                      <span className="flex items-center gap-1.5 text-brand-text text-sm font-semibold">
+                        <Calendar className="w-3.5 h-3.5 text-brand-orange" />
+                        {formatEventDateLabel(event.date)}
+                      </span>
+                      <span className="text-brand-muted-light">·</span>
+                      <span className="flex items-center gap-1.5 text-brand-muted text-sm font-medium">
+                        <Clock className="w-3.5 h-3.5" />
+                        {event.time}
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-3 mt-2">
-                    <span className="flex items-center gap-1.5 text-brand-text text-sm font-semibold">
-                      <Calendar className="w-3.5 h-3.5 text-brand-orange" />
-                      {formatEventDateLabel(event.date)}
+                  {!external && (
+                    <div className="text-right shrink-0">
+                      <div className="font-display text-3xl text-brand-text">{event.entryFee}&euro;</div>
+                      <div className="text-brand-muted text-xs">/ hráč</div>
+                    </div>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-2 mt-4 mb-5">
+                  {external ? (
+                    <span className="badge bg-brand-surface text-brand-muted border border-brand-border">
+                      Registrácia mimo mudrc.sk
                     </span>
-                    <span className="text-brand-muted-light">·</span>
-                    <span className="flex items-center gap-1.5 text-brand-muted text-sm font-medium">
-                      <Clock className="w-3.5 h-3.5" />
-                      {event.time}
+                  ) : (
+                    <span className="badge bg-brand-surface text-brand-muted border border-brand-border">
+                      <Users className="w-3 h-3" />
+                      {`${event.minPlayers}–${event.maxPlayers} hráčov`}
                     </span>
+                  )}
+                  <span className="badge bg-brand-surface text-brand-muted border border-brand-border flex items-center gap-1">
+                    <Timer className="w-3 h-3" />
+                    {formatDuration(event.durationMinutes ?? 120)}
+                  </span>
+                </div>
+                <div className="flex gap-3">
+                  <RegistrationAction
+                    event={event}
+                    compact
+                    className="flex-1"
+                    onRegister={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setModalKey(event.listingKey);
+                    }}
+                  />
+                  <div className="btn-outline text-sm py-2.5 px-4">
+                    <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
                   </div>
                 </div>
-                <div className="text-right shrink-0">
-                  <div className="font-display text-3xl text-brand-text">{event.entryFee}&euro;</div>
-                  <div className="text-brand-muted text-xs">/ hráč</div>
-                </div>
               </div>
-              <div className="flex flex-wrap gap-2 mt-4 mb-5">
-                <span className="badge bg-brand-surface text-brand-muted border border-brand-border">
-                  <Users className="w-3 h-3" />
-                  {`${event.minPlayers}–${event.maxPlayers} hráčov`}
-                </span>
-                <span className="badge bg-brand-surface text-brand-muted border border-brand-border flex items-center gap-1">
-                  <Timer className="w-3 h-3" />
-                  {formatDuration(event.durationMinutes ?? 120)}
-                </span>
-              </div>
-              <div className="flex gap-3">
-                <RegistrationAction
-                  event={event}
-                  compact
-                  className="flex-1"
-                  onRegister={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setModalKey(event.listingKey);
-                  }}
-                />
-                <div className="btn-outline text-sm py-2.5 px-4">
-                  <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
-                </div>
-              </div>
-            </div>
-          </Link>
-        ))}
+            </>
+          );
+
+          if (external && externalHref) {
+            return (
+              <a
+                key={event.listingKey}
+                href={externalHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={cardClassName}
+              >
+                {cardBody}
+              </a>
+            );
+          }
+
+          return (
+            <Link key={event.listingKey} href={detailHref} prefetch={false} className={cardClassName}>
+              {cardBody}
+            </Link>
+          );
+        })}
       </div>
 
-      {activeEvent && isRegistrationOpen(activeEvent) && (
+      {activeEvent && !isExternalEvent(activeEvent) && isRegistrationOpen(activeEvent) && (
         <RegistrationModal
           eventSlug={activeEvent.slug}
           venue={activeEvent.venue}

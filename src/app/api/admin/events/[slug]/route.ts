@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import type { QuizEvent, LeagueEntry, PastResult } from "@/lib/data";
 import { sortLeagueTable } from "@/lib/data";
 import { requireOwnerSession } from "@/lib/admin-permissions";
+import { isExternalEvent, normalizeExternalUrl } from "@/lib/event-normalize";
 import { rebuildLeagueFromPastResults } from "@/lib/league-rebuild";
 import { mergePastResults } from "@/lib/quiz-result-key";
 import { revalidatePublicEventPaths } from "@/lib/revalidate-public";
@@ -104,8 +105,22 @@ export async function PUT(req: NextRequest, { params }: { params: { slug: string
     _recalculateLeague: _rl,
     _promoChecklist: _pcFlag,
     futureQuizzes: _futureQuizzes,
+    externalEvent: externalEventFlag,
     ...incoming
   } = body;
+
+  if ("externalUrl" in incoming) {
+    incoming.externalUrl = normalizeExternalUrl(incoming.externalUrl);
+  }
+  if (externalEventFlag === true && !isExternalEvent(incoming as QuizEvent)) {
+    return NextResponse.json(
+      { error: "Pri prázdnej udalosti vyplň platný externý odkaz (http/https)." },
+      { status: 400 }
+    );
+  }
+  if (isExternalEvent(incoming as QuizEvent)) {
+    incoming.leagueActive = false;
+  }
 
   try {
     if (promoChecklistToggle) {

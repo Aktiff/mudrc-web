@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { readEvents, getEventsStorageMeta } from "@/lib/storage";
 import { getVisibleLeagues, isQuizVisible, sortEventsByDate, type QuizEvent } from "@/lib/data";
+import { ensureExternalSilvesterEvent } from "@/lib/external-event";
 import { ensurePayTestEvent } from "@/lib/pay-test-event";
 import { collapseLeagueTable, leagueMergeGroups } from "@/lib/team-links";
 import { readTeamLinkRecords } from "@/lib/venue-teams";
@@ -9,7 +10,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
-  await ensurePayTestEvent();
+  await Promise.all([ensurePayTestEvent(), ensureExternalSilvesterEvent()]);
   const { events } = await readEvents();
   const storage = await getEventsStorageMeta();
   const view = new URL(req.url).searchParams.get("view");

@@ -6,6 +6,7 @@ import {
   isRegistrationOpen,
   parseSkEventDateTime,
 } from "@/lib/data";
+import { isExternalEvent } from "@/lib/event-normalize";
 import { findFutureQuiz, futureQuizMatchesDate, publicQuizCards } from "@/lib/future-quizzes";
 import { getEventRegionSlug } from "@/lib/regions";
 import { readEvents } from "@/lib/storage";
@@ -120,7 +121,7 @@ function toOption(card: QuizEvent & { listingKey: string; termQuery?: string }):
 export async function listPayQuizzes(): Promise<PayQuizOption[]> {
   await ensurePayTestEvent();
   const { events } = await readEvents();
-  const visible = events.filter((e) => isQuizVisible(e));
+  const visible = events.filter((e) => isQuizVisible(e) && !isExternalEvent(e));
   const cards = publicQuizCards(visible).map(toOption);
   const demo = getPayStagingDemoQuiz();
   const { event: _event, ...demoOption } = demo;
@@ -163,7 +164,7 @@ export async function resolvePayQuiz(
 
   const { events } = await readEvents();
   const event = events.find((e) => e.slug === eventSlug);
-  if (!event || !isQuizVisible(event)) return null;
+  if (!event || !isQuizVisible(event) || isExternalEvent(event)) return null;
 
   const term = quizDate?.trim() || "";
   const future = term ? findFutureQuiz(event, term) : null;

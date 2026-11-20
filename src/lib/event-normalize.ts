@@ -11,6 +11,27 @@ export function slugifyEvent(text: string): string {
     .replace(/(^-|-$)/g, "");
 }
 
+/** Normalize and accept only http(s) URLs. Empty string = not an external event. */
+export function normalizeExternalUrl(raw: unknown): string {
+  const value = String(raw ?? "").trim();
+  if (!value) return "";
+  try {
+    const parsed = new URL(value);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return "";
+    return parsed.toString();
+  } catch {
+    return "";
+  }
+}
+
+export function isExternalEvent(event: Pick<QuizEvent, "externalUrl"> | null | undefined): boolean {
+  return Boolean(normalizeExternalUrl(event?.externalUrl));
+}
+
+export function eventExternalUrl(event: Pick<QuizEvent, "externalUrl"> | null | undefined): string {
+  return normalizeExternalUrl(event?.externalUrl);
+}
+
 export function normalizeNewEvent(body: Partial<QuizEvent> & { venue?: string }): QuizEvent {
   const venue = String(body.venue ?? "").trim();
   const slug = String(body.slug ?? "").trim() || slugifyEvent(venue);
@@ -35,6 +56,7 @@ export function normalizeNewEvent(body: Partial<QuizEvent> & { venue?: string })
     active: body.active !== false,
     leagueActive: body.leagueActive !== false,
     registrationOpen: body.registrationOpen !== false,
+    externalUrl: normalizeExternalUrl(body.externalUrl),
     imageUrl: String(body.imageUrl ?? "").trim(),
     rules: normalizeQuizRules(body.rules),
     leagueTable: Array.isArray(body.leagueTable) ? body.leagueTable : [],

@@ -3,7 +3,7 @@ import { Plus, Calendar, ChevronRight } from "lucide-react";
 import EventPromoChecks from "@/components/admin/EventPromoChecks";
 import FacebookEventPostButton from "@/components/admin/FacebookEventPostButton";
 import { formatEventDateLabel, sortEventsForAdminOverview, type QuizEvent } from "@/lib/data";
-import { isValidStoredEvent } from "@/lib/event-normalize";
+import { isExternalEvent, isValidStoredEvent } from "@/lib/event-normalize";
 import { getPollActiveFlagsBySlug } from "@/lib/poll-storage";
 import { estimatedEntryRevenue, formatEuroAmount, formatSkPlayerCountTotal, registrationTotalsForEvent } from "@/lib/registration-utils";
 import { getServerAdminContext } from "@/lib/admin-session-server";
@@ -112,23 +112,35 @@ export default async function AdminUdalostitPage() {
                 >
                   {pollActiveBySlug[e.slug] ? "Anketa zapnutá" : "Anketa vypnutá"}
                 </span>
-                {e.registrationOpen === false && (
-                  <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-brand-surface text-brand-muted border border-brand-border">
-                    Registrácie zatvorené
+                {isExternalEvent(e) ? (
+                  <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-orange-100 text-orange-800 dark:bg-orange-950/50 dark:text-orange-300">
+                    Prázdna · registrácia mimo mudrc.sk
                   </span>
+                ) : (
+                  e.registrationOpen === false && (
+                    <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-brand-surface text-brand-muted border border-brand-border">
+                      Registrácie zatvorené
+                    </span>
+                  )
                 )}
               </div>
 
               <div className="flex items-center gap-4 text-sm text-brand-muted shrink-0 lg:min-w-[16rem] lg:justify-end">
                 <div className="flex flex-col sm:flex-row lg:flex-col gap-0.5 sm:gap-3 lg:gap-1 lg:text-right">
-                  <span>
-                    {regTotals.teams}{" "}
-                    {regTotals.teams === 1 ? "registrovaný tím" : "registrovaných tímov"}
-                  </span>
-                  <span>{formatSkPlayerCountTotal(regTotals.players)} celkom</span>
-                  <span className="font-semibold text-brand-text">
-                    Predpokladaný príjem {formatEuroAmount(estimatedEntryRevenue(e.entryFee, regTotals.players))}
-                  </span>
+                  {isExternalEvent(e) ? (
+                    <span className="font-semibold text-brand-text">Externý odkaz — bez mudrc registrácií</span>
+                  ) : (
+                    <>
+                      <span>
+                        {regTotals.teams}{" "}
+                        {regTotals.teams === 1 ? "registrovaný tím" : "registrovaných tímov"}
+                      </span>
+                      <span>{formatSkPlayerCountTotal(regTotals.players)} celkom</span>
+                      <span className="font-semibold text-brand-text">
+                        Predpokladaný príjem {formatEuroAmount(estimatedEntryRevenue(e.entryFee, regTotals.players))}
+                      </span>
+                    </>
+                  )}
                   <span className="text-brand-muted-light">
                     {(e.leagueTable ?? []).length} v lige · {(e.pastResults ?? []).length} výsledkov
                   </span>

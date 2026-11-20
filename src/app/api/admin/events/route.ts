@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import type { QuizEvent } from "@/lib/data";
 import { requireOwnerSession, requireAdminSession } from "@/lib/admin-permissions";
 import { listGrantedEventSlugs } from "@/lib/moderator-grants";
-import { normalizeNewEvent } from "@/lib/event-normalize";
+import { isExternalEvent, normalizeNewEvent } from "@/lib/event-normalize";
 import { eventPath } from "@/lib/regions";
 import { revalidateAfterNewEvent } from "@/lib/revalidate-public";
 import { readAllEventsRaw, updateEvents } from "@/lib/storage";
@@ -44,6 +44,15 @@ export async function POST(req: NextRequest) {
   }
   if (!newEvent.slug) {
     return NextResponse.json({ error: "Slug sa nepodarilo vygenerovať." }, { status: 400 });
+  }
+  if (body.externalEvent === true && !isExternalEvent(newEvent)) {
+    return NextResponse.json(
+      { error: "Pri prázdnej udalosti vyplň platný externý odkaz (http/https)." },
+      { status: 400 }
+    );
+  }
+  if (isExternalEvent(newEvent)) {
+    newEvent.leagueActive = false;
   }
 
   const { events: existingEvents } = await readAllEventsRaw();
