@@ -1,11 +1,12 @@
 import { isQuizVisible, sortEventsByDate } from "@/lib/data";
 import { isValidStoredEvent } from "@/lib/event-normalize";
+import { ensureExternalSilvesterEvent } from "@/lib/external-event";
 import { ensurePayTestEvent } from "@/lib/pay-test-event";
 import { getEventRegionSlug, isRegionSlug } from "@/lib/regions";
 import { readEvents } from "@/lib/storage";
 
 export async function readPublicEvents() {
-  await ensurePayTestEvent();
+  await Promise.all([ensurePayTestEvent(), ensureExternalSilvesterEvent()]);
   const { events } = await readEvents();
   return sortEventsByDate(events.filter((event) => isValidStoredEvent(event) && isQuizVisible(event)));
 }

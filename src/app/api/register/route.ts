@@ -8,6 +8,7 @@ import {
   readRegistrations,
 } from "@/lib/storage";
 import { isRegistrationOpen } from "@/lib/data";
+import { isExternalEvent } from "@/lib/event-normalize";
 import { findFutureQuiz, futureQuizMatchesDate } from "@/lib/future-quizzes";
 import { sendRegistrationEmail } from "@/lib/registration-email";
 
@@ -27,6 +28,12 @@ export async function POST(req: NextRequest) {
     const { events } = await readEvents();
     const event = events.find((entry) => entry.slug === slug);
     if (event) {
+      if (isExternalEvent(event)) {
+        return NextResponse.json(
+          { error: "Táto udalosť má registráciu mimo mudrc.sk." },
+          { status: 403 }
+        );
+      }
       const extra = term ? findFutureQuiz(event, term) : null;
       const isNearest = !term || futureQuizMatchesDate({ id: "", date: event.date }, term);
       if (extra) {

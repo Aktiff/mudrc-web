@@ -28,6 +28,11 @@ export type QuizEvent = {
   leagueActive?: boolean;
   /** false = podnik plný, registrácia na webe vypnutá */
   registrationOpen?: boolean;
+  /**
+   * Externý / prázdny kvíz: na mudrc.sk sa zobrazí v zozname, ale CTA vedie na tento URL.
+   * Bez mudrc registrácie tímu a bez predplatného.
+   */
+  externalUrl?: string;
   /** Propagačný checklist viazaný na dátum tejto udalosti. */
   promoChecklist?: EventPromoChecklist;
   imageUrl?: string;

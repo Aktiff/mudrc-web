@@ -5,6 +5,7 @@ import { Plus, Trash2, ChevronLeft, Save, PauseCircle, PlayCircle, Upload, Image
 import Link from "next/link";
 import type { QuizEvent, LeagueEntry, PastResult } from "@/lib/data";
 import { eventTeamNameSuggestions, formatEventDateLabel, sortLeagueTable } from "@/lib/data";
+import { eventExternalUrl, isExternalEvent, normalizeExternalUrl } from "@/lib/event-normalize";
 import { teamKey } from "@/lib/poll";
 import { collapseLeagueTable, leagueMergeGroups, type LeagueMergeGroup, type TeamLinkRecord } from "@/lib/team-links";
 import { hasSeedLeagueBackup } from "@/lib/league-seed";
@@ -69,6 +70,7 @@ function normalizeEvent(ev: QuizEvent): QuizEvent {
     durationMinutes: ev.durationMinutes ?? 120,
     leagueActive: ev.leagueActive === false ? false : true,
     registrationOpen: ev.registrationOpen === false ? false : true,
+    externalUrl: normalizeExternalUrl(ev.externalUrl),
     leagueTable: sortLeagueTable(ev.leagueTable ?? []),
     rules: normalizeQuizRules(ev.rules),
     specialRules: normalizeQuizRules(ev.specialRules),
@@ -451,6 +453,7 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
     active: true,
     leagueActive: true,
     registrationOpen: true,
+    externalUrl: "",
     imageUrl: "",
     rules: [],
     thematic: false,
@@ -458,6 +461,8 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
     leagueTable: [],
     pastResults: [],
   });
+  const [externalEventEnabled, setExternalEventEnabled] = useState(false);
+  const isExternal = externalEventEnabled || isExternalEvent(form);
 
   const teamNameSuggestions = useMemo(
     () => eventTeamNameSuggestions({ leagueTable: form.leagueTable, pastResults: form.pastResults }),
@@ -531,6 +536,7 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
           const local = current.futureQuizzes ?? [];
           const remote = next.futureQuizzes ?? [];
           if (local.length > remote.length) next.futureQuizzes = local;
+          setExternalEventEnabled(isExternalEvent(next));
           return next;
         });
       });
@@ -970,7 +976,18 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
     setSaving(true);
     setMsg(null);
     const includeLeagueData = tab === "liga" || tab === "vysledky";
-    let toSave: QuizEvent & { _includeLeagueData?: boolean } = { ...form };
+    const normalizedExternal = externalEventEnabled ? normalizeExternalUrl(form.externalUrl) : "";
+    if (externalEventEnabled && !normalizedExternal) {
+      setSaving(false);
+      setMsg({ text: "Pri prázdnej udalosti vyplň platný externý odkaz (http/https).", ok: false });
+      return;
+    }
+    let toSave: QuizEvent & { _includeLeagueData?: boolean; externalEvent?: boolean } = {
+      ...form,
+      externalUrl: normalizedExternal,
+      ...(normalizedExternal ? { leagueActive: false } : {}),
+      ...(externalEventEnabled ? { externalEvent: true } : {}),
+    };
     if (includeLeagueData) {
       if (tab === "liga") {
         const renamed = applyMergedNameDrafts(toSave, leagueEditorRows, leagueNameDrafts);
@@ -1022,6 +1039,7 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
         if (registrationsReopened.current) registrationOpenLock.current = true;
         setLeagueNameDrafts({});
         setForm(savedEvent);
+        setExternalEventEnabled(isExternalEvent(savedEvent));
         setMsg({
           text: registrationsReopened.current
             ? "Uložené. Registrácie sú znova zapnuté k novému termínu."
@@ -1421,9 +1439,18 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
                 {pollAdmin?.config?.active ? "Anketa zapnutá" : "Anketa vypnutá"}
               </span>
               <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${nearestRegsOpen ? "bg-teal-100 text-teal-800 dark:bg-teal-950/50 dark:text-teal-300" : "bg-brand-surface text-brand-muted border border-brand-border"}`}>
-                {nearestRegsOpen ? "Registrácie otvorené" : "Registrácie zatvorené"}
-                {nearestNight?.extraId ? ` · ${nearestNight.date}` : ""}
+                {isExternal
+                  ? "Registrácia mimo mudrc.sk"
+                  : nearestRegsOpen
+                    ? "Registrácie otvorené"
+                    : "Registrácie zatvorené"}
+                {!isExternal && nearestNight?.extraId ? ` · ${nearestNight.date}` : ""}
               </span>
+              {isExternal && (
+                <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-orange-100 text-orange-800 dark:bg-orange-950/50 dark:text-orange-300">
+                  Prázdna udalosť
+                </span>
+              )}
             </>
           )}
         </div>
@@ -1536,6 +1563,53 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
           <div>
             <label className="label">Adresa</label>
             <input className="input" value={form.address} onChange={(e) => set("address", e.target.value)} placeholder="Namestie Slobody 7/13, Oslany" />
+          </div>
+          <div className="rounded-xl border border-brand-border bg-brand-surface/40 p-4 space-y-3">
+            <label className="flex items-start gap-2 text-sm font-semibold text-brand-text">
+              <input
+                type="checkbox"
+                className="mt-0.5 accent-brand-orange"
+                checked={isExternal}
+                onChange={(e) => {
+                  const on = e.target.checked;
+                  setExternalEventEnabled(on);
+                  if (!on) set("externalUrl", "");
+                  if (on) set("leagueActive", false);
+                }}
+              />
+              <span>
+                Prázdna udalosť (registrácia mimo mudrc.sk)
+                <span className="block font-normal text-brand-muted text-xs mt-0.5">
+                  Ukáže sa v zozname kvízov, ale CTA vedie na externý odkaz. Bez mudrc registrácie tímu a bez predplatného.
+                </span>
+              </span>
+            </label>
+            {isExternal && (
+              <div>
+                <label className="label">Externý odkaz</label>
+                <input
+                  className="input"
+                  type="url"
+                  value={form.externalUrl ?? ""}
+                  onChange={(e) => set("externalUrl", e.target.value)}
+                  placeholder="https://events.novella.sk/eventy/…"
+                />
+                <p className="text-brand-muted text-xs mt-1.5">
+                  Povinné. Otvorí sa v novom okne. Príklad: Novella, Facebook event, vlastný formulár.
+                </p>
+                {eventExternalUrl(form) && (
+                  <a
+                    href={eventExternalUrl(form)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 mt-2 text-sm font-semibold text-brand-orange-readable hover:underline"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    Otvoriť externý odkaz
+                  </a>
+                )}
+              </div>
+            )}
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -1898,6 +1972,30 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
 
       {tab === "registracie" && !isNew && (
         <div className="bg-brand-card rounded-2xl border border-brand-border p-6">
+          {isExternal ? (
+            <div className="mb-6 pb-6 border-b border-brand-border space-y-3">
+              <p className="text-sm text-brand-muted">
+                Táto udalosť je <strong className="text-brand-text">prázdna / externá</strong> — tímy sa neregistrujú cez mudrc.sk.
+                CTA na webe vedie na{" "}
+                {eventExternalUrl(form) ? (
+                  <a
+                    href={eventExternalUrl(form)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-semibold text-brand-orange-readable hover:underline"
+                  >
+                    externý odkaz
+                  </a>
+                ) : (
+                  "externý odkaz"
+                )}
+                .
+              </p>
+              <p className="text-xs text-brand-muted">
+                Zoznam nižšie môže byť prázdny — to je v poriadku. Predplatné a mudrc registrácia sa pre túto udalosť neponúkajú.
+              </p>
+            </div>
+          ) : (
           <div className="flex flex-wrap items-center justify-between gap-3 mb-6 pb-6 border-b border-brand-border">
             <div className="text-brand-muted text-sm space-y-2">
               <p>
@@ -1935,7 +2033,9 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
               </button>
             </div>
           </div>
+          )}
 
+          {!isExternal && (
           <div className="mb-6 pb-6 border-b border-brand-border space-y-3">
             <p className="text-xs font-semibold uppercase tracking-wider text-brand-muted">Pridať tím (telefón / na mieste)</p>
             {termChoices.length > 1 && (
@@ -2007,6 +2107,7 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
               Funguje aj keď sú registrácie na webe vypnuté. Rovnaký názov tímu sa dá prihlásiť na iný termín. Zoznamy nižšie sú len pre vybraný termín.
             </p>
           </div>
+          )}
 
           {displayedRegistrationGroups.filter((group) => group.registrations.length > 0).map((group) => (
             <RegistrationShareList
