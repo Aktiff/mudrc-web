@@ -12,18 +12,21 @@ export {
 export const EXTERNAL_SILVESTER_SLUG = "silvester-2026";
 export const EXTERNAL_SILVESTER_URL =
   "https://events.novella.sk/eventy/4415f28d-942d-4f8f-8696-5c1d5165cae0";
+/** Static flyer in public/; path must not use /uploads/ (that proxies to Supabase). */
+export const EXTERNAL_SILVESTER_IMAGE_URL = "/event-covers/silvester-2026-flyer.webp";
+export const EXTERNAL_SILVESTER_TITLE = "Silvestrovský kvíz";
 
 export function buildExternalSilvesterEvent(): QuizEvent {
   return normalizeNewEvent({
     slug: EXTERNAL_SILVESTER_SLUG,
-    venue: "Silvester",
+    venue: EXTERNAL_SILVESTER_TITLE,
     city: "Novella",
     address: "Registrácia a info na Novella — nie cez mudrc.sk",
     regionSlug: "prievidza",
     date: "31.12.2026",
     time: "19:00",
     entryFee: 0,
-    quizType: "Silvesterský kvíz",
+    quizType: "",
     minPlayers: 2,
     maxPlayers: 8,
     rounds: 4,
@@ -33,8 +36,9 @@ export function buildExternalSilvesterEvent(): QuizEvent {
     registrationOpen: true,
     leagueActive: false,
     externalUrl: EXTERNAL_SILVESTER_URL,
+    imageUrl: EXTERNAL_SILVESTER_IMAGE_URL,
     rules: [
-      "Toto je špeciálny silvesterský kvíz — registrácia prebieha mimo mudrc.sk.",
+      "Toto je špeciálny silvestrovský kvíz — registrácia prebieha mimo mudrc.sk.",
       "Všetky informácie a prihlásenie nájdeš na stránke Novella (externý odkaz).",
     ],
     leagueTable: [],
@@ -60,6 +64,9 @@ export async function ensureExternalSilvesterEvent(): Promise<QuizEvent> {
         !existing ||
         existing.date !== desired.date ||
         existing.time !== desired.time ||
+        existing.venue !== desired.venue ||
+        (existing.quizType ?? "").trim() !== desired.quizType ||
+        (existing.imageUrl ?? "").trim() !== desired.imageUrl ||
         normalizeExternalUrl(existing.externalUrl) !== desired.externalUrl ||
         existing.active === false;
 
@@ -73,13 +80,16 @@ export async function ensureExternalSilvesterEvent(): Promise<QuizEvent> {
           ...copy[idx],
           date: desired.date,
           time: desired.time,
+          venue: desired.venue,
+          quizType: desired.quizType,
+          imageUrl: desired.imageUrl,
           externalUrl: desired.externalUrl,
           active: true,
           registrationOpen: true,
           leagueActive: false,
-          quizType: copy[idx].quizType?.trim() || desired.quizType,
-          venue: copy[idx].venue?.trim() || desired.venue,
           city: copy[idx].city?.trim() || desired.city,
+          address: copy[idx].address?.trim() || desired.address,
+          rules: desired.rules?.length ? desired.rules : copy[idx].rules,
         };
         return copy;
       });
