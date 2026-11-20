@@ -250,6 +250,10 @@ const QUESTION_TEXT_CLASS =
 const SLIDE_SAFE_AREA_CLASS =
   "w-full h-full max-h-full min-h-0 box-border px-[max(1.25rem,2.4vmin)] py-[max(1.25rem,2.8vmin)] flex flex-col items-center justify-center overflow-hidden";
 
+/** 90s odovzdanie po prvom tíme; dvojklik môže preskočiť až po krátkej dobe (nie pri štarte). */
+const HAND_IN_MS = 90_000;
+const HAND_IN_SKIP_MIN_ELAPSED_MS = 400;
+
 function PresentationImage({
   src,
   variant,
@@ -974,7 +978,7 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
     if (isLastRoundQuestionSlide(slides, index)) {
       const current = handInRef.current;
       if (!current || current.index !== index) {
-        const next = { index, endsAt: Date.now() + 90_000 };
+        const next = { index, endsAt: Date.now() + HAND_IN_MS };
         handInRef.current = next;
         gongPlayedRef.current = false;
         prepareHandInGong();
@@ -985,6 +989,24 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
     }
     goNext();
   }, [slides, index, goNext]);
+
+  /** Dvojklik počas bežiaceho 90s odovzdania → gong + ďalší slide (ako po skončení časomiery). */
+  const skipHandInTimer = useCallback(() => {
+    const current = handInRef.current;
+    if (!current || current.index !== index) return;
+    const remaining = current.endsAt - Date.now();
+    if (remaining <= 0) {
+      goNext();
+      return;
+    }
+    // Prvý klik dvojkliku práve spustil časovač — nepreskakovať hneď.
+    if (remaining > HAND_IN_MS - HAND_IN_SKIP_MIN_ELAPSED_MS) return;
+    if (!gongPlayedRef.current) {
+      gongPlayedRef.current = true;
+      playHandInGong();
+    }
+    goNext();
+  }, [index, goNext]);
 
   useEffect(() => {
     handInRef.current = null;
@@ -1014,6 +1036,14 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
       advanceOrStartHandIn();
     },
     [advanceOrStartHandIn]
+  );
+
+  const handleStageDoubleClick = useCallback(
+    (e: MouseEvent<HTMLDivElement>) => {
+      if (e.button !== 0) return;
+      skipHandInTimer();
+    },
+    [skipHandInTimer]
   );
 
   const togglePresentationAudio = useCallback(() => {
@@ -1420,6 +1450,7 @@ export default function QuizLibraryShow({ quizId, initialEventSlug = "" }: Props
         className="relative z-[2] flex-1 flex min-h-0 w-full"
         innerClassName="min-h-0"
         onBackgroundClick={handleStageClick}
+        onBackgroundDoubleClick={handleStageDoubleClick}
         onMiddleClick={handleStageAuxClick}
         onViewChange={onSlideView}
       >
