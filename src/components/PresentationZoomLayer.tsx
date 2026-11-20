@@ -35,6 +35,8 @@ type Props = {
   innerClassName?: string;
   children: ReactNode;
   onBackgroundClick?: (e: MouseEvent<HTMLDivElement>) => void;
+  /** Dvojklik na pozadie (napr. preskočenie 90s odovzdania). */
+  onBackgroundDoubleClick?: (e: MouseEvent<HTMLDivElement>) => void;
   /** Stredné tlačidlo myši (napr. play/pause audia na slide). */
   onMiddleClick?: (e: MouseEvent<HTMLDivElement>) => void;
   /** zoom = textové slidy, volume = otázka s nahrávkou (koliesko nemení veľkosť). */
@@ -51,6 +53,7 @@ export default function PresentationZoomLayer({
   innerClassName = "",
   children,
   onBackgroundClick,
+  onBackgroundDoubleClick,
   onMiddleClick,
   wheelMode = "zoom",
   volumeBoost = false,
@@ -167,6 +170,19 @@ export default function PresentationZoomLayer({
     [onBackgroundClick]
   );
 
+  const onDoubleClick = useCallback(
+    (e: MouseEvent<HTMLDivElement>) => {
+      if (blockClickRef.current) {
+        blockClickRef.current = false;
+        return;
+      }
+      if (scaleRef.current > 1) return;
+      if (isPanBlockedTarget(e.target)) return;
+      onBackgroundDoubleClick?.(e);
+    },
+    [onBackgroundDoubleClick]
+  );
+
   const onAuxClick = useCallback(
     (e: MouseEvent<HTMLDivElement>) => {
       if (e.button !== 1) return;
@@ -190,6 +206,7 @@ export default function PresentationZoomLayer({
       ref={viewportRef}
       className={`overflow-hidden touch-none box-border ${isZoomed ? "cursor-grab active:cursor-grabbing" : ""} ${className}`}
       onClick={onClick}
+      onDoubleClick={onDoubleClick}
       onAuxClick={onAuxClick}
       onPointerDownCapture={onPointerDown}
       onPointerMove={onPointerMove}

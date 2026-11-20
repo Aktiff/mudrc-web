@@ -852,11 +852,14 @@ button,select{font:inherit}
     resetSlideTimer();
   }
 
+  var HAND_IN_MS = 90000;
+  var HAND_IN_SKIP_MIN_ELAPSED_MS = 400;
+
   function advance() {
     if (isLastRoundQuestionSlide(slides, state.index)) {
       if (!state.handIn || state.handIn.index !== state.index) {
         prepareGong();
-        state.handIn = { index: state.index, endsAt: Date.now() + 90000 };
+        state.handIn = { index: state.index, endsAt: Date.now() + HAND_IN_MS };
         state.handInLeft = 90;
         gongPlayed = false;
         startHandInWatch();
@@ -864,6 +867,22 @@ button,select{font:inherit}
         return;
       }
       if (Date.now() < state.handIn.endsAt) return;
+    }
+    goNext();
+  }
+
+  /** Dvojklik počas bežiaceho 90s odovzdania → gong + ďalší slide. */
+  function skipHandIn() {
+    if (!state.handIn || state.handIn.index !== state.index) return;
+    var remaining = state.handIn.endsAt - Date.now();
+    if (remaining <= 0) {
+      goNext();
+      return;
+    }
+    if (remaining > HAND_IN_MS - HAND_IN_SKIP_MIN_ELAPSED_MS) return;
+    if (!gongPlayed) {
+      gongPlayed = true;
+      playGong();
     }
     goNext();
   }
@@ -891,6 +910,10 @@ button,select{font:inherit}
   document.getElementById("slideLayer").addEventListener("click", function (e) {
     if (e.button !== 0) return;
     advance();
+  });
+  document.getElementById("slideLayer").addEventListener("dblclick", function (e) {
+    if (e.button !== 0) return;
+    skipHandIn();
   });
   document.getElementById("stage").addEventListener("contextmenu", function (e) {
     e.preventDefault();
