@@ -74,7 +74,8 @@ export default function PayWalkUpForm({
         </p>
         <h1 className="font-display text-4xl uppercase tracking-wide text-brand-text mt-1">Walk-up</h1>
         <p className="text-brand-muted text-sm mt-2">
-          Na mieste {walkUpPrice}&nbsp;€ (predplatné {prepaidPrice}&nbsp;€ + príplatok). Len karta — mock auto-success.
+          Na mieste {walkUpPrice}&nbsp;€ (online predplatné bolo {prepaidPrice}&nbsp;€ — skôr = lacnejšie). Len
+          karta — mock auto-success.
         </p>
       </div>
 

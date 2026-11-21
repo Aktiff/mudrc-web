@@ -11,6 +11,11 @@ type Props = {
   minPlayers: number;
   maxPlayers: number;
   prepaidPrice: number;
+  earlyFee: number;
+  lateFee: number;
+  walkUpFee: number;
+  tierLadderCopy: string;
+  pricingTier: "early" | "late" | "walk_up";
   /** e.g. "" or "/pay" */
   basePath: "" | "/pay";
 };
@@ -29,6 +34,11 @@ export default function PayRegisterForm({
   minPlayers,
   maxPlayers,
   prepaidPrice,
+  earlyFee,
+  lateFee,
+  walkUpFee,
+  tierLadderCopy,
+  pricingTier,
   basePath,
 }: Props) {
   const router = useRouter();
@@ -90,20 +100,28 @@ export default function PayRegisterForm({
         setLoading(false);
         return;
       }
-      // Blob listing can lag — wait until the team page will not 404.
+      // Blob listing can lag — wait until the team is readable, then go straight to pay.
       const ready = await waitUntilTeamReady(teamToken);
+      const payPath = `${basePath}/s/${teamToken}`;
       if (!ready) {
-        setError("Rezervácia sa ukladá dlhšie než obvykle. Skús obnoviť stránku o chvíľu.");
+        setError("Rezervácia sa ukladá dlhšie než obvykle. Presmerúvam na platbu…");
         setLoading(false);
-        router.push(`${basePath}/t/${teamToken}`);
+        router.push(payPath);
         return;
       }
-      router.push(`${basePath}/t/${teamToken}`);
+      router.push(payPath);
     } catch {
       setError("Sieťová chyba. Skús znova.");
       setLoading(false);
     }
   }
+
+  const tierHint =
+    pricingTier === "early"
+      ? `Teraz platíš skoré predplatné ${prepaidPrice} € / miesto`
+      : pricingTier === "late"
+        ? `Teraz platíš neskoré predplatné ${prepaidPrice} € / miesto`
+        : `Online je uzamknuté — walk-up ${walkUpFee} € na mieste`;
 
   return (
     <form onSubmit={onSubmit} className="mx-auto max-w-md space-y-4">
@@ -111,8 +129,13 @@ export default function PayRegisterForm({
         <p className="text-brand-muted text-sm mb-1">{venue}</p>
         <h1 className="font-display text-4xl text-brand-text tracking-wide uppercase">Registrácia tímu</h1>
         <p className="text-brand-muted mt-2 text-sm">{whenLabel}</p>
+        <p className="text-brand-text mt-2 text-sm font-medium">{tierHint}</p>
         <p className="text-brand-muted mt-1 text-sm">
-          Predplatné {prepaidPrice}&nbsp;€ / miesto · hold do štartu kvízu
+          Skôr = lacnejšie: {earlyFee}&nbsp;€ / {lateFee}&nbsp;€ / {walkUpFee}&nbsp;€. {tierLadderCopy}
+        </p>
+        <p className="text-brand-muted mt-1 text-xs">
+          Cena podľa času platby (nie registrácie). Po registrácii ťa rovno presmerujeme na platbu. Storno: ≥24
+          h → 50&nbsp;% · &lt;24 h → 0&nbsp;%.
         </p>
       </div>
 
@@ -169,15 +192,15 @@ export default function PayRegisterForm({
           autoComplete="email"
         />
         <span className="text-xs text-brand-muted mt-1 block">
-          Po registrácii ti pošleme odkaz na stránku tímu — otvoríš ju kedykoľvek bez prihlásenia. Použije sa aj na
-          doklady, refund a zdieľanie pay-linku.
+          Po registrácii ťa presmerujeme na platbu a pošleme odkaz na stránku tímu. E-mail slúži aj na doklady a
+          storno.
         </span>
       </label>
 
       {error ? <p className="text-red-600 text-sm">{error}</p> : null}
 
       <button type="submit" className="btn-primary w-full justify-center" disabled={loading}>
-        {loading ? "Ukladám rezerváciu…" : "Rezervovať miesta a získať pay-link"}
+        {loading ? "Ukladám rezerváciu…" : `Rezervovať a zaplatiť (${prepaidPrice} € / miesto)`}
       </button>
     </form>
   );

@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { PAY_MOCK_MODE } from "@/lib/pay-config";
 import type { PaySeat, PayTeam } from "@/lib/pay-domain";
 import { sendPaymentConfirmationEmail } from "@/lib/pay-email";
-import { paySeatMock, payTeamSeatsMock } from "@/lib/pay-storage";
+import { resolvePayQuiz } from "@/lib/pay-events";
+import { findSeatByToken, getTeamByToken, paySeatMock, payTeamSeatsMock } from "@/lib/pay-storage";
+import type { FeeTierConfig } from "@/lib/pay-pricing";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,6 +13,7 @@ export const dynamic = "force-dynamic";
  * MOCK ONLY: clicking card payment instantly marks seat(s) as paid.
  * Prefer teamToken (shared team pay link → next N pending seats; quantity default 1).
  * seatToken kept for legacy per-seat URLs (always 1 seat).
+ * Charge = current tier price at payment time (early 4 € / late 5 €).
  * No Stripe / PSP — staging for pay.mudrc.sk UX and capacity rules.
  * When payerEmail is provided, sends one payment confirmation covering all paid seats.
  */
@@ -45,21 +48,35 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Počet miest musí byť aspoň 1." }, { status: 400 });
   }
 
+  let feeOverride: FeeTierConfig | undefined;
+  const lookup = teamToken
+    ? await getTeamByToken(teamToken, { retries: 2, delayMs: 100 })
+    : (await findSeatByToken(seatToken))?.team;
+  if (lookup) {
+    const quiz = await resolvePayQuiz(lookup.eventSlug, lookup.quizDate);
+    feeOverride = quiz?.feeConfig ?? lookup.feeConfig;
+  }
+
   let seats: PaySeat[];
   let team: PayTeam;
 
   if (teamToken) {
-    const result = await payTeamSeatsMock(teamToken, quantity, {
-      name: payerName,
-      email: payerEmail,
-    });
+    const result = await payTeamSeatsMock(
+      teamToken,
+      quantity,
+      {
+        name: payerName,
+        email: payerEmail,
+      },
+      feeOverride
+    );
     if ("error" in result) {
       return NextResponse.json({ error: result.error }, { status: result.status });
     }
     seats = result.seats;
     team = result.team;
   } else {
-    const result = await paySeatMock(seatToken, { name: payerName, email: payerEmail });
+    const result = await paySeatMock(seatToken, { name: payerName, email: payerEmail }, feeOverride);
     if ("error" in result) {
       return NextResponse.json({ error: result.error }, { status: result.status });
     }
@@ -93,11 +110,14 @@ export async function POST(req: NextRequest) {
     emailSkipped = true;
   }
 
+  const unitEur = primary.amountEur;
+
   return NextResponse.json({
     ok: true,
     mock: true,
     message: "Testovacia platba úspešná (mock — bez skutočnej karty).",
     quantity: seats.length,
+    unitEur,
     totalEur,
     seat: {
       id: primary.id,

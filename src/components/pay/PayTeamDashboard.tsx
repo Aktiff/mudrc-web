@@ -14,19 +14,37 @@ type Props = {
   origin: string;
   /** Quiz rule: max team size */
   maxPlayers: number;
+  /** Current online unit price (payment-time tier), if online still open */
+  currentUnitPrice?: number;
+  earlyFee?: number;
+  lateFee?: number;
+  walkUpFee?: number;
+  onlinePayOpen?: boolean;
 };
 
 function sharedPayPath(basePath: "" | "/pay", teamToken: string): string {
   return `${basePath}/s/${teamToken}`;
 }
 
-export default function PayTeamDashboard({ team, whenLabel, basePath, origin, maxPlayers }: Props) {
+export default function PayTeamDashboard({
+  team,
+  whenLabel,
+  basePath,
+  origin,
+  maxPlayers,
+  currentUnitPrice,
+  earlyFee,
+  lateFee,
+  walkUpFee,
+  onlinePayOpen = true,
+}: Props) {
   const router = useRouter();
   const summary = teamSummary(team);
   const currentSeats = team.seats.filter(
     (s) => s.kind === "prepaid" && (s.status === "pending_payment" || s.status === "paid")
   ).length;
   const canAddSeat =
+    onlinePayOpen &&
     team.status !== "cancelled" &&
     team.status !== "closed_at_start" &&
     currentSeats < maxPlayers;
@@ -34,7 +52,8 @@ export default function PayTeamDashboard({ team, whenLabel, basePath, origin, ma
   const [adding, setAdding] = useState(false);
   const [addError, setAddError] = useState("");
   const shareUrl = `${origin}${sharedPayPath(basePath, team.token)}`;
-  const unitPrice = team.seats.find((s) => s.kind === "prepaid")?.amountEur;
+  const unitPrice =
+    currentUnitPrice ?? team.seats.find((s) => s.kind === "prepaid" && s.status === "pending_payment")?.amountEur;
 
   const statusLabel = useMemo(() => {
     switch (team.status) {
@@ -123,9 +142,12 @@ export default function PayTeamDashboard({ team, whenLabel, basePath, origin, ma
         <h2 className="font-display text-2xl uppercase tracking-wide text-brand-text">Pay-link tímu</h2>
         <p className="text-sm text-brand-muted">
           Jeden odkaz pre celý tím. Pošli ho kamarátom — každý môže zaplatiť jedno alebo viac miest naraz
-          {unitPrice != null ? ` (${unitPrice}\u00a0€ / miesto)` : ""}. Hold platí do štartu kvízu.
+          {unitPrice != null && onlinePayOpen ? ` (teraz ${unitPrice}\u00a0€ / miesto)` : ""}.
+          {earlyFee != null && lateFee != null && walkUpFee != null
+            ? ` Cenník ${earlyFee}/${lateFee}/${walkUpFee} €. Soft-hold neuhradených miest platí, kým je online okno otvorené.`
+            : " Soft-hold neuhradených miest platí, kým je online okno otvorené."}
         </p>
-        {summary.pending > 0 ? (
+        {summary.pending > 0 && onlinePayOpen ? (
           <>
             <p className="text-xs text-brand-muted break-all font-mono bg-brand-card rounded-xl px-3 py-2 border border-brand-border">
               {shareUrl}
@@ -147,6 +169,11 @@ export default function PayTeamDashboard({ team, whenLabel, basePath, origin, ma
           </>
         ) : team.status === "full" ? (
           <p className="text-sm font-semibold text-brand-orange-readable">Všetky miesta sú zaplatené.</p>
+        ) : !onlinePayOpen ? (
+          <p className="text-sm text-brand-muted">
+            Online platba uzamknutá
+            {walkUpFee != null ? ` — walk-up na mieste za ${walkUpFee}\u00a0€` : ""}.
+          </p>
         ) : (
           <p className="text-sm text-brand-muted">Online platba už nie je dostupná (po štarte / uvoľnené).</p>
         )}

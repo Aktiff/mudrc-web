@@ -2,7 +2,15 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import PayCheckoutClient from "@/components/pay/PayCheckoutClient";
 import { formatEventDateLabel } from "@/lib/data";
-import { applyHoldExpiry, pendingPrepaidSeats, quizHasStarted, teamSummary } from "@/lib/pay-domain";
+import {
+  applyHoldExpiry,
+  currentCheckoutUnitPrice,
+  pendingPrepaidSeats,
+  quizHasStarted,
+  teamPricingSnapshot,
+  teamSummary,
+} from "@/lib/pay-domain";
+import { resolvePayQuiz } from "@/lib/pay-events";
 import { payRequestContext } from "@/lib/pay-request";
 import { getTeamByToken } from "@/lib/pay-storage";
 
@@ -20,13 +28,22 @@ export default async function PaySharedTeamPage({ params }: Props) {
   const whenLabel = `${formatEventDateLabel(team.quizDate)} · ${team.quizTime}`;
   const summary = teamSummary(team);
   const pending = pendingPrepaidSeats(team);
-  const amountEur = team.seats.find((s) => s.kind === "prepaid")?.amountEur ?? pending[0]?.amountEur ?? 0;
+  const quiz = await resolvePayQuiz(team.eventSlug, team.quizDate);
+  const feeConfig = quiz?.feeConfig ?? team.feeConfig;
+  const pricing = teamPricingSnapshot({ ...team, feeConfig: feeConfig ?? team.feeConfig });
+  const amountEur = currentCheckoutUnitPrice(team, feeConfig);
+  const walkUpFee = feeConfig?.walkUpFee ?? pricing.walkUpFee;
+  const lockMinutes = feeConfig?.onlineLockMinutes ?? 10;
 
   let blockedMessage: string | undefined;
   if (team.status === "cancelled") {
     blockedMessage = "Táto rezervácia bola zrušená.";
-  } else if (quizHasStarted(team.quizDate, team.quizTime) || team.status === "closed_at_start") {
-    blockedMessage = "Kvíz už začal — online predaj nezaplatených miest skončil. Walk-up na mieste.";
+  } else if (
+    !pricing.onlinePayOpen ||
+    quizHasStarted(team.quizDate, team.quizTime) ||
+    team.status === "closed_at_start"
+  ) {
+    blockedMessage = `Online predaj je ukončený (menej než ${lockMinutes} min do štartu alebo po štarte). Walk-up na mieste za ${walkUpFee} €.`;
   } else if (pending.length === 0) {
     blockedMessage = "Všetky miesta tohto tímu sú už zaplatené.";
   }
@@ -38,6 +55,13 @@ export default async function PaySharedTeamPage({ params }: Props) {
         ? `${summary.pending} miesta ostávajú`
         : `${summary.pending} miest ostáva`;
 
+  const tierNote =
+    pricing.tier === "early"
+      ? `Skoré predplatné ${amountEur} € (≥${pricing.earlyWindowHours} h pred štartom)`
+      : pricing.tier === "late"
+        ? `Neskoré predplatné ${amountEur} € (<${pricing.earlyWindowHours} h pred štartom)`
+        : `Walk-up ${walkUpFee} €`;
+
   return (
     <div className="mx-auto w-full max-w-md space-y-6">
       <Link
@@ -46,6 +70,12 @@ export default async function PaySharedTeamPage({ params }: Props) {
       >
         ← Stav tímu
       </Link>
+      {!blockedMessage ? (
+        <p className="text-sm text-brand-muted text-center sm:text-left -mb-2">
+          {tierNote}. Cenník: {pricing.earlyFee}&nbsp;€ / {pricing.lateFee}&nbsp;€ / {pricing.walkUpFee}
+          &nbsp;€. Storno ≥{pricing.earlyWindowHours}&nbsp;h → 50&nbsp;% · inak 0&nbsp;%.
+        </p>
+      ) : null}
       <PayCheckoutClient
         teamToken={team.token}
         amountEur={amountEur}

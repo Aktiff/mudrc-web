@@ -1,8 +1,13 @@
 /** Staging / mock payment for pay.mudrc.sk — no real PSP. */
 
+import { resolveFeeConfig, type EventFeeFields } from "@/lib/pay-pricing";
+
 export const PAY_MOCK_MODE = true;
 
-/** Walk-up usually +1 € over prepaid entryFee (from terms/settings). */
+/**
+ * @deprecated Prefer resolveFeeConfig / pricingSnapshot (tiered early/late/walk-up).
+ * Kept for older call sites that only know entryFee.
+ */
 export function walkUpSurchargeEur(): number {
   const raw = process.env.NEXT_PUBLIC_WALK_UP_SURCHARGE_EUR?.trim();
   if (raw === undefined || raw === "") return 1;
@@ -10,13 +15,18 @@ export function walkUpSurchargeEur(): number {
   return Number.isFinite(n) && n >= 0 ? n : 1;
 }
 
+/** @deprecated Prefer pricingSnapshot(...).onlinePriceEur */
 export function prepaidPriceEur(entryFee: number): number {
-  const fee = Number(entryFee);
-  return Number.isFinite(fee) && fee > 0 ? fee : 4;
+  return resolveFeeConfig({ entryFee }).earlyFee;
 }
 
+/** @deprecated Prefer pricingSnapshot(...).walkUpPriceEur */
 export function walkUpPriceEur(entryFee: number): number {
-  return Math.round((prepaidPriceEur(entryFee) + walkUpSurchargeEur()) * 100) / 100;
+  return resolveFeeConfig({ entryFee }).walkUpFee;
+}
+
+export function feesFromEvent(event?: EventFeeFields | null) {
+  return resolveFeeConfig(event);
 }
 
 function hostnameOnly(host: string | null | undefined): string {

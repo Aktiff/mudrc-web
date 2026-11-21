@@ -25,7 +25,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Kvíz sa nenašiel." }, { status: 404 });
   }
 
-  const result = await addTeamSeat(teamToken, quiz.maxPlayers, quiz.entryFee);
+  if (quiz.onlineLocked || !quiz.pricing.onlinePayOpen) {
+    return NextResponse.json(
+      {
+        error: `Online rezervácia je uzamknutá (menej než ${quiz.feeConfig.onlineLockMinutes} min do štartu). Walk-up na mieste za ${quiz.walkUpFee} €.`,
+      },
+      { status: 403 }
+    );
+  }
+
+  const result = await addTeamSeat(teamToken, quiz.maxPlayers, quiz.feeConfig);
   if ("error" in result) {
     return NextResponse.json({ error: result.error }, { status: result.status });
   }

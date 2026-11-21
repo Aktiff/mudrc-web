@@ -14,11 +14,21 @@ Staging app for prepaid seats + mock card checkout. **No real PSP / Stripe.** Sa
    - `RESEND_API_KEY` — **required** for payment confirmation emails (and main-site registration notify). Redeploy after adding.
    - `REGISTRATION_EMAIL_FROM` — From address, e.g. `Mudrc Kvíz <kontakt@mudrc.sk>` (domain must be verified in Resend)
    - `PAY_CHECKIN_PIN` — PIN for check-in / walk-up (defaults to `ADMIN_PASSWORD` or `mudrc2026`)
-   - `NEXT_PUBLIC_WALK_UP_SURCHARGE_EUR` — walk-up surcharge over `entryFee` (default `1`)
    - Blob storage already used by the main site: pay bookings store as `pay-bookings` in the same Blob
+   - (Optional legacy) `NEXT_PUBLIC_WALK_UP_SURCHARGE_EUR` — unused when event has `walkUpFee`; prefer event fees 4/5/6
 4. Redeploy after domain + env are set.
 
 After that, open `https://pay.mudrc.sk/` — you should see the staging banner and quiz list from the same events as mudrc.sk.
+
+## Pricing (payment time)
+
+| Window | Price / seat |
+|--------|----------------|
+| ≥ 24 h before start | **4 €** online |
+| &lt; 24 h until 10 min before start | **5 €** online |
+| &lt; 10 min before start | online locked · walk-up **6 €** on site |
+
+Cancel: ≥ 24 h → refund **50 %** of paid; &lt; 24 h → **0 %** (UI/data ready; real PSP later).
 
 ## Local run
 
@@ -35,11 +45,11 @@ To simulate the subdomain locally, map `pay.localhost` in `/etc/hosts` and set `
 
 ## Test flow
 
-1. `/pay` → use **Staging demo kvíz** (top, always open, max 8) or any real open quiz → **Registrovať tím** (name, N seats, phone, **email**).
-2. Team page shows **one** shareable pay-link (copy button). Use **Pridať člena** to grow N up to quiz `maxPlayers`.
-3. Open that link → choose **1..remaining** unpaid seats (total = quantity × entry fee) → optional payer email → **Zaplatiť kartou (mock)** → those seats mark paid + **one** confirmation email summarizing the payment when Resend is configured.
-4. Others reuse the **same** link until seats are gone; team status goes `open` → `partial` → `full`. Seat list shows Slovak statuses (`zaplatené` / `čaká sa na zaplatenie`).
-5. `/pay/check-in/<slug>?date=...` + PIN → check-in paid seats; **Walk-up** for on-site price (`entryFee` + surcharge).
+1. `/pay` → **TEST Platby — Silvester** (`test-platby-silvester`, 31.12.2026) → **Registrovať tím** (name, N seats, phone, **email**).
+2. After success you are **redirected straight to the team pay page** (`/s/<token>`). Team dashboard (`/t/<token>`) still has the shareable pay-link + **Pridať člena** (up to `maxPlayers`) while online is open.
+3. On the pay page → choose **1..remaining** unpaid seats (total = quantity × **current tier**) → optional payer email → **Zaplatiť kartou (mock)** → seats mark paid at the tier price at click time + confirmation email when Resend is configured.
+4. Others reuse the **same** link until seats are gone or online locks at T-10min; then walk-up **6 €**.
+5. `/pay/check-in/<slug>?date=...` + PIN → check-in paid seats; **Walk-up** for on-site **6 €**.
 
 ## Routes
 

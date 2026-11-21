@@ -10,6 +10,17 @@ export type QuizEvent = {
   date: string;
   time: string;
   entryFee: number;
+  /**
+   * Prepaid fee tiers (payment-time pricing). Prefer these over entryFee for pay flow.
+   * Defaults when omitted: early = entryFee||4, late = early+1, walkUp = early+2.
+   */
+  earlyFee?: number;
+  lateFee?: number;
+  walkUpFee?: number;
+  /** Hours before start for early fee (default 24). */
+  earlyWindowHours?: number;
+  /** Minutes before start when online register/pay locks (default 10). */
+  onlineLockMinutes?: number;
   /** Typ aktuálneho kvízu v podniku, napr. Hudobný kvíz. História má typ na každom výsledku. */
   quizType?: string;
   /** true = ďalší bežný termín o týždeň. Inak každý druhý týždeň. */
