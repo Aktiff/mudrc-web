@@ -16,10 +16,7 @@ import {
   type PaySeat,
   type PayTeam,
 } from "@/lib/pay-domain";
-import { PAY_TEST_EVENT_SLUG } from "@/lib/pay-test-event";
-
-/** Keep in sync with `PAY_STAGING_DEMO_SLUG` in pay-events (avoid circular import). */
-const PAY_STAGING_DEMO_SLUG = "pay-staging-demo";
+import { PAY_STAGING_DEMO_SLUG, PAY_TEST_EVENT_SLUG } from "@/lib/pay-config";
 
 const localPath = path.join(process.cwd(), "src/data/pay-bookings.local.json");
 const seedPath = path.join(process.cwd(), "src/data/pay-bookings.json");

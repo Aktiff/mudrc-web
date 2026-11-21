@@ -1,6 +1,13 @@
 /** Staging / mock payment for pay.mudrc.sk — no real PSP. */
 
+import type { QuizEvent } from "@/lib/data";
 import { resolveFeeConfig, type EventFeeFields } from "@/lib/pay-pricing";
+
+/** Real Blob-backed test venue on mudrc.sk for pay dry-runs. */
+export const PAY_TEST_EVENT_SLUG = "test-platby-silvester";
+
+/** Synthetic always-open quiz on pay.mudrc.sk (see pay-events). */
+export const PAY_STAGING_DEMO_SLUG = "pay-staging-demo";
 
 export const PAY_MOCK_MODE = true;
 
@@ -128,4 +135,40 @@ export function payPublicOrigin(host?: string | null, proto?: string | null): st
 /** Soft gate for check-in list (moderator night-of). */
 export function payCheckInPin(): string {
   return process.env.PAY_CHECKIN_PIN?.trim() || process.env.ADMIN_PASSWORD?.trim() || "mudrc2026";
+}
+
+/**
+ * Public CTAs should open the pay register flow when the venue has prepaid tiers
+ * (explicit early/late/walk-up) or is a known pay staging/test slug.
+ * Normal venues without those fields keep the classic registration modal.
+ */
+export function eventUsesPayRegistration(
+  event: Pick<QuizEvent, "slug" | "earlyFee" | "lateFee" | "walkUpFee">
+): boolean {
+  if (event.slug === PAY_TEST_EVENT_SLUG || event.slug === PAY_STAGING_DEMO_SLUG) {
+    return true;
+  }
+  return (
+    typeof event.earlyFee === "number" &&
+    Number.isFinite(event.earlyFee) &&
+    typeof event.lateFee === "number" &&
+    Number.isFinite(event.lateFee) &&
+    typeof event.walkUpFee === "number" &&
+    Number.isFinite(event.walkUpFee)
+  );
+}
+
+/**
+ * Path to pay registration for an event (main site: /pay/r/<slug>).
+ * On pay.mudrc.sk host rewrite this becomes /r/<slug>.
+ */
+export function payRegisterHrefForEvent(
+  event: Pick<QuizEvent, "slug" | "date"> & { termQuery?: string },
+  host?: string | null
+): string {
+  const date = (event.termQuery?.trim() || event.date?.trim() || "");
+  const path = date
+    ? `/r/${encodeURIComponent(event.slug)}?date=${encodeURIComponent(date)}`
+    : `/r/${encodeURIComponent(event.slug)}`;
+  return payHref(getPayBasePath(host), path);
 }

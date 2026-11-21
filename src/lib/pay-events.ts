@@ -17,10 +17,10 @@ import {
   type FeeTierConfig,
   type PricingSnapshot,
 } from "@/lib/pay-pricing";
-import { ensurePayTestEvent, PAY_TEST_EVENT_SLUG } from "@/lib/pay-test-event";
+import { PAY_STAGING_DEMO_SLUG, PAY_TEST_EVENT_SLUG } from "@/lib/pay-config";
+import { ensurePayTestEvent } from "@/lib/pay-test-event";
 
-export const PAY_STAGING_DEMO_SLUG = "pay-staging-demo";
-export { PAY_TEST_EVENT_SLUG };
+export { PAY_STAGING_DEMO_SLUG, PAY_TEST_EVENT_SLUG };
 
 export type PayQuizOption = {
   listingKey: string;

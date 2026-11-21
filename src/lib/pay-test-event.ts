@@ -1,9 +1,9 @@
 import type { QuizEvent } from "@/lib/data";
 import { normalizeNewEvent } from "@/lib/event-normalize";
+import { PAY_TEST_EVENT_SLUG } from "@/lib/pay-config";
 import { readEvents, updateEvents } from "@/lib/storage";
 
-/** Real Blob-backed test venue on mudrc.sk for pay dry-runs (Ľuboš). */
-export const PAY_TEST_EVENT_SLUG = "test-platby-silvester";
+export { PAY_TEST_EVENT_SLUG };
 
 export function buildPayTestEvent(): QuizEvent {
   return normalizeNewEvent({
