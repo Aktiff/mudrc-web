@@ -44,20 +44,11 @@ export function buildPayTestEvent(): QuizEvent {
 
 let ensureInFlight: Promise<QuizEvent> | null = null;
 
-function needsFeeRefresh(existing: QuizEvent, desired: QuizEvent): boolean {
-  return (
-    existing.earlyFee !== desired.earlyFee ||
-    existing.lateFee !== desired.lateFee ||
-    existing.walkUpFee !== desired.walkUpFee ||
-    existing.earlyWindowHours !== desired.earlyWindowHours ||
-    existing.onlineLockMinutes !== desired.onlineLockMinutes ||
-    existing.entryFee !== desired.entryFee
-  );
-}
-
 /**
- * Idempotent: creates or refreshes the Silvester test event in Blob/local events.
- * Safe to call from public read paths (fixed slug + fixed content).
+ * Create-if-missing only for the pay dry-run venue.
+ * Never overwrites title/date/fees/etc. after the first insert — admin edits stick.
+ * Prepaid tier fields (earlyFee/lateFee/walkUpFee) come from the seeded event
+ * and remain editable like any other quiz.
  */
 export async function ensurePayTestEvent(): Promise<QuizEvent> {
   if (ensureInFlight) return ensureInFlight;
@@ -67,31 +58,11 @@ export async function ensurePayTestEvent(): Promise<QuizEvent> {
     try {
       const { events } = await readEvents();
       const existing = events.find((e) => e.slug === PAY_TEST_EVENT_SLUG);
-      const needsWrite =
-        !existing ||
-        existing.date !== desired.date ||
-        existing.time !== desired.time ||
-        existing.venue !== desired.venue ||
-        existing.registrationOpen === false ||
-        existing.active === false ||
-        existing.maxPlayers !== desired.maxPlayers ||
-        existing.minPlayers !== desired.minPlayers ||
-        needsFeeRefresh(existing, desired);
-
-      if (!needsWrite && existing) return existing;
+      if (existing) return existing;
 
       const { events: next } = await updateEvents((list) => {
-        const idx = list.findIndex((e) => e.slug === PAY_TEST_EVENT_SLUG);
-        if (idx < 0) return [...list, desired];
-        const copy = [...list];
-        copy[idx] = {
-          ...copy[idx],
-          ...desired,
-          // Keep any accidental league data empty for a test venue.
-          leagueTable: [],
-          pastResults: [],
-        };
-        return copy;
+        if (list.some((e) => e.slug === PAY_TEST_EVENT_SLUG)) return list;
+        return [...list, desired];
       });
       return next.find((e) => e.slug === PAY_TEST_EVENT_SLUG) ?? desired;
     } catch (error) {
