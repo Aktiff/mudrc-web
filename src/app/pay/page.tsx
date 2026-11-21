@@ -17,9 +17,9 @@ export default async function PayHomePage() {
           Predplatné miesta
         </h1>
         <p className="text-brand-muted">
-          Kapitán zaregistruje tím (e-mail povinný) → jeden zdieľateľný pay-link → každý zaplatí jedno miesto.
-          Na testovanie použi <strong>TEST Platby — Silvester</strong> (31.12.2026) — jasne označená testovacia
-          udalosť aj na mudrc.sk. Pri platbe vyplň svoj e-mail: potvrdenie príde tebe ako platiteľovi.
+          Kapitán zaregistruje tím → rovno platba (pay-link). Cena podľa času platby:{" "}
+          <strong>4 €</strong> (≥24 h) · <strong>5 €</strong> (&lt;24 h) · <strong>6 €</strong> walk-up (od 10 min
+          pred štartom). Na testovanie použi <strong>TEST Platby — Silvester</strong> (31.12.2026).
         </p>
       </header>
 
@@ -30,6 +30,7 @@ export default async function PayHomePage() {
           {quizzes.map((q) => {
             const withDate = href(`/r/${q.eventSlug}?date=${encodeURIComponent(q.quizDate)}`);
             const checkIn = href(`/check-in/${q.eventSlug}?date=${encodeURIComponent(q.quizDate)}`);
+            const walkUp = href(`/walk-up/${q.eventSlug}?date=${encodeURIComponent(q.quizDate)}`);
             return (
               <li
                 key={q.listingKey}
@@ -47,18 +48,29 @@ export default async function PayHomePage() {
                   </div>
                   <div className="text-sm text-brand-muted mt-1">{q.whenLabel}</div>
                   <div className="text-sm text-brand-muted mt-1">
-                    Predplatné {formatEuroAmount(q.prepaidPrice)} · walk-up {formatEuroAmount(q.walkUpPrice)}
+                    {formatEuroAmount(q.earlyFee)} / {formatEuroAmount(q.lateFee)} / {formatEuroAmount(q.walkUpFee)}
+                    {" · "}
+                    teraz {formatEuroAmount(q.onlineLocked ? q.walkUpFee : q.prepaidPrice)}
+                    {q.onlineLocked ? " (walk-up)" : q.pricing.tier === "early" ? " (skoré)" : " (neskoré)"}
                     {` · ${q.minPlayers}–${q.maxPlayers} hráčov`}
-                    {q.started ? " · po štarte" : q.registrationOpen ? "" : " · registrácia zatvorená"}
+                    {q.started
+                      ? " · po štarte"
+                      : q.onlineLocked
+                        ? " · online uzamknuté"
+                        : q.registrationOpen
+                          ? ""
+                          : " · registrácia zatvorená"}
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2 sm:justify-end">
-                  {q.registrationOpen ? (
+                  {q.registrationOpen && !q.onlineLocked ? (
                     <Link href={withDate} className="btn-primary text-sm px-4 py-2">
                       Registrovať tím
                     </Link>
                   ) : (
-                    <span className="text-sm text-brand-muted self-center">Online rezervácia ukončená</span>
+                    <Link href={walkUp} className="btn-primary text-sm px-4 py-2">
+                      Walk-up {formatEuroAmount(q.walkUpFee)}
+                    </Link>
                   )}
                   <Link href={checkIn} className="btn-outline text-sm px-4 py-2">
                     Check-in

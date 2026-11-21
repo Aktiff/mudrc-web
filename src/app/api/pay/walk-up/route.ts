@@ -6,7 +6,7 @@ import { createAndPayWalkUp } from "@/lib/pay-storage";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/** MOCK walk-up: creates a paid seat at walk-up price (entryFee + surcharge). */
+/** MOCK walk-up: creates a paid seat at walk-up fee (default 6 €). */
 export async function POST(req: NextRequest) {
   if (!PAY_MOCK_MODE) {
     return NextResponse.json({ error: "Mock platby sú vypnuté." }, { status: 503 });
@@ -35,7 +35,8 @@ export async function POST(req: NextRequest) {
       city: quiz.city,
       quizDate: quiz.quizDate,
       quizTime: quiz.quizTime,
-      entryFee: quiz.entryFee,
+      entryFee: quiz.earlyFee,
+      feeConfig: quiz.feeConfig,
       name,
       email: email || undefined,
       phone: phone || undefined,
@@ -46,7 +47,7 @@ export async function POST(req: NextRequest) {
       amountEur: seat.amountEur,
       seatId: seat.id,
       teamId: team.id,
-      message: "Walk-up mock platba úspešná.",
+      message: `Walk-up mock platba úspešná (${seat.amountEur} €).`,
     });
   } catch (error) {
     console.error("walk-up failed:", error);

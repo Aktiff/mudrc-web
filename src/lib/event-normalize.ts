@@ -45,6 +45,21 @@ export function normalizeNewEvent(body: Partial<QuizEvent> & { venue?: string })
     date: String(body.date ?? "").trim(),
     time: String(body.time ?? "19:00").trim() || "19:00",
     entryFee: Number(body.entryFee) || 0,
+    ...(body.earlyFee != null && Number.isFinite(Number(body.earlyFee))
+      ? { earlyFee: Number(body.earlyFee) }
+      : {}),
+    ...(body.lateFee != null && Number.isFinite(Number(body.lateFee))
+      ? { lateFee: Number(body.lateFee) }
+      : {}),
+    ...(body.walkUpFee != null && Number.isFinite(Number(body.walkUpFee))
+      ? { walkUpFee: Number(body.walkUpFee) }
+      : {}),
+    ...(body.earlyWindowHours != null && Number.isFinite(Number(body.earlyWindowHours))
+      ? { earlyWindowHours: Number(body.earlyWindowHours) }
+      : {}),
+    ...(body.onlineLockMinutes != null && Number.isFinite(Number(body.onlineLockMinutes))
+      ? { onlineLockMinutes: Number(body.onlineLockMinutes) }
+      : {}),
     quizType: String(body.quizType ?? "").trim(),
     thematic: body.thematic === true,
     specialRules: normalizeQuizRules(body.specialRules),

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { absoluteCaptainTeamUrl, sendCaptainTeamAccessEmail } from "@/lib/pay-email";
+import { getPayBasePath, payHref, payPublicOrigin } from "@/lib/pay-config";
 import { resolvePayQuiz } from "@/lib/pay-events";
 import { registerPayTeam } from "@/lib/pay-storage";
 
@@ -32,7 +33,17 @@ export async function POST(req: NextRequest) {
   }
   if (quiz.started) {
     return NextResponse.json(
-      { error: "Kvíz už začal. Online rezervácia je uzavretá — použi walk-up na mieste." },
+      {
+        error: `Kvíz už začal. Online rezervácia je uzavretá — walk-up na mieste za ${quiz.walkUpFee} €.`,
+      },
+      { status: 403 }
+    );
+  }
+  if (quiz.onlineLocked || !quiz.pricing.onlineRegistrationOpen) {
+    return NextResponse.json(
+      {
+        error: `Online registrácia je uzamknutá (menej než ${quiz.feeConfig.onlineLockMinutes} min do štartu). Walk-up na mieste za ${quiz.walkUpFee} €.`,
+      },
       { status: 403 }
     );
   }
@@ -60,12 +71,18 @@ export async function POST(req: NextRequest) {
       players,
       captainPhone: phone,
       captainEmail: email,
-      entryFee: quiz.entryFee,
+      entryFee: quiz.earlyFee,
+      feeConfig: quiz.feeConfig,
     });
 
     const host = req.headers.get("x-forwarded-host") || req.headers.get("host");
     const proto = req.headers.get("x-forwarded-proto");
     const teamUrl = absoluteCaptainTeamUrl(team.token, { host, proto });
+    const basePath = getPayBasePath(host);
+    const origin = payPublicOrigin(host, proto);
+    // Captain goes straight to the shared pay-link checkout (not just the team dashboard).
+    const payPath = payHref(basePath, `/s/${team.token}`);
+    const payUrl = `${origin}${payPath}`;
 
     let captainEmailSent = false;
     let captainEmailSkipped = false;
@@ -86,6 +103,11 @@ export async function POST(req: NextRequest) {
       teamToken: team.token,
       teamId: team.id,
       teamUrl,
+      payUrl,
+      payPath,
+      prepaidPrice: quiz.prepaidPrice,
+      tier: quiz.pricing.tier,
+      tierLadderCopy: quiz.tierLadderCopy,
       captainEmailSent,
       captainEmailSkipped,
       captainEmailId,

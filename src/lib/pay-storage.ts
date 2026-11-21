@@ -175,7 +175,8 @@ export async function registerPayTeam(
 
 export async function paySeatMock(
   seatToken: string,
-  payer?: { name?: string; email?: string }
+  payer?: { name?: string; email?: string },
+  feeOverride?: Parameters<typeof markSeatPaid>[4]
 ): Promise<{ team: PayTeam; seat: PaySeat } | { error: string; status: number }> {
   let paid: { team: PayTeam; seat: PaySeat } | undefined;
   let fail: string | undefined;
@@ -185,7 +186,7 @@ export async function paySeatMock(
       fail = "Lístok neexistuje.";
       return teams;
     }
-    const outcome = markSeatPaid(teams[idx], seatToken, payer);
+    const outcome = markSeatPaid(teams[idx], seatToken, payer, new Date(), feeOverride);
     if ("error" in outcome) {
       fail = outcome.error;
       return teams;
@@ -203,9 +204,10 @@ export async function paySeatMock(
 /** Pay one seat via the shared team link (claims next pending prepaid seat). */
 export async function payTeamNextSeatMock(
   teamToken: string,
-  payer?: { name?: string; email?: string }
+  payer?: { name?: string; email?: string },
+  feeOverride?: Parameters<typeof markNextPendingSeatsPaid>[4]
 ): Promise<{ team: PayTeam; seat: PaySeat } | { error: string; status: number }> {
-  const result = await payTeamSeatsMock(teamToken, 1, payer);
+  const result = await payTeamSeatsMock(teamToken, 1, payer, feeOverride);
   if ("error" in result) return result;
   return { team: result.team, seat: result.seats[0] };
 }
@@ -214,7 +216,8 @@ export async function payTeamNextSeatMock(
 export async function payTeamSeatsMock(
   teamToken: string,
   quantity: number,
-  payer?: { name?: string; email?: string }
+  payer?: { name?: string; email?: string },
+  feeOverride?: Parameters<typeof markNextPendingSeatsPaid>[4]
 ): Promise<{ team: PayTeam; seats: PaySeat[] } | { error: string; status: number }> {
   let paid: { team: PayTeam; seats: PaySeat[] } | undefined;
   let fail: string | undefined;
@@ -224,7 +227,7 @@ export async function payTeamSeatsMock(
       fail = "Tím neexistuje.";
       return teams;
     }
-    const outcome = markNextPendingSeatsPaid(teams[idx], quantity, payer);
+    const outcome = markNextPendingSeatsPaid(teams[idx], quantity, payer, new Date(), feeOverride);
     if ("error" in outcome) {
       fail = outcome.error;
       return teams;
@@ -242,7 +245,7 @@ export async function payTeamSeatsMock(
 export async function addTeamSeat(
   teamToken: string,
   maxPlayers: number,
-  entryFee: number
+  feeOrEntry: Parameters<typeof addPrepaidSeat>[2]
 ): Promise<{ team: PayTeam; seat: PaySeat } | { error: string; status: number }> {
   let added: { team: PayTeam; seat: PaySeat } | undefined;
   let fail: string | undefined;
@@ -252,7 +255,7 @@ export async function addTeamSeat(
       fail = "Tím neexistuje.";
       return teams;
     }
-    const outcome = addPrepaidSeat(teams[idx], maxPlayers, entryFee);
+    const outcome = addPrepaidSeat(teams[idx], maxPlayers, feeOrEntry);
     if ("error" in outcome) {
       fail = outcome.error;
       return teams;
@@ -273,7 +276,8 @@ export async function createAndPayWalkUp(input: {
   city?: string;
   quizDate: string;
   quizTime: string;
-  entryFee: number;
+  entryFee?: number;
+  feeConfig?: Parameters<typeof createWalkUpSeat>[0]["feeConfig"];
   name: string;
   email?: string;
   phone?: string;
@@ -283,7 +287,7 @@ export async function createAndPayWalkUp(input: {
     email: input.email,
     phone: input.phone,
   });
-  const paid = markSeatPaid(team, seat.token, { name: input.name, email: input.email });
+  const paid = markSeatPaid(team, seat.token, { name: input.name, email: input.email }, new Date(), input.feeConfig);
   if ("error" in paid) throw new Error(paid.error);
   await updateStore((teams) => [...teams, paid.team]);
   return paid;

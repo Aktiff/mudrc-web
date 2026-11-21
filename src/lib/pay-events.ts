@@ -10,7 +10,13 @@ import { isExternalEvent } from "@/lib/event-normalize";
 import { findFutureQuiz, futureQuizMatchesDate, publicQuizCards } from "@/lib/future-quizzes";
 import { getEventRegionSlug } from "@/lib/regions";
 import { readEvents } from "@/lib/storage";
-import { prepaidPriceEur, walkUpPriceEur } from "@/lib/pay-config";
+import {
+  formatTierLadderCopy,
+  pricingSnapshot,
+  resolveFeeConfig,
+  type FeeTierConfig,
+  type PricingSnapshot,
+} from "@/lib/pay-pricing";
 import { ensurePayTestEvent, PAY_TEST_EVENT_SLUG } from "@/lib/pay-test-event";
 
 export const PAY_STAGING_DEMO_SLUG = "pay-staging-demo";
@@ -26,11 +32,20 @@ export type PayQuizOption = {
   quizTime: string;
   whenLabel: string;
   entryFee: number;
+  /** Current online prepaid price at request time (early or late). */
   prepaidPrice: number;
   walkUpPrice: number;
+  earlyFee: number;
+  lateFee: number;
+  walkUpFee: number;
+  feeConfig: FeeTierConfig;
+  pricing: PricingSnapshot;
+  tierLadderCopy: string;
   minPlayers: number;
   maxPlayers: number;
   registrationOpen: boolean;
+  /** Online pay/register locked (T-10min or started). */
+  onlineLocked: boolean;
   started: boolean;
   /** Synthetic quiz for end-to-end pay.mudrc.sk testing */
   stagingDemo?: boolean;
@@ -46,9 +61,65 @@ function todaySkDate(): string {
   return `${String(now.getDate()).padStart(2, "0")}.${String(now.getMonth() + 1).padStart(2, "0")}.${now.getFullYear()}`;
 }
 
+function feeFieldsFromEvent(event: Pick<QuizEvent, "entryFee" | "earlyFee" | "lateFee" | "walkUpFee" | "earlyWindowHours" | "onlineLockMinutes">) {
+  return {
+    entryFee: event.entryFee,
+    earlyFee: event.earlyFee,
+    lateFee: event.lateFee,
+    walkUpFee: event.walkUpFee,
+    earlyWindowHours: event.earlyWindowHours,
+    onlineLockMinutes: event.onlineLockMinutes,
+  };
+}
+
+function attachPricing(base: {
+  listingKey: string;
+  eventSlug: string;
+  venue: string;
+  city: string;
+  regionSlug: string;
+  quizDate: string;
+  quizTime: string;
+  whenLabel: string;
+  minPlayers: number;
+  maxPlayers: number;
+  registrationOpen: boolean;
+  started: boolean;
+  stagingDemo?: boolean;
+  eventFees: ReturnType<typeof feeFieldsFromEvent>;
+}): PayQuizOption {
+  const feeConfig = resolveFeeConfig(base.eventFees);
+  const pricing = pricingSnapshot(base.quizDate, base.quizTime, feeConfig);
+  const onlineLocked = !pricing.onlineRegistrationOpen;
+  return {
+    listingKey: base.listingKey,
+    eventSlug: base.eventSlug,
+    venue: base.venue,
+    city: base.city,
+    regionSlug: base.regionSlug,
+    quizDate: base.quizDate,
+    quizTime: base.quizTime,
+    whenLabel: base.whenLabel,
+    entryFee: feeConfig.earlyFee,
+    prepaidPrice: pricing.onlinePriceEur,
+    walkUpPrice: pricing.walkUpPriceEur,
+    earlyFee: feeConfig.earlyFee,
+    lateFee: feeConfig.lateFee,
+    walkUpFee: feeConfig.walkUpFee,
+    feeConfig,
+    pricing,
+    tierLadderCopy: formatTierLadderCopy(feeConfig),
+    minPlayers: base.minPlayers,
+    maxPlayers: base.maxPlayers,
+    registrationOpen: base.registrationOpen && pricing.onlineRegistrationOpen,
+    onlineLocked,
+    started: base.started || pricing.started,
+    ...(base.stagingDemo ? { stagingDemo: true } : {}),
+  };
+}
+
 /** Always-open demo quiz so pay.mudrc.sk stays end-to-end testable. */
 export function getPayStagingDemoQuiz(): PayQuizOption & { event: QuizEvent } {
-  const fee = 4;
   const quizDate = addDaysToSkDate(todaySkDate(), 45) || "15.01.2027";
   const quizTime = "19:00";
   const event: QuizEvent = {
@@ -59,7 +130,12 @@ export function getPayStagingDemoQuiz(): PayQuizOption & { event: QuizEvent } {
     regionSlug: "prievidza",
     date: quizDate,
     time: quizTime,
-    entryFee: fee,
+    entryFee: 4,
+    earlyFee: 4,
+    lateFee: 5,
+    walkUpFee: 6,
+    earlyWindowHours: 24,
+    onlineLockMinutes: 10,
     maxPlayers: 8,
     minPlayers: 2,
     rounds: 4,
@@ -70,11 +146,12 @@ export function getPayStagingDemoQuiz(): PayQuizOption & { event: QuizEvent } {
     rules: [
       "Každý tím môže mať od 2 do 8 hráčov.",
       "Toto je testovací termín pre mock platby na pay.mudrc.sk.",
+      "Ceny: 4 € (≥24 h) · 5 € (<24 h) · 6 € walk-up (od 10 min pred štartom).",
     ],
     leagueTable: [],
     pastResults: [],
   };
-  return {
+  const option = attachPricing({
     listingKey: `${PAY_STAGING_DEMO_SLUG}:${quizDate}`,
     eventSlug: PAY_STAGING_DEMO_SLUG,
     venue: event.venue,
@@ -83,23 +160,20 @@ export function getPayStagingDemoQuiz(): PayQuizOption & { event: QuizEvent } {
     quizDate,
     quizTime,
     whenLabel: formatEventDateLabel(quizDate) + ` · ${quizTime}`,
-    entryFee: fee,
-    prepaidPrice: prepaidPriceEur(fee),
-    walkUpPrice: walkUpPriceEur(fee),
     minPlayers: 2,
     maxPlayers: 8,
     registrationOpen: true,
     started: false,
     stagingDemo: true,
-    event,
-  };
+    eventFees: feeFieldsFromEvent(event),
+  });
+  return { ...option, event };
 }
 
 function toOption(card: QuizEvent & { listingKey: string; termQuery?: string }): PayQuizOption {
   const quizDate = card.termQuery?.trim() || card.date;
   const quizTime = card.time;
-  const fee = Number(card.entryFee) || 4;
-  return {
+  return attachPricing({
     listingKey: card.listingKey,
     eventSlug: card.slug,
     venue: card.venue,
@@ -108,14 +182,12 @@ function toOption(card: QuizEvent & { listingKey: string; termQuery?: string }):
     quizDate,
     quizTime,
     whenLabel: formatEventDateLabel(quizDate) + (quizTime ? ` · ${quizTime}` : ""),
-    entryFee: fee,
-    prepaidPrice: prepaidPriceEur(fee),
-    walkUpPrice: walkUpPriceEur(fee),
     minPlayers: card.minPlayers || 2,
     maxPlayers: card.maxPlayers || 8,
     registrationOpen: isRegistrationOpen(card) && !started(quizDate, quizTime),
     started: started(quizDate, quizTime),
-  };
+    eventFees: feeFieldsFromEvent(card),
+  });
 }
 
 export async function listPayQuizzes(): Promise<PayQuizOption[]> {
@@ -142,22 +214,26 @@ export async function resolvePayQuiz(
   if (eventSlug === PAY_STAGING_DEMO_SLUG) {
     const demo = getPayStagingDemoQuiz();
     if (quizDate?.trim() && quizDate.trim() !== demo.quizDate) {
-      // Accept any future date query for the rolling demo (register form passes quizDate).
-      const fee = demo.entryFee;
       const date = quizDate.trim();
       const time = demo.quizTime;
       if (started(date, time)) return null;
-      return {
-        ...demo,
+      const option = attachPricing({
         listingKey: `${PAY_STAGING_DEMO_SLUG}:${date}`,
+        eventSlug: PAY_STAGING_DEMO_SLUG,
+        venue: demo.venue,
+        city: demo.city,
+        regionSlug: demo.regionSlug,
         quizDate: date,
+        quizTime: time,
         whenLabel: formatEventDateLabel(date) + ` · ${time}`,
+        minPlayers: demo.minPlayers,
+        maxPlayers: demo.maxPlayers,
         registrationOpen: true,
         started: false,
-        event: { ...demo.event, date },
-        prepaidPrice: prepaidPriceEur(fee),
-        walkUpPrice: walkUpPriceEur(fee),
-      };
+        stagingDemo: true,
+        eventFees: feeFieldsFromEvent(demo.event),
+      });
+      return { ...option, event: { ...demo.event, date } };
     }
     return demo;
   }
@@ -182,8 +258,7 @@ export async function resolvePayQuiz(
     return null;
   }
 
-  const fee = Number(event.entryFee) || 4;
-  return {
+  const option = attachPricing({
     listingKey: `${event.slug}:${date}`,
     eventSlug: event.slug,
     venue: event.venue,
@@ -192,13 +267,11 @@ export async function resolvePayQuiz(
     quizDate: date,
     quizTime: time,
     whenLabel: formatEventDateLabel(date) + (time ? ` · ${time}` : ""),
-    entryFee: fee,
-    prepaidPrice: prepaidPriceEur(fee),
-    walkUpPrice: walkUpPriceEur(fee),
     minPlayers: event.minPlayers || 2,
     maxPlayers: event.maxPlayers || 8,
     registrationOpen: registrationOpen && !started(date, time),
     started: started(date, time),
-    event,
-  };
+    eventFees: feeFieldsFromEvent(event),
+  });
+  return { ...option, event };
 }

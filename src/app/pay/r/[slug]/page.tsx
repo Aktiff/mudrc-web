@@ -17,16 +17,25 @@ export default async function PayRegisterPage({ params, searchParams }: Props) {
 
   const { href, basePath } = payRequestContext();
 
-  if (quiz.started || !quiz.registrationOpen) {
+  if (quiz.started || quiz.onlineLocked || !quiz.registrationOpen) {
+    const lockedEarly = quiz.onlineLocked && !quiz.started;
     return (
       <div className="mx-auto max-w-md space-y-4 text-center">
-        <h1 className="font-display text-4xl uppercase tracking-wide text-brand-text">Registrácia uzavretá</h1>
+        <h1 className="font-display text-4xl uppercase tracking-wide text-brand-text">
+          {lockedEarly ? "Online registrácia uzamknutá" : "Registrácia uzavretá"}
+        </h1>
         <p className="text-brand-muted">
-          {quiz.venue} · {quiz.whenLabel}. Online hold už nie je k dispozícii.
+          {quiz.venue} · {quiz.whenLabel}.
+          {lockedEarly
+            ? ` Menej než ${quiz.feeConfig.onlineLockMinutes} minút do štartu — nové online rezervácie už nie sú. Walk-up na mieste za ${quiz.walkUpFee} €.`
+            : " Online hold už nie je k dispozícii."}
+        </p>
+        <p className="text-sm text-brand-muted">
+          Cenník: {quiz.earlyFee}&nbsp;€ / {quiz.lateFee}&nbsp;€ / {quiz.walkUpFee}&nbsp;€ (skôr = lacnejšie).
         </p>
         <div className="flex flex-wrap gap-3 justify-center">
           <Link href={href(`/walk-up/${quiz.eventSlug}?date=${encodeURIComponent(quiz.quizDate)}`)} className="btn-primary">
-            Walk-up
+            Walk-up {quiz.walkUpFee}&nbsp;€
           </Link>
           <Link href={href("/")} className="btn-outline">
             Späť
@@ -49,6 +58,11 @@ export default async function PayRegisterPage({ params, searchParams }: Props) {
         minPlayers={quiz.minPlayers}
         maxPlayers={quiz.maxPlayers}
         prepaidPrice={quiz.prepaidPrice}
+        earlyFee={quiz.earlyFee}
+        lateFee={quiz.lateFee}
+        walkUpFee={quiz.walkUpFee}
+        tierLadderCopy={quiz.tierLadderCopy}
+        pricingTier={quiz.pricing.tier}
         basePath={basePath}
       />
     </div>

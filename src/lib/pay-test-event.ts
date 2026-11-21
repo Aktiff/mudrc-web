@@ -15,6 +15,11 @@ export function buildPayTestEvent(): QuizEvent {
     date: "31.12.2026",
     time: "19:00",
     entryFee: 4,
+    earlyFee: 4,
+    lateFee: 5,
+    walkUpFee: 6,
+    earlyWindowHours: 24,
+    onlineLockMinutes: 10,
     quizType: "TEST — predplatné",
     minPlayers: 2,
     maxPlayers: 8,
@@ -28,7 +33,9 @@ export function buildPayTestEvent(): QuizEvent {
       "TOTO JE TESTOVACIA UDALOSŤ — nie je to reálny kvíz a nechodí sa na ňu.",
       "Slúži len na skúšanie registrácie tímu a mock platby (pay.mudrc.sk / /pay).",
       "Tím môže mať 2 až 8 hráčov.",
-      "Vstupné 4 € / osoba (mock — bez skutočnej karty).",
+      "Ceny podľa času platby: 4 € (≥24 h pred štartom) · 5 € (<24 h až 10 min pred) · 6 € walk-up na mieste.",
+      "Online registrácia a platba sa uzamknú 10 minút pred štartom.",
+      "Storno: ≥24 h → refund 50 % zaplatenej sumy; <24 h → 0 % (PSP refund neskôr).",
     ],
     leagueTable: [],
     pastResults: [],
@@ -36,6 +43,17 @@ export function buildPayTestEvent(): QuizEvent {
 }
 
 let ensureInFlight: Promise<QuizEvent> | null = null;
+
+function needsFeeRefresh(existing: QuizEvent, desired: QuizEvent): boolean {
+  return (
+    existing.earlyFee !== desired.earlyFee ||
+    existing.lateFee !== desired.lateFee ||
+    existing.walkUpFee !== desired.walkUpFee ||
+    existing.earlyWindowHours !== desired.earlyWindowHours ||
+    existing.onlineLockMinutes !== desired.onlineLockMinutes ||
+    existing.entryFee !== desired.entryFee
+  );
+}
 
 /**
  * Idempotent: creates or refreshes the Silvester test event in Blob/local events.
@@ -57,7 +75,8 @@ export async function ensurePayTestEvent(): Promise<QuizEvent> {
         existing.registrationOpen === false ||
         existing.active === false ||
         existing.maxPlayers !== desired.maxPlayers ||
-        existing.minPlayers !== desired.minPlayers;
+        existing.minPlayers !== desired.minPlayers ||
+        needsFeeRefresh(existing, desired);
 
       if (!needsWrite && existing) return existing;
 
