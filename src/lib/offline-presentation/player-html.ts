@@ -1083,7 +1083,7 @@ button,select{font:inherit}
     stage.style.aspectRatio = style.aspectRatio || "";
   }
 
-  var presentationNav = { left: true, onPop: null };
+  var presentationNav = { left: true, onPop: null, gen: 0 };
 
   function detachPresentationNav() {
     presentationNav.left = true;
@@ -1118,21 +1118,27 @@ button,select{font:inherit}
     document.getElementById("stageRoot").style.display = "none";
     document.getElementById("start").style.display = "flex";
     resetView();
+    // Posuň history za close marker, aby ďalší štart / Back nespadol na starý close.
+    try { window.history.pushState({ mudrcPresentation: "idle" }, ""); } catch (e) {}
   }
 
   function armPresentationNav() {
     detachPresentationNav();
-    var stay = { mudrcPresentation: "stay" };
-    var close = { mudrcPresentation: "close" };
+    presentationNav.gen += 1;
+    var gen = presentationNav.gen;
+    var stay = { mudrcPresentation: "stay", gen: gen };
+    var close = { mudrcPresentation: "close", gen: gen };
     presentationNav.left = false;
     presentationNav.onPop = function (event) {
       if (presentationNav.left) return;
-      var marker = event.state && event.state.mudrcPresentation;
-      if (marker === "close") {
+      var st = event.state || null;
+      var marker = st && st.mudrcPresentation;
+      var sameGen = st && st.gen === gen;
+      if (marker === "close" && sameGen) {
         stopPresentation();
         return;
       }
-      if (marker === "stay") return;
+      if (marker === "stay" && sameGen) return;
       window.history.forward();
     };
     window.addEventListener("popstate", presentationNav.onPop);
