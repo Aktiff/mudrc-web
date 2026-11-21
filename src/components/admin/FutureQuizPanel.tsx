@@ -121,7 +121,7 @@ export default function FutureQuizPanel({
       <div>
         <p className="font-semibold text-brand-text text-sm">Ďalší kvíz v tomto podniku</p>
         <p className="text-brand-muted text-xs mt-1 leading-relaxed">
-          Bežný kvíz ostane bežný. Špeciálny termín je vlastná karta a na webe je vidno najviac 2 mesiace dopredu. Kým je pred bežným kvízom špeciálny, bežný sa dopredu neukáže.
+          Bežný kvíz ostane bežný. Špeciálny termín je vlastná karta a na webe ostane viditeľný aj mesiace dopredu. Kým je pred bežným kvízom špeciálny, bežný sa dopredu neukáže.
         </p>
       </div>
       {listed.length > 0 && (
