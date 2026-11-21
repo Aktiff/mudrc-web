@@ -82,14 +82,6 @@ function todayStamp(): number {
   return new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
 }
 
-/** Špeciálny kvíz je na webe vidno najviac toľko mesiacov dopredu. */
-export const SPECIAL_QUIZ_LOOKAHEAD_MONTHS = 2;
-
-function specialWindowEnd(today: number): number {
-  const start = new Date(today);
-  return new Date(start.getFullYear(), start.getMonth() + SPECIAL_QUIZ_LOOKAHEAD_MONTHS, start.getDate()).getTime();
-}
-
 export type UpcomingNight = {
   date: string;
   time: string;
@@ -129,22 +121,23 @@ export function nearestUpcomingNight(
   return upcomingNights(event)[0] ?? null;
 }
 
-/** Bežný kvíz len keď je naozaj najbližší. Špeciálny aj 2 mesiace dopredu. */
+/**
+ * Public listing nights for an active event.
+ * - Always show the nearest upcoming night (any quiz type, any months ahead).
+ * - Extra special (non-general) terms also stay listed while upcoming — no month horizon.
+ * - Extra general “Všeobecný kvíz” nights stay hidden so only the nearest regular night cards.
+ */
 export function visiblePublicNights(
   event: Pick<QuizEvent, "date" | "time" | "quizType" | "registrationOpen" | "futureQuizzes">
 ): UpcomingNight[] {
   const nights = upcomingNights(event);
   const nearest = nights[0];
   if (!nearest) return [];
-  const today = todayStamp();
-  const horizon = specialWindowEnd(today);
   return nights.filter((night) => {
     const day = calendarDay(night.date);
     if (day === null) return false;
-    if (isGeneralQuizType(night.quizType)) {
-      return calendarDay(nearest.date) === day;
-    }
-    return day <= horizon;
+    if (calendarDay(nearest.date) === day) return true;
+    return !isGeneralQuizType(night.quizType);
   });
 }
 
