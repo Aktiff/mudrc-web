@@ -1083,6 +1083,64 @@ button,select{font:inherit}
     stage.style.aspectRatio = style.aspectRatio || "";
   }
 
+  var presentationNav = { left: true, onPop: null };
+
+  function detachPresentationNav() {
+    presentationNav.left = true;
+    if (presentationNav.onPop) {
+      window.removeEventListener("popstate", presentationNav.onPop);
+      presentationNav.onPop = null;
+    }
+  }
+
+  /** Rovnaký UX ako online: bočné tlačidlo ďalej od palca (history close) ukončí projekciu. */
+  function stopPresentation() {
+    if (!state.started) return;
+    detachPresentationNav();
+    state.started = false;
+    state.index = 0;
+    state.mediaEl = null;
+    clearHandIn();
+    if (slideTimerId) {
+      clearInterval(slideTimerId);
+      slideTimerId = null;
+    }
+    state.slideElapsed = 0;
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(function () {});
+    }
+    document.querySelectorAll("audio, video").forEach(function (node) {
+      try { node.pause(); } catch (e) {}
+    });
+    document.getElementById("slideInner").innerHTML = "";
+    document.getElementById("qBadge").style.display = "none";
+    document.getElementById("timer").style.display = "none";
+    document.getElementById("stageRoot").style.display = "none";
+    document.getElementById("start").style.display = "flex";
+    resetView();
+  }
+
+  function armPresentationNav() {
+    detachPresentationNav();
+    var stay = { mudrcPresentation: "stay" };
+    var close = { mudrcPresentation: "close" };
+    presentationNav.left = false;
+    presentationNav.onPop = function (event) {
+      if (presentationNav.left) return;
+      var marker = event.state && event.state.mudrcPresentation;
+      if (marker === "close") {
+        stopPresentation();
+        return;
+      }
+      if (marker === "stay") return;
+      window.history.forward();
+    };
+    window.addEventListener("popstate", presentationNav.onPop);
+    window.history.pushState(stay, "");
+    window.history.pushState(close, "");
+    window.history.back();
+  }
+
   function startPresentation() {
     state.started = true;
     state.index = 0;
@@ -1091,6 +1149,7 @@ button,select{font:inherit}
     applyStageBox();
     paint();
     resetSlideTimer();
+    armPresentationNav();
   }
 
   var slideLayer = document.getElementById("slideLayer");
