@@ -29,6 +29,9 @@ button,select{font:inherit}
 #start label.lbl{font-size:.875rem;color:rgba(255,255,255,.7)}
 #start select,#start button.primary{width:100%;border-radius:.75rem;padding:.85rem 1rem}
 #start select{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:#fff}
+/* Native dropdown panels often use a light system background (esp. Windows Chrome/Edge/Firefox file://).
+   White option text inherited from select is then invisible — force dark text on a light option row. */
+#start select option,#start select optgroup{background:#fff;color:#111}
 #start button.primary{background:#f0c800;color:#000;font-weight:700;border:0;cursor:pointer}
 #start button.primary:hover{background:#ffd54f}
 #start a.back{text-align:center;color:rgba(255,255,255,.5);font-size:.875rem;text-decoration:none}
