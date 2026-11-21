@@ -1,10 +1,12 @@
 import type { MouseEvent } from "react";
+import Link from "next/link";
 import { ExternalLink } from "lucide-react";
 import { isRegistrationOpen, type QuizEvent } from "@/lib/data";
 import { eventExternalUrl, isExternalEvent } from "@/lib/event-normalize";
+import { eventUsesPayRegistration, payRegisterHrefForEvent } from "@/lib/pay-config";
 
 type RegistrationActionProps = {
-  event: QuizEvent;
+  event: QuizEvent & { termQuery?: string };
   onRegister: (e: MouseEvent<HTMLButtonElement>) => void;
   className?: string;
   compact?: boolean;
@@ -12,9 +14,9 @@ type RegistrationActionProps = {
 
 export default function RegistrationAction({ event, onRegister, className = "", compact = false }: RegistrationActionProps) {
   const externalUrl = eventExternalUrl(event);
+  const sizeClass = compact ? "text-sm py-2.5" : "w-full text-sm py-3";
 
   if (isExternalEvent(event) && externalUrl) {
-    const sizeClass = compact ? "text-sm py-2.5" : "w-full text-sm py-3";
     return (
       <a
         href={externalUrl}
@@ -39,6 +41,19 @@ export default function RegistrationAction({ event, onRegister, className = "", 
       >
         Kvíz je plný
       </div>
+    );
+  }
+
+  if (eventUsesPayRegistration(event)) {
+    const href = payRegisterHrefForEvent(event);
+    return (
+      <Link
+        href={href}
+        onClick={(e) => e.stopPropagation()}
+        className={`btn-primary justify-center inline-flex items-center ${sizeClass} ${className}`}
+      >
+        {compact ? "Registrácia tímu" : "Zaregistrovať tím"}
+      </Link>
     );
   }
 
