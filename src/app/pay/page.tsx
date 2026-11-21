@@ -19,7 +19,7 @@ export default async function PayHomePage() {
         <p className="text-brand-muted">
           Kapitán zaregistruje tím → rovno platba (pay-link). Cena podľa času platby:{" "}
           <strong>4 €</strong> (≥24 h) · <strong>5 €</strong> (&lt;24 h) · <strong>6 €</strong> walk-up (od 10 min
-          pred štartom). Na testovanie použi <strong>TEST Platby — Silvester</strong> (31.12.2026).
+          pred štartom). Na testovanie použi udalosť so slugom <strong>test-platby-silvester</strong> (názov a dátum môžeš zmeniť v admini).
         </p>
       </header>
 
