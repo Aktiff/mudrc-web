@@ -39,8 +39,8 @@ button,select{font:inherit}
 .backdrop .b4{position:absolute;inset:0;opacity:.04;background-image:linear-gradient(rgba(255,255,255,.5) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.5) 1px,transparent 1px);background-size:48px 48px}
 #stageRoot{display:none;align-items:center;justify-content:center;background:#030303}
 #stage{position:relative;display:flex;flex-direction:column;color:#fff;overflow:hidden;box-shadow:0 0 0 1px rgba(255,255,255,.06)}
-#slideLayer{position:relative;z-index:2;flex:1;min-height:0;width:100%;display:flex;align-items:center;justify-content:center}
-#slideInner{width:100%;height:100%;max-height:100%;min-height:0;box-sizing:border-box;padding:max(1.25rem,2.4vmin) max(1.25rem,2.8vmin);display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden}
+#slideLayer{position:relative;z-index:2;flex:1;min-height:0;width:100%;display:flex;align-items:center;justify-content:center;touch-action:none;overflow:hidden}
+#slideInner{width:100%;height:100%;max-height:100%;min-height:0;box-sizing:border-box;padding:max(1.25rem,2.4vmin) max(1.25rem,2.8vmin);display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;will-change:transform;transform-origin:center center}
 .badge,.timer{position:absolute;z-index:5;pointer-events:none;top:1.1rem}
 .badge{left:1.1rem;background:#f0c800;color:#000;border-radius:1rem;min-width:4.5rem;height:4.5rem;display:flex;align-items:center;justify-content:center;box-shadow:0 10px 40px rgba(240,200,0,.45);ring:2px solid rgba(240,200,0,.4)}
 .badge span{font-family:BebasNeue,Impact,sans-serif;font-size:2.4rem;line-height:1}
@@ -97,6 +97,10 @@ button,select{font:inherit}
 .corr .gold{font-family:BebasNeue,Impact,sans-serif;color:#f0c800;font-size:clamp(3rem,10vw,6rem);margin:0 0 1.5rem}
 .corr .sub{font-size:clamp(1.5rem,4vw,3rem);color:rgba(255,255,255,.7);font-weight:600;margin:0 0 1rem}
 .corr li{font-weight:600;font-size:clamp(1.5rem,3.8vw,4rem);line-height:1.15;margin:.6rem 0;list-style:none}
+#stage.zoomed-out,#stage.zoomed-out *{overflow:visible !important}
+#stage.grabbing,#slideLayer.zoomed{cursor:grab}
+#stage.grabbing:active,#slideLayer.zoomed:active{cursor:grabbing}
+#volHint{display:none;position:fixed;bottom:2rem;left:50%;transform:translateX(-50%);z-index:10000;pointer-events:none;border-radius:999px;background:rgba(0,0,0,.8);padding:.5rem 1rem;font-size:.875rem;font-weight:600;color:#fff;box-shadow:0 10px 30px rgba(0,0,0,.45)}
 </style>
 </head>
 <body>
@@ -154,6 +158,7 @@ button,select{font:inherit}
     <div id="slideLayer"><div id="slideInner"></div></div>
   </div>
 </div>
+<div id="volHint">Hlasitosť 70 %</div>
 <script src="data.js"></script>
 <script>
 (function () {
@@ -455,6 +460,174 @@ button,select{font:inherit}
   var slideTimerId = null;
   var handInTimerId = null;
 
+  /** Hlasitosť / zoom — rovnaké správanie ako online PresentationZoomLayer + media-volume. */
+  var VOL_KEY = "mudrc-media-volume";
+  var VOL_BOOST_KEY = "mudrc-media-volume-boost";
+  var MEDIA_BOOST_MAX = 3;
+  var MIN_ZOOM = 0.4;
+  var MAX_ZOOM = 4;
+  var mediaVolume = 0.7;
+  var boostVolume = 0.7;
+  var view = { scale: 1, x: 0, y: 0 };
+  var wheelAcc = 0;
+  var volHintTimer = 0;
+  var drag = null;
+  var blockClick = false;
+  var volumeGraphs = typeof WeakMap !== "undefined" ? new WeakMap() : null;
+  var sharedAudioCtx = null;
+
+  try {
+    var storedVol = localStorage.getItem(VOL_KEY);
+    if (storedVol != null && isFinite(Number(storedVol))) mediaVolume = Math.min(1, Math.max(0, Math.round(Number(storedVol) * 100) / 100));
+    var storedBoost = localStorage.getItem(VOL_BOOST_KEY);
+    if (storedBoost != null && isFinite(Number(storedBoost))) boostVolume = Math.min(MEDIA_BOOST_MAX, Math.max(0, Math.round(Number(storedBoost) * 100) / 100));
+    else boostVolume = mediaVolume;
+  } catch (e) {}
+
+  function clampStep(value, max) {
+    var v = Math.min(max, Math.max(0, Math.round(value * 100) / 100));
+    return Math.min(max, Math.max(0, Math.round(v * 20) / 20));
+  }
+
+  function showVolHint(level) {
+    var el = document.getElementById("volHint");
+    if (!el) return;
+    el.textContent = "Hlasitosť " + Math.round(level * 100) + " %";
+    el.style.display = "block";
+    if (volHintTimer) clearTimeout(volHintTimer);
+    volHintTimer = setTimeout(function () { el.style.display = "none"; }, 1200);
+  }
+
+  function persistVolume() {
+    try {
+      localStorage.setItem(VOL_KEY, String(mediaVolume));
+      localStorage.setItem(VOL_BOOST_KEY, String(boostVolume));
+    } catch (e) {}
+  }
+
+  function bumpVolume(delta, boost) {
+    if (boost) {
+      boostVolume = clampStep(boostVolume + delta, MEDIA_BOOST_MAX);
+      if (boostVolume <= 1) mediaVolume = boostVolume;
+    } else {
+      mediaVolume = clampStep(mediaVolume + delta, 1);
+      if (boostVolume < mediaVolume || boostVolume <= 1) boostVolume = mediaVolume;
+    }
+    persistVolume();
+    applyVolumeToMedia();
+    showVolHint(boost ? boostVolume : mediaVolume);
+  }
+
+  function consumeVolumeWheel(event, boost) {
+    var pixels = event.deltaY;
+    if (event.deltaMode === 1) pixels *= 16;
+    else if (event.deltaMode === 2) pixels *= 800;
+    wheelAcc += pixels;
+    var notch = 80;
+    var delta = 0;
+    while (Math.abs(wheelAcc) >= notch) {
+      delta += wheelAcc > 0 ? -0.05 : 0.05;
+      wheelAcc -= (wheelAcc > 0 ? 1 : -1) * notch;
+    }
+    if (delta !== 0) bumpVolume(delta, boost);
+  }
+
+  function slideHasSound(slide) {
+    if (!slide) return false;
+    if (slide.type === "question_phase" || slide.type === "answer_phase") {
+      var q = slide.question;
+      return !!(q && (q.kind === "music" || q.kind === "sound" || q.kind === "video" || (q.audioUrl && String(q.audioUrl).trim()) || (q.videoUrl && String(q.videoUrl).trim())));
+    }
+    return slide.type === "image_slide" && slide.media === "video";
+  }
+
+  function ensureMediaGraph(node) {
+    if (!volumeGraphs || !node) return null;
+    var existing = volumeGraphs.get(node);
+    if (existing) return existing;
+    try {
+      var Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return null;
+      if (!sharedAudioCtx) sharedAudioCtx = new Ctx();
+      var source = sharedAudioCtx.createMediaElementSource(node);
+      var gain = sharedAudioCtx.createGain();
+      gain.gain.value = 1;
+      source.connect(gain);
+      gain.connect(sharedAudioCtx.destination);
+      var graph = { ctx: sharedAudioCtx, gain: gain };
+      volumeGraphs.set(node, graph);
+      node.addEventListener("play", function () { sharedAudioCtx.resume(); });
+      return graph;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function applyElementVolume(node, level) {
+    if (!node) return;
+    var base = isFinite(level) ? Math.min(MEDIA_BOOST_MAX, Math.max(0, level)) : 0;
+    if (base <= 1) {
+      try { node.volume = Math.min(1, Math.max(0, base)); } catch (e) {}
+      var g = volumeGraphs && volumeGraphs.get(node);
+      if (g) g.gain.gain.value = 1;
+      return;
+    }
+    var graph = ensureMediaGraph(node);
+    if (!graph) {
+      try { node.volume = 1; } catch (e) {}
+      return;
+    }
+    try { node.volume = 1; } catch (e) {}
+    graph.gain.gain.value = base;
+    try { graph.ctx.resume(); } catch (e) {}
+  }
+
+  function applyVolumeToMedia() {
+    var boost = slideHasSound(slides[state.index]);
+    var level = boost ? boostVolume : mediaVolume;
+    document.querySelectorAll("audio, video").forEach(function (node) {
+      applyElementVolume(node, level);
+    });
+  }
+
+  function resetView() {
+    view = { scale: 1, x: 0, y: 0 };
+    drag = null;
+    blockClick = false;
+    applyViewTransform();
+  }
+
+  function applyViewTransform() {
+    var stage = document.getElementById("stage");
+    var layer = document.getElementById("slideLayer");
+    var inner = document.getElementById("slideInner");
+    if (!stage || !layer || !inner) return;
+    var zoomedOut = view.scale < 0.999;
+    var zoomedIn = view.scale > 1;
+    if (zoomedOut) {
+      stage.classList.add("zoomed-out");
+      stage.style.transformOrigin = "center center";
+      stage.style.transform = "translate(" + view.x + "px, " + view.y + "px) scale(" + view.scale + ")";
+      inner.style.transform = "";
+    } else {
+      stage.classList.remove("zoomed-out");
+      stage.style.transform = "";
+      stage.style.transformOrigin = "";
+      if (Math.abs(view.scale - 1) < 0.001 && Math.abs(view.x) < 0.001 && Math.abs(view.y) < 0.001) {
+        inner.style.transform = "";
+      } else {
+        inner.style.transform = "translate3d(" + view.x + "px, " + view.y + "px, 0) scale(" + view.scale + ")";
+      }
+    }
+    if (zoomedIn) layer.classList.add("zoomed");
+    else layer.classList.remove("zoomed");
+  }
+
+  function isInteractiveTarget(target) {
+    if (!target || !target.closest) return false;
+    return !!target.closest("audio, video, button, input, select, textarea, a, label, [data-zoom-pan-block], [data-stop]");
+  }
+
   document.getElementById("quizTitle").textContent = quiz.title || "Kvíz";
   var eventSelect = document.getElementById("eventSelect");
   eventSelect.innerHTML = '<option value="">— Bez podniku (generické pravidlá) —</option>' +
@@ -745,6 +918,7 @@ button,select{font:inherit}
 
   function bindMedia() {
     state.mediaEl = document.querySelector('[data-role="presentation-audio"]');
+    applyVolumeToMedia();
     document.querySelectorAll("[data-until]").forEach(function (el) {
       var until = Number(el.getAttribute("data-until"));
       if (!until) return;
@@ -774,6 +948,7 @@ button,select{font:inherit}
     document.querySelectorAll("[data-stop]").forEach(function (el) {
       el.addEventListener("click", function (e) { e.stopPropagation(); });
       el.addEventListener("contextmenu", function (e) { e.stopPropagation(); });
+      el.addEventListener("auxclick", function (e) { e.stopPropagation(); });
     });
   }
 
@@ -799,10 +974,18 @@ button,select{font:inherit}
 
   function paint() {
     var slide = slides[state.index];
+    resetView();
     document.getElementById("slideInner").innerHTML = slide ? renderSlide(slide) : "";
     bindMedia();
     updateChrome();
     if (slide && slide.type === "rules") requestAnimationFrame(fitRules);
+  }
+
+  function togglePresentationAudio() {
+    var media = state.mediaEl || document.querySelector('[data-role="presentation-audio"]');
+    if (!media) return;
+    if (media.paused) media.play().catch(function () {});
+    else media.pause();
   }
 
   function resetSlideTimer() {
@@ -907,14 +1090,77 @@ button,select{font:inherit}
     resetSlideTimer();
   }
 
-  document.getElementById("slideLayer").addEventListener("click", function (e) {
+  var slideLayer = document.getElementById("slideLayer");
+  slideLayer.addEventListener("click", function (e) {
     if (e.button !== 0) return;
+    if (blockClick) { blockClick = false; return; }
+    if (view.scale > 1) return;
+    if (isInteractiveTarget(e.target)) return;
     advance();
   });
-  document.getElementById("slideLayer").addEventListener("dblclick", function (e) {
+  slideLayer.addEventListener("dblclick", function (e) {
     if (e.button !== 0) return;
+    if (view.scale > 1) return;
+    if (isInteractiveTarget(e.target)) return;
     skipHandIn();
   });
+  slideLayer.addEventListener("auxclick", function (e) {
+    if (e.button !== 1) return;
+    if (!state.mediaEl && !document.querySelector('[data-role="presentation-audio"]')) return;
+    e.preventDefault();
+    e.stopPropagation();
+    togglePresentationAudio();
+  });
+  slideLayer.addEventListener("mousedown", function (e) {
+    if (e.button === 1) e.preventDefault();
+  });
+  slideLayer.addEventListener("wheel", function (e) {
+    if (!state.started) return;
+    e.preventDefault();
+    e.stopPropagation();
+    var slide = slides[state.index];
+    if (slideHasSound(slide)) {
+      consumeVolumeWheel(e, true);
+      return;
+    }
+    var factor = Math.exp(-e.deltaY * 0.0011);
+    var nextScale = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, view.scale * factor));
+    if (Math.abs(nextScale - 1) < 0.008) nextScale = 1;
+    if (Math.abs(nextScale - 1) < 0.001) {
+      view = { scale: 1, x: 0, y: 0 };
+    } else if (nextScale <= 1) {
+      view = {
+        scale: nextScale,
+        x: Math.abs(nextScale - 1) < 0.001 ? 0 : view.x,
+        y: Math.abs(nextScale - 1) < 0.001 ? 0 : view.y
+      };
+    } else {
+      view = { scale: nextScale, x: view.x, y: view.y };
+    }
+    applyViewTransform();
+  }, { passive: false });
+  slideLayer.addEventListener("pointerdown", function (e) {
+    if (e.button !== 0 || Math.abs(view.scale - 1) < 0.001) return;
+    if (isInteractiveTarget(e.target)) return;
+    e.preventDefault();
+    drag = { startX: e.clientX, startY: e.clientY, originX: view.x, originY: view.y, moved: false };
+    try { slideLayer.setPointerCapture(e.pointerId); } catch (err) {}
+  });
+  slideLayer.addEventListener("pointermove", function (e) {
+    if (!drag) return;
+    var dx = e.clientX - drag.startX;
+    var dy = e.clientY - drag.startY;
+    if (Math.abs(dx) > 2 || Math.abs(dy) > 2) drag.moved = true;
+    view = { scale: view.scale, x: drag.originX + dx, y: drag.originY + dy };
+    applyViewTransform();
+  });
+  function endDrag() {
+    if (drag && drag.moved) blockClick = true;
+    drag = null;
+  }
+  slideLayer.addEventListener("pointerup", endDrag);
+  slideLayer.addEventListener("pointercancel", endDrag);
+  slideLayer.addEventListener("lostpointercapture", endDrag);
   document.getElementById("stage").addEventListener("contextmenu", function (e) {
     e.preventDefault();
     goPrev();
