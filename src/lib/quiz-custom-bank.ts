@@ -249,7 +249,13 @@ export function applyCustomBankQuestionUpdate(
   input: NewCustomBankQuestionInput
 ): CustomBankQuestion {
   const next = createCustomBankQuestion(input);
-  return { ...next, id: existing.id, createdAt: existing.createdAt };
+  return {
+    ...next,
+    id: existing.id,
+    createdAt: existing.createdAt,
+    // Obtiažnosť už nie je v editore — pri update bez difficulty zachovaj uloženú hodnotu.
+    difficulty: input.difficulty ?? existing.difficulty,
+  };
 }
 
 export function createCustomBankQuestion(input: NewCustomBankQuestionInput): CustomBankQuestion {
