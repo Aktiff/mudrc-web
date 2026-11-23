@@ -25,6 +25,7 @@ import {
   filterBankQuestionsByTags,
   shuffleBankQuestionsByTagBalance,
   sortBankQuestionsByTagBalance,
+  topicTagsForDisplay,
 } from "@/lib/quiz-question-tags";
 import {
   formatBankQuestionBody,
@@ -1016,6 +1017,7 @@ export default function QuizQuestionBankPanel({
           listedQuestions.map((item) => {
             const targetId = getTargetId(item.id);
             const tagScore = bankQuestionTagScore(item, tagCounts);
+            const displayTags = topicTagsForDisplay(item.tags);
 
             return (
               <div key={item.id} className="rounded-xl border border-brand-border bg-brand-surface/50 p-3 space-y-2.5">
@@ -1051,9 +1053,9 @@ export default function QuizQuestionBankPanel({
                     </span>
                   </div>
                   <p className="text-sm font-semibold text-brand-text leading-snug break-words">{item.body}</p>
-                  {item.tags.length > 0 && (
+                  {displayTags.length > 0 && (
                     <div className="flex flex-wrap gap-1 mt-2">
-                      {item.tags.map((tag) => (
+                      {displayTags.map((tag) => (
                         <TagChip key={tag} tag={tag} />
                       ))}
                     </div>

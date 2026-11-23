@@ -122,6 +122,31 @@ const samples = [
     expectPrefer: ["slovenčina", "história"],
     expectNone: ["usa", "geografia", "film"],
   },
+  {
+    body: "Čomu hovoria lekári hematóm?",
+    answer: "Krvný výron",
+    expectAny: ["medicína"],
+    expectPrefer: ["anatómia", "zdravie"],
+    expectNone: ["všeobecné", "usa", "fyzika", "geografia"],
+  },
+  {
+    body: "Ako sa volá zápal slepého čreva?",
+    answer: "Apendicitída",
+    expectAny: ["medicína"],
+    expectNone: ["všeobecné", "usa"],
+  },
+  {
+    body: "Ktorá značka má logo s tromi pruhmi?",
+    answer: "Adidas",
+    expectAny: ["značky"],
+    expectNone: ["všeobecné", "usa"],
+  },
+  {
+    body: "Koľko percent je jedna polovica?",
+    answer: "50 %",
+    expectAny: ["matematika"],
+    expectNone: ["všeobecné", "usa"],
+  },
 ] as const;
 
 let failed = 0;
@@ -182,6 +207,13 @@ const refreshCases: Array<{
     body: "Pozri na foto: ktoré mesto je hlavné mesto Francúzska?",
     answer: "Paríž",
     check: (tags) => tags.some((t) => t !== "obrázok" && t !== "všeobecné"),
+  },
+  {
+    name: "hematóm všeobecné → medicína",
+    stored: ["všeobecné"],
+    body: "Čomu hovoria lekári hematóm?",
+    answer: "Krvný výron",
+    check: (tags) => tags.includes("medicína") && !tags.includes("všeobecné"),
   },
 ];
 
