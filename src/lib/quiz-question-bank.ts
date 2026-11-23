@@ -74,7 +74,6 @@ export function formatBankQuestionClipboard(item: QuizBankQuestion): string {
     formatBankQuestionBody(item),
     "",
     answerLine,
-    `Obtiažnosť (tím 5): ${item.difficulty}/10`,
     "",
     `Poznámka: ${item.note}`,
   ].join("\n");

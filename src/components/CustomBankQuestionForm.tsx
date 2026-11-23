@@ -40,7 +40,6 @@ export default function CustomBankQuestionForm({ onAdded }: Props) {
   const [tagsText, setTagsText] = useState("");
   const [theme, setTheme] = useState<string>(DEFAULT_BANK_THEME);
   const [themes, setThemes] = useState<string[]>([...DEFAULT_BANK_THEMES]);
-  const [difficulty, setDifficulty] = useState(5);
   const [isImageQuestion, setIsImageQuestion] = useState(false);
   const [suggestedImageUrl, setSuggestedImageUrl] = useState("");
   const [error, setError] = useState("");
@@ -59,7 +58,6 @@ export default function CustomBankQuestionForm({ onAdded }: Props) {
     setNote("");
     setTagsText("");
     setTheme(DEFAULT_BANK_THEME);
-    setDifficulty(5);
     setIsImageQuestion(false);
     setSuggestedImageUrl("");
   };
@@ -124,7 +122,6 @@ export default function CustomBankQuestionForm({ onAdded }: Props) {
           note: note.trim() || undefined,
           tags: parseTagsInput(tagsText),
           theme,
-          difficulty,
           isImageQuestion,
           isOpenQuestion: true,
           suggestedImageUrl: suggestedImageUrl.trim() || undefined,
@@ -138,7 +135,6 @@ export default function CustomBankQuestionForm({ onAdded }: Props) {
           note: note.trim() || undefined,
           tags: parseTagsInput(tagsText),
           theme,
-          difficulty,
           isImageQuestion,
           isOpenQuestion: false,
           isOrderQuestion: true,
@@ -155,7 +151,6 @@ export default function CustomBankQuestionForm({ onAdded }: Props) {
           note: note.trim() || undefined,
           tags: parseTagsInput(tagsText),
           theme,
-          difficulty,
           isImageQuestion,
           isOpenQuestion: false,
           isOrderQuestion: false,
@@ -172,7 +167,6 @@ export default function CustomBankQuestionForm({ onAdded }: Props) {
           note: note.trim() || undefined,
           tags: parseTagsInput(tagsText),
           theme,
-          difficulty,
           isImageQuestion,
           isOpenQuestion: false,
           suggestedImageUrl: suggestedImageUrl.trim() || undefined,
@@ -341,28 +335,15 @@ export default function CustomBankQuestionForm({ onAdded }: Props) {
 
           <BankThemeSelect themes={themes} value={theme} onChange={setTheme} onThemesChange={setThemes} />
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label className="label">Obtiažnosť (1–10)</label>
-              <input
-                type="number"
-                min={1}
-                max={10}
-                className="input text-sm py-2"
-                value={difficulty}
-                onChange={(e) => setDifficulty(Number(e.target.value) || 5)}
-              />
-            </div>
-            <div>
-              <label className="label">Tagy (voliteľné)</label>
-              <TagSuggestInput
-                className="input text-sm py-2"
-                value={tagsText}
-                onChange={setTagsText}
-                placeholder="Ak necháš prázdne, doplníme ich za teba"
-              />
-              <p className="text-brand-muted text-xs mt-1">Použitý tag sa uloží a nabudúce sa ponúkne pri písaní.</p>
-            </div>
+          <div>
+            <label className="label">Tagy (voliteľné)</label>
+            <TagSuggestInput
+              className="input text-sm py-2"
+              value={tagsText}
+              onChange={setTagsText}
+              placeholder="Ak necháš prázdne, doplníme ich za teba"
+            />
+            <p className="text-brand-muted text-xs mt-1">Použitý tag sa uloží a nabudúce sa ponúkne pri písaní.</p>
           </div>
 
           <div>

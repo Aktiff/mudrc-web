@@ -115,6 +115,13 @@ const samples = [
     expectPrefer: ["geografia", "európa", "morské"],
     expectNone: ["latinský jazyk", "usa"],
   },
+  {
+    body: "Na pomenovanie človeka s ktorým sa nemožno dohovoriť sa používa slovo odvodené z názvu príslušníka kočovného kmeňa: ...",
+    answer: "Tatár",
+    expectAny: ["etymológia", "jazyk"],
+    expectPrefer: ["slovenčina", "história"],
+    expectNone: ["usa", "geografia", "film"],
+  },
 ] as const;
 
 let failed = 0;

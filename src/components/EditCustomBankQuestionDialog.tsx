@@ -57,7 +57,6 @@ export default function EditCustomBankQuestionDialog({ question, onClose, onSave
   const [tagsText, setTagsText] = useState("");
   const [theme, setTheme] = useState("");
   const [themes, setThemes] = useState<string[]>([...DEFAULT_BANK_THEMES]);
-  const [difficulty, setDifficulty] = useState(5);
   const [isImageQuestion, setIsImageQuestion] = useState(false);
   const [suggestedImageUrl, setSuggestedImageUrl] = useState("");
   const [error, setError] = useState("");
@@ -82,7 +81,6 @@ export default function EditCustomBankQuestionDialog({ question, onClose, onSave
     note,
     tagsText,
     theme,
-    difficulty,
     isImageQuestion,
     suggestedImageUrl,
   });
@@ -100,7 +98,6 @@ export default function EditCustomBankQuestionDialog({ question, onClose, onSave
     note,
     tagsText,
     theme,
-    difficulty,
     isImageQuestion,
     suggestedImageUrl,
   };
@@ -120,7 +117,6 @@ export default function EditCustomBankQuestionDialog({ question, onClose, onSave
       note,
       tagsText,
       theme,
-      difficulty,
       isImageQuestion,
       suggestedImageUrl,
     });
@@ -162,7 +158,6 @@ export default function EditCustomBankQuestionDialog({ question, onClose, onSave
     setNote(nextNote);
     setTagsText(nextTags);
     setTheme(nextTheme);
-    setDifficulty(question.difficulty);
     setIsImageQuestion(nextImage);
     setSuggestedImageUrl(nextUrl);
     setError("");
@@ -180,7 +175,6 @@ export default function EditCustomBankQuestionDialog({ question, onClose, onSave
       note: nextNote,
       tagsText: nextTags,
       theme: nextTheme,
-      difficulty: question.difficulty,
       isImageQuestion: nextImage,
       suggestedImageUrl: nextUrl,
     });
@@ -194,7 +188,7 @@ export default function EditCustomBankQuestionDialog({ question, onClose, onSave
       void saveRef.current(false);
     }, 400);
     return () => window.clearTimeout(timer);
-  }, [question, questionMode, body, options, orderItems, matchLeft, matchRight, matchAssign, openAnswer, correctIndex, correctIndexes, note, tagsText, theme, difficulty, isImageQuestion, suggestedImageUrl]);
+  }, [question, questionMode, body, options, orderItems, matchLeft, matchRight, matchAssign, openAnswer, correctIndex, correctIndexes, note, tagsText, theme, isImageQuestion, suggestedImageUrl]);
 
   useEffect(() => {
     void fetchBankThemes().then(setThemes);
@@ -263,7 +257,6 @@ export default function EditCustomBankQuestionDialog({ question, onClose, onSave
                 note: form.note.trim() || undefined,
                 tags: parseTagsInput(form.tagsText),
                 theme: form.theme,
-                difficulty: form.difficulty,
                 isImageQuestion: form.isImageQuestion,
                 isOpenQuestion: true,
                 isOrderQuestion: false,
@@ -279,7 +272,6 @@ export default function EditCustomBankQuestionDialog({ question, onClose, onSave
                   note: form.note.trim() || undefined,
                   tags: parseTagsInput(form.tagsText),
                   theme: form.theme,
-                  difficulty: form.difficulty,
                   isImageQuestion: form.isImageQuestion,
                   isOpenQuestion: false,
                   isOrderQuestion: true,
@@ -298,7 +290,6 @@ export default function EditCustomBankQuestionDialog({ question, onClose, onSave
                       note: form.note.trim() || undefined,
                       tags: parseTagsInput(form.tagsText),
                       theme: form.theme,
-                      difficulty: form.difficulty,
                       isImageQuestion: form.isImageQuestion,
                       isOpenQuestion: false,
                       isOrderQuestion: false,
@@ -314,7 +305,6 @@ export default function EditCustomBankQuestionDialog({ question, onClose, onSave
                     note: form.note.trim() || undefined,
                     tags: parseTagsInput(form.tagsText),
                     theme: form.theme,
-                    difficulty: form.difficulty,
                     isImageQuestion: form.isImageQuestion,
                     isOpenQuestion: false,
                     isOrderQuestion: false,
@@ -469,22 +459,9 @@ export default function EditCustomBankQuestionDialog({ question, onClose, onSave
           </div>
         )}
 
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div>
-            <label className="label">Obtiažnosť</label>
-            <input
-              type="number"
-              min={1}
-              max={10}
-              className="input text-sm py-2"
-              value={difficulty}
-              onChange={(e) => setDifficulty(Number(e.target.value) || 5)}
-            />
-          </div>
-          <div>
-            <label className="label">Tagy</label>
-            <TagSuggestInput className="input text-sm py-2" value={tagsText} onChange={setTagsText} />
-          </div>
+        <div>
+          <label className="label">Tagy</label>
+          <TagSuggestInput className="input text-sm py-2" value={tagsText} onChange={setTagsText} />
         </div>
 
         <div>

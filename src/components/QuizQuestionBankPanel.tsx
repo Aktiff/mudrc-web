@@ -1046,9 +1046,6 @@ export default function QuizQuestionBankPanel({
                         foto otázka
                       </span>
                     )}
-                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-brand-card border border-brand-border text-brand-muted">
-                      {item.difficulty}/10
-                    </span>
                     <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-green-50 text-green-800 border border-green-200 dark:bg-green-950/30 dark:text-green-200 dark:border-green-800">
                       {tagScore === 0 ? "žiadny tag zatiaľ nepoužitý" : `najpoužívanejší tag ×${tagScore}`}
                     </span>
