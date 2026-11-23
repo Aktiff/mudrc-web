@@ -10,61 +10,560 @@ type TagRule = {
   patterns: RegExp[];
 };
 
+/** Max tagov z auto-inferencie (user môže mať viac manuálne). */
+const MAX_INFERRED_TAGS = 3;
+
+/**
+ * Pravidlá od špecifických po všeobecnejšie.
+ * Text je už bez diakritiky (normalizeForTags).
+ */
 const TAG_RULES: TagRule[] = [
   {
     tag: "latinský jazyk",
-    patterns: [/\blatin/, /\blatinsk/, /\bterra\b/, /\bsolus\b/, /\bluna\b/, /\bignis\b/],
+    patterns: [/\blatin/, /\blatinsk/, /\bterra\b/, /\bsolus\b/, /\bluna\b/, /\bignis\b/, /\baqua\b/, /\bmare\b/],
   },
-  { tag: "film", patterns: [/\bfilm\b/, /\bherec\b/, /\bhereck/, /\breziser/, /\boscar/, /\bnetflix/, /\bserial\b/] },
-  { tag: "hudba", patterns: [/\bhudb/, /\bpiesen/, /\balbum/, /\bkapela\b/, /\brock\b/, /\bpop\b/, /\brap\b/, /\bhit\b/] },
-  { tag: "literatúra", patterns: [/\bknih/, /\broman\b/, /\bbasnik/, /\bspisovatel/, /\bshakespeare/, /\bdrama\b/] },
-  { tag: "história", patterns: [/\bhist/, /\brok\b/, /\bstoroc/, /\bvalka\b/, /\bbitka\b/, /\brevoluc/, /\bpanovnik/, /\brepublika\b/] },
-  { tag: "geografia", patterns: [/\bkrajina\b/, /\bmesto\b/, /\bhlavne\s+mesto/, /\brieka\b/, /\bhora\b/, /\bkontinent/, /\bocean\b/, /\bmapa\b/] },
-  { tag: "európa", patterns: [/\beurop/, /\bnemecko\b/, /\bfrancuz/, /\bpolsko\b/, /\bcesko\b/, /\bslovensko\b/, /\britan/, /\btaliansko\b/] },
-  { tag: "slovensko", patterns: [/\bslovens/, /\bbratislav/, /\bkosic/, /\btatry\b/, /\bdunaj\b/, /\btrnav/, /\bmalatinsk/] },
-  { tag: "usa", patterns: [/\busa\b/, /\bamerik/, /\bnew\s+york/, /\bwashington\b/, /\bhollywood\b/] },
-  { tag: "šport", patterns: [/\bsport/, /\bfutbal/, /\bhokej/, /\bolymp/, /\btitul\b/, /\bliga\b/, /\btenis\b/, /\bformul/, /\bf1\b/, /\bstadion/, /\barena\b/] },
-  { tag: "veda", patterns: [/\bveda\b/, /\bvedec/, /\batom\b/, /\bgen\b/, /\bplaneta\b/, /\bvesmir/, /\bgravit/, /\bperiodick/] },
+  {
+    tag: "francúzsko",
+    patterns: [/\bfrancuz/, /\bparis\b/, /\beiffel/, /\blouvre\b/, /\bmarseill/, /\blyon\b/, /\bnice\b/],
+  },
+  {
+    tag: "nemecko",
+    patterns: [/\bnemeck/, /\bberlin/, /\bmnichov/, /\bhamburg\b/, /\brur\b/, /\bbavorsk/],
+  },
+  {
+    tag: "taliansko",
+    patterns: [/\btaliansk/, /\brim\b/, /\brima\b/, /\bmilan/, /\bbenatk/, /\bflorence\b/, /\bflorenc/, /\bvenez/],
+  },
+  {
+    tag: "britsko",
+    patterns: [/\bbritan/, /\bangl[iy]/, /\blondon\b/, /\bscotland\b/, /\bskotsk/, /\bwales\b/, /\birsk/],
+  },
+  {
+    tag: "afrika",
+    patterns: [
+      /\bafrik/,
+      /\begypt/,
+      /\bsahar/,
+      /\bnil\b/,
+      /\bkenya\b/,
+      /\bnigeria/,
+      /\bsenegal/,
+      /\bmarok/,
+      /\btunisk/,
+      /\bsudanu?\b/,
+      /\bethiop/,
+      /\bsafari\b/,
+      /\bburkina/,
+      /\bvolta\b/,
+      /\bzimbabw/,
+      /\bsouth\s+africa/,
+    ],
+  },
+  {
+    tag: "ázia",
+    patterns: [
+      /\bazia\b/,
+      /\bcina\b/,
+      /\bjaponsk/,
+      /\bindia\b/,
+      /\bkorea\b/,
+      /\bthajsk/,
+      /\bvietnam/,
+      /\bindonez/,
+      /\bmongol/,
+      /\bhimalaj/,
+      /\bpeking\b/,
+      /\btokio\b/,
+    ],
+  },
+  {
+    tag: "planéty",
+    patterns: [
+      /\bplanet/,
+      /\bslnecnej\s+sustav/,
+      /\bmercur/,
+      /\bvenus\b/,
+      /\bmars\b/,
+      /\bjupiter/,
+      /\bsaturn/,
+      /\buran\b/,
+      /\bneptun/,
+      /\bpluto\b/,
+    ],
+  },
+  {
+    tag: "morské",
+    patterns: [
+      /\bmorsk/,
+      /\bocean/,
+      /\bchobotnic/,
+      /\bvelryb/,
+      /\bziab[ae]?r/,
+      /\bkrab\b/,
+      /\bmeduza/,
+      /\bkorall?/,
+      /\btunak\b/,
+      /\bzralok/,
+      /\bdelfin/,
+    ],
+  },
+  {
+    tag: "safari",
+    patterns: [/\bsafari\b/, /\bziraf/, /\blev\b/, /\blevy\b/, /\bslon/, /\bhroch/, /\bnosoroz/, /\bzebr/, /\bantilop/],
+  },
+  {
+    tag: "film",
+    patterns: [
+      /\bfilm/,
+      /\bherec\b/,
+      /\bhereck/,
+      /\bherecka\b/,
+      /\breziser/,
+      /\boscar/,
+      /\bnetflix/,
+      /\bserial/,
+      /\bkino\b/,
+      /\bhollywood\b/,
+      /\bhollywoodwood\b/,
+      /\bstudio/,
+      /\bnatacal/,
+      /\bcasablanca\b/,
+      /\bpixar\b/,
+      /\bdisney\b/,
+    ],
+  },
+  {
+    tag: "hudba",
+    patterns: [
+      /\bhudb/,
+      /\bpiesen/,
+      /\bpiesn/,
+      /\balbum/,
+      /\bkapela\b/,
+      /\brock\b/,
+      /\bpop\b/,
+      /\brap\b/,
+      /\bhit\b/,
+      /\bspev[a]?k/,
+      /\binterpret/,
+      /\bkoncert/,
+      /\bmelodi/,
+      /\bskladb/,
+    ],
+  },
+  {
+    tag: "literatúra",
+    patterns: [
+      /\bknih/,
+      /\broman\b/,
+      /\bbasnik/,
+      /\bbasen\b/,
+      /\bspisovatel/,
+      /\bshakespeare/,
+      /\bdrama\b/,
+      /\bautor\b/,
+      /\bpoezi/,
+      /\bproza\b/,
+      /\bbeletr/,
+    ],
+  },
+  {
+    tag: "história",
+    patterns: [
+      /\bhist/,
+      /\brok[uaeiy]?\b/,
+      /\bstoroc/,
+      /\bvalk[ay]/,
+      /\bbitk[ay]/,
+      /\brevoluc/,
+      /\bpanovnik/,
+      /\brepublika\b/,
+      /\bcisar/,
+      /\bkral\b/,
+      /\bkralovn/,
+      /\brims?k/,
+      /\bstredovek/,
+      /\bantick/,
+      /\b\d{4}\b/,
+      /\bpadol\b/,
+      /\bmur\b/,
+      /\bimperi/,
+    ],
+  },
+  {
+    tag: "geografia",
+    patterns: [
+      /\bkrajina\b/,
+      /\bkrajiny\b/,
+      /\bhlavne\s+mesto/,
+      /\bmesto\s+(je|bolo|ma|lezi|leziace)/,
+      /\briek[ay]/,
+      /\bhor[ay]\b/,
+      /\bpohorie/,
+      /\bkontinent/,
+      /\bocean/,
+      /\bmapa\b/,
+      /\bpust\b/,
+      /\bpuste\b/,
+      /\bostrov/,
+      /\bpolostrov/,
+      /\bcasov(ych|e)\s+pas/,
+      /\bhranic/,
+      /\bpole\s+zemepis/,
+      /\bzemepis/,
+    ],
+  },
+  {
+    tag: "európa",
+    patterns: [
+      /\beurop/,
+      /\bnemeck/,
+      /\bfrancuz/,
+      /\bpolsko\b/,
+      /\bpolsk[aey]/,
+      /\bcesko\b/,
+      /\bcesk[aey]/,
+      /\bslovens/,
+      /\britan/,
+      /\btaliansk/,
+      /\bspaniel/,
+      /\brakusk/,
+      /\bmadarsk/,
+      /\bbalkan/,
+      /\bscandinav/,
+      /\bskandinav/,
+      /\bberlin/,
+      /\bparis\b/,
+      /\blondon\b/,
+      /\brim\b/,
+    ],
+  },
+  {
+    tag: "slovensko",
+    patterns: [
+      /\bslovens/,
+      /\bbratislav/,
+      /\bkosic/,
+      /\btatr[yi]/,
+      /\bdunaj\b/,
+      /\btrnav/,
+      /\bmalatinsk/,
+      /\bpresov/,
+      /\bzilin/,
+      /\bnitr[ay]/,
+      /\bbansk/,
+      /\bpoprad/,
+    ],
+  },
+  {
+    tag: "usa",
+    patterns: [
+      /\busa\b/,
+      /\bamerik/,
+      /\bnew\s+york/,
+      /\bwashington\b/,
+      /\bcalifornia/,
+      /\bkaliforn/,
+      /\bhollywood\b/,
+      /\btexas\b/,
+      /\bchicago\b/,
+      /\batlantic\s+city/,
+      /\bwall\s+street/,
+      /\bpresidents?k/,
+    ],
+  },
+  {
+    tag: "šport",
+    patterns: [
+      /\bsport/,
+      /\bfutbal/,
+      /\bhokej/,
+      /\bolymp/,
+      /\btenis\b/,
+      /\bformul/,
+      /\bf1\b/,
+      /\bstadion/,
+      /\barena\b/,
+      /\bmajstrovst/,
+      /\bms\b/,
+      /\bme\b/,
+      /\bgol\b/,
+      /\bzapas/,
+      /\bbasketbal/,
+      /\bvolejbal/,
+      /\bcyklist/,
+      /\bmaraton/,
+      /\bliga\b/,
+    ],
+  },
   {
     tag: "astronómia",
-    patterns: [/\bplaneta\b/, /\bslnko\b/, /\bmiesiac\b/, /\bvesmir/, /\bgalax/, /\bkometa\b/, /\borbit/, /\bzem\b/, /\bterra\b/],
+    patterns: [
+      /\bplanet/,
+      /\bslnko\b/,
+      /\bslnecnej/,
+      /\bmiesiac\b/,
+      /\bvesmir/,
+      /\bgalax/,
+      /\bkometa\b/,
+      /\borbit/,
+      /\bhviezd/,
+      /\bastron/,
+      /\bkozm/,
+      /\bteleskop/,
+      /\bobezn/,
+      /\bsustav/,
+    ],
   },
-  { tag: "zvieratá", patterns: [/\bzvier/, /\bssak/, /\bvtak\b/, /\bryb[ay]/, /\blev\b/, /\bslon\b/, /\bpsy\b/, /\bmačka\b/] },
-  { tag: "jedlo", patterns: [/\bjedlo\b/, /\bpotravin/, /\bkuch/, /\brecept/, /\bpecen/, /\bnapoj/, /\bvino\b/, /\bpivo\b/] },
-  { tag: "technológia", patterns: [/\btechnolog/, /\bsoftver/, /\baplik/, /\binternet/, /\bgoogle\b/, /\bapple\b/, /\btelefon/, /\bcomputer\b/, /\bpc\b/] },
-  { tag: "politika", patterns: [/\bpolitik/, /\bvolb/, /\bparlament/, /\bprezident/, /\bminister/, /\beu\b/] },
-  { tag: "umenie", patterns: [/\bumen/, /\bobraz\b/, /\bsoch/, /\bgaler/, /\bmuseum/, /\barchitekt/] },
-  { tag: "architektúra", patterns: [/\barchitekt/, /\bhrad\b/, /\bkatedr/, /\bmost\b/, /\bveza\b/] },
-  { tag: "fyzika", patterns: [/\bfyzik/, /\benergi/, /\bsila\b/, /\brychl/, /\bteplota\b/] },
-  { tag: "hry", patterns: [/\bhra\b/, /\bhry\b/, /\bmonopoly\b/, /\bchess\b/, /\bsach\b/, /\bvideo\s+h/] },
+  {
+    tag: "zvieratá",
+    patterns: [
+      /\bzvier/,
+      /\bcicav/,
+      /\bssav/,
+      /\bvtak/,
+      /\bryb[ay]/,
+      /\blev\b/,
+      /\bslon/,
+      /\bpes\b/,
+      /\bps[ya]\b/,
+      /\bmack/,
+      /\bchobotnic/,
+      /\bziraf/,
+      /\bhad\b/,
+      /\bhady\b/,
+      /\bpavuk/,
+      /\bhmyz/,
+      /\bdinosaur/,
+      /\bvelryb/,
+      /\bmedved/,
+      /\bvlk\b/,
+      /\bliska\b/,
+      /\borel\b/,
+      /\bsova\b/,
+    ],
+  },
+  {
+    tag: "jedlo",
+    patterns: [
+      /\bjedlo\b/,
+      /\bpotravin/,
+      /\bkuch/,
+      /\brecept/,
+      /\bpecen/,
+      /\bnapoj/,
+      /\bvino\b/,
+      /\bpivo\b/,
+      /\bmed\b/,
+      /\bsyr\b/,
+      /\bchlieb\b/,
+      /\bovocie/,
+      /\bzelenin/,
+      /\bchoclad/,
+      /\bkava\b/,
+      /\bcaj\b/,
+      /\bvaren/,
+      /\bgastronom/,
+    ],
+  },
+  {
+    tag: "technológia",
+    patterns: [
+      /\btechnolog/,
+      /\bsoftver/,
+      /\baplik/,
+      /\binternet/,
+      /\bgoogle\b/,
+      /\bapple\b/,
+      /\btelefon/,
+      /\bcomputer\b/,
+      /\bpc\b/,
+      /\bai\b/,
+      /\brobot/,
+      /\bprogramov/,
+      /\bchip\b/,
+      /\bsmartfon/,
+      /\bmicrosoft/,
+      /\bsamsung/,
+    ],
+  },
+  {
+    tag: "politika",
+    patterns: [
+      /\bpolitik/,
+      /\bvolb/,
+      /\bparlament/,
+      /\bprezident/,
+      /\bminister/,
+      /\beu\b/,
+      /\bvlad[ay]/,
+      /\bdemokraci/,
+      /\bdiplomat/,
+      /\bznamy\s+mur/,
+      /\bberlin.*mur/,
+      /\bmur.*berlin/,
+    ],
+  },
+  {
+    tag: "umenie",
+    patterns: [/\bumen/, /\bsoch/, /\bgaler/, /\bmuseum/, /\bmuzeum/, /\bmalir/, /\bmalarsk/, /\bpicasso/, /\bvan\s+gogh/],
+  },
+  {
+    tag: "architektúra",
+    patterns: [
+      /\barchitekt/,
+      /\bhrad\b/,
+      /\bkatedr/,
+      /\bmost\b/,
+      /\bveza\b/,
+      /\beiffel/,
+      /\bpyramid/,
+      /\bpalac/,
+      /\bstavb/,
+      /\bvezi\b/,
+    ],
+  },
+  {
+    tag: "fyzika",
+    patterns: [
+      /\bfyzik/,
+      /\benergi/,
+      /\bsila\b/,
+      /\brychl/,
+      /\bteplot/,
+      /\btepeln/,
+      /\broztaz/,
+      /\bgravit/,
+      /\batom\b/,
+      /\bkvant/,
+      /\bnewton/,
+      /\beinstein/,
+      /\bpressure\b/,
+      /\b(krvn\w*\s+tlak|tlak\w*\s+krv)/,
+      /\belektr/,
+      /\bcentimetr/,
+      /\bhoruc.*\b(lete|zime|teplot)|teplot.*\bhoruc/,
+    ],
+  },
+  {
+    tag: "chémia",
+    patterns: [/\bchemi/, /\bprvok/, /\bperiodick/, /\bmolekul/, /\breakci/, /\bkyselin/, /\bvodik/, /\bkyslik/, /\buhlik/],
+  },
+  {
+    tag: "biológia",
+    patterns: [/\bbiolog/, /\bbunk/, /\bdna\b/, /\bgen\b/, /\bgenom/, /\borganizm/, /\bevoluc/, /\bfotosynt/],
+  },
+  {
+    tag: "veda",
+    patterns: [/\bveda\b/, /\bvedec/, /\bvyskum/, /\blaborator/, /\bobjav/],
+  },
+  {
+    tag: "hry",
+    patterns: [
+      /\bhra\b/,
+      /\bhry\b/,
+      /\bmonopoly\b/,
+      /\bchess\b/,
+      /\bsach/,
+      /\bvideo\s+h/,
+      /\bdeskov/,
+      /\bkartov/,
+      /\bpuzzle\b/,
+      /\bkviz\b/,
+    ],
+  },
+  {
+    tag: "náboženstvo",
+    patterns: [/\bnabozens/, /\bkostol/, /\bcirk[ev]/, /\bbiblie\b/, /\bbibli/, /\bbudhizm/, /\bislam/, /\bkrestan/],
+  },
+  {
+    tag: "mytológia",
+    patterns: [/\bmytolog/, /\bzeus\b/, /\bolympus\b/, /\bviking/, /\bnordick/, /\bbajk[ay]/, /\blegend/],
+  },
 ];
 
+
+/** Konkrétnejšie tagy majú prednosť pri limitoch 2–3. */
+const TAG_PRIORITY: Record<string, number> = {
+  "latinský jazyk": 5,
+  "francúzsko": 5,
+  "nemecko": 5,
+  "taliansko": 5,
+  "britsko": 5,
+  "planéty": 5,
+  "morské": 5,
+  "safari": 5,
+  "hry": 5,
+  "film": 5,
+  "hudba": 5,
+  "literatúra": 5,
+  "afrika": 4,
+  "ázia": 4,
+  "usa": 4,
+  "slovensko": 4,
+  "šport": 4,
+  "astronómia": 4,
+  "architektúra": 4,
+  "fyzika": 4,
+  "chémia": 4,
+  "biológia": 4,
+  "jedlo": 3,
+  "zvieratá": 3,
+  "technológia": 3,
+  "politika": 3,
+  "umenie": 3,
+  "náboženstvo": 3,
+  "mytológia": 3,
+  "história": 2,
+  "geografia": 2,
+  "európa": 2,
+  "veda": 1,
+};
+
 const META_TAGS = new Set(["vlastné", "vseobecne", "všeobecné"]);
+
+/** Tagy formátu otázky — samy o sebe nie sú téma; pri retagu ich neblokujú silnejšiu inferenciu. */
+const FORMAT_TAGS = new Set(["obrázok", "obrazok"]);
 
 function itemLooksLikeImageQuestion(text: string): boolean {
   return /\bfot(o|ka|ografi)/.test(text) || /\bobraz/.test(text) || /\bpozri\s+na/.test(text);
 }
 
-/** Odhadne tagy z textu otázky — ak user nevyplní vlastné. */
+function dedupeTags(tags: string[]): string[] {
+  return Array.from(new Set(tags));
+}
+
+function isTopicTag(tag: string): boolean {
+  return Boolean(tag) && !META_TAGS.has(tag) && !FORMAT_TAGS.has(tag);
+}
+
+/** Odhadne tagy z textu otázky — ak user nevyplní vlastné. Preferuje 1–3 konkrétne témy. */
 export function inferBankQuestionTags(body: string, answer: string, note?: string): string[] {
   const text = normalizeForTags(`${body} ${answer} ${note ?? ""}`);
-  const found = new Set<string>();
+  const found: string[] = [];
 
   for (const rule of TAG_RULES) {
     if (rule.patterns.some((pattern) => pattern.test(text))) {
-      found.add(rule.tag);
+      if (!found.includes(rule.tag)) found.push(rule.tag);
     }
   }
 
-  if (itemLooksLikeImageQuestion(text)) {
-    found.add("obrázok");
+  if (itemLooksLikeImageQuestion(text) && !found.includes("obrázok")) {
+    found.push("obrázok");
   }
 
-  if (!found.size) {
-    found.add("všeobecné");
+  const topicTags = found
+    .filter(isTopicTag)
+    .sort((a, b) => (TAG_PRIORITY[b] ?? 0) - (TAG_PRIORITY[a] ?? 0) || found.indexOf(a) - found.indexOf(b))
+    .slice(0, MAX_INFERRED_TAGS);
+  const formatExtras = found.filter((tag) => FORMAT_TAGS.has(tag));
+  const result = dedupeTags([...topicTags, ...formatExtras]);
+
+  if (!result.some(isTopicTag)) {
+    return ["všeobecné"];
   }
 
-  return Array.from(found).slice(0, 8);
+  return result;
 }
 
 export function resolveCustomQuestionTags(
@@ -73,14 +572,23 @@ export function resolveCustomQuestionTags(
   answer: string,
   note?: string
 ): string[] {
-  const manual = userTags?.map((t) => t.trim().toLowerCase()).filter(Boolean).filter((t) => !META_TAGS.has(t)) ?? [];
-  if (manual.length) {
-    return Array.from(new Set(manual)).slice(0, 8);
+  const manual =
+    userTags
+      ?.map((t) => t.trim().toLowerCase())
+      .filter(Boolean)
+      .filter((t) => !META_TAGS.has(t)) ?? [];
+  if (manual.some(isTopicTag)) {
+    return dedupeTags(manual).slice(0, 8);
   }
   return inferBankQuestionTags(body, answer, note);
 }
 
-/** Pri načítaní zo servera — prázdne tagy doplní, vyplnené nechá tak, ako ich user uložil. */
+/**
+ * Pri načítaní / normalizácii zo servera:
+ * - prázdne alebo len meta/generic (všeobecné) → znova odvodí konkrétne tagy
+ * - len formátový tag (obrázok) → doplní témy, formát nechá ak sedí
+ * - už má konkrétne témy → neprepisuje zámerné multi-tag úpravy usera
+ */
 export function refreshStoredCustomQuestionTags(
   storedTags: string[] | undefined,
   body: string,
@@ -92,13 +600,18 @@ export function refreshStoredCustomQuestionTags(
     .filter(Boolean)
     .filter((t) => !META_TAGS.has(t));
 
-  if (!cleaned.length) {
-    return inferBankQuestionTags(body, answer, note);
+  const topicTags = cleaned.filter(isTopicTag);
+  const formatTags = cleaned.filter((t) => FORMAT_TAGS.has(t));
+
+  if (!topicTags.length) {
+    const inferred = inferBankQuestionTags(body, answer, note);
+    if (!formatTags.length) return inferred;
+
+    const inferredTopics = inferred.filter(isTopicTag);
+    const keepFormat = formatTags.filter((tag) => inferred.includes(tag) || tag === "obrázok");
+    const merged = dedupeTags([...inferredTopics, ...keepFormat]);
+    return merged.some(isTopicTag) ? merged.slice(0, 8) : inferred;
   }
 
-  if (cleaned.length === 1 && cleaned[0] === "všeobecné") {
-    return inferBankQuestionTags(body, answer, note);
-  }
-
-  return Array.from(new Set(cleaned)).slice(0, 8);
+  return dedupeTags(cleaned).slice(0, 8);
 }
