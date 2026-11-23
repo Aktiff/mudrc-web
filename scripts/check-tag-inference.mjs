@@ -82,6 +82,39 @@ const samples = [
     expectAny: ["história", "afrika"],
     expectPrefer: ["geografia"],
   },
+  {
+    body: "Na území ktorého štátu Južnej Ameriky sa nachádza púšť Atacama? Vďaka niektorým oblastiam je najsuchšou nepolárnou púšťou sveta.",
+    answer: "Čile",
+    expectAny: ["geografia"],
+    expectPrefer: ["čile", "južná amerika"],
+    expectNone: ["usa", "európa"],
+  },
+  {
+    body: "Ktorý kontinent leží na južnej pologuli a zahŕňa Brazíliu aj Argentínu?",
+    answer: "Južná Amerika",
+    expectAny: ["južná amerika", "geografia"],
+    expectNone: ["usa"],
+  },
+  {
+    body: "Čo znamená latinské slovo terra?",
+    answer: "Zem",
+    expectAny: ["latinský jazyk"],
+    expectNone: ["usa", "geografia"],
+  },
+  {
+    body: "Koľko rokov má dospelý slon africký približne?",
+    answer: "Okolo 60–70",
+    expectAny: ["zvieratá"],
+    expectPrefer: ["safari", "afrika"],
+    expectNone: ["história", "usa"],
+  },
+  {
+    body: "Ktoré more omýva východné pobrežie Talianska?",
+    answer: "Jadranské more",
+    expectAny: ["taliansko"],
+    expectPrefer: ["geografia", "európa", "morské"],
+    expectNone: ["latinský jazyk", "usa"],
+  },
 ] as const;
 
 let failed = 0;
@@ -90,11 +123,19 @@ for (const sample of samples) {
   const tags = inferBankQuestionTags(sample.body, sample.answer);
   const hasAny = sample.expectAny.every((t) => tags.includes(t));
   const preferHit = !("expectPrefer" in sample) || sample.expectPrefer.some((t) => tags.includes(t));
+  const noneHit =
+    !("expectNone" in sample) || sample.expectNone.every((t) => !tags.includes(t));
   const onlyGeneral = tags.length === 1 && tags[0] === "všeobecné";
-  const ok = hasAny && preferHit && !onlyGeneral && tags.filter((t) => t !== "obrázok").length <= 3;
+  const ok =
+    hasAny && preferHit && noneHit && !onlyGeneral && tags.filter((t) => t !== "obrázok").length <= 3;
   if (!ok) {
     failed += 1;
-    console.error("FAIL", { body: sample.body, tags, expectAny: sample.expectAny });
+    console.error("FAIL", {
+      body: sample.body,
+      tags,
+      expectAny: sample.expectAny,
+      expectNone: "expectNone" in sample ? sample.expectNone : undefined,
+    });
   } else {
     console.log("OK ", tags.join(", "), "←", sample.body.slice(0, 60));
   }
