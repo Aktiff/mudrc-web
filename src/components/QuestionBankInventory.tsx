@@ -34,6 +34,7 @@ import {
   readHiddenBankQuestionIds,
   writeHiddenBankQuestionIds,
 } from "@/lib/quiz-question-bank";
+import { topicTagsForDisplay } from "@/lib/quiz-question-tags";
 import { type MusicBankItem } from "@/lib/music-bank";
 import {
   EMPTY_MUSIC_BANK_TAG_FILTERS,
@@ -436,6 +437,7 @@ export default function QuestionBankInventory({
               {shownTextQuestions.map((q) => {
                 const isCustom = isCustomBankQuestionId(q.id);
                 const isGenerated = isGeneratedBankQuestion(q);
+                const displayTags = topicTagsForDisplay(q.tags);
                 return (
                 <li
                   key={q.id}
@@ -457,8 +459,8 @@ export default function QuestionBankInventory({
                     )}
                   </div>
                   <p className="text-sm font-semibold text-brand-text leading-snug">{q.body}</p>
-                  {q.tags.length > 0 && (
-                    <p className="text-[11px] text-brand-muted">{q.tags.join(" · ")}</p>
+                  {displayTags.length > 0 && (
+                    <p className="text-[11px] text-brand-muted">{displayTags.join(" · ")}</p>
                   )}
                   <p className="text-xs text-brand-muted whitespace-pre-line">
                     {q.isOrderQuestion || q.isMatchQuestion

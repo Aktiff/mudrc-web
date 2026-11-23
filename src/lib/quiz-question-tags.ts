@@ -47,6 +47,12 @@ export function formatTagsInput(tags: string[] | undefined): string {
   return tags?.join(", ") ?? "";
 }
 
+/** Tagy na karte — skryje meta (všeobecné), aby nezdvojovalo tému „Všeobecné“. */
+export function topicTagsForDisplay(tags: string[] | undefined): string[] {
+  if (!tags?.length) return [];
+  return tags.filter((tag) => !SKIPPED_SUGGESTION_TAGS.has(tag));
+}
+
 export function isQuestionFilledForTags(question: QuizQuestionItem): boolean {
   return Boolean(question.body.trim() || question.answer.trim());
 }
