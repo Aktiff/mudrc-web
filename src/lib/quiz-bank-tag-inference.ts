@@ -941,52 +941,35 @@ export function inferBankQuestionTags(body: string, answer: string, note?: strin
   return result;
 }
 
+/** Len manuálne tagy — bez auto-inferencie. Prázdne zostane prázdne. */
 export function resolveCustomQuestionTags(
   userTags: string[] | undefined,
-  body: string,
-  answer: string,
-  note?: string
+  _body?: string,
+  _answer?: string,
+  _note?: string
 ): string[] {
   const manual =
     userTags
       ?.map((t) => t.trim().toLowerCase())
       .filter(Boolean)
       .filter((t) => !META_TAGS.has(t)) ?? [];
-  if (manual.some(isTopicTag)) {
-    return dedupeTags(manual).slice(0, 8);
-  }
-  return inferBankQuestionTags(body, answer, note);
+  return dedupeTags(manual).slice(0, 8);
 }
 
 /**
- * Pri načítaní / normalizácii zo servera:
- * - prázdne alebo len meta/generic (všeobecné) → znova odvodí konkrétne tagy
- * - len formátový tag (obrázok) → doplní témy, formát nechá ak sedí
- * - už má konkrétne témy → neprepisuje zámerné multi-tag úpravy usera
+ * Pri načítaní / normalizácii zo servera: zachová uložené tagy.
+ * Nič nedoplní ani neprepisuje — Ľuboš taguje sám.
  */
 export function refreshStoredCustomQuestionTags(
   storedTags: string[] | undefined,
-  body: string,
-  answer: string,
-  note?: string
+  _body?: string,
+  _answer?: string,
+  _note?: string
 ): string[] {
   const cleaned = (storedTags ?? [])
     .map((t) => t.trim().toLowerCase())
     .filter(Boolean)
     .filter((t) => !META_TAGS.has(t));
-
-  const topicTags = cleaned.filter(isTopicTag);
-  const formatTags = cleaned.filter((t) => FORMAT_TAGS.has(t));
-
-  if (!topicTags.length) {
-    const inferred = inferBankQuestionTags(body, answer, note);
-    if (!formatTags.length) return inferred;
-
-    const inferredTopics = inferred.filter(isTopicTag);
-    const keepFormat = formatTags.filter((tag) => inferred.includes(tag) || tag === "obrázok");
-    const merged = dedupeTags([...inferredTopics, ...keepFormat]);
-    return merged.some(isTopicTag) ? merged.slice(0, 8) : inferred;
-  }
 
   return dedupeTags(cleaned).slice(0, 8);
 }
