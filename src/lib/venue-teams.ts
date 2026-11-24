@@ -11,7 +11,13 @@ import {
 import { readAppStorageBlob, readAppStorageBlobHistory, writeAppStorageBlob } from "@/lib/blob-app-storage";
 import { replaceTeamLabel, teamKey as nameKey } from "@/lib/poll";
 import type { TeamLinkRecord } from "@/lib/team-links";
-import { extractTeamPhones, type VenueTeam } from "@/lib/venue-team-contact";
+import {
+  extractTeamPhones,
+  phoneIdentityKey,
+  toCanonicalE164,
+  unifyDuplicatePhones,
+  type VenueTeam,
+} from "@/lib/venue-team-contact";
 
 export type { VenueTeam } from "@/lib/venue-team-contact";
 
@@ -24,7 +30,7 @@ const PHONE_RECOVERY = 1;
 type Store = { teams: VenueTeam[]; phoneRecovery?: number };
 
 function digitKey(value: string): string {
-  return value.replace(/\D/g, "");
+  return phoneIdentityKey(value) ?? value.replace(/\D/g, "");
 }
 
 function teamKey(eventSlug: string, venue: string, teamName: string): string {
@@ -80,10 +86,15 @@ function mergePhones(current: string[], incoming: string[]): string[] {
     if (!key) continue;
     const index = next.findIndex((item) => digitKey(item) === key);
     if (index === -1) {
-      next.push(phone);
+      next.push(toCanonicalE164(phone) ?? phone);
       continue;
     }
     const existing = next[index];
+    const canonical = toCanonicalE164(existing) ?? toCanonicalE164(phone);
+    if (canonical) {
+      next[index] = canonical;
+      continue;
+    }
     const existingIsDigits = digitKey(existing) === existing.replace(/\s/g, "");
     const incomingHasNotes = phone.replace(/[\d\s]/g, "").length > 0;
     if (existingIsDigits && incomingHasNotes) next[index] = phone;
@@ -443,6 +454,23 @@ export async function addVenueTeamPhone(teamId: string, rawPhone: string): Promi
   if (!target) throw new Error("Tím sa nenašiel.");
   const nextPhones = mergePhones(target.phones, incoming);
   if (samePhones(nextPhones, target.phones)) throw new Error("Toto číslo už tím má.");
+  const now = new Date().toLocaleString("sk-SK", { timeZone: "Europe/Bratislava" });
+  const teams = store.teams.map((team) =>
+    team.id === teamId ? { ...team, phones: nextPhones, updatedAt: now } : team
+  );
+  await saveStore({ teams, phoneRecovery: store.phoneRecovery });
+  return stampTeams(teams);
+}
+
+/** Zjednotí rovnaké SK čísla v rôznych formátoch do jedného E.164 zápisu. */
+export async function unifyVenueTeamPhones(teamId: string): Promise<VenueTeam[]> {
+  const store = await loadStore();
+  const target = store.teams.find((team) => team.id === teamId);
+  if (!target) throw new Error("Tím sa nenašiel.");
+  const nextPhones = unifyDuplicatePhones(target.phones);
+  if (samePhones(nextPhones, target.phones)) {
+    throw new Error("Na tejto karte nie sú čísla na zjednotenie.");
+  }
   const now = new Date().toLocaleString("sk-SK", { timeZone: "Europe/Bratislava" });
   const teams = store.teams.map((team) =>
     team.id === teamId ? { ...team, phones: nextPhones, updatedAt: now } : team
