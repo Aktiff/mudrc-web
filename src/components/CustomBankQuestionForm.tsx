@@ -175,7 +175,9 @@ export default function CustomBankQuestionForm({ onAdded }: Props) {
 
       resetForm();
       setSuccess(
-        `Otázka je uložená v banke. Tagy: ${created.tags.join(", ")}${tagsText.trim() ? "" : " (doplnené automaticky)"}.`
+        created.tags.length
+          ? `Otázka je uložená v banke. Tagy: ${created.tags.join(", ")}.`
+          : "Otázka je uložená v banke."
       );
       onAdded?.(created);
       window.setTimeout(() => setSuccess(""), 5000);
@@ -341,7 +343,7 @@ export default function CustomBankQuestionForm({ onAdded }: Props) {
               className="input text-sm py-2"
               value={tagsText}
               onChange={setTagsText}
-              placeholder="Ak necháš prázdne, doplníme ich za teba"
+              placeholder="napr. história, geografia"
             />
             <p className="text-brand-muted text-xs mt-1">Použitý tag sa uloží a nabudúce sa ponúkne pri písaní.</p>
           </div>

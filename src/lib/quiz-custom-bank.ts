@@ -162,7 +162,7 @@ export function normalizeStoredCustomQuestion(raw: unknown): CustomBankQuestion 
   const tagsRaw = Array.isArray(row.tags)
     ? row.tags.filter((t): t is string => typeof t === "string").map((t) => t.trim().toLowerCase()).filter(Boolean)
     : undefined;
-  const tags = refreshStoredCustomQuestionTags(tagsRaw, row.body as string, answer, typeof row.note === "string" ? row.note : undefined);
+  const tags = refreshStoredCustomQuestionTags(tagsRaw);
 
   return {
     id: row.id,
@@ -173,7 +173,7 @@ export function normalizeStoredCustomQuestion(raw: unknown): CustomBankQuestion 
     ...(choiceIndexes.length ? { correctIndexes: choiceIndexes } : {}),
     difficulty: typeof row.difficulty === "number" ? Math.min(10, Math.max(1, row.difficulty)) : 5,
     note: typeof row.note === "string" ? row.note.trim() : "",
-    tags: tags.length ? tags : resolveCustomQuestionTags(undefined, row.body as string, answer),
+    tags,
     isImageQuestion: Boolean(row.isImageQuestion),
     isOpenQuestion,
     isOrderQuestion,
@@ -300,7 +300,7 @@ export function createCustomBankQuestion(input: NewCustomBankQuestionInput): Cus
     answer = formatChoiceAnswer(options, indexes) || input.answer?.trim() || "";
   }
 
-  const tags = resolveCustomQuestionTags(input.tags, input.body.trim(), answer, input.note);
+  const tags = resolveCustomQuestionTags(input.tags);
 
   return {
     id: `${CUSTOM_BANK_ID_PREFIX}${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -311,7 +311,7 @@ export function createCustomBankQuestion(input: NewCustomBankQuestionInput): Cus
     ...(correctIndexes ? { correctIndexes } : {}),
     difficulty: input.difficulty ?? 5,
     note: input.note?.trim() ?? "",
-    tags: tags.slice(0, 8),
+    tags,
     isImageQuestion: Boolean(input.isImageQuestion),
     isOpenQuestion,
     isOrderQuestion,

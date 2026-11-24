@@ -32,21 +32,13 @@ function matchesSuggestion(query: string, suggestion: string): boolean {
   return normalizedSuggestion.startsWith(normalizedQuery) || normalizedSuggestion.includes(normalizedQuery);
 }
 
-function splitCurrentTag(draft: string): { prefix: string; query: string } {
-  const index = Math.max(draft.lastIndexOf(","), draft.lastIndexOf(";"));
-  if (index === -1) return { prefix: "", query: draft };
-  return { prefix: draft.slice(0, index + 1), query: draft.slice(index + 1) };
-}
-
-function withSelectedTag(draft: string, tag: string): string {
-  const { prefix } = splitCurrentTag(draft);
-  if (!prefix) return tag;
-  const head = /\s$/.test(prefix) ? prefix : `${prefix} `;
-  return `${head}${tag}`;
+function tagsFromValue(value: string): string[] {
+  return parseTagsInput(value) ?? [];
 }
 
 export default function TagSuggestInput({ value, onChange, className, placeholder }: Props) {
-  const [draft, setDraft] = useState(value);
+  const [selected, setSelected] = useState<string[]>(() => tagsFromValue(value));
+  const [query, setQuery] = useState("");
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [open, setOpen] = useState(false);
   const [highlighted, setHighlighted] = useState(0);
@@ -55,7 +47,10 @@ export default function TagSuggestInput({ value, onChange, className, placeholde
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (!focused.current) setDraft(value);
+    if (!focused.current) {
+      setSelected(tagsFromValue(value));
+      setQuery("");
+    }
   }, [value]);
 
   useEffect(() => {
@@ -63,11 +58,20 @@ export default function TagSuggestInput({ value, onChange, className, placeholde
     return subscribeUsedQuestionTags(() => setSuggestions(peekUsedQuestionTags()));
   }, []);
 
-  const { query } = splitCurrentTag(draft);
+  const emit = useCallback(
+    (tags: string[]) => {
+      const next = tags.slice(0, 8);
+      setSelected(next);
+      onChange(formatTagsInput(next));
+      rememberUsedQuestionTags(next);
+    },
+    [onChange]
+  );
+
   const filtered = useMemo(() => {
     const typed = query.trim();
     if (!typed) return [];
-    const used = new Set((parseTagsInput(splitCurrentTag(draft).prefix) ?? []).map((tag) => tag.toLowerCase()));
+    const used = new Set(selected.map((tag) => tag.toLowerCase()));
     return suggestions
       .filter((suggestion) => !used.has(suggestion.toLowerCase()) && matchesSuggestion(typed, suggestion))
       .sort((a, b) => {
@@ -76,7 +80,7 @@ export default function TagSuggestInput({ value, onChange, className, placeholde
         const bStarts = normalizeSearch(b).startsWith(q) ? 0 : 1;
         return aStarts - bStarts || a.localeCompare(b, "sk");
       });
-  }, [draft, query, suggestions]);
+  }, [query, selected, suggestions]);
 
   const showDropdown = open && filtered.length > 0;
 
@@ -92,68 +96,131 @@ export default function TagSuggestInput({ value, onChange, className, placeholde
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  const commit = useCallback(
-    (next: string) => {
-      setDraft(next);
-      onChange(next);
-    },
-    [onChange]
-  );
-
-  const select = useCallback(
-    (tag: string) => {
-      commit(withSelectedTag(draft, tag));
+  const addTag = useCallback(
+    (raw: string) => {
+      const tag = raw.trim().toLowerCase();
+      if (!tag) return;
+      if (selected.some((item) => item.toLowerCase() === tag)) {
+        setQuery("");
+        return;
+      }
+      if (selected.length >= 8) return;
+      emit([...selected, tag]);
+      setQuery("");
       setOpen(false);
       inputRef.current?.focus();
     },
-    [commit, draft]
+    [emit, selected]
   );
 
+  const removeTag = useCallback(
+    (tag: string) => {
+      emit(selected.filter((item) => item !== tag));
+      inputRef.current?.focus();
+    },
+    [emit, selected]
+  );
+
+  const commitQueryAsTag = useCallback(() => {
+    const typed = query.trim();
+    if (!typed) return false;
+    addTag(typed.replace(/[,;]+$/g, ""));
+    return true;
+  }, [addTag, query]);
+
   const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
-    if (!showDropdown) return;
-    if (event.key === "Tab" || event.key === "ArrowDown") {
+    if (event.key === "Backspace" && !query && selected.length) {
       event.preventDefault();
-      setHighlighted((index) => (index + 1) % filtered.length);
-    } else if (event.key === "ArrowUp") {
+      removeTag(selected[selected.length - 1]!);
+      return;
+    }
+
+    if (event.key === "," || event.key === ";") {
       event.preventDefault();
-      setHighlighted((index) => (index - 1 + filtered.length) % filtered.length);
+      commitQueryAsTag();
+      return;
+    }
+
+    if (showDropdown) {
+      if (event.key === "Tab" || event.key === "ArrowDown") {
+        event.preventDefault();
+        setHighlighted((index) => (index + 1) % filtered.length);
+        return;
+      }
+      if (event.key === "ArrowUp") {
+        event.preventDefault();
+        setHighlighted((index) => (index - 1 + filtered.length) % filtered.length);
+        return;
+      }
+      if (event.key === "Enter") {
+        event.preventDefault();
+        addTag(filtered[highlighted]!);
+        return;
+      }
+      if (event.key === "Escape") {
+        setOpen(false);
+        return;
+      }
     } else if (event.key === "Enter") {
       event.preventDefault();
-      select(filtered[highlighted]);
-    } else if (event.key === "Escape") {
-      setOpen(false);
+      commitQueryAsTag();
     }
   };
 
+  const shellClass =
+    className ??
+    "input";
+
   return (
     <div className="relative" ref={ref}>
-      <input
-        ref={inputRef}
-        className={className ?? "input"}
-        value={draft}
-        onChange={(event) => {
-          commit(event.target.value);
-          setOpen(true);
-        }}
-        onFocus={() => {
-          focused.current = true;
-          setOpen(true);
-        }}
-        onBlur={() => {
-          focused.current = false;
-          setOpen(false);
-          const tags = parseTagsInput(draft) ?? [];
-          rememberUsedQuestionTags(tags);
-          const formatted = formatTagsInput(tags);
-          if (formatted !== draft) setDraft(formatted);
-          if (formatted !== value) onChange(formatted);
-        }}
-        onKeyDown={handleKeyDown}
-        placeholder={placeholder}
-        autoComplete="off"
-        spellCheck={false}
-        lang="sk"
-      />
+      <div
+        className={`${shellClass} flex flex-wrap items-center gap-1.5 min-h-[2.5rem] cursor-text`}
+        onClick={() => inputRef.current?.focus()}
+      >
+        {selected.map((tag) => (
+          <span
+            key={tag}
+            className="group inline-flex items-center gap-1 max-w-full rounded-full border border-brand-border bg-brand-warm px-2 py-0.5 text-xs font-semibold text-brand-text"
+          >
+            <span className="truncate">{tag}</span>
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                removeTag(tag);
+              }}
+              className="shrink-0 w-4 h-4 inline-flex items-center justify-center rounded-full text-brand-muted opacity-0 group-hover:opacity-100 focus:opacity-100 hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-950/40 transition-opacity"
+              aria-label={`Odstrániť tag ${tag}`}
+              title="Odstrániť"
+            >
+              ×
+            </button>
+          </span>
+        ))}
+        <input
+          ref={inputRef}
+          className="flex-1 min-w-[7rem] bg-transparent border-0 outline-none text-sm py-0.5 text-brand-text placeholder:text-brand-muted"
+          value={query}
+          onChange={(event) => {
+            setQuery(event.target.value);
+            setOpen(true);
+          }}
+          onFocus={() => {
+            focused.current = true;
+            setOpen(true);
+          }}
+          onBlur={() => {
+            focused.current = false;
+            setOpen(false);
+            if (query.trim()) commitQueryAsTag();
+          }}
+          onKeyDown={handleKeyDown}
+          placeholder={selected.length ? "" : placeholder}
+          autoComplete="off"
+          spellCheck={false}
+          lang="sk"
+        />
+      </div>
       {showDropdown && (
         <ul className="absolute z-50 top-full mt-1 left-0 right-0 bg-brand-card border border-brand-border rounded-xl shadow-lg overflow-hidden max-h-56 overflow-y-auto">
           {filtered.map((suggestion, index) => (
@@ -166,7 +233,7 @@ export default function TagSuggestInput({ value, onChange, className, placeholde
               }`}
               onMouseDown={(event) => {
                 event.preventDefault();
-                select(suggestion);
+                addTag(suggestion);
               }}
               onMouseEnter={() => setHighlighted(index)}
             >

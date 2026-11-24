@@ -176,63 +176,59 @@ for (const sample of samples) {
 const refreshCases: Array<{
   name: string;
   stored: string[];
-  body: string;
-  answer: string;
   check: (tags: string[]) => boolean;
 }> = [
   {
-    name: "empty → infer",
+    name: "empty stays empty (no auto-infer)",
     stored: [],
-    body: "Koľko sŕdc má chobotnica?",
-    answer: "Tri",
-    check: (tags) => tags.includes("zvieratá") || tags.includes("morské"),
+    check: (tags) => tags.length === 0,
   },
   {
-    name: "only všeobecné → infer",
+    name: "only všeobecné → stripped, not re-inferred",
     stored: ["všeobecné"],
-    body: "Ktorá planéta Slnečnej sústavy je najväčšia?",
-    answer: "Jupiter",
-    check: (tags) => tags.includes("astronómia") || tags.includes("planéty"),
+    check: (tags) => tags.length === 0,
   },
   {
     name: "keep specific multi-tags",
     stored: ["história", "európa", "politika"],
-    body: "V ktorom roku padol Berlínsky múr?",
-    answer: "1989",
     check: (tags) => tags.join() === "história,európa,politika",
   },
   {
-    name: "only obrázok → add topics",
+    name: "only obrázok stays (no topic fill)",
     stored: ["obrázok"],
-    body: "Pozri na foto: ktoré mesto je hlavné mesto Francúzska?",
-    answer: "Paríž",
-    check: (tags) => tags.some((t) => t !== "obrázok" && t !== "všeobecné"),
+    check: (tags) => tags.join() === "obrázok",
   },
   {
-    name: "hematóm všeobecné → medicína",
+    name: "hematóm všeobecné → empty (manual tags only)",
     stored: ["všeobecné"],
-    body: "Čomu hovoria lekári hematóm?",
-    answer: "Krvný výron",
-    check: (tags) => tags.includes("medicína") && !tags.includes("všeobecné"),
+    check: (tags) => tags.length === 0,
   },
 ];
 
 for (const c of refreshCases) {
-  const tags = refreshStoredCustomQuestionTags(c.stored, c.body, c.answer);
+  const tags = refreshStoredCustomQuestionTags(c.stored);
   if (!c.check(tags)) {
     failed += 1;
     console.error("FAIL refresh", c.name, tags);
   } else {
-    console.log("OK  refresh:", c.name, "→", tags.join(", "));
+    console.log("OK  refresh:", c.name, "→", tags.join(", ") || "(none)");
   }
 }
 
-const manual = resolveCustomQuestionTags(["história", "všeobecné"], "x", "y");
+const manual = resolveCustomQuestionTags(["história", "všeobecné"]);
 if (manual.join() !== "história") {
   failed += 1;
   console.error("FAIL resolve strips meta", manual);
 } else {
   console.log("OK  resolve strips meta →", manual.join(", "));
+}
+
+const emptyResolve = resolveCustomQuestionTags(undefined);
+if (emptyResolve.length !== 0) {
+  failed += 1;
+  console.error("FAIL resolve empty stays empty", emptyResolve);
+} else {
+  console.log("OK  resolve empty stays empty");
 }
 
 if (failed) {
