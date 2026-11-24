@@ -912,13 +912,18 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
       const created = data.registration as EventRegistration | undefined;
       if (created?.id) {
         setRegistrations((prev) => {
-          if (prev.some((entry) => entry.id === created.id)) return prev;
-          return [...prev, created];
+          const withoutSameSlot = prev.filter((entry) => entry.id !== created.id);
+          return [...withoutSameSlot, { ...created, source: "web" as const }];
         });
       } else {
         loadRegistrations();
       }
-      setMsg({ text: `Tím „${teamName}" pridaný do registrácií.`, ok: true });
+      setMsg({
+        text: data.replaced
+          ? `Tím „${teamName}" aktualizovaný (nahradil predchádzajúcu registráciu).`
+          : `Tím „${teamName}" pridaný do registrácií.`,
+        ok: true,
+      });
     } finally {
       setAddingReg(false);
     }

@@ -366,6 +366,121 @@ export function prepaidSeatCount(team: PayTeam): number {
  * Cap comes from event rules (`maxPlayers`), not from the original registration N.
  * Only while online window is open.
  */
+/**
+ * Re-register / headcount update for an existing pay team.
+ * Keeps id + token (pay-link continuity) and all paid seats.
+ * Grows with pending seats; shrinks by voiding unpaid pending only (never below paid count).
+ */
+export function replaceTeamBookingFields(
+  team: PayTeam,
+  input: {
+    teamName: string;
+    players: number;
+    captainPhone: string;
+    captainEmail: string;
+    venue?: string;
+    city?: string;
+    quizTime?: string;
+    entryFee?: number;
+    feeConfig?: FeeTierConfig | EventFeeFields;
+  },
+  now = new Date()
+): PayTeam {
+  const live = applyHoldExpiry(team, now);
+  const config = resolveFeeConfig(
+    input.feeConfig
+      ? { ...resolveFeeConfig(input.feeConfig), entryFee: input.entryFee }
+      : live.feeConfig
+        ? { ...resolveFeeConfig(live.feeConfig), entryFee: input.entryFee }
+        : { entryFee: input.entryFee }
+  );
+  const quote = onlinePriceAt(live.quizDate, live.quizTime, config, now);
+  const amount = quote?.priceEur ?? config.lateFee;
+
+  const paid = live.seats.filter((s) => s.kind === "prepaid" && s.status === "paid");
+  const pending = live.seats.filter((s) => s.kind === "prepaid" && s.status === "pending_payment");
+  const other = live.seats.filter(
+    (s) => !(s.kind === "prepaid" && (s.status === "paid" || s.status === "pending_payment"))
+  );
+
+  const target = Math.max(paid.length, Math.min(20, Math.floor(input.players)));
+  let nextPending = [...pending];
+  if (paid.length + nextPending.length > target) {
+    const keepPending = Math.max(0, target - paid.length);
+    const voided = nextPending.slice(keepPending).map((s) => ({ ...s, status: "void" as const }));
+    nextPending = nextPending.slice(0, keepPending);
+    other.push(...voided);
+  } else if (paid.length + nextPending.length < target) {
+    const need = target - paid.length - nextPending.length;
+    let nextIndex =
+      live.seats.filter((s) => s.kind === "prepaid").reduce((max, s) => Math.max(max, s.index), 0) + 1;
+    for (let i = 0; i < need; i++) {
+      nextPending.push({
+        id: newToken(8),
+        token: newToken(16),
+        index: nextIndex++,
+        status: "pending_payment",
+        amountEur: amount,
+        kind: "prepaid",
+      });
+    }
+  }
+
+  const seats = [...paid, ...nextPending, ...other].sort((a, b) => a.index - b.index);
+  const next: PayTeam = {
+    ...live,
+    teamName: input.teamName.trim(),
+    players: target,
+    captainPhone: input.captainPhone.trim(),
+    captainEmail: input.captainEmail.trim().toLowerCase(),
+    venue: input.venue?.trim() || live.venue,
+    city: input.city?.trim() || live.city,
+    quizTime: input.quizTime?.trim() || live.quizTime,
+    seats,
+    feeConfig: config,
+  };
+  return { ...next, status: deriveTeamStatus(next, now) };
+}
+
+/**
+ * Absorb paid prepaid seats from a duplicate booking into primary, then cancel the duplicate
+ * without forfeiting those paid seats (they already moved).
+ */
+export function absorbAndCancelDuplicatePayTeam(
+  primary: PayTeam,
+  duplicate: PayTeam,
+  now = new Date()
+): { primary: PayTeam; duplicate: PayTeam } {
+  const paidFromDup = duplicate.seats.filter((s) => s.kind === "prepaid" && s.status === "paid");
+  let nextIndex =
+    primary.seats.filter((s) => s.kind === "prepaid").reduce((max, s) => Math.max(max, s.index), 0) + 1;
+  const moved = paidFromDup.map((seat) => ({ ...seat, index: nextIndex++ }));
+  const mergedSeats = [...primary.seats, ...moved];
+  const mergedPlayers = Math.max(
+    primary.players,
+    prepaidSeatCount({ ...primary, seats: mergedSeats })
+  );
+  const primaryNext: PayTeam = {
+    ...primary,
+    seats: mergedSeats,
+    players: mergedPlayers,
+  };
+  const stripped: PayTeam = {
+    ...duplicate,
+    seats: duplicate.seats.map((seat) => {
+      if (seat.kind === "prepaid" && seat.status === "paid") {
+        // Already moved onto primary — mark void on the orphan row so cancel doesn't refund.
+        return { ...seat, status: "void" as const };
+      }
+      return seat;
+    }),
+  };
+  return {
+    primary: { ...primaryNext, status: deriveTeamStatus(primaryNext, now) },
+    duplicate: cancelTeamBooking(stripped, now),
+  };
+}
+
 export function addPrepaidSeat(
   team: PayTeam,
   maxPlayers: number,

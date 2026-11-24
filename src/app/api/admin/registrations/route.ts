@@ -14,12 +14,13 @@ import {
   scrubStrayMockPayTeamsOffRealEvents,
 } from "@/lib/pay-storage";
 import {
-  addRegistration,
+  dedupeStoredRegistrations,
   deleteRegistrationById,
   deleteRegistrationsByIds,
   deleteRegistrationsForEvent,
   readRegistrations,
   updateRegistrationById,
+  upsertRegistration,
 } from "@/lib/storage";
 
 export const dynamic = "force-dynamic";
@@ -34,6 +35,10 @@ export async function GET(req: NextRequest) {
   // Drop mock/staging pay teams that landed on real venues (e.g. Alipub).
   await scrubStrayMockPayTeamsOffRealEvents().catch((error) => {
     console.error("scrubStrayMockPayTeamsOffRealEvents failed:", error);
+  });
+  // Collapse any leftover same-team duplicates (newest wins).
+  await dedupeStoredRegistrations().catch((error) => {
+    console.error("dedupeStoredRegistrations failed:", error);
   });
 
   const [{ registrations }, payTeams] = await Promise.all([readRegistrations(), readPayTeams()]);
@@ -78,21 +83,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Počet hráčov musí byť medzi 1 a 99." }, { status: 400 });
   }
 
-  const venueKey = venue.toLowerCase();
-  const teamKey = teamName.toLowerCase();
-  const { registrations } = await readRegistrations();
   const termDate = quizDate || eventDate;
-  const duplicate = registrations.some((r) => {
-    if (r.teamName.trim().toLowerCase() !== teamKey) return false;
-    if (r.venue.trim().toLowerCase() !== venueKey) return false;
-    if (eventSlug && r.eventSlug !== eventSlug) return false;
-    if (!termDate) return true;
-    return registrationOnTerm(r, termDate, eventDate || termDate);
-  });
-  if (duplicate) {
-    return NextResponse.json({ error: "Tím s týmto názvom je už na tomto termíne registrovaný." }, { status: 409 });
-  }
-
   const reg = {
     id: randomUUID(),
     eventSlug,
@@ -105,8 +96,15 @@ export async function POST(req: NextRequest) {
   };
 
   try {
-    await addRegistration(reg);
-    return NextResponse.json({ ok: true, registration: reg });
+    // Same team + venue + term overwrites (no duplicate rows).
+    const upserted = await upsertRegistration(reg, {
+      nearestDate: eventDate || termDate || undefined,
+    });
+    return NextResponse.json({
+      ok: true,
+      registration: upserted.registration,
+      replaced: upserted.replaced,
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Chyba pri ukladaní registrácie";
     return NextResponse.json({ error: message }, { status: 500 });
