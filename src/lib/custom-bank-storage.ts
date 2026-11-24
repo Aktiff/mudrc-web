@@ -236,3 +236,21 @@ export async function mergeStoredCustomBankQuestions(incoming: CustomBankQuestio
     return { ...existing, questions: Array.from(byId.values()) };
   });
 }
+
+/** Odstráni tag zo všetkých vlastných otázok v banke (natrvalo, nie len z návrhu). */
+export async function stripTagFromStoredCustomBankQuestions(tag: string): Promise<CustomBankQuestion[]> {
+  const target = tag.trim().toLowerCase();
+  if (!target) return readStoredCustomBankQuestions();
+
+  return mutateStoredCustomBank((existing) => ({
+    ...existing,
+    questions: existing.questions.map((question) => {
+      if (!question.tags?.some((item) => item.toLowerCase() === target)) return question;
+      return {
+        ...question,
+        tags: question.tags.filter((item) => item.toLowerCase() !== target),
+        updatedAt: Date.now(),
+      };
+    }),
+  }));
+}
