@@ -6,6 +6,7 @@ import { ArrowLeft, Calendar, ChevronRight, MapPin, Phone, Trash2 } from "lucide
 import type { QuizEvent } from "@/lib/data";
 import { formatEventDateLabel, sortEventsForAdminOverview } from "@/lib/data";
 import { teamKey } from "@/lib/poll";
+import { sortVenueTeamsByAttendance } from "@/lib/venue-team-attendance";
 import { formatTeamPhone, type VenueTeam } from "@/lib/venue-team-contact";
 
 function teamCountLabel(count: number): string {
@@ -111,14 +112,17 @@ export default function VenueTeamsPage() {
       seen.add(key);
       const eventsHere = eventsByVenue.get(key) ?? [event];
       const slugs = new Set(eventsHere.map((entry) => entry.slug));
-      const list = filtered.filter((team) => {
-        if (assigned.has(team.id)) return false;
-        const match =
-          (team.eventSlug && slugs.has(team.eventSlug)) || team.venue.trim().toLowerCase() === key;
-        if (!match) return false;
-        assigned.add(team.id);
-        return true;
-      });
+      const list = sortVenueTeamsByAttendance(
+        filtered.filter((team) => {
+          if (assigned.has(team.id)) return false;
+          const match =
+            (team.eventSlug && slugs.has(team.eventSlug)) || team.venue.trim().toLowerCase() === key;
+          if (!match) return false;
+          assigned.add(team.id);
+          return true;
+        }),
+        eventsHere
+      );
       if (list.length === 0) continue;
       const primary = eventsHere[0];
       sections.push({
@@ -158,20 +162,25 @@ export default function VenueTeamsPage() {
         if (bucket) bucket.push(team);
         else byVenue.set(key, [team]);
       }
-      const venues: VenueGroup[] = Array.from(byVenue.entries()).map(([key, list]) => ({
-        key: `orphan:${key}`,
-        venue: list[0]?.venue.trim() || "Bez podniku",
-        city: "Iné / nepriradené",
-        date: "",
-        time: "",
-        eventSlug: "",
-        list,
-      }));
+      const venues: VenueGroup[] = Array.from(byVenue.entries()).map(([key, list]) => {
+        const venueName = list[0]?.venue.trim() || "Bez podniku";
+        const venueKey = venueName.trim().toLowerCase();
+        const venueEvents = events.filter((event) => event.venue.trim().toLowerCase() === venueKey);
+        return {
+          key: `orphan:${key}`,
+          venue: venueName,
+          city: "Iné / nepriradené",
+          date: "",
+          time: "",
+          eventSlug: "",
+          list: sortVenueTeamsByAttendance(list, venueEvents),
+        };
+      });
       venues.sort((a, b) => a.venue.localeCompare(b.venue, "sk"));
       sections.push({ key: "orphans", city: "Iné / nepriradené", venues });
     }
     return sections;
-  }, [grouped]);
+  }, [grouped, events]);
 
   const aliasesOf = (team: VenueTeam) =>
     team.linkId ? teams.filter((other) => other.id !== team.id && other.linkId === team.linkId) : [];
