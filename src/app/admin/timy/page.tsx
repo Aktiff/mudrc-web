@@ -5,14 +5,61 @@ import Link from "next/link";
 import { ArrowLeft, Calendar, ChevronRight, MapPin, Phone, Trash2 } from "lucide-react";
 import type { QuizEvent } from "@/lib/data";
 import { formatEventDateLabel, sortEventsForAdminOverview } from "@/lib/data";
+import { nearestUpcomingNight, registrationOnTerm } from "@/lib/future-quizzes";
 import { teamKey } from "@/lib/poll";
-import { sortVenueTeamsByAttendance } from "@/lib/venue-team-attendance";
-import { formatTeamPhone, type VenueTeam } from "@/lib/venue-team-contact";
+import { registrationMatchesEvent } from "@/lib/registration-utils";
+import { sortVenueTeamsByAttendance, venueTeamAttendance } from "@/lib/venue-team-attendance";
+import {
+  formatTeamPhone,
+  hasUnifiablePhones,
+  type VenueTeam,
+} from "@/lib/venue-team-contact";
+
+type RegistrationLite = {
+  eventSlug?: string;
+  venue?: string;
+  teamName: string;
+  quizDate?: string;
+};
 
 function teamCountLabel(count: number): string {
   if (count === 1) return "1 tím";
   if (count >= 2 && count <= 4) return `${count} tímy`;
   return `${count} tímov`;
+}
+
+function attendanceLabel(count: number): string {
+  return `${count}× na kvíze`;
+}
+
+/** Keys of teams registered for the nearest upcoming quiz night at this venue. */
+function registeredNameKeysForVenue(
+  eventsHere: QuizEvent[],
+  registrations: RegistrationLite[]
+): Set<string> {
+  const keys = new Set<string>();
+  if (!eventsHere.length || !registrations.length) return keys;
+
+  const primary = eventsHere[0];
+  const night = nearestUpcomingNight(primary);
+  if (!night) return keys;
+
+  for (const reg of registrations) {
+    if (!registrationMatchesEvent(reg, primary.slug, primary.venue)) continue;
+    if (!registrationOnTerm(reg, night.date, primary.date)) continue;
+    const key = teamKey(reg.teamName);
+    if (key) keys.add(key);
+  }
+  return keys;
+}
+
+function teamIsRegistered(team: VenueTeam, aliases: VenueTeam[], registeredKeys: Set<string>): boolean {
+  if (registeredKeys.size === 0) return false;
+  for (const entry of [team, ...aliases]) {
+    if (registeredKeys.has(teamKey(entry.teamName))) return true;
+    if (entry.leagueName && registeredKeys.has(teamKey(entry.leagueName))) return true;
+  }
+  return false;
 }
 
 function venueCountLabel(count: number): string {
@@ -40,6 +87,7 @@ type CitySection = {
 export default function VenueTeamsPage() {
   const [teams, setTeams] = useState<VenueTeam[]>([]);
   const [events, setEvents] = useState<QuizEvent[]>([]);
+  const [registrations, setRegistrations] = useState<RegistrationLite[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -60,10 +108,14 @@ export default function VenueTeamsPage() {
       fetch(`/api/admin/events?_=${Date.now()}`, { cache: "no-store", credentials: "same-origin" }).then((r) =>
         r.ok ? r.json() : { events: [] }
       ),
+      fetch(`/api/admin/registrations?_=${Date.now()}`, { cache: "no-store", credentials: "same-origin" }).then((r) =>
+        r.ok ? r.json() : { registrations: [] }
+      ),
     ])
-      .then(([teamData, eventData]) => {
+      .then(([teamData, eventData, regData]) => {
         setTeams(teamData.teams ?? []);
         setEvents(eventData.events ?? []);
+        setRegistrations(regData.registrations ?? []);
       })
       .finally(() => setLoading(false));
   }, []);
@@ -239,6 +291,19 @@ export default function VenueTeamsPage() {
     return null;
   };
 
+  const unifyPhones = async (team: VenueTeam): Promise<string | null> => {
+    const res = await fetch("/api/admin/venue-teams", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "unify-phones", teamId: team.id }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return data.error ?? "Čísla sa nepodarilo zjednotiť.";
+    setTeams(data.teams ?? []);
+    return null;
+  };
+
   const removeTeam = async (team: VenueTeam) => {
     if (!confirm(`Odstrániť tím „${team.teamName}" z databázy kontaktov? Registrácie to nezmaže.`)) return;
     setDeletingId(team.id);
@@ -268,6 +333,13 @@ export default function VenueTeamsPage() {
   const venueSection = citySection?.venues.find((venue) => venue.key === selectedVenue) ?? null;
 
   if (venueSection && citySection) {
+    const venueKey = venueSection.venue.trim().toLowerCase();
+    const venueEvents =
+      venueSection.key.startsWith("orphan:")
+        ? events.filter((event) => event.venue.trim().toLowerCase() === venueKey)
+        : sortedEvents.filter((event) => event.venue.trim().toLowerCase() === venueKey);
+    const registeredKeys = registeredNameKeysForVenue(venueEvents, registrations);
+
     return (
       <div className="w-full min-w-0">
         <button
@@ -355,32 +427,40 @@ export default function VenueTeamsPage() {
           </div>
         ) : (
           <div className="space-y-3">
-            {venueSection.list.map((team) => (
-              <TeamRow
-                key={team.id}
-                team={team}
-                aliases={aliasesOf(team)}
-                deleting={deletingId === team.id}
-                linking={linkingId === team.id && linkMode === "quiz"}
-                onDelete={() => removeTeam(team)}
-                linkingFull={linkingId === team.id && linkMode === "full"}
-                onLink={() => openLink(team.id, "quiz")}
-                onFullLink={() => openLink(team.id, "full")}
-                onMergeLeague={
-                  aliasesOf(team).length > 0 && !team.leagueMerge
-                    ? () => void saveLink("merge", team.id)
-                    : undefined
-                }
-                onUseLeagueName={
-                  team.leagueMerge && teamKey(team.teamName) !== teamKey(team.leagueName ?? "")
-                    ? () => void saveLink("league-name", team.id)
-                    : undefined
-                }
-                onUnlink={() => void saveLink("unlink", team.id)}
-                onRename={(nextName) => renameTeam(team, nextName)}
-                onAddPhone={(phone) => addPhone(team, phone)}
-              />
-            ))}
+            {venueSection.list.map((team) => {
+              const aliases = aliasesOf(team);
+              return (
+                <TeamRow
+                  key={team.id}
+                  team={team}
+                  aliases={aliases}
+                  attendance={venueTeamAttendance(team, venueEvents)}
+                  registered={teamIsRegistered(team, aliases, registeredKeys)}
+                  deleting={deletingId === team.id}
+                  linking={linkingId === team.id && linkMode === "quiz"}
+                  onDelete={() => removeTeam(team)}
+                  linkingFull={linkingId === team.id && linkMode === "full"}
+                  onLink={() => openLink(team.id, "quiz")}
+                  onFullLink={() => openLink(team.id, "full")}
+                  onMergeLeague={
+                    aliases.length > 0 && !team.leagueMerge
+                      ? () => void saveLink("merge", team.id)
+                      : undefined
+                  }
+                  onUseLeagueName={
+                    team.leagueMerge && teamKey(team.teamName) !== teamKey(team.leagueName ?? "")
+                      ? () => void saveLink("league-name", team.id)
+                      : undefined
+                  }
+                  onUnlink={() => void saveLink("unlink", team.id)}
+                  onRename={(nextName) => renameTeam(team, nextName)}
+                  onAddPhone={(phone) => addPhone(team, phone)}
+                  onUnifyPhones={
+                    hasUnifiablePhones(team.phones) ? () => unifyPhones(team) : undefined
+                  }
+                />
+              );
+            })}
           </div>
         )}
       </div>
@@ -512,6 +592,8 @@ function leagueRowLabel(team: VenueTeam, aliases: VenueTeam[]): string | null {
 function TeamRow({
   team,
   aliases = [],
+  attendance = 0,
+  registered = false,
   deleting,
   linking = false,
   linkingFull = false,
@@ -523,10 +605,13 @@ function TeamRow({
   onUnlink,
   onRename,
   onAddPhone,
+  onUnifyPhones,
   showVenue = false,
 }: {
   team: VenueTeam;
   aliases?: VenueTeam[];
+  attendance?: number;
+  registered?: boolean;
   deleting: boolean;
   linking?: boolean;
   linkingFull?: boolean;
@@ -538,11 +623,13 @@ function TeamRow({
   onUnlink?: () => void;
   onRename?: (nextName: string) => Promise<string | null>;
   onAddPhone?: (phone: string) => Promise<string | null>;
+  onUnifyPhones?: () => Promise<string | null>;
   showVenue?: boolean;
 }) {
   const [phoneDraft, setPhoneDraft] = useState("");
   const [phoneError, setPhoneError] = useState("");
   const [savingPhone, setSavingPhone] = useState(false);
+  const [unifyingPhones, setUnifyingPhones] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [nameDraft, setNameDraft] = useState(team.teamName);
   const [renameError, setRenameError] = useState("");
@@ -566,10 +653,34 @@ function TeamRow({
     }
     setPhoneDraft("");
   };
+
+  const runUnifyPhones = async () => {
+    if (!onUnifyPhones) return;
+    setUnifyingPhones(true);
+    setPhoneError("");
+    const error = await onUnifyPhones();
+    setUnifyingPhones(false);
+    if (error) setPhoneError(error);
+  };
+
   return (
-    <div className="rounded-xl border border-brand-border bg-brand-card p-4 flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+    <div
+      className={`rounded-xl border p-4 flex flex-col sm:flex-row sm:items-start justify-between gap-4 ${
+        registered
+          ? "border-green-500/50 bg-green-50 dark:bg-green-950/30 dark:border-green-700/60"
+          : "border-brand-border bg-brand-card"
+      }`}
+    >
       <div className="min-w-0">
-        <div className="font-display text-xl text-brand-text">{team.teamName}</div>
+        <div className="font-display text-xl text-brand-text flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          <span>{team.teamName}</span>
+          <span className="font-body text-sm font-semibold text-brand-muted">{attendanceLabel(attendance)}</span>
+          {registered ? (
+            <span className="font-body text-xs font-semibold text-green-700 dark:text-green-300">
+              Prihlásení na najbližší kvíz
+            </span>
+          ) : null}
+        </div>
         {renaming ? (
           <form
             className="mt-3 space-y-2"
@@ -666,6 +777,18 @@ function TeamRow({
             })
           )}
         </div>
+        {onUnifyPhones ? (
+          <div className="mt-2">
+            <button
+              type="button"
+              disabled={unifyingPhones}
+              onClick={() => void runUnifyPhones()}
+              className="text-sm font-semibold px-3 py-2 rounded-xl border border-brand-border text-brand-text disabled:opacity-50"
+            >
+              {unifyingPhones ? "Zjednocujem..." : "Zjednotiť čísla"}
+            </button>
+          </div>
+        ) : null}
         {onAddPhone ? (
           <form
             className="mt-3 flex flex-wrap items-center gap-2"
@@ -693,8 +816,12 @@ function TeamRow({
             </button>
             {phoneError ? <p className="text-sm text-red-600 w-full">{phoneError}</p> : null}
           </form>
+        ) : phoneError ? (
+          <p className="text-sm text-red-600 mt-2">{phoneError}</p>
         ) : null}
-        <p className="text-brand-muted text-xs mt-2">Naposledy {team.updatedAt}</p>
+        <p className="text-brand-muted text-xs mt-2">
+          Absolvované: {attendance} · Naposledy {team.updatedAt}
+        </p>
       </div>
       <div className="flex flex-wrap gap-2 shrink-0">
         {onLink ? (

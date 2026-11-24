@@ -8,6 +8,7 @@ import {
   readVenueTeams,
   renameLeagueGroup,
   setLeagueDisplayName,
+  unifyVenueTeamPhones,
   unlinkVenueTeam,
 } from "@/lib/venue-teams";
 import { renameTeamEverywhere } from "@/lib/rename-team";
@@ -70,6 +71,10 @@ export async function POST(req: NextRequest) {
     }
     if (action === "add-phone") {
       const teams = await addVenueTeamPhone(teamId, body?.phone ?? "");
+      return NextResponse.json({ ok: true, teams }, { headers: NO_STORE });
+    }
+    if (action === "unify-phones") {
+      const teams = await unifyVenueTeamPhones(teamId);
       return NextResponse.json({ ok: true, teams }, { headers: NO_STORE });
     }
     return NextResponse.json({ error: "Neznáma akcia." }, { status: 400 });
