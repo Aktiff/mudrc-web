@@ -1,7 +1,10 @@
 import fs from "fs";
 import path from "path";
 import { readAppStorageWithFallback, writeAppStorageWithFallback } from "@/lib/app-storage-fallback";
-import { readStoredCustomBankQuestions } from "@/lib/custom-bank-storage";
+import {
+  readStoredCustomBankQuestions,
+  stripTagFromStoredCustomBankQuestions,
+} from "@/lib/custom-bank-storage";
 import { uniqueQuestionTags } from "@/lib/quiz-question-tags";
 
 const localPath = path.join(process.cwd(), "src/data/used-question-tags.local.json");
@@ -84,5 +87,32 @@ export async function mergeStoredUsedTags(incoming: string[]): Promise<string[]>
       }
     }
     throw lastError ?? new Error("Tagy sa nepodarilo uložiť.");
+  });
+}
+
+/**
+ * Natrvalo odstráni tag z katalógu návrhov a zo všetkých vlastných otázok,
+ * aby sa už neobjavil v autocomplete.
+ */
+export async function removeStoredUsedTag(tag: string): Promise<string[]> {
+  const target = tag.trim().toLowerCase();
+  if (!target) return readUsedQuestionTagSuggestions();
+
+  return enqueue(async () => {
+    let lastError: Error | null = null;
+    for (let attempt = 0; attempt < 6; attempt++) {
+      const current = await readVocabulary();
+      const next = current.filter((item) => item !== target);
+      try {
+        await writeVocabulary(next);
+        await stripTagFromStoredCustomBankQuestions(target);
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error("Zmazanie tagu zlyhalo");
+        continue;
+      }
+      const suggestions = await readUsedQuestionTagSuggestions();
+      if (!suggestions.includes(target)) return suggestions;
+    }
+    throw lastError ?? new Error("Tag sa nepodarilo zmazať.");
   });
 }

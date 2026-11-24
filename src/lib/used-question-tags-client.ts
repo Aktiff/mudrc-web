@@ -48,6 +48,32 @@ export function rememberUsedQuestionTags(tags: string[]): void {
   }).catch(() => undefined);
 }
 
+/** Natrvalo zmaže tag z katalógu návrhov (a zo otázok na serveri). */
+export function forgetUsedQuestionTag(tag: string): Promise<string[]> {
+  const target = tag.trim().toLowerCase();
+  if (!target) return Promise.resolve(peekUsedQuestionTags());
+
+  publish((cache ?? []).filter((item) => item !== target));
+
+  return fetch(`/api/admin/question-tags?tag=${encodeURIComponent(target)}`, {
+    method: "DELETE",
+    cache: "no-store",
+  })
+    .then(async (res) => {
+      if (!res.ok) {
+        void fetchUsedQuestionTags();
+        throw new Error("Zmazanie tagu zlyhalo");
+      }
+      const data = await res.json().catch(() => ({}));
+      const tags = Array.isArray(data.tags) ? uniqueQuestionTags(data.tags) : peekUsedQuestionTags();
+      return publish(tags.filter((item) => item !== target));
+    })
+    .catch((error) => {
+      void fetchUsedQuestionTags();
+      throw error;
+    });
+}
+
 export function subscribeUsedQuestionTags(listener: () => void): () => void {
   if (typeof window === "undefined") return () => undefined;
   window.addEventListener(EVENT, listener);

@@ -4,10 +4,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { formatTagsInput, parseTagsInput } from "@/lib/quiz-question-tags";
 import {
   fetchUsedQuestionTags,
+  forgetUsedQuestionTag,
   peekUsedQuestionTags,
   rememberUsedQuestionTags,
   subscribeUsedQuestionTags,
 } from "@/lib/used-question-tags-client";
+import { notifyCustomBankUpdated } from "@/lib/quiz-custom-bank";
 
 type Props = {
   value: string;
@@ -121,6 +123,27 @@ export default function TagSuggestInput({ value, onChange, className, placeholde
     [emit, selected]
   );
 
+  const deleteTagPermanently = useCallback(
+    (tag: string) => {
+      const confirmed = window.confirm(
+        `Natrvalo zmazať tag „${tag}“ z návrhov a zo všetkých otázok v banke?`
+      );
+      if (!confirmed) return;
+      void forgetUsedQuestionTag(tag)
+        .then(() => {
+          if (selected.some((item) => item.toLowerCase() === tag.toLowerCase())) {
+            emit(selected.filter((item) => item.toLowerCase() !== tag.toLowerCase()));
+          }
+          notifyCustomBankUpdated();
+          inputRef.current?.focus();
+        })
+        .catch(() => {
+          window.alert("Tag sa nepodarilo zmazať. Skús to znova.");
+        });
+    },
+    [emit, selected]
+  );
+
   const commitQueryAsTag = useCallback(() => {
     const typed = query.trim();
     if (!typed) return false;
@@ -223,23 +246,43 @@ export default function TagSuggestInput({ value, onChange, className, placeholde
       </div>
       {showDropdown && (
         <ul className="absolute z-50 top-full mt-1 left-0 right-0 bg-brand-card border border-brand-border rounded-xl shadow-lg overflow-hidden max-h-56 overflow-y-auto">
-          {filtered.map((suggestion, index) => (
-            <li
-              key={suggestion}
-              className={`px-3 py-2 text-sm cursor-pointer transition-colors ${
-                index === highlighted
-                  ? "bg-brand-orange text-brand-btn-fg font-semibold"
-                  : "text-brand-text hover:bg-brand-hover"
-              }`}
-              onMouseDown={(event) => {
-                event.preventDefault();
-                addTag(suggestion);
-              }}
-              onMouseEnter={() => setHighlighted(index)}
-            >
-              {suggestion}
-            </li>
-          ))}
+          {filtered.map((suggestion, index) => {
+            const active = index === highlighted;
+            return (
+              <li
+                key={suggestion}
+                className={`group flex items-center gap-2 px-3 py-2 text-sm cursor-pointer transition-colors ${
+                  active
+                    ? "bg-brand-orange text-brand-btn-fg font-semibold"
+                    : "text-brand-text hover:bg-brand-hover"
+                }`}
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  addTag(suggestion);
+                }}
+                onMouseEnter={() => setHighlighted(index)}
+              >
+                <span className="flex-1 truncate">{suggestion}</span>
+                <button
+                  type="button"
+                  onMouseDown={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    deleteTagPermanently(suggestion);
+                  }}
+                  className={`shrink-0 w-5 h-5 inline-flex items-center justify-center rounded-full text-sm leading-none opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity ${
+                    active
+                      ? "hover:bg-black/15 text-brand-btn-fg"
+                      : "text-brand-muted hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-950/40"
+                  }`}
+                  aria-label={`Natrvalo zmazať tag ${suggestion}`}
+                  title="Natrvalo zmazať z návrhov"
+                >
+                  ×
+                </button>
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>
