@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import {
-  addRegistration,
   getStorageDiagnostics,
   hasPersistentStorage,
   readEvents,
   readRegistrations,
+  upsertRegistration,
+  type Registration,
 } from "@/lib/storage";
 import { isRegistrationOpen } from "@/lib/data";
 import { isExternalEvent } from "@/lib/event-normalize";
@@ -24,6 +25,7 @@ export async function POST(req: NextRequest) {
   const slug = String(eventSlug ?? "").trim();
   const term = typeof quizDate === "string" ? quizDate.trim() : "";
   let storedQuizDate = "";
+  let nearestDate = "";
   if (slug) {
     const { events } = await readEvents();
     const event = events.find((entry) => entry.slug === slug);
@@ -34,6 +36,7 @@ export async function POST(req: NextRequest) {
           { status: 403 }
         );
       }
+      nearestDate = event.date;
       const extra = term ? findFutureQuiz(event, term) : null;
       const isNearest = !term || futureQuizMatchesDate({ id: "", date: event.date }, term);
       if (extra) {
@@ -63,21 +66,26 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const reg = {
+  const reg: Registration = {
     id: randomUUID(),
     eventSlug: eventSlug ?? "",
     venue,
-    teamName,
+    teamName: String(teamName).trim(),
     players: String(players),
     phone: String(phone).trim(),
     createdAt: new Date().toLocaleString("sk-SK", { timeZone: "Europe/Bratislava" }),
     ...(storedQuizDate ? { quizDate: storedQuizDate } : term ? { quizDate: term } : {}),
   };
 
+  let saved: Registration = reg;
   try {
-    await addRegistration(reg);
+    // Same team + venue + term overwrites the previous row (no duplicate in admin).
+    const upserted = await upsertRegistration(reg, {
+      nearestDate: nearestDate || storedQuizDate || term || undefined,
+    });
+    saved = upserted.registration;
   } catch (error) {
-    console.error("addRegistration failed:", error);
+    console.error("upsertRegistration failed:", error);
     const message = error instanceof Error ? error.message : "Neznáma chyba";
     return NextResponse.json(
       {
@@ -89,9 +97,9 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const emailResult = await sendRegistrationEmail(reg);
+  const emailResult = await sendRegistrationEmail(saved);
   if (!emailResult.ok) {
-    console.warn("Registration saved but notification email was not sent:", reg.id, emailResult.error);
+    console.warn("Registration saved but notification email was not sent:", saved.id, emailResult.error);
   }
 
   return NextResponse.json({

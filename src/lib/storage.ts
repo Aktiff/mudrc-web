@@ -1542,6 +1542,70 @@ export async function addRegistration(reg: Registration): Promise<void> {
   }
 }
 
+/**
+ * Same team name + venue + event/term → replace the previous row (keep one id).
+ * Also collapses any other duplicates for that slot (newest id kept as base).
+ */
+export async function upsertRegistration(
+  reg: Registration,
+  options?: { nearestDate?: string }
+): Promise<{ registration: Registration; replaced: boolean; removedIds: string[] }> {
+  const { sameRegistrationSlot, preferNewestRegistration } = await import("@/lib/registration-utils");
+  const normalized = normalizeRegistration(reg);
+  const nearestDate = (options?.nearestDate ?? normalized.quizDate ?? "").trim();
+  let result = { registration: normalized, replaced: false, removedIds: [] as string[] };
+
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const current = await loadRegistrations();
+    const matches = current.filter((existing) => sameRegistrationSlot(existing, normalized, nearestDate));
+    const winner = preferNewestRegistration(matches);
+    const keepId = winner?.id ?? normalized.id;
+    const removedIds = matches.map((m) => m.id).filter((id) => id !== keepId);
+
+    const nextRow = normalizeRegistration({
+      ...normalized,
+      id: keepId,
+      // Re-registration is the current row; refresh timestamp.
+      createdAt: normalized.createdAt,
+    });
+
+    const withoutMatches = current.filter((existing) => !sameRegistrationSlot(existing, normalized, nearestDate));
+    const next = [...withoutMatches, nextRow];
+
+    try {
+      await persistRegistrations(next);
+      await archiveRegistrationContacts([nextRow]);
+      result = {
+        registration: nextRow,
+        replaced: matches.length > 0,
+        removedIds,
+      };
+      return result;
+    } catch (error) {
+      if (attempt === 4) throw error;
+      await sleep(250 * (attempt + 1));
+    }
+  }
+
+  return result;
+}
+
+/**
+ * One-shot cleanup: collapse existing duplicate team+venue+event+term rows (newest wins).
+ * Safe to call from admin list; no-op when already unique.
+ */
+export async function dedupeStoredRegistrations(nearestDate?: string): Promise<number> {
+  const { dedupeRegistrationsPreferNewest } = await import("@/lib/registration-utils");
+  let removed = 0;
+  await updateRegistrations((regs) => {
+    const { kept, removedIds } = dedupeRegistrationsPreferNewest(regs, nearestDate);
+    removed = removedIds.length;
+    if (removed === 0) return regs;
+    return kept;
+  }, { destructive: true });
+  return removed;
+}
+
 export async function deleteRegistrationById(id: string): Promise<boolean> {
   let removed = false;
   for (let attempt = 0; attempt < 5; attempt++) {
@@ -1567,7 +1631,7 @@ export async function deleteRegistrationById(id: string): Promise<boolean> {
 
 export async function updateRegistrationById(
   id: string,
-  patch: Partial<Pick<Registration, "players" | "quizDate">>
+  patch: Partial<Pick<Registration, "players" | "quizDate" | "phone" | "teamName" | "venue">>
 ): Promise<Registration | null> {
   let updated: Registration | null = null;
   await updateRegistrations((regs) => {

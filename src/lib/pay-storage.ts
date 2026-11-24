@@ -4,6 +4,7 @@ import { readAppStorageWithFallback, writeAppStorageWithFallback } from "@/lib/a
 import { readLatestAppStorageBlob } from "@/lib/blob-app-storage";
 import { hasBlobStorage } from "@/lib/storage";
 import {
+  absorbAndCancelDuplicatePayTeam,
   addPrepaidSeat,
   applyHoldExpiry,
   cancelTeamBooking,
@@ -11,12 +12,15 @@ import {
   createWalkUpSeat,
   markNextPendingSeatsPaid,
   markSeatPaid,
+  paidSeats,
+  replaceTeamBookingFields,
   toggleSeatCheckIn,
   type PayBookingStore,
   type PaySeat,
   type PayTeam,
 } from "@/lib/pay-domain";
 import { PAY_STAGING_DEMO_SLUG, PAY_TEST_EVENT_SLUG } from "@/lib/pay-config";
+import { teamKey } from "@/lib/poll";
 
 const localPath = path.join(process.cwd(), "src/data/pay-bookings.local.json");
 const seedPath = path.join(process.cwd(), "src/data/pay-bookings.json");
@@ -156,18 +160,76 @@ export async function findSeatByToken(
   return null;
 }
 
+function samePayTeamSlot(
+  team: PayTeam,
+  input: Pick<Parameters<typeof createTeamBooking>[0], "eventSlug" | "quizDate" | "teamName" | "venue">
+): boolean {
+  if (team.status === "cancelled") return false;
+  if (team.eventSlug !== input.eventSlug) return false;
+  if (team.quizDate.trim() !== input.quizDate.trim()) return false;
+  if (teamKey(team.teamName) !== teamKey(input.teamName)) return false;
+  if (team.venue.trim().toLowerCase() !== input.venue.trim().toLowerCase()) return false;
+  return true;
+}
+
+function pickPrimaryPayTeam(matches: PayTeam[]): PayTeam {
+  return matches.reduce((best, current) => {
+    const paidBest = paidSeats(best).length;
+    const paidCurrent = paidSeats(current).length;
+    if (paidCurrent !== paidBest) return paidCurrent > paidBest ? current : best;
+    return current.createdAt.localeCompare(best.createdAt) >= 0 ? current : best;
+  });
+}
+
+/**
+ * Register or overwrite: same team name + venue + event/date keeps one booking.
+ * Prefers payment continuity (same token/id, keep paid seats; void unpaid extras).
+ */
 export async function registerPayTeam(
   input: Parameters<typeof createTeamBooking>[0]
 ): Promise<PayTeam> {
-  const team = createTeamBooking(input);
+  let saved: PayTeam | undefined;
+
   await updateStore((teams) => {
-    if (teams.some((t) => t.id === team.id || t.token === team.token)) return teams;
-    return [...teams, team];
+    const matches = teams.filter((team) => samePayTeamSlot(team, input));
+    if (matches.length === 0) {
+      const team = createTeamBooking(input);
+      if (teams.some((t) => t.id === team.id || t.token === team.token)) return teams;
+      saved = team;
+      return [...teams, team];
+    }
+
+    const primary = pickPrimaryPayTeam(matches);
+    let nextPrimary = replaceTeamBookingFields(primary, input);
+    const byId = new Map(teams.map((t) => [t.id, t]));
+
+    for (const dup of matches) {
+      if (dup.id === primary.id) continue;
+      if (paidSeats(dup).length > 0) {
+        const absorbed = absorbAndCancelDuplicatePayTeam(nextPrimary, dup);
+        nextPrimary = absorbed.primary;
+        byId.set(dup.id, absorbed.duplicate);
+      } else {
+        byId.set(dup.id, cancelTeamBooking(dup));
+      }
+    }
+    byId.set(primary.id, nextPrimary);
+    saved = nextPrimary;
+    return Array.from(byId.values());
   });
 
+  const token = saved?.token;
+  if (!token) {
+    // Fallback — should not happen; create fresh if store write path failed oddly.
+    const team = createTeamBooking(input);
+    await updateStore((teams) => [...teams, team]);
+    const visible = await getTeamByToken(team.token, { retries: 12, delayMs: 200 });
+    return visible ?? team;
+  }
+
   // Don't return until the team is readable on a fresh load (fixes www.mudrc.sk/pay 404).
-  const visible = await getTeamByToken(team.token, { retries: 12, delayMs: 200 });
-  return visible ?? team;
+  const visible = await getTeamByToken(token, { retries: 12, delayMs: 200 });
+  return visible ?? saved!;
 }
 
 export async function paySeatMock(

@@ -1,3 +1,6 @@
+import { registrationOnTerm } from "@/lib/future-quizzes";
+import { teamKey } from "@/lib/poll";
+
 /** Počet hráčov z registrácie (reťazec z formulára alebo admin úpravy). */
 export function parseRegistrationPlayerCount(value: string | number | null | undefined): number {
   const n = parseInt(String(value ?? "").replace(/[^\d]/g, ""), 10);
@@ -9,6 +12,84 @@ export type RegistrationLike = {
   venue?: string;
   players?: string | number;
 };
+
+export type RegistrationSlotLike = {
+  id?: string;
+  teamName: string;
+  venue?: string;
+  eventSlug?: string;
+  quizDate?: string;
+  createdAt?: string;
+};
+
+/**
+ * Same team + venue (+ event slug when both set) + quiz term.
+ * Case/whitespace-insensitive team name via teamKey. Empty quizDate = nearest term.
+ */
+export function sameRegistrationSlot(
+  a: RegistrationSlotLike,
+  b: RegistrationSlotLike,
+  nearestDate?: string
+): boolean {
+  if (teamKey(a.teamName) !== teamKey(b.teamName)) return false;
+  if ((a.venue ?? "").trim().toLowerCase() !== (b.venue ?? "").trim().toLowerCase()) return false;
+  const slugA = (a.eventSlug ?? "").trim();
+  const slugB = (b.eventSlug ?? "").trim();
+  if (slugA && slugB && slugA !== slugB) return false;
+
+  const nearest = (nearestDate ?? "").trim();
+  const termA = (a.quizDate ?? "").trim();
+  const termB = (b.quizDate ?? "").trim();
+  // Both undated → same nearest-term bucket for this venue/event.
+  if (!termA && !termB) return true;
+  if (!nearest) {
+    // Without event nearest date, don't guess: undated ≠ a concrete future term.
+    if (!termA || !termB) return false;
+    return registrationOnTerm(a, termB, termB);
+  }
+  const probe = termB || termA || nearest;
+  return registrationOnTerm(a, probe, nearest) && registrationOnTerm(b, probe, nearest);
+}
+
+/** Keep newest by createdAt (sk locale string); ties keep the later array entry. */
+export function preferNewestRegistration<T extends RegistrationSlotLike>(regs: T[]): T | undefined {
+  if (!regs.length) return undefined;
+  return regs.reduce((best, current) => {
+    const cmp = (current.createdAt ?? "").localeCompare(best.createdAt ?? "", "sk");
+    return cmp >= 0 ? current : best;
+  });
+}
+
+/**
+ * Collapse duplicates for the same team+venue+event+term (newest wins).
+ * Optional nearestDate helps match empty quizDate rows to a concrete term.
+ */
+export function dedupeRegistrationsPreferNewest<T extends RegistrationSlotLike>(
+  regs: T[],
+  nearestDate?: string
+): { kept: T[]; removedIds: string[] } {
+  const kept: T[] = [];
+  const removedIds: string[] = [];
+  const claimed = new Set<number>();
+
+  for (let i = 0; i < regs.length; i++) {
+    if (claimed.has(i)) continue;
+    const groupIdx = [i];
+    for (let j = i + 1; j < regs.length; j++) {
+      if (claimed.has(j)) continue;
+      if (sameRegistrationSlot(regs[i], regs[j], nearestDate)) groupIdx.push(j);
+    }
+    const group = groupIdx.map((idx) => regs[idx]);
+    const winner = preferNewestRegistration(group)!;
+    kept.push(winner);
+    for (const idx of groupIdx) {
+      claimed.add(idx);
+      const id = regs[idx].id;
+      if (id && id !== winner.id) removedIds.push(id);
+    }
+  }
+  return { kept, removedIds };
+}
 
 /** Rovnaká logika ako zoznam v admine: slug alebo podnik. */
 export function registrationMatchesEvent(registration: RegistrationLike, slug: string, venue: string): boolean {
