@@ -1,4 +1,6 @@
-import { MATH_EDITOR_HINT_SK } from "@/lib/math-text";
+"use client";
+
+import { MATH_EDITOR_HINT_SK } from "@/lib/math-text-shared";
 import MathText, { MathLivePreview } from "@/components/MathText";
 
 /** Minimal Slovak hint under question/answer fields. */

@@ -338,7 +338,18 @@ export function addCustomBankQuestion(input: NewCustomBankQuestionInput): Custom
 }
 
 const CUSTOM_BANK_SYNC_FLAG = "mudrc-custom-bank-synced-v1";
+const CUSTOM_BANK_FETCH_MS = 12_000;
 let customBankSync: Promise<void> | null = null;
+
+function customBankSignal(): AbortSignal | undefined {
+  if (typeof AbortSignal === "undefined" || typeof AbortSignal.timeout !== "function") return undefined;
+  return AbortSignal.timeout(CUSTOM_BANK_FETCH_MS);
+}
+
+async function fetchCustomBank(input: string, init?: RequestInit): Promise<Response> {
+  const signal = init?.signal ?? customBankSignal();
+  return fetch(input, { ...init, signal, cache: init?.cache ?? "no-store" });
+}
 
 export function ensureCustomBankSynced(): Promise<void> {
   if (typeof window === "undefined") return Promise.resolve();
@@ -361,7 +372,7 @@ export async function syncLocalCustomBankToServerOnce(): Promise<void> {
     return;
   }
 
-  const current = await fetch(`/api/admin/custom-bank?_=${Date.now()}`, { cache: "no-store" });
+  const current = await fetchCustomBank(`/api/admin/custom-bank?_=${Date.now()}`);
   if (!current.ok) return;
   const currentData = await current.json().catch(() => ({}));
   const server = withoutDeletedCustomQuestions(parseCustomBankQuestionList(currentData.questions));
@@ -371,9 +382,8 @@ export async function syncLocalCustomBankToServerOnce(): Promise<void> {
     return;
   }
 
-  const res = await fetch("/api/admin/custom-bank", {
+  const res = await fetchCustomBank("/api/admin/custom-bank", {
     method: "POST",
-    cache: "no-store",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ merge: true, questions: withoutDeletedCustomQuestions(local) }),
   });
@@ -403,7 +413,7 @@ export async function fetchCustomBankQuestionsFromServer(): Promise<CustomBankQu
   await ensureCustomBankSynced().catch(() => undefined);
 
   try {
-    const res = await fetch(`/api/admin/custom-bank?_=${Date.now()}`, { cache: "no-store" });
+    const res = await fetchCustomBank(`/api/admin/custom-bank?_=${Date.now()}`);
     if (!res.ok) return readCustomBankQuestions();
     const data = await res.json();
     const questions = preferNewerCustomQuestions(
@@ -423,9 +433,8 @@ export async function fetchCustomBankQuestionsFromServer(): Promise<CustomBankQu
 export async function addCustomBankQuestionAsync(input: NewCustomBankQuestionInput): Promise<CustomBankQuestion> {
   await ensureCustomBankSynced().catch(() => undefined);
 
-  const res = await fetch("/api/admin/custom-bank", {
+  const res = await fetchCustomBank("/api/admin/custom-bank", {
     method: "POST",
-    cache: "no-store",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
   });
@@ -433,8 +442,20 @@ export async function addCustomBankQuestionAsync(input: NewCustomBankQuestionInp
   if (!res.ok) {
     throw new Error(typeof data.error === "string" ? data.error : "Uloženie zlyhalo");
   }
-  const created = normalizeStoredCustomQuestion(data.question);
+  const rawQuestion =
+    data.question && typeof data.question === "object"
+      ? (data.question as Record<string, unknown>)
+      : null;
+  const created =
+    normalizeStoredCustomQuestion(data.question) ??
+    // Server accepted the write — don't fail the UI if a transient normalize glitch occurs.
+    (typeof rawQuestion?.id === "string" ? createCustomBankQuestion(input) : null);
   if (!created) throw new Error("Uloženie zlyhalo");
+  if (typeof rawQuestion?.id === "string") {
+    created.id = rawQuestion.id;
+    if (typeof rawQuestion.createdAt === "number") created.createdAt = rawQuestion.createdAt;
+    if (typeof rawQuestion.updatedAt === "number") created.updatedAt = rawQuestion.updatedAt;
+  }
   const questions = withoutDeletedCustomQuestions(
     parseCustomBankQuestionList(Array.isArray(data.questions) ? data.questions : [])
   );
@@ -453,17 +474,19 @@ export async function updateCustomBankQuestionAsync(
   if (!isCustomBankQuestionId(id)) {
     throw new Error("Neplatné id otázky v banke.");
   }
-  const res = await fetch("/api/admin/custom-bank", {
+  const res = await fetchCustomBank("/api/admin/custom-bank", {
     method: "PATCH",
-    cache: "no-store",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ id, ...input }),
   });
-  const data = await res.json();
+  const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     throw new Error(typeof data.error === "string" ? data.error : "Uloženie zlyhalo");
   }
-  const updated = normalizeStoredCustomQuestion(data.question);
+  const existing = readCustomBankQuestions().find((question) => question.id === id);
+  const updated =
+    normalizeStoredCustomQuestion(data.question) ??
+    (existing ? applyCustomBankQuestionUpdate(existing, input) : null);
   if (!updated) throw new Error("Uloženie zlyhalo");
   const questions = withoutDeletedCustomQuestions(parseCustomBankQuestionList(data.questions ?? [updated])).map((item) =>
     item.id === updated.id ? updated : item
@@ -484,9 +507,8 @@ export async function removeCustomBankQuestionAsync(id: string): Promise<void> {
     .map((question) => question.id);
   if (!dropIds.includes(id)) dropIds.push(id);
 
-  const res = await fetch(`/api/admin/custom-bank?id=${encodeURIComponent(id)}`, {
+  const res = await fetchCustomBank(`/api/admin/custom-bank?id=${encodeURIComponent(id)}`, {
     method: "DELETE",
-    cache: "no-store",
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {

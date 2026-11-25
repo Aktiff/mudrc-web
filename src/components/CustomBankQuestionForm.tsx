@@ -176,7 +176,7 @@ export default function CustomBankQuestionForm({ onAdded }: Props) {
 
       resetForm();
       setSuccess(
-        created.tags.length
+        created.tags?.length
           ? `Otázka je uložená v banke. Tagy: ${created.tags.join(", ")}.`
           : "Otázka je uložená v banke."
       );

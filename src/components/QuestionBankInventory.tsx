@@ -194,42 +194,52 @@ export default function QuestionBankInventory({
   const load = useCallback(async () => {
     const seq = ++loadSeq.current;
     if (!loadedOnce.current) setLoading(true);
-    const [q, s, v, m, quizRes, themes] = await Promise.all([
-      fetchCustomBankQuestionsFromServer(),
-      fetchSoundBankFromServer(),
-      fetchVideoBankFromServer(),
-      fetchMusicBankFromServer(),
-      fetch(`/api/admin/quiz-library?usedKeys=1&_=${Date.now()}`, { cache: "no-store" }),
-      fetchBankThemes(),
-    ]);
-    if (seq !== loadSeq.current) return;
-    const used = quizRes.ok
-      ? ((await quizRes.json()) as { usedBankQuestionIds?: unknown; usedBodies?: unknown })
-      : {};
-    const server = q.filter((item) => isCustomBankQuestionId(item.id) && !removedIdsRef.current.has(item.id));
-    const serverIds = new Set(server.map((item) => item.id));
-    const deletedNow = new Set(readDeletedCustomBankIds());
-    const missing = pendingAdded.current.filter(
-      (item) => !serverIds.has(item.id) && !removedIdsRef.current.has(item.id) && !deletedNow.has(item.id)
-    );
-    const toSave = missing.filter((item) => !reinjected.current.has(item.id));
-    for (const item of toSave) reinjected.current.add(item.id);
-    setQuestions([...missing, ...server.filter((item) => !missing.some((extra) => extra.id === item.id))]);
-    setSound(s);
-    setVideo(v);
-    setMusic(m);
-    setBankThemes(themes);
-    setUsedIds(Array.isArray(used.usedBankQuestionIds) ? used.usedBankQuestionIds.filter((id) => typeof id === "string") : []);
-    setUsedBodies(Array.isArray(used.usedBodies) ? used.usedBodies.filter((id) => typeof id === "string") : []);
-    loadedOnce.current = true;
-    setLoading(false);
-    if (toSave.length > 0) {
-      void fetch("/api/admin/custom-bank", {
-        method: "POST",
-        cache: "no-store",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ merge: true, questions: toSave }),
-      });
+    try {
+      const [q, s, v, m, quizRes, themes] = await Promise.all([
+        fetchCustomBankQuestionsFromServer().catch(() => [] as CustomBankQuestion[]),
+        fetchSoundBankFromServer().catch(() => [] as SoundBankItem[]),
+        fetchVideoBankFromServer().catch(() => [] as VideoBankItem[]),
+        fetchMusicBankFromServer().catch(() => [] as MusicBankItem[]),
+        fetch(`/api/admin/quiz-library?usedKeys=1&_=${Date.now()}`, {
+          cache: "no-store",
+          signal: typeof AbortSignal !== "undefined" && typeof AbortSignal.timeout === "function"
+            ? AbortSignal.timeout(12_000)
+            : undefined,
+        }).catch(() => null),
+        fetchBankThemes().catch(() => [...DEFAULT_BANK_THEMES]),
+      ]);
+      if (seq !== loadSeq.current) return;
+      const used = quizRes?.ok
+        ? ((await quizRes.json().catch(() => ({}))) as { usedBankQuestionIds?: unknown; usedBodies?: unknown })
+        : {};
+      const server = q.filter((item) => isCustomBankQuestionId(item.id) && !removedIdsRef.current.has(item.id));
+      const serverIds = new Set(server.map((item) => item.id));
+      const deletedNow = new Set(readDeletedCustomBankIds());
+      const missing = pendingAdded.current.filter(
+        (item) => !serverIds.has(item.id) && !removedIdsRef.current.has(item.id) && !deletedNow.has(item.id)
+      );
+      const toSave = missing.filter((item) => !reinjected.current.has(item.id));
+      for (const item of toSave) reinjected.current.add(item.id);
+      setQuestions([...missing, ...server.filter((item) => !missing.some((extra) => extra.id === item.id))]);
+      setSound(s);
+      setVideo(v);
+      setMusic(m);
+      setBankThemes(themes);
+      setUsedIds(Array.isArray(used.usedBankQuestionIds) ? used.usedBankQuestionIds.filter((id) => typeof id === "string") : []);
+      setUsedBodies(Array.isArray(used.usedBodies) ? used.usedBodies.filter((id) => typeof id === "string") : []);
+      if (toSave.length > 0) {
+        void fetch("/api/admin/custom-bank", {
+          method: "POST",
+          cache: "no-store",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ merge: true, questions: toSave }),
+        }).catch(() => undefined);
+      }
+    } finally {
+      if (seq === loadSeq.current) {
+        loadedOnce.current = true;
+        setLoading(false);
+      }
     }
   }, []);
 
