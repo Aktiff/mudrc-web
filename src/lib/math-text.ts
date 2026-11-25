@@ -1,18 +1,10 @@
 import katex from "katex";
+import { coerceMathSource, escapeHtml } from "@/lib/math-text-shared";
 
-/** Escape plain text before splicing KaTeX HTML (XSS-safe). */
-export function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
+export { coerceMathSource, escapeHtml, looksLikeMath, MATH_EDITOR_HINT_SK } from "@/lib/math-text-shared";
 
-export function looksLikeMath(text: string): boolean {
-  return typeof text === "string" && text.includes("$");
-}
+/** Skip absurdly long `$...$` spans (e.g. two currency `$` far apart). */
+const MAX_MATH_SPAN = 400;
 
 const KATEX_OPTS: katex.KatexOptions = {
   throwOnError: false,
@@ -22,6 +14,9 @@ const KATEX_OPTS: katex.KatexOptions = {
 };
 
 function renderTex(tex: string, displayMode: boolean): string {
+  if (tex.length > MAX_MATH_SPAN) {
+    return escapeHtml(displayMode ? `$$${tex}$$` : `$${tex}$`);
+  }
   try {
     return katex.renderToString(tex, { ...KATEX_OPTS, displayMode });
   } catch {
@@ -29,13 +24,7 @@ function renderTex(tex: string, displayMode: boolean): string {
   }
 }
 
-/**
- * Render mixed plain text + `$...$` / `$$...$$` to safe HTML.
- * Plain segments are escaped; math uses KaTeX (no raw HTML trust).
- * Answers stay stored as the author typed them — this is display-only.
- */
-export function renderMathToHtml(source: string): string {
-  const input = source ?? "";
+function renderMathToHtmlUnsafe(input: string): string {
   if (!input) return "";
   if (!input.includes("$")) {
     return escapeHtml(input).replace(/\n/g, "<br/>");
@@ -87,6 +76,17 @@ export function renderMathToHtml(source: string): string {
   return out;
 }
 
-/** Slovak hint for bank / quiz editors (plain text + example). */
-export const MATH_EDITOR_HINT_SK =
-  "Matematika: $\\frac{1}{2}$ (zlomok), $5,\\overline{3}$ (perióda). Obklop LaTeX dolármi.";
+/**
+ * Render mixed plain text + `$...$` / `$$...$$` to safe HTML.
+ * Plain segments are escaped; math uses KaTeX (no raw HTML trust).
+ * Answers stay stored as the author typed them — this is display-only.
+ * Never throws — bad input falls back to escaped plain text.
+ */
+export function renderMathToHtml(source: unknown): string {
+  const input = coerceMathSource(source);
+  try {
+    return renderMathToHtmlUnsafe(input);
+  } catch {
+    return escapeHtml(input).replace(/\n/g, "<br/>");
+  }
+}

@@ -94,9 +94,10 @@ const BIND_PREV_RE = new RegExp(`(\\S+)\\s+(\\b(?:${BIND_TO_PREV.map(escapeRegex
  * aby krátke spojky a častice neviseli samé na konci riadka.
  */
 export function fixSlovakLineBreaks(text: string): string {
-  if (!text.trim()) return text;
+  const input = typeof text === "string" ? text : text == null ? "" : String(text);
+  if (!input.trim()) return input;
 
-  return text
+  return input
     .replace(BIND_PREV_RE, (_, prev: string, word: string) => `${prev}${NBSP}${word}`)
     .replace(BIND_NEXT_RE, (_, word: string) => `${word}${NBSP}`);
 }
