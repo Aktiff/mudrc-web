@@ -14,6 +14,7 @@ import {
 import type { QuizDeck, QuizSlide, QuizSlideType } from "@/lib/quiz-deck";
 import { createEmptySlide, createSlideId, slideTypeLabel } from "@/lib/quiz-deck";
 import ImageUrlField from "@/components/admin/ImageUrlField";
+import { MathFieldAssist } from "@/components/MathEditorHint";
 
 const SLIDE_TYPES: QuizSlideType[] = ["title", "round", "question", "text", "scores"];
 
@@ -200,6 +201,7 @@ export default function QuizDeckEditor({ eventSlug }: Props) {
                   value={slide.body ?? ""}
                   onChange={(e) => updateSlide(slide.id, { body: e.target.value })}
                 />
+                {slide.type === "question" ? <MathFieldAssist value={slide.body ?? ""} /> : null}
               </div>
             )}
 
@@ -208,6 +210,7 @@ export default function QuizDeckEditor({ eventSlug }: Props) {
                 <div>
                   <label className="label">Správna odpoveď (odhalí sa klikom v projekcii)</label>
                   <input className="input" value={slide.answer ?? ""} onChange={(e) => updateSlide(slide.id, { answer: e.target.value })} />
+                  <MathFieldAssist value={slide.answer ?? ""} showHint={false} />
                 </div>
                 <ImageUrlField
                   label="Obrázok (voliteľné)"

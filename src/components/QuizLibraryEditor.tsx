@@ -87,6 +87,7 @@ import QuizTagStats from "@/components/QuizTagStats";
 import ImageUrlField from "@/components/admin/ImageUrlField";
 import { optionLetter } from "@/lib/quiz-question-options";
 import TagSuggestInput from "@/components/TagSuggestInput";
+import { MathFieldAssist } from "@/components/MathEditorHint";
 import { formatTagsInput, parseTagsInput } from "@/lib/quiz-question-tags";
 import {
   clearQuizDraft,
@@ -2241,6 +2242,7 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
                         : "Sem napíš otázku…"
                 }
               />
+              {question.kind === "normal" ? <MathFieldAssist value={question.body} /> : null}
             </div>
             {question.kind === "normal" && (
               <div className="flex flex-wrap gap-2">
@@ -2342,12 +2344,15 @@ export default function QuizLibraryEditor({ quizId, initialQuiz = null }: Props)
                   placeholder={"1. prvá\n2. druhá"}
                 />
               ) : (
-                <input
-                  className="input"
-                  value={question.answer}
-                  onChange={(e) => updateQuestion(question.id, { answer: e.target.value })}
-                  placeholder="Správna odpoveď"
-                />
+                <>
+                  <input
+                    className="input"
+                    value={question.answer}
+                    onChange={(e) => updateQuestion(question.id, { answer: e.target.value })}
+                    placeholder="Správna odpoveď"
+                  />
+                  <MathFieldAssist value={question.answer} showHint={question.kind !== "normal"} />
+                </>
               )}
             </div>
             )}

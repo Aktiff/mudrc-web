@@ -5,6 +5,7 @@ import { ChevronDown, X } from "lucide-react";
 import { isQuestionSlotEmpty, type QuizQuestionItem } from "@/lib/quiz-library";
 import { findCorrectOptionIndexes, optionLetter, parseEmbeddedOptions } from "@/lib/quiz-question-options";
 import { displayQuestionNumber, sortQuizQuestions } from "@/lib/quiz-template";
+import MathText from "@/components/MathText";
 
 function choicesOf(question: QuizQuestionItem): string[] {
   const stored = (question.options ?? []).map((option) => option.trim()).filter(Boolean);
@@ -116,9 +117,10 @@ export default function QuizAnswerKey({
                             {line.letter ? (
                               <span className="shrink-0 font-bold text-brand-orange-readable">{line.letter}</span>
                             ) : null}
-                            <span className={`whitespace-pre-line ${line.text === "bez odpovede" ? "text-brand-muted" : "text-brand-text"}`}>
-                              {line.text}
-                            </span>
+                            <MathText
+                              text={line.text}
+                              className={line.text === "bez odpovede" ? "text-brand-muted" : "text-brand-text"}
+                            />
                           </li>
                         );
                       })}

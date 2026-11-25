@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState, type MouseEvent } from "react";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import type { QuizDeck, QuizSlide } from "@/lib/quiz-deck";
 import PresentationZoomLayer from "@/components/PresentationZoomLayer";
+import MathText from "@/components/MathText";
 
 type Props = {
   eventSlug: string;
@@ -47,13 +48,19 @@ function SlideView({ slide, answerRevealed }: { slide: QuizSlide; answerRevealed
             onDragStart={(e) => e.preventDefault()}
           />
         )}
-        <p className="font-sans font-semibold text-3xl sm:text-5xl md:text-6xl text-white text-center leading-[1.45] tracking-normal whitespace-pre-wrap normal-case py-[0.08em] overflow-visible">
-          {slide.body || "Otázka"}
-        </p>
+        <MathText
+          as="p"
+          text={slide.body || "Otázka"}
+          className="font-sans font-semibold text-3xl sm:text-5xl md:text-6xl text-white text-center leading-[1.45] tracking-normal normal-case py-[0.08em] overflow-visible"
+        />
         {answerRevealed && slide.answer && (
           <div className="mt-4 shrink-0 px-8 py-5 rounded-2xl bg-[#f0c800] text-black text-center w-full max-w-4xl mx-1">
             <p className="text-sm uppercase tracking-wider font-bold mb-1 opacity-70">Odpoveď</p>
-            <p className="text-2xl sm:text-4xl font-sans font-bold tracking-normal normal-case">{slide.answer}</p>
+            <MathText
+              as="p"
+              text={slide.answer}
+              className="text-2xl sm:text-4xl font-sans font-bold tracking-normal normal-case"
+            />
           </div>
         )}
       </div>

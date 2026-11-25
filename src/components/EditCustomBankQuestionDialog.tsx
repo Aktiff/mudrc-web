@@ -20,6 +20,7 @@ import {
 } from "@/lib/quiz-question-options";
 import MatchPairFields from "@/components/MatchPairFields";
 import OrderItemFields from "@/components/OrderItemFields";
+import { MathFieldAssist } from "@/components/MathEditorHint";
 
 const OPTION_LETTERS = ["A", "B", "C", "D", "E", "F"] as const;
 
@@ -399,6 +400,7 @@ export default function EditCustomBankQuestionDialog({ question, onClose, onSave
         <div>
           <label className="label">Otázka</label>
           <textarea className="input min-h-[72px] text-sm" value={body} onChange={(e) => setBody(e.target.value)} />
+          <MathFieldAssist value={body} />
         </div>
 
         {questionMode === "order" ? (
@@ -456,6 +458,7 @@ export default function EditCustomBankQuestionDialog({ question, onClose, onSave
           <div>
             <label className="label">Správna odpoveď</label>
             <input className="input text-sm py-2" value={openAnswer} onChange={(e) => setOpenAnswer(e.target.value)} />
+            <MathFieldAssist value={openAnswer} showHint={false} />
           </div>
         )}
 
