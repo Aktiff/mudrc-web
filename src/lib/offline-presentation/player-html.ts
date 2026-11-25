@@ -1,11 +1,15 @@
 /** Self-contained offline presentation player (index.html). */
-export function buildOfflinePlayerHtml(): string {
+export function buildOfflinePlayerHtml(opts?: { katexCss?: string; katexJs?: string }): string {
+  const katexCss = opts?.katexCss?.trim() ? `\n<style id="katex-css">\n${opts.katexCss}\n</style>` : "";
+  const katexJs = opts?.katexJs?.trim()
+    ? `\n<script id="katex-js">\n${opts.katexJs}\n</script>`
+    : "";
   return `<!DOCTYPE html>
 <html lang="sk">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>MUDRC — offline prezentácia</title>
+<title>MUDRC — offline prezentácia</title>${katexCss}
 <style>
 @font-face{font-family:BebasNeue;src:url("fonts/bebas-neue-latin-ext.woff2") format("woff2");font-weight:400;font-display:swap;unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C4,U+2113,U+2C60-2C7F,U+A720-A7FF}
 @font-face{font-family:BebasNeue;src:url("fonts/bebas-neue-latin.woff2") format("woff2");font-weight:400;font-display:swap;unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
@@ -104,9 +108,11 @@ button,select{font:inherit}
 #stage.grabbing,#slideLayer.zoomed{cursor:grab}
 #stage.grabbing:active,#slideLayer.zoomed:active{cursor:grabbing}
 #volHint{display:none;position:fixed;bottom:2rem;left:50%;transform:translateX(-50%);z-index:10000;pointer-events:none;border-radius:999px;background:rgba(0,0,0,.8);padding:.5rem 1rem;font-size:.875rem;font-weight:600;color:#fff;box-shadow:0 10px 30px rgba(0,0,0,.45)}
+.katex{font-size:1em}
+.katex-display{margin:.35em 0;overflow-x:auto;overflow-y:hidden}
 </style>
 </head>
-<body>
+<body>${katexJs}
 <div id="boot">Načítavam offline prezentáciu…</div>
 <div id="start">
   <div class="backdrop"><div class="b1"></div><div class="b2"></div><div class="b3"></div><div class="b4"></div></div>
@@ -398,6 +404,59 @@ button,select{font:inherit}
   function esc(s) {
     return String(s == null ? "" : s)
       .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  }
+
+  function renderTex(tex, displayMode) {
+    if (typeof katex === "undefined" || !katex.renderToString) return esc(displayMode ? "$$"+tex+"$$" : "$"+tex+"$");
+    try {
+      return katex.renderToString(tex, { throwOnError: false, trust: false, strict: "ignore", output: "html", displayMode: !!displayMode });
+    } catch (e) {
+      return esc(displayMode ? "$$"+tex+"$$" : "$"+tex+"$");
+    }
+  }
+
+  /** Plain text + $...$ / $$...$$ → safe HTML (mirrors src/lib/math-text.ts). */
+  function mathHtml(source) {
+    var input = String(source == null ? "" : source);
+    if (!input) return "";
+    if (input.indexOf("$") === -1) return esc(input).replace(/\\n/g, "<br/>");
+    var out = "";
+    var i = 0;
+    var n = input.length;
+    while (i < n) {
+      if (input[i] === "$" && input[i + 1] === "$") {
+        var endD = input.indexOf("$$", i + 2);
+        if (endD !== -1) {
+          out += renderTex(input.slice(i + 2, endD), true);
+          i = endD + 2;
+          continue;
+        }
+        out += esc("$$");
+        i += 2;
+        continue;
+      }
+      if (input[i] === "$") {
+        var end = i + 1;
+        while (end < n) {
+          if (input[end] === "\\\\" && end + 1 < n) { end += 2; continue; }
+          if (input[end] === "$") break;
+          end += 1;
+        }
+        if (end < n && end > i + 1) {
+          out += renderTex(input.slice(i + 1, end), false);
+          i = end + 1;
+          continue;
+        }
+        out += esc("$");
+        i += 1;
+        continue;
+      }
+      var next = input.indexOf("$", i);
+      var chunk = next === -1 ? input.slice(i) : input.slice(i, next);
+      out += esc(chunk).replace(/\\n/g, "<br/>");
+      i = next === -1 ? n : next;
+    }
+    return out;
   }
 
   function questionTextStyle(text, withImage, imageWithOptions, matchQuestion) {
@@ -778,18 +837,18 @@ button,select{font:inherit}
     var set = {};
     (highlight || []).forEach(function (i) { set[i] = true; });
     return '<div class="options">' + options.map(function (option, index) {
-      return '<div class="opt'+(set[index]?" ok":"")+'"><span class="ltr">'+OPTION_LETTERS[index]+')</span><p class="txt">'+esc(option)+'</p></div>';
+      return '<div class="opt'+(set[index]?" ok":"")+'"><span class="ltr">'+OPTION_LETTERS[index]+')</span><p class="txt">'+mathHtml(option)+'</p></div>';
     }).join("") + "</div>";
   }
 
   function renderMatch(left, right) {
     return '<div class="match"><div class="col">' +
       left.map(function (item, i) {
-        return '<div class="card"><span class="mark">'+(i+1)+'</span><p class="body">'+esc(item)+'</p></div>';
+        return '<div class="card"><span class="mark">'+(i+1)+'</span><p class="body">'+mathHtml(item)+'</p></div>';
       }).join("") +
       '</div><div class="col">' +
       right.map(function (item, i) {
-        return '<div class="card"><span class="mark">'+matchLetter(i)+'</span><p class="body">'+esc(item)+'</p></div>';
+        return '<div class="card"><span class="mark">'+matchLetter(i)+'</span><p class="body">'+mathHtml(item)+'</p></div>';
       }).join("") +
       "</div></div>";
   }
@@ -823,7 +882,7 @@ button,select{font:inherit}
         video = mediaHtml("video", question.videoUrl, "", 'data-stop="1" data-role="presentation-audio"'+(until ? ' data-until="'+until+'"' : ""));
       }
     }
-    var qBlock = '<p class="qtext" style="'+questionTextStyle(qtext, imageFocused, imageWithOptions, question.isMatchQuestion === true)+'">'+esc(qtext)+"</p>";
+    var qBlock = '<p class="qtext" style="'+questionTextStyle(qtext, imageFocused, imageWithOptions, question.isMatchQuestion === true)+'">'+mathHtml(qtext)+"</p>";
     var img = showImage && question.imageUrl
       ? '<div class="imgwrap"><img src="'+esc(question.imageUrl)+'" alt="" draggable="false" /></div>'
       : "";
@@ -833,8 +892,8 @@ button,select{font:inherit}
     if (phase === "answer") {
       var ans = (question.answer || "").trim();
       if (!ans && question.musicArtist && question.musicTitle) ans = question.musicArtist + " — " + question.musicTitle;
-      if (options.length && !correct.length && ans) footer += '<div class="answer">'+esc(ans)+"</div>";
-      if (!options.length) footer += '<div class="answer">'+esc(ans || "—")+"</div>";
+      if (options.length && !correct.length && ans) footer += '<div class="answer">'+mathHtml(ans)+"</div>";
+      if (!options.length) footer += '<div class="answer">'+mathHtml(ans || "—")+"</div>";
     }
     footer += "</div>";
     if (imageFocused) {

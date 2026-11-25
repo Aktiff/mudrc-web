@@ -36,6 +36,7 @@ import {
   type PresentationSlide,
 } from "@/lib/quiz-presentation";
 import { findCorrectOptionIndexes, getQuestionBodyText, getQuestionOptions, matchLetter, optionLetter } from "@/lib/quiz-question-options";
+import MathText from "@/components/MathText";
 import {
   findHomeQuizEvent,
   formatNextQuizLine,
@@ -322,14 +323,14 @@ function OptionsGrid({
             >
               {optionLetter(index)})
             </span>
-            <p
+            <MathText
+              as="p"
+              text={fixSlovakLineBreaks(option)}
               className={`flex-1 min-w-0 font-sans font-semibold tracking-normal leading-[1.45] text-left normal-case overflow-visible py-[0.05em] ${
                 isCorrect ? "font-bold" : ""
               }`}
               style={OPTION_TEXT_STYLE}
-            >
-              {fixSlovakLineBreaks(option)}
-            </p>
+            />
           </div>
         );
       })}
@@ -361,9 +362,12 @@ function MatchColumns({
             <span className={markClass} style={matchMarkStyle(rows, compact)}>
               {index + 1}
             </span>
-            <p className="flex-1 min-w-0 font-sans font-semibold normal-case text-left break-words" style={matchTextStyle(rows, compact)}>
-              {fixSlovakLineBreaks(item)}
-            </p>
+            <MathText
+              as="p"
+              text={fixSlovakLineBreaks(item)}
+              className="flex-1 min-w-0 font-sans font-semibold normal-case text-left break-words"
+              style={matchTextStyle(rows, compact)}
+            />
           </div>
         ))}
       </div>
@@ -373,9 +377,12 @@ function MatchColumns({
             <span className={markClass} style={matchMarkStyle(rows, compact)}>
               {matchLetter(index)}
             </span>
-            <p className="flex-1 min-w-0 font-sans font-semibold normal-case text-left break-words" style={matchTextStyle(rows, compact)}>
-              {fixSlovakLineBreaks(item)}
-            </p>
+            <MathText
+              as="p"
+              text={fixSlovakLineBreaks(item)}
+              className="flex-1 min-w-0 font-sans font-semibold normal-case text-left break-words"
+              style={matchTextStyle(rows, compact)}
+            />
           </div>
         ))}
       </div>
@@ -503,12 +510,12 @@ function QuestionContent({
     ) : null;
 
   const questionBlock = (
-    <p
+    <MathText
+      as="p"
+      text={questionText}
       className={`${QUESTION_TEXT_CLASS} shrink-0`}
       style={questionTextStyle(questionText, imageFocusedLayout, imageWithOptions, question.isMatchQuestion === true)}
-    >
-      {questionText}
-    </p>
+    />
   );
 
   const imageBlock =
@@ -536,27 +543,32 @@ function QuestionContent({
 
       {phase === "answer" && options.length > 0 && correctOptionIndexes.length === 0 && question.answer.trim() && (
         <div className={answerBoxClass}>
-          <p
-            className={`font-sans font-bold tracking-normal break-words normal-case whitespace-pre-line ${
+          <MathText
+            as="p"
+            text={fixSlovakLineBreaks(question.answer)}
+            className={`font-sans font-bold tracking-normal break-words normal-case ${
               question.isMatchQuestion ? "text-left" : ""
             }`}
             style={question.isMatchQuestion ? matchAnswerStyle(question.answer) : ANSWER_TEXT_STYLE}
-          >
-            {fixSlovakLineBreaks(question.answer)}
-          </p>
+          />
         </div>
       )}
 
       {phase === "answer" && options.length === 0 && (
         <div className={answerBoxClass}>
-          <p className="font-sans font-bold tracking-normal break-words normal-case" style={ANSWER_TEXT_STYLE}>
-            {fixSlovakLineBreaks(
-              question.answer.trim() ||
-                (question.musicArtist?.trim() && question.musicTitle?.trim()
-                  ? `${question.musicArtist.trim()} — ${question.musicTitle.trim()}`
-                  : "")
-            ) || "—"}
-          </p>
+          <MathText
+            as="p"
+            text={
+              fixSlovakLineBreaks(
+                question.answer.trim() ||
+                  (question.musicArtist?.trim() && question.musicTitle?.trim()
+                    ? `${question.musicArtist.trim()} — ${question.musicTitle.trim()}`
+                    : "")
+              ) || "—"
+            }
+            className="font-sans font-bold tracking-normal break-words normal-case"
+            style={ANSWER_TEXT_STYLE}
+          />
         </div>
       )}
     </div>

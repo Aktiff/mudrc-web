@@ -10,6 +10,7 @@ import {
   EditVideoClipDialog,
 } from "@/components/BankMediaEditDialogs";
 import EditCustomBankQuestionDialog from "@/components/EditCustomBankQuestionDialog";
+import MathText from "@/components/MathText";
 import MusicBankTagFilters from "@/components/MusicBankTagFilters";
 import {
   findFirstEmptyContentSlot,
@@ -835,7 +836,9 @@ export default function QuizQuestionBankPanel({
                   <div key={clip.id} className="rounded-xl border border-sky-200 dark:border-sky-900 bg-brand-surface/50 p-3 space-y-2.5">
                     <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-sky-100 text-sky-900 border border-sky-200">iné</span>
                     <p className="text-sm font-semibold text-brand-text">{clip.label}</p>
-                    <p className="text-sm text-brand-muted">Odpoveď: {clip.answer}</p>
+                    <p className="text-sm text-brand-muted">
+                      Odpoveď: <MathText text={clip.answer} />
+                    </p>
                     {clip.tags?.length ? <p className="text-[11px] text-brand-muted">{clip.tags.join(" · ")}</p> : null}
                     {clip.audioUrl && (
                       <VolumeAudio hint controls src={playbackMediaSrc(clip.audioUrl)} className="w-full max-w-md" preload="metadata" />
@@ -952,7 +955,9 @@ export default function QuizQuestionBankPanel({
                 <div key={clip.id} className="rounded-xl border border-amber-200 dark:border-amber-900 bg-brand-surface/50 p-3 space-y-2.5">
                   <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-200">video</span>
                   <p className="text-sm font-semibold text-brand-text">{clip.label}</p>
-                  <p className="text-sm text-brand-muted">Odpoveď: {clip.answer}</p>
+                  <p className="text-sm text-brand-muted">
+                    Odpoveď: <MathText text={clip.answer} />
+                  </p>
                   {clip.tags?.length ? <p className="text-[11px] text-brand-muted">{clip.tags.join(" · ")}</p> : null}
                   {clip.videoUrl && (
                     <VolumeVideo
@@ -1052,7 +1057,7 @@ export default function QuizQuestionBankPanel({
                       {tagScore === 0 ? "žiadny tag zatiaľ nepoužitý" : `najpoužívanejší tag ×${tagScore}`}
                     </span>
                   </div>
-                  <p className="text-sm font-semibold text-brand-text leading-snug break-words">{item.body}</p>
+                  <MathText as="p" text={item.body} className="text-sm font-semibold text-brand-text leading-snug break-words" />
                   {displayTags.length > 0 && (
                     <div className="flex flex-wrap gap-1 mt-2">
                       {displayTags.map((tag) => (
@@ -1073,8 +1078,11 @@ export default function QuizQuestionBankPanel({
                           className="text-xs px-2 py-1.5 rounded-md border border-green-500/50 bg-green-50 text-green-800 dark:bg-green-950/40 dark:text-green-200 font-semibold leading-snug break-words"
                         >
                           <span className="font-mono opacity-60 mr-1">{optionIndex + 1}.</span>
-                          {option}
-                          <span className="font-normal opacity-80"> → {right}</span>
+                          <MathText text={option} />
+                          <span className="font-normal opacity-80">
+                            {" "}
+                            → <MathText text={right} />
+                          </span>
                         </li>
                       );
                     })}
@@ -1089,14 +1097,14 @@ export default function QuizQuestionBankPanel({
                           className="text-xs px-2 py-1.5 rounded-md border border-green-500/50 bg-green-50 text-green-800 dark:bg-green-950/40 dark:text-green-200 font-semibold leading-snug break-words"
                         >
                           <span className="font-mono opacity-60 mr-1">{optionIndex + 1}.</span>
-                          {option}
+                          <MathText text={option} />
                         </li>
                       );
                     })}
                   </ol>
                 ) : item.isOpenQuestion ? (
                   <p className="text-xs px-2 py-1.5 rounded-md border border-green-500/50 bg-green-50 text-green-800 dark:bg-green-950/40 dark:text-green-200 font-semibold">
-                    Správna odpoveď: {item.answer}
+                    Správna odpoveď: <MathText text={item.answer} />
                   </p>
                 ) : (
                 <ul className="space-y-1">
@@ -1112,7 +1120,7 @@ export default function QuizQuestionBankPanel({
                       }`}
                     >
                       <span className="font-mono opacity-60 mr-1">{OPTION_LETTERS[optionIndex]})</span>
-                      {option}
+                      <MathText text={option} />
                     </li>
                     );
                   })}

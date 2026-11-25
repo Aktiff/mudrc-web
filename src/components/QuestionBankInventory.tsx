@@ -9,6 +9,7 @@ import {
   EditVideoClipDialog,
 } from "@/components/BankMediaEditDialogs";
 import EditCustomBankQuestionDialog from "@/components/EditCustomBankQuestionDialog";
+import MathText from "@/components/MathText";
 import BankMediaPreview from "@/components/BankMediaPreview";
 import { BankThemeFilters } from "@/components/BankThemeControls";
 import { bankQuestionTheme, DEFAULT_BANK_THEME, DEFAULT_BANK_THEMES, mergeBankThemes } from "@/lib/bank-themes";
@@ -458,19 +459,30 @@ export default function QuestionBankInventory({
                       </span>
                     )}
                   </div>
-                  <p className="text-sm font-semibold text-brand-text leading-snug">{q.body}</p>
+                  <MathText as="p" text={q.body} className="text-sm font-semibold text-brand-text leading-snug" />
                   {displayTags.length > 0 && (
                     <p className="text-[11px] text-brand-muted">{displayTags.join(" · ")}</p>
                   )}
-                  <p className="text-xs text-brand-muted whitespace-pre-line">
-                    {q.isOrderQuestion || q.isMatchQuestion
-                      ? q.answer
-                      : q.isOpenQuestion
-                        ? `Odpoveď: ${q.answer}`
-                        : `Správne: ${(q.correctIndexes?.length ? q.correctIndexes : [q.correctIndex])
-                            .map((index) => q.options[index]?.trim())
-                            .filter(Boolean)
-                            .join(" · ") || q.answer}`}
+                  <p className="text-xs text-brand-muted">
+                    {q.isOrderQuestion || q.isMatchQuestion ? (
+                      <MathText text={q.answer} />
+                    ) : q.isOpenQuestion ? (
+                      <>
+                        Odpoveď: <MathText text={q.answer} />
+                      </>
+                    ) : (
+                      <>
+                        Správne:{" "}
+                        <MathText
+                          text={
+                            (q.correctIndexes?.length ? q.correctIndexes : [q.correctIndex])
+                              .map((index) => q.options[index]?.trim())
+                              .filter(Boolean)
+                              .join(" · ") || q.answer
+                          }
+                        />
+                      </>
+                    )}
                   </p>
                   <div className="flex flex-wrap gap-2">
                     {isCustom ? (
@@ -515,7 +527,9 @@ export default function QuestionBankInventory({
               {availableSound.map((clip) => (
                 <li key={clip.id} className="rounded-xl border border-brand-border p-3 space-y-2">
                   <p className="text-sm font-semibold">{clip.label}</p>
-                  <p className="text-xs text-brand-muted">Odpoveď: {clip.answer}</p>
+                  <p className="text-xs text-brand-muted">
+                    Odpoveď: <MathText text={clip.answer} />
+                  </p>
                   <BankMediaPreview src={clip.audioUrl} kind="audio" />
                   <div className="flex flex-wrap gap-2">
                     <button type="button" onClick={() => setEditSound(clip)} className="btn-outline text-xs py-1.5 px-2 inline-flex items-center gap-1">
@@ -539,7 +553,9 @@ export default function QuestionBankInventory({
               {availableVideo.map((clip) => (
                 <li key={clip.id} className="rounded-xl border border-brand-border p-3 space-y-2">
                   <p className="text-sm font-semibold">{clip.label}</p>
-                  <p className="text-xs text-brand-muted">Odpoveď: {clip.answer}</p>
+                  <p className="text-xs text-brand-muted">
+                    Odpoveď: <MathText text={clip.answer} />
+                  </p>
                   <BankMediaPreview src={clip.videoUrl} kind="video" />
                   <div className="flex flex-wrap gap-2">
                     <button type="button" onClick={() => setEditVideo(clip)} className="btn-outline text-xs py-1.5 px-2 inline-flex items-center gap-1">

@@ -1,3 +1,5 @@
+import { readdirSync, readFileSync } from "fs";
+import path from "path";
 import { zipSync, strToU8 } from "fflate";
 import type { QuizEvent } from "@/lib/data";
 import type { QuizLibraryItem, QuizQuestionItem, QuizPromoSlide } from "@/lib/quiz-library";
@@ -9,6 +11,34 @@ import { resolveMediaBytes } from "@/lib/offline-presentation/resolve-media-byte
 import { buildOfflinePlayerHtml } from "@/lib/offline-presentation/player-html";
 import { bestPresentationImageUrl } from "@/lib/quiz-presentation";
 import { resolveMediaSrc } from "@/lib/media-url";
+
+/** KaTeX CSS/JS + woff2 fonts for offline math rendering. */
+function loadKatexOfflineAssets(): {
+  css: string;
+  js: string;
+  fonts: Record<string, Uint8Array>;
+  warnings: string[];
+} {
+  const warnings: string[] = [];
+  try {
+    const dist = path.join(process.cwd(), "node_modules", "katex", "dist");
+    const css = readFileSync(path.join(dist, "katex.min.css"), "utf8").replace(
+      /url\((?:'|\")?fonts\//g,
+      "url(fonts/katex/"
+    );
+    const js = readFileSync(path.join(dist, "katex.min.js"), "utf8");
+    const fonts: Record<string, Uint8Array> = {};
+    const fontsDir = path.join(dist, "fonts");
+    for (const name of readdirSync(fontsDir)) {
+      if (!name.endsWith(".woff2")) continue;
+      fonts[`fonts/katex/${name}`] = new Uint8Array(readFileSync(path.join(fontsDir, name)));
+    }
+    return { css, js, fonts, warnings };
+  } catch (error) {
+    warnings.push(`KaTeX pre offline balík sa nenačítalo: ${error instanceof Error ? error.message : String(error)}`);
+    return { css: "", js: "", fonts: {}, warnings };
+  }
+}
 
 export type OfflinePackageResult =
   | { ok: true; zip: Uint8Array; fileName: string; mediaCount: number; warnings: string[] }
@@ -179,6 +209,8 @@ export async function buildOfflinePresentationPackage(input: {
   const offlineEvents = slimEvents(input.events);
   const { files: fontFiles, warnings: fontWarnings } = await loadFonts();
   warnings.push(...fontWarnings);
+  const katexAssets = loadKatexOfflineAssets();
+  warnings.push(...katexAssets.warnings);
 
   const payload = {
     version: 1,
@@ -207,15 +239,19 @@ export async function buildOfflinePresentationPackage(input: {
     "- Balík je samostatný: médiá a fonty sú vo vnútri ZIP. Internet už netreba.",
     "- Nerozdeľuj súbory — index.html, data.js a priečinok media/ musia ostať spolu.",
     "- Online prezentácia v admine ostáva nezmenená; toto je záloha na výpadok siete.",
+    "- Matematiku ($…$) vykreslí KaTeX balený v ZIP (fonts/katex/).",
     "",
   ].join("\n");
 
   const files: Record<string, Uint8Array> = {
     "README.txt": strToU8(readme),
-    "index.html": strToU8(buildOfflinePlayerHtml()),
+    "index.html": strToU8(
+      buildOfflinePlayerHtml({ katexCss: katexAssets.css, katexJs: katexAssets.js })
+    ),
     "data.js": strToU8(dataJs),
     ...mediaFiles,
     ...fontFiles,
+    ...katexAssets.fonts,
   };
 
   const zip = zipSync(files, { level: 0 });

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Poppins, Bebas_Neue } from "next/font/google";
 import "./globals.css";
+import "katex/dist/katex.min.css";
 import SiteChrome from "@/components/SiteChrome";
 import ThemeSync from "@/components/ThemeSync";
 import DeferredCookieNotice from "@/components/DeferredCookieNotice";

@@ -12,6 +12,7 @@ import { parseTagsInput } from "@/lib/quiz-question-tags";
 import { formatMatchBankAnswer, formatOrderAnswer, validateMatchDraft } from "@/lib/quiz-question-options";
 import MatchPairFields from "@/components/MatchPairFields";
 import OrderItemFields from "@/components/OrderItemFields";
+import { MathFieldAssist } from "@/components/MathEditorHint";
 
 const OPTION_LETTERS = ["A", "B", "C", "D", "E", "F"] as const;
 const EMPTY_ORDER = ["", "", "", ""];
@@ -264,6 +265,7 @@ export default function CustomBankQuestionForm({ onAdded }: Props) {
               onChange={(e) => setBody(e.target.value)}
               placeholder="Text otázky pre projektor…"
             />
+            <MathFieldAssist value={body} />
           </div>
 
           {questionMode === "order" ? (
@@ -332,6 +334,7 @@ export default function CustomBankQuestionForm({ onAdded }: Props) {
                 onChange={(e) => setOpenAnswer(e.target.value)}
                 placeholder="Očakávaná odpoveď tímu…"
               />
+              <MathFieldAssist value={openAnswer} showHint={false} />
             </div>
           )}
 
