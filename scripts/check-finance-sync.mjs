@@ -21,6 +21,12 @@ import {
   skDateToIso,
   verifyFinanceBearerToken,
 } from "../src/lib/finance-sync";
+import {
+  DEFAULT_FINANCE_WEBHOOK_URL,
+  resolveFinanceWebhookUrl,
+  sendFinanceSyncWebhook,
+  triggerFinanceSyncWebhook,
+} from "../src/lib/finance-webhook";
 import type { QuizEvent } from "../src/lib/data";
 import type { PayTeam } from "../src/lib/pay-domain";
 import type { Registration } from "../src/lib/storage";
@@ -407,7 +413,130 @@ for (const forbidden of [
   assert.equal(serialized.includes(forbidden), false, \`PII or excluded data leaked: \${forbidden}\`);
 }
 
-console.log("All finance-sync checks passed.");
+// 4. Finance webhook URL resolution & fire-and-forget behavior
+assert.equal(resolveFinanceWebhookUrl(undefined), DEFAULT_FINANCE_WEBHOOK_URL);
+assert.equal(resolveFinanceWebhookUrl(""), DEFAULT_FINANCE_WEBHOOK_URL);
+assert.equal(resolveFinanceWebhookUrl("   "), DEFAULT_FINANCE_WEBHOOK_URL);
+assert.equal(
+  resolveFinanceWebhookUrl('"https://fin.mudrc.sk/api/custom-sync.php"'),
+  "https://fin.mudrc.sk/api/custom-sync.php"
+);
+assert.equal(resolveFinanceWebhookUrl("off"), null);
+assert.equal(resolveFinanceWebhookUrl("DISABLED"), null);
+assert.equal(resolveFinanceWebhookUrl("false"), null);
+assert.equal(resolveFinanceWebhookUrl("ftp://fin.mudrc.sk/sync"), null);
+assert.equal(resolveFinanceWebhookUrl("not-a-url"), null);
+
+async function runWebhookChecks() {
+  let calls: Array<{ url: string; init?: RequestInit }> = [];
+  const fakeFetch: typeof fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    calls.push({ url: String(input), init });
+    return new Response(JSON.stringify({ ok: true }), { status: 200 });
+  }) as typeof fetch;
+
+  // Missing token -> skipped, zero fetch calls
+  const missing = await sendFinanceSyncWebhook("registration.create", {
+    token: "",
+    fetchImpl: fakeFetch,
+  });
+  assert.equal(missing.skipped, true);
+  assert.equal(calls.length, 0);
+
+  // Disabled URL -> skipped, zero fetch calls
+  const disabled = await sendFinanceSyncWebhook("registration.create", {
+    token: "test-token-123",
+    webhookUrl: "off",
+    fetchImpl: fakeFetch,
+  });
+  assert.equal(disabled.skipped, true);
+  assert.equal(calls.length, 0);
+
+  // Valid ping -> POST default URL, Bearer header, minimal zero-PII JSON body
+  const okRes = await sendFinanceSyncWebhook("registration.create", {
+    token: "test-token-123",
+    webhookUrl: "",
+    fetchImpl: fakeFetch,
+  });
+  assert.equal(okRes.ok, true);
+  assert.equal(okRes.status, 200);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].url, DEFAULT_FINANCE_WEBHOOK_URL);
+  assert.equal(calls[0].init?.method, "POST");
+  const headers = calls[0].init?.headers as Record<string, string>;
+  assert.equal(headers.Authorization, "Bearer test-token-123");
+  assert.equal(headers["Content-Type"], "application/json");
+  const body = JSON.parse(String(calls[0].init?.body ?? "{}")) as Record<string, unknown>;
+  assert.deepEqual(Object.keys(body).sort(), ["reason", "source", "triggered_at"]);
+  assert.equal(body.source, "mudrc-web");
+  assert.equal(body.reason, "registration.create");
+  assert.equal(typeof body.triggered_at, "string");
+
+  // Non-OK HTTP status -> returns ok:false, never throws
+  const failRes = await sendFinanceSyncWebhook("registration.delete", {
+    token: "test-token-123",
+    fetchImpl: (async () => new Response("Unauthorized", { status: 401 })) as typeof fetch,
+  });
+  assert.equal(failRes.ok, false);
+  assert.equal(failRes.status, 401);
+
+  // Network error -> returns ok:false, never throws
+  const errRes = await sendFinanceSyncWebhook("registration.update", {
+    token: "test-token-123",
+    fetchImpl: (async () => {
+      throw new Error("ECONNREFUSED");
+    }) as typeof fetch,
+  });
+  assert.equal(errRes.ok, false);
+  assert.equal(errRes.error, "ECONNREFUSED");
+
+  // Staging slug -> triggerFinanceSyncWebhook skips completely
+  calls = [];
+  triggerFinanceSyncWebhook("registration.create", {
+    eventSlug: "test-platby-silvester",
+    token: "test-token-123",
+    fetchImpl: fakeFetch,
+  });
+  assert.equal(calls.length, 0);
+
+  // Vercel waitUntil registration -> attaches background promise without blocking caller
+  const sym = Symbol.for("@vercel/request-context");
+  const tracked: Promise<unknown>[] = [];
+  const prevCtx = (globalThis as Record<symbol, unknown>)[sym];
+  (globalThis as Record<symbol, unknown>)[sym] = {
+    get: () => ({
+      waitUntil: (p: Promise<unknown>) => {
+        tracked.push(p);
+      },
+    }),
+  };
+  try {
+    triggerFinanceSyncWebhook("registration.cancel", {
+      eventSlug: "lili-cafe",
+      token: "test-token-123",
+      fetchImpl: fakeFetch,
+    });
+    assert.equal(tracked.length, 1);
+    await Promise.all(tracked);
+    assert.equal(calls.length, 1);
+    const cancelBody = JSON.parse(String(calls[0].init?.body ?? "{}")) as Record<string, unknown>;
+    assert.equal(cancelBody.reason, "registration.cancel");
+  } finally {
+    if (prevCtx === undefined) {
+      delete (globalThis as Record<symbol, unknown>)[sym];
+    } else {
+      (globalThis as Record<symbol, unknown>)[sym] = prevCtx;
+    }
+  }
+}
+
+runWebhookChecks()
+  .then(() => {
+    console.log("All finance-sync checks passed.");
+  })
+  .catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
 `,
   "utf8"
 );
