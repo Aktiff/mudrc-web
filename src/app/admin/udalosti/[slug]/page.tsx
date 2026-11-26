@@ -318,9 +318,13 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
 
   const loadTeamsFromRegistrations = async () => {
     const res = await fetch(
-      `/api/register?slug=${params.slug}&venue=${encodeURIComponent(form.venue)}&_=${Date.now()}`,
-      { cache: "no-store" }
+      `/api/register?slug=${encodeURIComponent(params.slug)}&venue=${encodeURIComponent(form.venue)}&_=${Date.now()}`,
+      { cache: "no-store", credentials: "same-origin" }
     );
+    if (!res.ok) {
+      setQuizMsg({ text: "Registrácie sa nepodarilo načítať.", ok: false });
+      return;
+    }
     const data = await res.json();
     const extras = normalizeFutureQuizzes(form.futureQuizzes);
     const targetIsExtra = extras.some((quiz) => futureQuizMatchesDate(quiz, quizDate));
