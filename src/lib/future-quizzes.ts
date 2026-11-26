@@ -232,8 +232,10 @@ export function groupRegistrationsByTerm<T extends { quizDate?: string }>(
       continue;
     }
     if (term && !futureQuizMatchesDate({ id: "", date: term }, event.date)) {
-      const key = normalizeDateKey(term) || term;
-      const row = stray.get(key) ?? { date: term, list: [] };
+      const canonical = canonicalSkDate(term);
+      const date = canonical ?? term;
+      const key = normalizeDateKey(date) || date;
+      const row = stray.get(key) ?? { date, list: [] };
       row.list.push(reg);
       stray.set(key, row);
       continue;
@@ -310,6 +312,20 @@ export function registrationGroupsForTerm<T>(
   const term = selectedDate.trim();
   if (!term) return groups.filter((group) => group.key === "nearest");
   return groups.filter((group) => futureQuizMatchesDate({ id: "", date: group.date }, term));
+}
+
+/** Skupiny s aspoň jednou registráciou, zoradené chronologicky podľa dátumu termínu. */
+export function registrationGroupsWithTeams<T>(
+  groups: RegistrationTermGroup<T>[]
+): RegistrationTermGroup<T>[] {
+  return groups
+    .filter((group) => group.registrations.length > 0)
+    .slice()
+    .sort(
+      (a, b) =>
+        (calendarDay(a.date) ?? Number.POSITIVE_INFINITY) -
+        (calendarDay(b.date) ?? Number.POSITIVE_INFINITY)
+    );
 }
 
 /** Rovnaký večer. Registrácia bez dátumu patrí k najbližšiemu termínu. */

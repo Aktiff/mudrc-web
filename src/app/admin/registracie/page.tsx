@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ArrowLeft, Calendar, ChevronRight, MapPin, Trash2 } from "lucide-react";
 import type { QuizEvent } from "@/lib/data";
 import { formatEventDateLabel, parseSkEventDateTime, sortEventsForAdminOverview } from "@/lib/data";
-import { futureQuizMatchesDate, groupRegistrationsByTerm, registrationGroupsForTerm, registrationMoveTargets, registrationTermChoices } from "@/lib/future-quizzes";
+import { futureQuizMatchesDate, groupRegistrationsByTerm, registrationGroupsForTerm, registrationGroupsWithTeams, registrationMoveTargets, registrationTermChoices } from "@/lib/future-quizzes";
 import {
   estimatedEntryRevenue,
   formatEuroAmount,
@@ -282,6 +282,15 @@ export default function RegistraciaPage() {
     const groups = groupRegistrationsByTerm(list, event);
     const visibleGroups = registrationGroupsForTerm(groups, selectedTerm);
     const termChoices = registrationTermChoices(event);
+    const shownKeys = new Set(visibleGroups.map((group) => group.key));
+    const strandedGroups = groups.filter(
+      (group) =>
+        group.registrations.length > 0 &&
+        !shownKeys.has(group.key) &&
+        !termChoices.some((choice) => futureQuizMatchesDate({ id: "", date: choice.date }, group.date))
+    );
+    const displayedGroups = [...visibleGroups, ...strandedGroups];
+    const shareGroups = registrationGroupsWithTeams(groups);
 
     return (
       <div className="w-full min-w-0">
@@ -319,7 +328,7 @@ export default function RegistraciaPage() {
           </div>
         )}
         <p className="text-brand-text text-sm font-semibold mb-6 space-y-1">
-          {visibleGroups.map((group) => {
+          {displayedGroups.map((group) => {
             const players = group.registrations.reduce((sum, reg) => sum + parseRegistrationPlayerCount(reg.players), 0);
             return (
               <span key={group.key} className="block">
@@ -331,17 +340,16 @@ export default function RegistraciaPage() {
           })}
         </p>
         {msg && <p className={`text-sm mb-4 ${msg.ok ? "text-green-600" : "text-red-500"}`}>{msg.text}</p>}
-        {visibleGroups
-          .filter((group) => group.registrations.length > 0)
-          .map((group) => (
-            <RegistrationShareList
-              key={group.key}
-              venue={event.venue}
-              city={event.city}
-              whenLabel={group.title}
-              teams={group.registrations}
-            />
-          ))}
+        <RegistrationShareList
+          key={event.slug}
+          venue={event.venue}
+          city={event.city}
+          groups={shareGroups.map((group) => ({
+            key: group.key,
+            whenLabel: group.title,
+            teams: group.registrations,
+          }))}
+        />
         <div className="flex flex-wrap items-center gap-3 mb-6">
           <Link href={`/admin/udalosti/${event.slug}?tab=registracie`} className="text-sm font-semibold text-brand-orange-readable hover:underline">
             Otvoriť v udalosti
@@ -359,7 +367,7 @@ export default function RegistraciaPage() {
           )}
         </div>
         <div className="space-y-8">
-            {visibleGroups.map((group) => (
+            {displayedGroups.map((group) => (
               <section key={group.key}>
                 <h2 className="font-semibold text-brand-text mb-3">{group.title}</h2>
                 {group.registrations.length === 0 ? (
