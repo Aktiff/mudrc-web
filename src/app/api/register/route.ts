@@ -14,6 +14,7 @@ import { isRegistrationOpen } from "@/lib/data";
 import { isExternalEvent } from "@/lib/event-normalize";
 import { findFutureQuiz, futureQuizMatchesDate } from "@/lib/future-quizzes";
 import { listGrantedEventSlugs } from "@/lib/moderator-grants";
+import { triggerFinanceSyncWebhook } from "@/lib/finance-webhook";
 import { sendRegistrationEmail } from "@/lib/registration-email";
 
 export const runtime = "nodejs";
@@ -103,6 +104,8 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     );
   }
+
+  triggerFinanceSyncWebhook("registration.create", { eventSlug: saved.eventSlug });
 
   const emailResult = await sendRegistrationEmail(saved);
   if (!emailResult.ok) {

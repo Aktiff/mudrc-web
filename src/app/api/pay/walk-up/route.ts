@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { PAY_MOCK_MODE } from "@/lib/pay-config";
 import { resolvePayQuiz } from "@/lib/pay-events";
+import { triggerFinanceSyncWebhook } from "@/lib/finance-webhook";
 import { createAndPayWalkUp } from "@/lib/pay-storage";
 
 export const runtime = "nodejs";
@@ -41,6 +42,9 @@ export async function POST(req: NextRequest) {
       email: email || undefined,
       phone: phone || undefined,
     });
+    if (!team.mock) {
+      triggerFinanceSyncWebhook("registration.create", { eventSlug: team.eventSlug });
+    }
     return NextResponse.json({
       ok: true,
       mock: true,

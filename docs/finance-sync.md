@@ -1,16 +1,17 @@
-# Finance Sync (`GET /api/finance/expected-incomes`)
+# Finance Sync (`fin.mudrc.sk`)
 
-Read-only JSON feed used by `fin.mudrc.sk` to pull expected quiz entry revenues from `mudrc.sk` without exposing PII or admin write credentials.
+Read-only JSON feed (`GET /api/finance/expected-incomes`) and fire-and-forget webhook ping used to keep expected quiz entry revenues on `fin.mudrc.sk` automatically in sync with `mudrc.sk` without exposing PII or admin write credentials.
 
-## Environment Variable (Vercel)
+## Environment Variables (Vercel)
 
-Set the following variable in the `mudrc-web` Vercel project (**Settings → Environment Variables**) and redeploy:
+Set the following variables in the `mudrc-web` Vercel project (**Settings → Environment Variables**) and redeploy:
 
 | Variable | Required | Scope | Notes |
 |----------|----------|-------|-------|
 | `FINANCE_SYNC_TOKEN` | Yes | Production (and Preview if testing preview deploys) | High-entropy random secret (e.g. 32-byte hex). Must match `mudrc_sync_token` in `fin.mudrc.sk` `config.local.php`. **Never commit the token to git.** |
+| `FINANCE_WEBHOOK_URL` | No | Production | Optional override for the webhook ping URL. Defaults to `https://fin.mudrc.sk/api/mudrc-sync.php`. Set to `off` / `disabled` to temporarily pause outbound pings. |
 
-If `FINANCE_SYNC_TOKEN` is unset or empty, the endpoint returns `503 Service Unavailable`.
+If `FINANCE_SYNC_TOKEN` is unset or empty, `GET /api/finance/expected-incomes` returns `503 Service Unavailable` and outbound webhook pings are skipped.
 
 ## Endpoint
 
@@ -65,6 +66,27 @@ If `FINANCE_SYNC_TOKEN` is unset or empty, the endpoint returns `503 Service Una
   "recent_played": []
 }
 ```
+
+## Automatic Webhook Ping (Mudrc → Fin)
+
+After every successful registration mutation on `mudrc.sk`, `triggerFinanceSyncWebhook()` (`src/lib/finance-webhook.ts`) sends an asynchronous, fire-and-forget `POST` ping so `fin.mudrc.sk` immediately pulls the latest `/api/finance/expected-incomes` snapshot:
+
+- **Target:** `POST https://fin.mudrc.sk/api/mudrc-sync.php` (overridable via `FINANCE_WEBHOOK_URL`)
+- **Auth:** `Authorization: Bearer <FINANCE_SYNC_TOKEN>`
+- **Body (zero PII):** `{"source":"mudrc-web","reason":"registration.create|update|delete|cancel","triggered_at":"<ISO-8601>"}`
+- **Non-blocking:** Attached to Vercel's `waitUntil` request context (`Symbol.for("@vercel/request-context")`) when running on Vercel, with an 8 s `AbortSignal.timeout`. Errors and timeouts are logged only and never fail or delay registrations.
+- **No sync logic on Vercel:** `mudrc.sk` only sends the ping; `fin.mudrc.sk` pulls `/api/finance/expected-incomes` and runs `mudrc_sync_apply()` itself.
+
+### Routes that trigger the ping
+
+- `POST /api/register` — public registration create/overwrite (`registration.create`)
+- `POST /api/admin/registrations` — admin manual registration create/overwrite (`registration.create`)
+- `PATCH /api/admin/registrations` — admin player count or quiz date update (`registration.update`)
+- `DELETE /api/admin/registrations` — admin single delete/cancel, batch `ids`, or bulk `slug`/`venue` delete (`registration.delete` / `registration.cancel`)
+- `DELETE /api/admin/events/[slug]` — when deleting a venue purges stored registrations (`registration.delete`)
+- `POST /api/pay/register`, `POST /api/pay/add-seat`, `POST /api/pay/walk-up` — guarded behind `!team.mock` (no pings while `PAY_MOCK_MODE` is enabled)
+
+Staging/test slugs (`test-platby-silvester`, `pay-staging-demo`) are skipped automatically.
 
 ## Verification
 

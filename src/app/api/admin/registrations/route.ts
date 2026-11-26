@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { isAdminRequest } from "@/lib/admin-session";
+import { triggerFinanceSyncWebhook } from "@/lib/finance-webhook";
 import { registrationOnTerm } from "@/lib/future-quizzes";
 import {
   isPayRegistrationId,
@@ -23,6 +24,7 @@ import {
   upsertRegistration,
 } from "@/lib/storage";
 
+export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const NO_STORE = { "Cache-Control": "private, no-store, max-age=0, must-revalidate" } as const;
@@ -100,6 +102,7 @@ export async function POST(req: NextRequest) {
     const upserted = await upsertRegistration(reg, {
       nearestDate: eventDate || termDate || undefined,
     });
+    triggerFinanceSyncWebhook("registration.create", { eventSlug: upserted.registration.eventSlug });
     return NextResponse.json({
       ok: true,
       registration: upserted.registration,
@@ -174,6 +177,7 @@ export async function PATCH(req: NextRequest) {
     if (!updated) {
       return NextResponse.json({ error: "Registrácia neexistuje" }, { status: 404 });
     }
+    triggerFinanceSyncWebhook("registration.update", { eventSlug: updated.eventSlug });
     return NextResponse.json({ ok: true, registration: updated });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Chyba pri ukladaní registrácie";
@@ -207,10 +211,12 @@ export async function DELETE(req: NextRequest) {
       if (payTeamId) {
         const cancelled = await cancelPayTeamById(payTeamId);
         if (!cancelled) return NextResponse.json({ error: "Predplatná rezervácia neexistuje" }, { status: 404 });
+        triggerFinanceSyncWebhook("registration.cancel", { eventSlug: cancelled.eventSlug });
         return NextResponse.json({ ok: true, removed: 1, id, source: "pay" });
       }
       const ok = await deleteRegistrationById(id);
       if (!ok) return NextResponse.json({ error: "Registrácia neexistuje" }, { status: 404 });
+      triggerFinanceSyncWebhook("registration.delete");
       return NextResponse.json({ ok: true, removed: 1, id });
     }
 
@@ -223,15 +229,22 @@ export async function DELETE(req: NextRequest) {
         classicIds.length > 0 ? deleteRegistrationsByIds(classicIds) : Promise.resolve(0),
         payTeamIds.length > 0 ? cancelPayTeamsByIds(payTeamIds) : Promise.resolve(0),
       ]);
+      const removed = removedClassic + removedPay;
+      if (removed > 0) {
+        triggerFinanceSyncWebhook("registration.delete");
+      }
       return NextResponse.json({
         ok: true,
-        removed: removedClassic + removedPay,
+        removed,
         ids: [...classicIds, ...payTeamIds.map((teamId) => `pay:${teamId}`)],
       });
     }
 
     if (slug || venue) {
       const removed = await deleteRegistrationsForEvent(slug ?? "", venue ?? undefined);
+      if (removed > 0) {
+        triggerFinanceSyncWebhook("registration.delete", { eventSlug: slug ?? undefined });
+      }
       return NextResponse.json({ ok: true, removed });
     }
 

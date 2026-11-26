@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { resolvePayQuiz } from "@/lib/pay-events";
+import { triggerFinanceSyncWebhook } from "@/lib/finance-webhook";
 import { getTeamByToken, addTeamSeat } from "@/lib/pay-storage";
 
 export const runtime = "nodejs";
@@ -37,6 +38,10 @@ export async function POST(req: NextRequest) {
   const result = await addTeamSeat(teamToken, quiz.maxPlayers, quiz.feeConfig);
   if ("error" in result) {
     return NextResponse.json({ error: result.error }, { status: result.status });
+  }
+
+  if (!result.team.mock) {
+    triggerFinanceSyncWebhook("registration.update", { eventSlug: result.team.eventSlug });
   }
 
   return NextResponse.json({

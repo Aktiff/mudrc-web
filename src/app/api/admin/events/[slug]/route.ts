@@ -3,6 +3,7 @@ import type { QuizEvent, LeagueEntry, PastResult } from "@/lib/data";
 import { sortLeagueTable } from "@/lib/data";
 import { requireOwnerSession } from "@/lib/admin-permissions";
 import { isExternalEvent, normalizeExternalUrl } from "@/lib/event-normalize";
+import { triggerFinanceSyncWebhook } from "@/lib/finance-webhook";
 import { rebuildLeagueFromPastResults } from "@/lib/league-rebuild";
 import { mergePastResults } from "@/lib/quiz-result-key";
 import { revalidatePublicEventPaths } from "@/lib/revalidate-public";
@@ -277,7 +278,7 @@ export async function DELETE(req: NextRequest, { params }: { params: { slug: str
     const event = events.find((entry) => entry.slug === params.slug);
     const venue = event?.venue ?? "";
 
-    await purgeRegistrationsForPlace(params.slug, venue);
+    const purgedRegistrations = await purgeRegistrationsForPlace(params.slug, venue);
     await deleteStoredQuizzesForEvent(params.slug);
     await deleteVenueTeamsForPlace(params.slug, venue);
     await deletePollDataForEvent(params.slug);
@@ -285,6 +286,9 @@ export async function DELETE(req: NextRequest, { params }: { params: { slug: str
     await deleteQuizDecksForEvent(params.slug);
     await updateEvents((list) => list.filter((entry) => entry.slug !== params.slug), { destructive: true });
     await revalidatePublicEventPaths(params.slug);
+    if (purgedRegistrations > 0) {
+      triggerFinanceSyncWebhook("registration.delete", { eventSlug: params.slug });
+    }
     return NextResponse.json({ ok: true });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Chyba pri mazani";

@@ -20,6 +20,7 @@ Card checkout is **mock only** (instant paid) — no Stripe yet.
 ### Finance sync (`fin.mudrc.sk`)
 
 - Read-only expected incomes endpoint: `GET /api/finance/expected-incomes` (`Authorization: Bearer <FINANCE_SYNC_TOKEN>`)
+- Automatic fire-and-forget webhook ping on registration changes (`POST https://fin.mudrc.sk/api/mudrc-sync.php`, optional `FINANCE_WEBHOOK_URL`)
 - Setup & Vercel env docs: [`docs/finance-sync.md`](docs/finance-sync.md)
 
 ## Learn More
