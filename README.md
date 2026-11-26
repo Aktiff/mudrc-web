@@ -17,6 +17,11 @@ Open [http://localhost:3000](http://localhost:3000).
 
 Card checkout is **mock only** (instant paid) — no Stripe yet.
 
+### Finance sync (`fin.mudrc.sk`)
+
+- Read-only expected incomes endpoint: `GET /api/finance/expected-incomes` (`Authorization: Bearer <FINANCE_SYNC_TOKEN>`)
+- Setup & Vercel env docs: [`docs/finance-sync.md`](docs/finance-sync.md)
+
 ## Learn More
 
 - [Next.js Documentation](https://nextjs.org/docs)

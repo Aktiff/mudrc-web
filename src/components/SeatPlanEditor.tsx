@@ -183,8 +183,11 @@ export default function SeatPlanEditor({ planId }: { planId: string }) {
     const params = new URLSearchParams();
     if (plan.eventSlug) params.set("slug", plan.eventSlug);
     if (plan.venue) params.set("venue", plan.venue);
-    fetch(`/api/register?${params}&_=${Date.now()}`, { cache: "no-store" })
-      .then((r) => r.json())
+    fetch(`/api/register?${params}&_=${Date.now()}`, {
+      cache: "no-store",
+      credentials: "same-origin",
+    })
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
       .then((d) => setRegistrations(d.registrations ?? []))
       .catch(() => setRegistrations([]));
   }, [plan?.eventSlug, plan?.venue]);

@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
+import { requireAdminSession } from "@/lib/admin-permissions";
 import {
   getStorageDiagnostics,
   hasPersistentStorage,
+  readAllEventsRaw,
   readEvents,
   readRegistrations,
   upsertRegistration,
@@ -11,10 +13,15 @@ import {
 import { isRegistrationOpen } from "@/lib/data";
 import { isExternalEvent } from "@/lib/event-normalize";
 import { findFutureQuiz, futureQuizMatchesDate } from "@/lib/future-quizzes";
+import { listGrantedEventSlugs } from "@/lib/moderator-grants";
 import { sendRegistrationEmail } from "@/lib/registration-email";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+const NO_STORE = {
+  "Cache-Control": "private, no-store, max-age=0, must-revalidate",
+} as const;
 
 export async function POST(req: NextRequest) {
   const { venue, eventSlug, teamName, players, phone, quizDate } = await req.json();
@@ -113,17 +120,49 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET(req: NextRequest) {
+  const sessionOrRes = requireAdminSession(req);
+  if (sessionOrRes instanceof NextResponse) {
+    sessionOrRes.headers.set("Cache-Control", NO_STORE["Cache-Control"]);
+    return sessionOrRes;
+  }
+  const session = sessionOrRes;
+
   const data = await readRegistrations();
-  const slug = req.nextUrl.searchParams.get("slug");
-  const venue = req.nextUrl.searchParams.get("venue");
+  const slug = req.nextUrl.searchParams.get("slug")?.trim() ?? "";
+  const venue = req.nextUrl.searchParams.get("venue")?.trim() ?? "";
+
+  let registrations = data.registrations;
+
+  if (session.role === "moderator") {
+    const allowedSlugs = new Set(await listGrantedEventSlugs(session.username));
+    if (slug && !allowedSlugs.has(slug)) {
+      return NextResponse.json(
+        { error: "Nemáš prístup k tejto udalosti." },
+        { status: 403, headers: NO_STORE }
+      );
+    }
+    const { events } = await readAllEventsRaw();
+    const allowedVenues = new Set(
+      events
+        .filter((event) => allowedSlugs.has(event.slug))
+        .map((event) => event.venue.trim().toLowerCase())
+        .filter(Boolean)
+    );
+    registrations = registrations
+      .filter((r) => {
+        if (r.eventSlug) return allowedSlugs.has(r.eventSlug);
+        return allowedVenues.has((r.venue ?? "").trim().toLowerCase());
+      })
+      .map((r) => ({ ...r, phone: "" }));
+  }
+
   if (slug || venue) {
-    return NextResponse.json({
-      registrations: data.registrations.filter((r) => {
-        if (slug && r.eventSlug === slug) return true;
-        if (venue && r.venue.toLowerCase() === venue.toLowerCase()) return true;
-        return false;
-      }),
+    registrations = registrations.filter((r) => {
+      if (slug && r.eventSlug === slug) return true;
+      if (venue && r.venue.toLowerCase() === venue.toLowerCase()) return true;
+      return false;
     });
   }
-  return NextResponse.json(data);
+
+  return NextResponse.json({ registrations }, { headers: NO_STORE });
 }
