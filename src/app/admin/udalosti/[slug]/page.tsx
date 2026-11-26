@@ -27,7 +27,7 @@ import { DEFAULT_QUIZ_TYPE, normalizeQuizTypeLabel, quizTypeFromLibraryTitle, qu
 import FacebookEventPostButton from "@/components/admin/FacebookEventPostButton";
 import FutureQuizPanel from "@/components/admin/FutureQuizPanel";
 import ModeratorGrantsPanel from "@/components/admin/ModeratorGrantsPanel";
-import { futureQuizMatchesDate, groupRegistrationsByTerm, nearestUpcomingNight, normalizeFutureQuizzes, registrationGroupsForTerm, registrationMoveTargets, registrationTermChoices } from "@/lib/future-quizzes";
+import { futureQuizMatchesDate, groupRegistrationsByTerm, nearestUpcomingNight, normalizeFutureQuizzes, registrationGroupsForTerm, registrationGroupsWithTeams, registrationMoveTargets, registrationTermChoices } from "@/lib/future-quizzes";
 import { RuleListEditor } from "@/components/admin/RuleListEditor";
 import { normalizeQuizRules } from "@/lib/quiz-rules";
 import {
@@ -507,6 +507,10 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
   const displayedRegistrationGroups = useMemo(
     () => [...visibleRegistrationGroups, ...strandedRegistrationGroups],
     [visibleRegistrationGroups, strandedRegistrationGroups]
+  );
+  const shareRegistrationGroups = useMemo(
+    () => registrationGroupsWithTeams(registrationGroups),
+    [registrationGroups]
   );
   const displayedRegistrationCount = useMemo(
     () => displayedRegistrationGroups.reduce((sum, group) => sum + group.registrations.length, 0),
@@ -2114,15 +2118,15 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
           </div>
           )}
 
-          {displayedRegistrationGroups.filter((group) => group.registrations.length > 0).map((group) => (
-            <RegistrationShareList
-              key={group.key}
-              venue={form.venue}
-              city={form.city}
-              whenLabel={group.title}
-              teams={group.registrations}
-            />
-          ))}
+          <RegistrationShareList
+            venue={form.venue}
+            city={form.city}
+            groups={shareRegistrationGroups.map((group) => ({
+              key: group.key,
+              whenLabel: group.title,
+              teams: group.registrations,
+            }))}
+          />
           {registrations.length > 0 && (
             <div className="flex flex-wrap items-center justify-between gap-3 mb-6 pb-6 border-b border-brand-border">
               <div className="text-brand-muted text-sm space-y-1">
@@ -2173,10 +2177,23 @@ export default function EditEventPage({ params }: { params: { slug: string } }) 
               {selectableOtherGroups.map((group) => {
                 const count = group.registrations.length;
                 const word = count === 1 ? "registrácia" : count < 5 ? "registrácie" : "registrácií";
+                const choice = termChoices.find((item) => futureQuizMatchesDate({ id: "", date: item.date }, group.date));
                 return (
                   <span key={group.key} className="block">
                     Na termíne <span className="font-semibold text-brand-text">{group.title}</span>{" "}
-                    {count === 1 ? "je" : "sú"} ešte {count} {word}.
+                    {count >= 2 && count <= 4 ? "sú" : "je"} ešte {count} {word}.
+                    {choice ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          regTermTouched.current = true;
+                          setNewRegTerm(choice.value);
+                        }}
+                        className="ml-2 font-semibold text-brand-orange-readable hover:underline"
+                      >
+                        Prepnúť termín
+                      </button>
+                    ) : null}
                   </span>
                 );
               })}
